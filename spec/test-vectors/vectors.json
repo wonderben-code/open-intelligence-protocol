@@ -1,7 +1,8 @@
 {
-  "spec_revision": "2026-10-30",
+  "spec_revision": "2026-10-31",
   "status": "draft",
   "note": "Keys derive from SHA-256('oip-test-vector:'+label). Never use these keys for anything real.",
+  "assumption": "Unless a case gives `seen` times, a verifier is taken to have obtained each proof at that proof's `created` time.",
   "keys": {
     "amina-control-0": {
       "seed_hex": "f9f2f8b1abb4fc761b6efe14995e6fd4783a1faf3d56c94695abbf0312dca02b",
@@ -14,6 +15,10 @@
     "amina-control-2": {
       "seed_hex": "e0a14076d892f39f75f59f1530acf86c6bd5594e392be8856ff64f6ee534362f",
       "multikey": "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+    },
+    "amina-control-3": {
+      "seed_hex": "3b8105c7d63a5e535126283955a7eeded86ed84ff3a3e97b0f30cb3501f8a66c",
+      "multikey": "z6MkfdR1VtpR9DFfEYbXhfBbWmgHaL5RSD2WYDRBYvrhPJcz"
     },
     "amina-phone": {
       "seed_hex": "fa8f3711d5a2f523d3507b4857f3dfad2a037080b12ad1e93a2454a35b143aa8",
@@ -63,6 +68,18 @@
       "seed_hex": "8ef605d33d4da55626d3df12211bb9913565824222087f6debb714acba2aab79",
       "multikey": "z6Mkfp1nPdhNyJGjr6zfbnHLLVsCpppmiaGDRhEYiYsNvcWv"
     },
+    "lexis-fork2-control-0": {
+      "seed_hex": "0e9bcdc74663640ecff42e96e929d35d1072678ab884c9d400ec03986e8ad0b1",
+      "multikey": "z6MkgHaryDZrULP1YskKStm1dXjocw3xrSmafbysTGdyjytW"
+    },
+    "lexis-fork2-control-1": {
+      "seed_hex": "dfcaf3d7de60e8f890dcc6dc321eaa0bca855b08e0337213e2a0c3160d1abfc6",
+      "multikey": "z6Mko5FxhsvrBQ9MNVqn27B4MTWWdq5oiNdLMhMevKvHEh5u"
+    },
+    "lexis-fork2-i1": {
+      "seed_hex": "839b66aaf63208d28b30fa7c3f04eb83fdb039c92f009eaf5c3a86ea6eddf172",
+      "multikey": "z6MkpPwCmXNDDQFSAERAgqR1rNnHiPssbctzLJLQtVthr8Gd"
+    },
     "researcher-control-0": {
       "seed_hex": "8d8c5e76e49398caa69fffb94b403a4efcad9944ba223f4706a8a73219cba9a5",
       "multikey": "z6MktYo4nmx48MqX4UbmrC2qM8kDZuPsRWHySJngzmtLrTWv"
@@ -74,119 +91,53 @@
     "researcher-ops": {
       "seed_hex": "8ce576d6603a4343e53bc52525b2e6ed52f3baa85b4dd326e39d1b8d3a6181d6",
       "multikey": "z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re"
+    },
+    "multi-control-0": {
+      "seed_hex": "e80c430d402b84387f169b1bb6a60924b5d83808cf03e2aeebf5c8cc216c8c02",
+      "multikey": "z6MkhGSJBFXD5crSJyJrd9HazqpgSgHwCRV3rzUGshXoSwEr"
+    },
+    "multi-next-1": {
+      "seed_hex": "aec987c275f338828fb3ca0689170cdc8b259858e8d9b824a1f437f587c3f8e1",
+      "multikey": "z6Mkmp9KKEVBqQWCfGxtvK1mBYNDT2FJhA9g1p8UpTMCWmjp"
+    },
+    "multi-next-2": {
+      "seed_hex": "1f023b5720643120ee91971b10d909777fd0a22749d8f5ba1ae20b5e0279de4b",
+      "multikey": "z6Mkhg5nGkeSXkDrW9AfSpWbF5KjRKNfsroCE1KC85AGkmoa"
+    },
+    "multi-next-3": {
+      "seed_hex": "e3adbb374e0b925386b95820ae2feb550b6d6a4bf56bdb3c733dd971468fcff1",
+      "multikey": "z6MkknCZFmRe5HnZPCnZqEawssaGvjb2CG3SJisATq1zdobb"
+    },
+    "multi-next-4": {
+      "seed_hex": "623c45d352a48a3e0e68d47aae2c993e92b2e0fa568f984630da0197da1c6d62",
+      "multikey": "z6Mkfuo9TLB1PUQqVjMWN5KP53RSvWfhkaHcaEpr6Ky9a5qL"
+    },
+    "multi-ops": {
+      "seed_hex": "d2653cd92506ffce5b10d8e84148a1494ae19be6e6a4a963471c91623ac0e045",
+      "multikey": "z6MkqSWDVLrJvyD4apQYdpUgV7CzBAvVySmn23FkrojQ3hmy"
+    },
+    "attacker-next": {
+      "seed_hex": "b30140ce94dc3a9224116f6cfede398e35e4a09de1095aa3a72ef5acf2ecc876",
+      "multikey": "z6Mkrmin9YmWigBmUnyF3Qq8FxVBZxTXs9yUGQj7TK2zEFgC"
+    },
+    "attacker": {
+      "seed_hex": "18a969547068cfc50cd195dc4eba08b0e6ff9683e12a4eec1a7d79fa55f65c14",
+      "multikey": "z6Mko3DSnmEi8gQ9nNaB8m3eBfr8SANAUrvYNcV2TbRFxLFj"
+    },
+    "zero-control-0": {
+      "seed_hex": "1aed0810c1b6a0e993fce7b32d5965700352281fd73bf5decd21a9233c55b67e",
+      "multikey": "z6MkwADW8W7VGuhkHXQ532Vbe1a1LjJ8WAiWfe8QaouZYkxj"
+    },
+    "zero-control-1": {
+      "seed_hex": "c39d69fe98973f6ea3aaf52858db1e920677113ad96784b35fdcfd94e7bbf1f1",
+      "multikey": "z6MkhaaRPWN28Uqs5ufQzYh4ykY3o5KkKdPDR6oZ8Nqw6oJ4"
+    },
+    "zero-control-2": {
+      "seed_hex": "84f0b6bc05ea922a72d7920ecd097d186372036e0022f3848a8b9043ff81965b",
+      "multikey": "z6MknnHbu7ktPvD3cD3sLXBX2ePuVPBYW3V4RXgoMBQCXb8s"
     }
   },
   "cases": {
-    "participant": {
-      "oip": "1",
-      "type": "Participant",
-      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
-      "created": "2026-10-30T09:40:00Z",
-      "name": "Lexis Translation Agent",
-      "kind": "agent",
-      "summary": "Legal translation between Swahili, English and French.",
-      "capabilities": [
-        {
-          "id": "translate-legal-sw-en",
-          "summary": "Translate Swahili commercial-law documents to and from English",
-          "tags": [
-            "oasf:natural_language_processing/translation",
-            "domain:legal/commercial",
-            "lang:sw",
-            "lang:en"
-          ],
-          "subject": "cap.nlp.translation.legal",
-          "inputs": [
-            "text/plain",
-            "application/pdf"
-          ],
-          "outputs": [
-            "text/markdown"
-          ]
-        }
-      ],
-      "actsFor": [
-        {
-          "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
-          "authority": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqplbggntaycjsuhwipogenl6jtokz4alfglnmbpngdgn6gmly4a5q"
-        }
-      ],
-      "proof": [
-        {
-          "type": "DataIntegrityProof",
-          "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
-          "proofPurpose": "assertionMethod",
-          "created": "2026-10-30T09:40:00Z",
-          "proofValue": "z3s3rm5mfGiEJAne72iqMWXKoTSbLJGhFyj7XATUyQ8CgvHj8t2XoCgdNmiU2XLzDSWFGH7uQTesCpTHoUaqKdNW8"
-        }
-      ]
-    },
-    "location": {
-      "oip": "1",
-      "type": "Location",
-      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
-      "seq": 1,
-      "created": "2026-10-30T10:05:00Z",
-      "ttl": 900,
-      "status": "active",
-      "endpoints": [
-        {
-          "binding": "https",
-          "url": "https://lexis.example/oip",
-          "instance": "i1",
-          "priority": 10
-        },
-        {
-          "binding": "wss",
-          "url": "wss://lexis.example/oip/ws",
-          "instance": "i1",
-          "priority": 20
-        },
-        {
-          "binding": "mailbox",
-          "url": "https://mailbox.example/oip/mbox/bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
-          "priority": 90
-        }
-      ],
-      "homes": [
-        "https://lexis.example"
-      ],
-      "participant": "bciqlpusayvpqy3fnst4zu52w2moilv66kffnoxb3ib4zvupawkpo5za",
-      "feed": {
-        "seq": 0,
-        "head": "bciqkcfclbptm3f6gtph6ml22uaybrc6lyfv6nbu6aed222f6gi3cemq"
-      },
-      "proof": [
-        {
-          "type": "DataIntegrityProof",
-          "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
-          "proofPurpose": "assertionMethod",
-          "created": "2026-10-30T10:05:00Z",
-          "proofValue": "z2RFDpitPrHdfEjvqGq2w7mMnitd1DYZ4jEM59ZUuni6NpsRTs5hM4o7afwqmZKYjZpBEFPbigxr6MypQMratsA9Q"
-        }
-      ]
-    },
-    "feed_entry": {
-      "oip": "1",
-      "type": "Entry",
-      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
-      "seq": 0,
-      "created": "2026-10-30T10:04:01Z",
-      "object": "bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq",
-      "objectType": "Offer",
-      "proof": [
-        {
-          "type": "DataIntegrityProof",
-          "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
-          "proofPurpose": "assertionMethod",
-          "created": "2026-10-30T10:04:01Z",
-          "proofValue": "z3LmkQf1YvSt1Joqz9pPpgwXEGJHDY9TDv1QLRHdoQycj3XTW7b6SiuKYGU77WFsqvU6u7aCJVSteKPr4fBPeoE7S"
-        }
-      ]
-    },
     "amina_log": [
       {
         "oip": "1",
@@ -266,7 +217,6 @@
         ]
       }
     ],
-    "amina": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
     "lexis_ltd_log": [
       {
         "oip": "1",
@@ -300,7 +250,6 @@
         ]
       }
     ],
-    "lexis_ltd": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
     "lexis_agent_log": [
       {
         "oip": "1",
@@ -343,7 +292,6 @@
         "seq": 1,
         "prev": "bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
         "created": "2026-10-30T09:11:00Z",
-        "child": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva",
         "controller": {
           "keys": [
             "z6MkuzvQPYe83ZVTWXzckWEdQbLudB79spyscfTbs7qGk2ou"
@@ -353,6 +301,7 @@
           ],
           "nextThreshold": 1
         },
+        "child": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva",
         "proof": [
           {
             "type": "DataIntegrityProof",
@@ -365,7 +314,6 @@
         ]
       }
     ],
-    "lexis_agent": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
     "lexis_fork_log": [
       {
         "oip": "1",
@@ -405,7 +353,45 @@
         ]
       }
     ],
-    "lexis_fork": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva",
+    "lexis_fork2_log": [
+      {
+        "oip": "1",
+        "type": "Genesis",
+        "kind": "agent",
+        "created": "2026-10-30T09:12:00Z",
+        "controller": {
+          "keys": [
+            "z6MkgHaryDZrULP1YskKStm1dXjocw3xrSmafbysTGdyjytW"
+          ],
+          "next": [
+            "bciqpnyidum56g4hnft4qxx7rf7qsbovuwchtfrstvbmembtxq4lljni"
+          ],
+          "nextThreshold": 1
+        },
+        "keys": [
+          {
+            "key": "z6MkpPwCmXNDDQFSAERAgqR1rNnHiPssbctzLJLQtVthr8Gd",
+            "label": "lexis-fork2-i1"
+          }
+        ],
+        "parents": [
+          {
+            "mind": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+            "at": "1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy"
+          }
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:key:z6MkgHaryDZrULP1YskKStm1dXjocw3xrSmafbysTGdyjytW#z6MkgHaryDZrULP1YskKStm1dXjocw3xrSmafbysTGdyjytW",
+            "proofPurpose": "capabilityInvocation",
+            "created": "2026-10-30T09:12:00Z",
+            "proofValue": "z5Smkr7xmQrQPQjEnxFsPAbpVjSnai4zE9cguhY6mUbZcrE9VMLWd2DLQRyUztKHZia3wjavnGxHtmi78uLMf5zDH"
+          }
+        ]
+      }
+    ],
     "researcher_log": [
       {
         "oip": "1",
@@ -439,7 +425,6 @@
         ]
       }
     ],
-    "researcher": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua",
     "collective_log": [
       {
         "oip": "1",
@@ -482,7 +467,77 @@
         ]
       }
     ],
-    "collective": "did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+    "multi_log": [
+      {
+        "oip": "1",
+        "type": "Genesis",
+        "kind": "institution",
+        "created": "2026-10-30T09:00:00Z",
+        "controller": {
+          "keys": [
+            "z6MkhGSJBFXD5crSJyJrd9HazqpgSgHwCRV3rzUGshXoSwEr"
+          ],
+          "next": [
+            "bciqgaxb77ahyso277rha7elk6h4mbxnihwycmobenjgzucq25tlacmy",
+            "bciqdtwozs5gnanosbkawvnvdnpqdrlkheetfpf5zhkpbpniayrxe7iq",
+            "bciqmtz5i7twf6itajbd3pbxgsorpgzesq5o4clewv5kqmndgsjnpdli"
+          ],
+          "nextThreshold": 2
+        },
+        "keys": [
+          {
+            "key": "z6MkqSWDVLrJvyD4apQYdpUgV7CzBAvVySmn23FkrojQ3hmy",
+            "label": "multi-ops"
+          }
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:key:z6MkhGSJBFXD5crSJyJrd9HazqpgSgHwCRV3rzUGshXoSwEr#z6MkhGSJBFXD5crSJyJrd9HazqpgSgHwCRV3rzUGshXoSwEr",
+            "proofPurpose": "capabilityInvocation",
+            "created": "2026-10-30T09:00:00Z",
+            "proofValue": "z23L3BHHNTksAsJqN9m8KbeXck1RJELMMDAbmBYjAg1HYgN4xUvic6fthvv5pz8WYF9oghLVd7SseymyXJEwsu1wK"
+          }
+        ]
+      },
+      {
+        "oip": "1",
+        "type": "Update",
+        "mind": "did:oip:bciqjafn3exoy4qpv6psmqxsbfex6ynylem2ua5zmij74se537ukiuea",
+        "seq": 1,
+        "prev": "bciqjafn3exoy4qpv6psmqxsbfex6ynylem2ua5zmij74se537ukiuea",
+        "created": "2026-10-30T09:06:00Z",
+        "controller": {
+          "keys": [
+            "z6Mkmp9KKEVBqQWCfGxtvK1mBYNDT2FJhA9g1p8UpTMCWmjp",
+            "z6Mkhg5nGkeSXkDrW9AfSpWbF5KjRKNfsroCE1KC85AGkmoa"
+          ],
+          "next": [
+            "bciqawaiuruww6ii2a7keti3gjvtpfyrjvtd6dk6pfemj3afxs3m234q"
+          ],
+          "nextThreshold": 1
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:key:z6Mkmp9KKEVBqQWCfGxtvK1mBYNDT2FJhA9g1p8UpTMCWmjp#z6Mkmp9KKEVBqQWCfGxtvK1mBYNDT2FJhA9g1p8UpTMCWmjp",
+            "proofPurpose": "capabilityInvocation",
+            "created": "2026-10-30T09:06:00Z",
+            "proofValue": "z4CSGtebuTHEYViZUBE3mduJThFBqH8M1FAxrncHek1ptg87br4gXHC4wrWwaTz9o9oRCf3vwW1bS4ucYrVcn4Ama"
+          },
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:key:z6Mkhg5nGkeSXkDrW9AfSpWbF5KjRKNfsroCE1KC85AGkmoa#z6Mkhg5nGkeSXkDrW9AfSpWbF5KjRKNfsroCE1KC85AGkmoa",
+            "proofPurpose": "capabilityInvocation",
+            "created": "2026-10-30T09:06:00Z",
+            "proofValue": "zPvB9LNozrcHVKtYL28Ja5gM6SZS2HGXd52Spow2WzoZEAfBBiNuVQNvWaULjj7JYxiBX9DA1HdVX3nTBD2ELLTB"
+          }
+        ]
+      }
+    ],
     "delegation": {
       "oip": "1",
       "type": "Delegation",
@@ -493,13 +548,18 @@
       "command": "/oip/sign/Commitment",
       "policy": [
         [
+          "==",
+          ".terms.price.currency",
+          "USD"
+        ],
+        [
           "<=",
           ".terms.price.amount",
           "500"
         ]
       ],
       "expires": "2026-11-30T09:30:00Z",
-      "nonce": "d1",
+      "nonce": "6c1f0e9d2b8a4735",
       "proof": [
         {
           "type": "DataIntegrityProof",
@@ -507,7 +567,45 @@
           "verificationMethod": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui?versionId=0-bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui#z6MkrJ5iuv1vt3zBMNK9TvCQv7EC1zXkgxmudpScJJmDJiHX",
           "proofPurpose": "capabilityDelegation",
           "created": "2026-10-30T09:30:00Z",
-          "proofValue": "z4WJMjWRfTDEP2xLVKPwkN3UaYpuYtM1AUsZK9BQhidqLFQyUrmRDPyQMpgDrceTxJf85aE5cRmNmsubpn2uL2Exi"
+          "proofValue": "z22mhfzb87p8SHtg1fzx9vLq5bTCxtdb3K8cBeT2gcfeVkAMNs8bTNEnHV462D1q8BVBBBMNbFbWNtF97zAUeqMyT"
+        }
+      ]
+    },
+    "delegation_sub": {
+      "oip": "1",
+      "type": "Delegation",
+      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+      "created": "2026-10-30T09:45:00Z",
+      "delegate": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva",
+      "subject": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+      "command": "/oip/sign/Commitment",
+      "policy": [
+        [
+          "==",
+          ".terms.price.currency",
+          "USD"
+        ],
+        [
+          "<=",
+          ".terms.price.amount",
+          "500"
+        ],
+        [
+          "<=",
+          ".terms.price.amount",
+          "200"
+        ]
+      ],
+      "expires": "2026-11-15T00:00:00Z",
+      "nonce": "9e4b2a7c1d3f5086",
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "proofPurpose": "capabilityDelegation",
+          "created": "2026-10-30T09:45:00Z",
+          "proofValue": "z2z7Z388oewkw2FxxifGwykuijomrNTGuNd8vVtLZaYD8kuaZYqtmvDn2rtYpp5oUkzDuvfxyxX8ryubbJ24xF28N"
         }
       ]
     },
@@ -601,8 +699,9 @@
         "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
         "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
       ],
+      "closesIntent": true,
       "authority": [
-        "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqplbggntaycjsuhwipogenl6jtokz4alfglnmbpngdgn6gmly4a5q"
+        "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
       ],
       "proof": [
         {
@@ -611,7 +710,7 @@
           "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:20:00Z",
-          "proofValue": "zh63BozwToy6GvKXZawB4npgYUPRemguUsH88qaTygGWzhcWehpUfWMdTTvErpQi9JWoV2d7BNQbs5XHo3mMNoY8"
+          "proofValue": "zgrukihgteEn9hVfLLcYtwEvgCnNVFkGPAqHoUK69b2qQsQ6AzQjjExwFMSL2fx4eJyxvXxCUT8FFmSk3S6UAw9n"
         }
       ]
     },
@@ -644,8 +743,9 @@
         "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
         "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
       ],
+      "closesIntent": true,
       "authority": [
-        "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqplbggntaycjsuhwipogenl6jtokz4alfglnmbpngdgn6gmly4a5q"
+        "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
       ],
       "proof": [
         {
@@ -654,7 +754,7 @@
           "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:20:00Z",
-          "proofValue": "zh63BozwToy6GvKXZawB4npgYUPRemguUsH88qaTygGWzhcWehpUfWMdTTvErpQi9JWoV2d7BNQbs5XHo3mMNoY8"
+          "proofValue": "zgrukihgteEn9hVfLLcYtwEvgCnNVFkGPAqHoUK69b2qQsQ6AzQjjExwFMSL2fx4eJyxvXxCUT8FFmSk3S6UAw9n"
         },
         {
           "type": "DataIntegrityProof",
@@ -662,7 +762,7 @@
           "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:22:00Z",
-          "proofValue": "z1jsqMMzMct7EciEgj9nKeNRrQcXBHTJoAFtAazXtCCWE7KzNNH8w9KHnLroFtR3WRPuMYZzFHssgNwKounQS6ka"
+          "proofValue": "zT7E8EwGc7gitBpcYeka25RQETJUw9xJpg6o4L9attuirbL8SnYT2aBdjfJPcxon399oPMe3CB8bmeQoeVLn68qp"
         }
       ]
     },
@@ -671,9 +771,9 @@
       "type": "Receipt",
       "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
       "created": "2026-11-01T17:40:00Z",
-      "about": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqfmsk5ubzzdzllb37udsopyjy2r6ambler7ehrfmeeaqmatuvwoua",
+      "about": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqejyh5njtnjtej47m5vjuqdeiwdfb7lx2oo7wkd5gxcwauo3vsvai",
       "outcome": "fulfilled",
-      "statement": "Translation received on time; payment sent.",
+      "statement": "Translation received on time.",
       "evidence": [
         {
           "kind": "uri",
@@ -688,7 +788,7 @@
           "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
           "proofPurpose": "assertionMethod",
           "created": "2026-11-01T17:40:00Z",
-          "proofValue": "z2wC74dtqHpmmi4mPcs2DmQNHFvR2gkmsPyGNG96oL6QAsmozqSsibEke2VXJUnU9mFUnYTLQgdLnGduovPkHjm7C"
+          "proofValue": "z5qh8mjox43TF6WK85Ece8WxWcpQLwCLHX6Tyg8gJwNtzn97WArQJAUn65qExXqNizXW5Tt1ZtAyoyxA7cxxcaXbg"
         }
       ]
     },
@@ -706,6 +806,11 @@
             {
               "command": "/oip/sign/Commitment",
               "policy": [
+                [
+                  "==",
+                  ".terms.price.currency",
+                  "USD"
+                ],
                 [
                   "<=",
                   ".terms.price.amount",
@@ -729,7 +834,7 @@
           "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T09:25:00Z",
-          "proofValue": "z4MeHEBeBYnQ3D1qy8S66wDWVDDcJyqVwCct6JkmPiyK65Vrn7wyqQUJvATB46ZfvCsVYtpoEZbPu134kkoVvpanJ"
+          "proofValue": "z2JGfUcPF677MBeBqDiW79i2h1PscDshfyCr49MDwgquRqVuHFBLs4TBF6xPUDnh28qhx1hAUzGKUWGoD7FVSgHhA"
         },
         {
           "type": "DataIntegrityProof",
@@ -737,7 +842,100 @@
           "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T09:25:00Z",
-          "proofValue": "z3VVww68fwTNycejxhmooAdHxcA1AY7r3qrPbjHq2GBhw41doRfo9XujBqxorNoJqRBKyg6feJ5eTtN8a46ab2tdE"
+          "proofValue": "z3rF6BbvpxwbnTBEnex3w8PAwMCRrJPwDztSdBXbcvGEqwdy6V7KE7p5aBp5DeY6n65bdiw7QdKAv97opfu9rGwJu"
+        }
+      ]
+    },
+    "commitment_by_steward": {
+      "oip": "1",
+      "type": "Commitment",
+      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+      "created": "2026-10-30T10:30:00Z",
+      "parties": [
+        {
+          "mind": "did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+          "role": "debtor",
+          "required": true
+        },
+        {
+          "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "role": "creditor",
+          "required": true
+        }
+      ],
+      "promise": "The Open Translation Cell will review the English translation of the lease by 2 Nov 2026 12:00 UTC for 300 USD.",
+      "terms": {
+        "deadline": "2026-11-02T12:00:00Z",
+        "price": {
+          "amount": "300",
+          "currency": "USD"
+        }
+      },
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T10:30:00Z",
+          "proofValue": "z454p36gXfUgxv84tvkanbtBpQvqDC3tH4GtCMms54Wfj5c5zU64Bcv4CqZKzCy29U4FDwWmK4KFcjUZepxRZhenc"
+        }
+      ]
+    },
+    "commitment_via_chain": {
+      "oip": "1",
+      "type": "Commitment",
+      "author": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva",
+      "created": "2026-10-30T11:00:00Z",
+      "parties": [
+        {
+          "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+          "role": "debtor",
+          "required": true
+        },
+        {
+          "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "role": "creditor",
+          "required": true
+        }
+      ],
+      "promise": "Lexis Ltd will produce a certified glossary for the lease by 3 Nov 2026 for 150 USD.",
+      "terms": {
+        "deadline": "2026-11-03T12:00:00Z",
+        "price": {
+          "amount": "150",
+          "currency": "USD"
+        }
+      },
+      "authority": [
+        "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq",
+        "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqg3rjjdofy2rwgoh2nqnzcd2gwhyhnngz7rxzhl6pnjjsxcvdwzgi"
+      ],
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva?versionId=0-bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva#z6Mkfp1nPdhNyJGjr6zfbnHLLVsCpppmiaGDRhEYiYsNvcWv",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T11:00:00Z",
+          "proofValue": "zXjXAD18U8sUBZ5xSoP8Y5XSVVSQToRGKaVyUnuMGfPqy97scZeUwHaYcMWeMKNs3KdKZDawJNapkfUVNG5nf6fs"
+        }
+      ]
+    },
+    "lineage": {
+      "oip": "1",
+      "type": "Lineage",
+      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+      "created": "2026-10-30T09:13:00Z",
+      "child": "did:oip:bciqbpvftfc624zhokqazc6grw5wt3v6236lwi2bbgdnspon43pl6rba",
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T09:13:00Z",
+          "proofValue": "z2vMTAwrqSPpJFkd4y2SpcXX8gJwBE9gHA9NGUsWKHL1n4hkqdmMh88bt9z4uwBZHyYWoFmYH9qDns14tSVs8HnzK"
         }
       ]
     },
@@ -748,7 +946,7 @@
         "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
         "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
       ],
-      "nonce": "s1",
+      "nonce": "5d2e8b1c9a7f4e30",
       "created": "2026-10-30T10:03:00Z"
     },
     "packet": {
@@ -760,42 +958,59 @@
       ],
       "created": "2026-10-30T10:04:05Z",
       "expires": "2026-10-30T22:00:00Z",
-      "nonce": "p1",
-      "session": "bciqc3er73obr2vygkxotrftlszcyxft3bd4zzm4vhhbvfz4ddksejiq",
+      "nonce": "a7f3c9e2b1d04f86",
+      "session": "bciqa3sa2tbotcf547qfzc67qop33nt37fvrafokk4oeo5bvtt277zxi",
       "seq": 0,
       "purpose": {
         "verb": "propose",
         "goal": "Offer to translate your lease"
       },
       "content": {
-        "mediaType": "application/oip+json",
-        "body": {
-          "oip": "1",
-          "type": "Offer",
-          "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
-          "created": "2026-10-30T10:04:00Z",
-          "expires": "2026-10-30T22:00:00Z",
-          "answers": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
-          "provides": "English translation of the lease, reviewed by a qualified lawyer.",
-          "terms": {
-            "summary": "120 USD, delivered by 1 Nov 18:00 UTC.",
-            "price": {
-              "amount": "120",
-              "currency": "USD"
-            },
-            "deliveryBy": "2026-11-01T18:00:00Z"
-          },
-          "proof": [
-            {
-              "type": "DataIntegrityProof",
-              "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
-              "proofPurpose": "assertionMethod",
-              "created": "2026-10-30T10:04:00Z",
-              "proofValue": "z4WLETt6K2b8rw4NYNqX4WtxfpLKEwyfPeu6xEiQx9ZsyuaoydXirPqbFdvEknys3BuaqjS8Wuiq428bVnk6sVTip"
+        "parts": [
+          {
+            "mediaType": "application/oip+json",
+            "body": {
+              "oip": "1",
+              "type": "Session",
+              "participants": [
+                "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
+              ],
+              "nonce": "5d2e8b1c9a7f4e30",
+              "created": "2026-10-30T10:03:00Z"
             }
-          ]
-        }
+          },
+          {
+            "mediaType": "application/oip+json",
+            "body": {
+              "oip": "1",
+              "type": "Offer",
+              "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+              "created": "2026-10-30T10:04:00Z",
+              "expires": "2026-10-30T22:00:00Z",
+              "answers": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+              "provides": "English translation of the lease, reviewed by a qualified lawyer.",
+              "terms": {
+                "summary": "120 USD, delivered by 1 Nov 18:00 UTC.",
+                "price": {
+                  "amount": "120",
+                  "currency": "USD"
+                },
+                "deliveryBy": "2026-11-01T18:00:00Z"
+              },
+              "proof": [
+                {
+                  "type": "DataIntegrityProof",
+                  "cryptosuite": "eddsa-jcs-2022",
+                  "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                  "proofPurpose": "assertionMethod",
+                  "created": "2026-10-30T10:04:00Z",
+                  "proofValue": "z4WLETt6K2b8rw4NYNqX4WtxfpLKEwyfPeu6xEiQx9ZsyuaoydXirPqbFdvEknys3BuaqjS8Wuiq428bVnk6sVTip"
+                }
+              ]
+            }
+          }
+        ]
       },
       "constraints": {
         "retention": "P30D",
@@ -810,21 +1025,213 @@
           "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:04:05Z",
-          "proofValue": "z4RUXL2BkrR3vLnUfFhu6Gt4mvdbc7XnXucpGwgH42UPJmu4CbpphiVSySdvq3yrRUg3rnZTBPmJKSdmk7AN3VwGn"
+          "proofValue": "z4NvSYU318TJNctey4P1vQykTEkCJkHqB4YRXa5Z5sTNCwvn7jjF5ADPAbAqkeg7YqD33QcmSLW6G9wVGtajc65VZ"
         }
       ]
     },
+    "participant": {
+      "oip": "1",
+      "type": "Participant",
+      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+      "created": "2026-10-30T09:40:00Z",
+      "name": "Lexis Translation Agent",
+      "kind": "agent",
+      "summary": "Legal translation between Swahili, English and French.",
+      "capabilities": [
+        {
+          "id": "translate-legal-sw-en",
+          "summary": "Translate Swahili commercial-law documents to and from English",
+          "tags": [
+            "oasf:natural_language_processing/translation",
+            "domain:legal/commercial",
+            "lang:sw",
+            "lang:en"
+          ],
+          "subject": "cap.nlp.translation.legal",
+          "inputs": [
+            "text/plain",
+            "application/pdf"
+          ],
+          "outputs": [
+            "text/markdown"
+          ]
+        }
+      ],
+      "actsFor": [
+        {
+          "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+          "authority": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+        }
+      ],
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T09:40:00Z",
+          "proofValue": "zQLSFBBAPZGgc9SXFEv41BrkPwdTMS7oeF6csALNXvWLrGVkXMf9N6Ut4eT3cUNzQkcpigwR51dGSLLD22VUL915"
+        }
+      ]
+    },
+    "location": {
+      "oip": "1",
+      "type": "Location",
+      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+      "seq": 1,
+      "created": "2026-10-30T10:05:00Z",
+      "ttl": 900,
+      "status": "active",
+      "endpoints": [
+        {
+          "binding": "https",
+          "url": "https://lexis.example/oip",
+          "instance": "i1",
+          "priority": 10
+        },
+        {
+          "binding": "wss",
+          "url": "wss://lexis.example/oip/ws",
+          "instance": "i1",
+          "priority": 20
+        },
+        {
+          "binding": "mailbox",
+          "url": "https://mailbox.example/oip/mbox/bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+          "priority": 90
+        }
+      ],
+      "homes": [
+        "https://lexis.example"
+      ],
+      "participant": "bciqeljjsyjpadmquy4x34d4noynlvr4w4k62un3kbgrfna4iqqpvmaq",
+      "feed": {
+        "seq": 0,
+        "head": "bciqadinharkyi6s35h3dz2xzloma4mz4qwa2gypqymfewh6ue5azuzy"
+      },
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T10:05:00Z",
+          "proofValue": "z4bdnrWoaAG1JRN7koF17uSiVw7hm1PXxmY43XMSvzmgjhZNJvsW9ufWxD945Vtp6gAMS8uHSsVyX5tnKZaLgJFpm"
+        }
+      ]
+    },
+    "feed_entry": {
+      "oip": "1",
+      "type": "Entry",
+      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+      "seq": 0,
+      "created": "2026-10-30T10:04:01Z",
+      "object": "bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq",
+      "objectType": "Offer",
+      "proofs": [
+        "sha256:f8269a23a7947cf1ff042140c8b5b232692a2df90eb336e4d4662b3a7e432c6b"
+      ],
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T10:04:01Z",
+          "proofValue": "z5LENRjhpptmWho7eVqXW99vQQUW7MXB4Xv63s2kSNRZ26hsKyhbVHEVAybcrMjNUEknn8RQinsDmTuE3PPFJKjcM"
+        }
+      ]
+    },
+    "amina": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+    "lexis_ltd": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+    "lexis_agent": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+    "lexis_fork": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva",
+    "lexis_fork2": "did:oip:bciqbpvftfc624zhokqazc6grw5wt3v6236lwi2bbgdnspon43pl6rba",
+    "researcher": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua",
+    "collective": "did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+    "multi": "did:oip:bciqjafn3exoy4qpv6psmqxsbfex6ynylem2ua5zmij74se537ukiuea",
+    "status": [
+      {
+        "of": "intent",
+        "at": "2026-10-30T12:00:00Z",
+        "records": [
+          "intent",
+          "commitment_accepted"
+        ],
+        "expect": "satisfied"
+      },
+      {
+        "of": "intent",
+        "at": "2026-10-30T12:00:00Z",
+        "records": [
+          "intent",
+          "commitment_proposed"
+        ],
+        "expect": "open"
+      },
+      {
+        "of": "offer",
+        "at": "2026-10-30T12:00:00Z",
+        "records": [
+          "offer",
+          "commitment_accepted"
+        ],
+        "expect": "open"
+      },
+      {
+        "of": "offer",
+        "at": "2026-10-31T12:00:00Z",
+        "records": [
+          "offer"
+        ],
+        "expect": "expired"
+      },
+      {
+        "of": "commitment_proposed",
+        "at": "2026-10-30T12:00:00Z",
+        "records": [
+          "commitment_proposed"
+        ],
+        "expect": "proposed"
+      },
+      {
+        "of": "commitment_accepted",
+        "at": "2026-10-31T12:00:00Z",
+        "records": [
+          "commitment_accepted"
+        ],
+        "expect": "accepted"
+      },
+      {
+        "of": "commitment_accepted",
+        "at": "2026-11-01T19:00:00Z",
+        "records": [
+          "commitment_accepted"
+        ],
+        "expect": "overdue"
+      },
+      {
+        "of": "commitment_accepted",
+        "at": "2026-11-01T19:00:00Z",
+        "records": [
+          "commitment_accepted",
+          "receipt"
+        ],
+        "expect": "fulfilled"
+      }
+    ],
     "content_ids": {
       "amina_genesis": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
       "amina_update": "bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i",
-      "delegation": "bciqplbggntaycjsuhwipogenl6jtokz4alfglnmbpngdgn6gmly4a5q",
+      "delegation": "bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq",
+      "delegation_sub": "bciqg3rjjdofy2rwgoh2nqnzcd2gwhyhnngz7rxzhl6pnjjsxcvdwzgi",
       "intent": "bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
       "offer": "bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq",
-      "commitment": "bciqfmsk5ubzzdzllb37udsopyjy2r6ambler7ehrfmeeaqmatuvwoua",
-      "receipt": "bciqnbtwf5uyihlywg77e7737eufetkspegn7tplhonqtk6ff2m2rguq",
-      "collective_charter": "bciqji3bslevgvqs57j6pz7hjbdzcyxv2kgmtojkydm7tmgdjiffgrsq",
-      "session": "bciqc3er73obr2vygkxotrftlszcyxft3bd4zzm4vhhbvfz4ddksejiq",
-      "packet": "bciqevzcstrkkht3ipb7al5iphzifohw7tpmkrxal2vlbnrwjmxj6hty"
+      "commitment": "bciqejyh5njtnjtej47m5vjuqdeiwdfb7lx2oo7wkd5gxcwauo3vsvai",
+      "receipt": "bciqjmoojvytkvsdzmctvajrteo46gt732zue3camm4ditjzoidkgvqq",
+      "collective_charter": "bciqbobjbipmchqsd3giydl5jt6xdtrgbgh76cl64knpqtlkqavnd6gq",
+      "session": "bciqa3sa2tbotcf547qfzc67qop33nt37fvrafokk4oeo5bvtt277zxi",
+      "packet": "bciqjgynbrkyqhilytz6tpsgo2d5u42obaklwfaunmd3ttrvmguzb5hy"
     },
     "jcs_example": {
       "input": {
@@ -837,5 +1244,1937 @@
       },
       "output": "{\"a\":[1,\"x\"],\"b\":2,\"é\":true}"
     }
-  }
+  },
+  "negative": [
+    {
+      "name": "threshold-duplicate-control-key",
+      "reason": "Thresholds count distinct keys: one key listed twice cannot meet a 2-of-3 nextThreshold.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "institution",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6MkhGSJBFXD5crSJyJrd9HazqpgSgHwCRV3rzUGshXoSwEr"
+            ],
+            "next": [
+              "bciqgaxb77ahyso277rha7elk6h4mbxnihwycmobenjgzucq25tlacmy",
+              "bciqdtwozs5gnanosbkawvnvdnpqdrlkheetfpf5zhkpbpniayrxe7iq",
+              "bciqmtz5i7twf6itajbd3pbxgsorpgzesq5o4clewv5kqmndgsjnpdli"
+            ],
+            "nextThreshold": 2
+          },
+          "keys": [
+            {
+              "key": "z6MkqSWDVLrJvyD4apQYdpUgV7CzBAvVySmn23FkrojQ3hmy",
+              "label": "multi-ops"
+            }
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6MkhGSJBFXD5crSJyJrd9HazqpgSgHwCRV3rzUGshXoSwEr#z6MkhGSJBFXD5crSJyJrd9HazqpgSgHwCRV3rzUGshXoSwEr",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z23L3BHHNTksAsJqN9m8KbeXck1RJELMMDAbmBYjAg1HYgN4xUvic6fthvv5pz8WYF9oghLVd7SseymyXJEwsu1wK"
+            }
+          ]
+        },
+        {
+          "oip": "1",
+          "type": "Update",
+          "mind": "did:oip:bciqjafn3exoy4qpv6psmqxsbfex6ynylem2ua5zmij74se537ukiuea",
+          "seq": 1,
+          "prev": "bciqjafn3exoy4qpv6psmqxsbfex6ynylem2ua5zmij74se537ukiuea",
+          "created": "2026-10-30T09:06:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkmp9KKEVBqQWCfGxtvK1mBYNDT2FJhA9g1p8UpTMCWmjp",
+              "z6Mkmp9KKEVBqQWCfGxtvK1mBYNDT2FJhA9g1p8UpTMCWmjp"
+            ],
+            "next": [
+              "bciqjbi6m22xgkuzuowcg74mxxbwluka5upe76o44uneq3ksnsdlbwoy"
+            ],
+            "nextThreshold": 1
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkmp9KKEVBqQWCfGxtvK1mBYNDT2FJhA9g1p8UpTMCWmjp#z6Mkmp9KKEVBqQWCfGxtvK1mBYNDT2FJhA9g1p8UpTMCWmjp",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:06:00Z",
+              "proofValue": "z4QyqrRvYmSaT6LcyvrJhswEwSWTcMdNnzoboha3tUwq4Atc2tUiVd7t7Kd5KjA21gpA1cc3errsCWj6vegKoK4wr"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pre-rotation-forged-update",
+      "reason": "Correctly signed by a key whose hash the previous event did not commit to in `next`; pre-rotation, not the signature, rejects it.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "human",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+            ],
+            "next": [
+              "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "label": "amina-phone"
+            }
+          ],
+          "agreement": [
+            {
+              "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+              "label": "main"
+            }
+          ],
+          "homes": [
+            "https://amina.example"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+            }
+          ]
+        },
+        {
+          "oip": "1",
+          "type": "Update",
+          "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "seq": 1,
+          "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "created": "2026-10-30T09:05:00Z",
+          "controller": {
+            "keys": [
+              "z6Mko3DSnmEi8gQ9nNaB8m3eBfr8SANAUrvYNcV2TbRFxLFj"
+            ],
+            "next": [
+              "bciqjbi6m22xgkuzuowcg74mxxbwluka5upe76o44uneq3ksnsdlbwoy"
+            ],
+            "nextThreshold": 1
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mko3DSnmEi8gQ9nNaB8m3eBfr8SANAUrvYNcV2TbRFxLFj#z6Mko3DSnmEi8gQ9nNaB8m3eBfr8SANAUrvYNcV2TbRFxLFj",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:05:00Z",
+              "proofValue": "z2j6YF6kFtHyU1w7nkWDJ3ZbnJ9eMNkMg8woaPx1AthNKP4AfXqomBefhWyQP2s2Qn3EcSa15krXRMoF8KYVgs3dH"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "next-threshold-zero",
+      "reason": "nextThreshold must be at least 1 and a majority of `next`.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "agent",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6MkwADW8W7VGuhkHXQ532Vbe1a1LjJ8WAiWfe8QaouZYkxj"
+            ],
+            "next": [
+              "bciqcycbery6k74eq5cmhh6p64ofnohfisczkwxhxbvonf4kwua5bnzy"
+            ],
+            "nextThreshold": 0
+          },
+          "keys": [],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6MkwADW8W7VGuhkHXQ532Vbe1a1LjJ8WAiWfe8QaouZYkxj#z6MkwADW8W7VGuhkHXQ532Vbe1a1LjJ8WAiWfe8QaouZYkxj",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "zLwJ48tyqcXhxkiTfA7rjN4JKfqnyAEznzdjJKukwNtR5h7ykUzPusBkhCJxvrNrGTkqvXbqKcyxUkANr6BYoHav"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "next-threshold-minority",
+      "reason": "nextThreshold 1 of 2 is not a majority of `next`.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "agent",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6MkwADW8W7VGuhkHXQ532Vbe1a1LjJ8WAiWfe8QaouZYkxj"
+            ],
+            "next": [
+              "bciqcycbery6k74eq5cmhh6p64ofnohfisczkwxhxbvonf4kwua5bnzy",
+              "bciqm3hft4i2eu5owgjg2kgvsrz65tacyve7b5ljoup5mivuktw2wywq"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6MkwADW8W7VGuhkHXQ532Vbe1a1LjJ8WAiWfe8QaouZYkxj#z6MkwADW8W7VGuhkHXQ532Vbe1a1LjJ8WAiWfe8QaouZYkxj",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z3tnYM7DPEiHeaFvayG5FvKJXskXMLqnjiUpukk9pxE7qghssxB8JhyyAyF3Yc7tvZYTzhgLYtupbNJdWQc9GY19r"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "collective-threshold-zero",
+      "reason": "A collective's threshold must be at least 1.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "collective",
+          "created": "2026-10-30T09:20:00Z",
+          "controller": {
+            "members": [
+              "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+              "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+            ],
+            "threshold": 0
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z2knaTFQKV1VKKnQf6QCZSv376UuAAM6DZfWwSZUAizQ1Us95cUSi6oHwgNgxoCvFkqwFVceX62wmFe1qs9hG5Bgw"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z2Y9aAtchZB5NrWm28fMhxsgDfTL4LmUM9kxycdZaKa9J564CjxQnTQwcKT6k9Pww9TQL2EijEM8zJY71WN8m7hev"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z47LD9YTtbCp6dusbLXg2qsMeSmPzgYKC11b9LeHWVBysr3MLnnFpEQntsePg2tEaW11n5WXU13yZbzbExkrqPGaY"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "collective-threshold-minority",
+      "reason": "Threshold 1 of 3 is not a majority, so two disjoint members could each sign conflicting events.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "collective",
+          "created": "2026-10-30T09:20:00Z",
+          "controller": {
+            "members": [
+              "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+              "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+            ],
+            "threshold": 1
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z2KX9R5gYEEPxAoNBkSLLPepvGWWJfCCsYTJ9UMps2jtTvLQk8bAZKtKiXEtnxPPEa1Y9FSXkSxwes694DzmXPnHC"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "zPY6weQ9V1LXCpSZqefQYD9RAZev431MqBJUQQ9zGwMpuic4gnS2GPNZDJDqDioKvtF1Z1M3zYoXHfXzJZdP3r7N"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z4eMFNaxLt2iV4ZeqqdERrhfBjnTh4Xxnk52NJDZWvE6ya6eJTWUCvVU3wx8CE9ZBbp279eg5CmkqRoWEAVd45oN3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "collective-genesis-missing-founder",
+      "reason": "Every founding member must sign the genesis.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "collective",
+          "created": "2026-10-30T09:20:00Z",
+          "controller": {
+            "members": [
+              "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+              "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+            ],
+            "threshold": 2
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z3uC8c2D4vjJoLVcJRv5DBEdTyWZKjFpJy4xQ9Bf7H5HCFqEfn1SeBAzVYFWUvHjyjqGLGppBEfUyye3Ue2RJyPZW"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z3SGz1p1eV8ky1XuCFiWgaio48UyCiGHcRYeQCTQs2UQegTkgsiuZ9Kwtoc8hkAzgSccgqpdQg93x1dsN965QFrHg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "event-after-retire",
+      "reason": "No event may follow a Retire, for collectives as for key-controlled minds.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "collective",
+          "created": "2026-10-30T09:20:00Z",
+          "controller": {
+            "members": [
+              "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+              "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+            ],
+            "threshold": 2
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z3uC8c2D4vjJoLVcJRv5DBEdTyWZKjFpJy4xQ9Bf7H5HCFqEfn1SeBAzVYFWUvHjyjqGLGppBEfUyye3Ue2RJyPZW"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z3SGz1p1eV8ky1XuCFiWgaio48UyCiGHcRYeQCTQs2UQegTkgsiuZ9Kwtoc8hkAzgSccgqpdQg93x1dsN965QFrHg"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z2Yi6qpqht2VE4UyTEBj59NsEsSsKJck9fWVfSwpVPpqxcBX3Axq69yvA9XZgah9Sw8xsEJuzEwaqM7YJ7poxpyg8"
+            }
+          ]
+        },
+        {
+          "oip": "1",
+          "type": "Retire",
+          "mind": "did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+          "seq": 1,
+          "prev": "bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+          "created": "2026-10-31T00:00:00Z",
+          "reason": "Work complete.",
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-31T00:00:00Z",
+              "proofValue": "z5uVMkh4NrmfpBNWeCBrwu565mLSZyXdJpNpYNeSEbY6eioV7QPXBvuripoS6gbsPfhubcJWRGHCPu9jntSvSjpLR"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-31T00:00:00Z",
+              "proofValue": "z5GKSNcZjgUcMmj4n199vbTtR8Rsu8rS8trZtKmZbjPdvKLz8dXjAyTjxPUCBUb1E3s71qRiaX4GH5zAADjtq1Vb5"
+            }
+          ]
+        },
+        {
+          "oip": "1",
+          "type": "Update",
+          "mind": "did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+          "seq": 2,
+          "prev": "bciqdebulycvyssgfvt3qn4jt6y27bbu5faqwljqum2ucjijlzoxs35i",
+          "created": "2026-10-31T01:00:00Z",
+          "homes": [
+            "https://cell.example"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-31T01:00:00Z",
+              "proofValue": "z578TyE2tajY9o7md4RCJjJLpiCF1djw2wmAxNeg5iL1N2h4PXNGhLH43325Hs8EN1zW234YdoGh4pkRGEswoWpro"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-31T01:00:00Z",
+              "proofValue": "z5f7fRiH9ST72jsaKDJnjsjzpuuPfmcDkzVcmwNKYCmyCnzB47F5W1s5B2Zsk48hg9tA45WmNuzkR3S9YFBrxUtcg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "merge-reserved",
+      "reason": "Merge is reserved; a verifier of this revision rejects a log containing it.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "human",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+            ],
+            "next": [
+              "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "label": "amina-phone"
+            }
+          ],
+          "agreement": [
+            {
+              "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+              "label": "main"
+            }
+          ],
+          "homes": [
+            "https://amina.example"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+            }
+          ]
+        },
+        {
+          "oip": "1",
+          "type": "Merge",
+          "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "seq": 1,
+          "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "created": "2026-10-30T09:05:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+            ],
+            "next": [
+              "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+            ],
+            "nextThreshold": 1
+          },
+          "child": "did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+          "retire": false,
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:05:00Z",
+              "proofValue": "zGshjQevot6uGJbzz4YFAZfGv2kwm67i7Rzjhmc5H997e7EsAf9S1J6VadLteZb25XXEJUuJaS4PyMfjpmNWg1sq"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "recovery-reserved",
+      "reason": "`recovery` is a reserved member name; a verifier of this revision rejects an event containing it.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "human",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6MkwADW8W7VGuhkHXQ532Vbe1a1LjJ8WAiWfe8QaouZYkxj"
+            ],
+            "next": [
+              "bciqcycbery6k74eq5cmhh6p64ofnohfisczkwxhxbvonf4kwua5bnzy"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [],
+          "recovery": {
+            "keys": [
+              "bciqcycbery6k74eq5cmhh6p64ofnohfisczkwxhxbvonf4kwua5bnzy"
+            ]
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6MkwADW8W7VGuhkHXQ532Vbe1a1LjJ8WAiWfe8QaouZYkxj#z6MkwADW8W7VGuhkHXQ532Vbe1a1LjJ8WAiWfe8QaouZYkxj",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z3ZFYcUUEdR4RPc4AoptW1bM54JcUEp4UYK6MbgSnUiumWGJuLuXbZcFjqF41FhccQ6dVF3MMp5Vp7RYPeYrc7Jab"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "wrong-proof-purpose",
+      "reason": "An Intent needs an assertionMethod proof; an authentication proof does not count.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-10-30T10:00:00Z",
+        "expires": "2026-10-31T10:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+            "proofPurpose": "authentication",
+            "created": "2026-10-30T10:00:00Z",
+            "proofValue": "ztdMFSdSyLvVbQv8s2XeCbJxvQu5WUYLcD7dQ7vyWgkZ2UP51k5Bt5C7VDt3YLZH4TQNRwkdg9kDHEAg6bopBZw6"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
+    },
+    {
+      "name": "delegated-key-not-in-signers-log",
+      "reason": "The delegate's proof names a key that is not in the delegate's identity log (paper Appendix A.5, first draft).",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:20:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "120",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "authority": [
+          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6Mko3DSnmEi8gQ9nNaB8m3eBfr8SANAUrvYNcV2TbRFxLFj",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:20:00Z",
+            "proofValue": "z3Rwghsft9QzEX1uwhnkjfLSKSkZHqVrAtosZf19EeCN2dmcJ8ycWXcRp9EFKR8hy9yZATWA9bG25vDpxqEaSuSTA"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+    },
+    {
+      "name": "delegate-signs-delegation",
+      "reason": "Delegations are not delegable: a Delegation counts only when signed by its author's own authority, so a delegate cannot widen its own grant (and /oip/sign/Delegation is not a valid command).",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Delegation",
+        "author": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+        "created": "2026-10-30T09:30:00Z",
+        "delegate": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "subject": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+        "command": "/oip/sign/Commitment",
+        "policy": [],
+        "expires": "2027-10-30T09:30:00Z",
+        "nonce": "f00dfeedc0ffee11",
+        "authority": [
+          {
+            "oip": "1",
+            "type": "Delegation",
+            "author": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "created": "2026-10-30T09:31:00Z",
+            "delegate": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+            "subject": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "command": "/oip/sign/Delegation",
+            "policy": [],
+            "expires": "2026-11-30T09:30:00Z",
+            "nonce": "0d3a5c7e9b1f2468",
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui?versionId=0-bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui#z6MkrJ5iuv1vt3zBMNK9TvCQv7EC1zXkgxmudpScJJmDJiHX",
+                "proofPurpose": "capabilityDelegation",
+                "created": "2026-10-30T09:31:00Z",
+                "proofValue": "z32eQsAoxL5JrSKjH6LFNtnmxP7HyMEgtzsr2vf33WkaRRnWGwxx1Gm7wt65bvbjq6BdEqwjNAEEr7bZBZgavDwg9"
+              }
+            ]
+          }
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "capabilityDelegation",
+            "created": "2026-10-30T09:31:00Z",
+            "proofValue": "zAUa1xXLT6RzACPFP4SfbTkAEM8BKgQpfXgCP5w4ePefH8x7kmSD95q6fs7qHx3Q4xwXfe47aYBwVSFWXbkHJymd"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+    },
+    {
+      "name": "reserved-blanket-command",
+      "reason": "/oip is reserved: there are no blanket grants in this revision.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:20:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "120",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "authority": [
+          {
+            "oip": "1",
+            "type": "Delegation",
+            "author": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "created": "2026-10-30T09:32:00Z",
+            "delegate": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+            "subject": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "command": "/oip",
+            "policy": [],
+            "expires": "2026-11-30T09:30:00Z",
+            "nonce": "b1a2c3d4e5f60718",
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui?versionId=0-bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui#z6MkrJ5iuv1vt3zBMNK9TvCQv7EC1zXkgxmudpScJJmDJiHX",
+                "proofPurpose": "capabilityDelegation",
+                "created": "2026-10-30T09:32:00Z",
+                "proofValue": "z4xcuMrFxTcFmJJzb5BrDAj4Je8JVq7wLfF9avT6HNPbPSno1tackCcdGLTnxLqySyhQ5jn89TobRvyBHaxmx4D8a"
+              }
+            ]
+          }
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:20:00Z",
+            "proofValue": "z4bon6eBESbTDjCKmt3oyHVDyXXXKWoJ7WDeLEQiYmUxMo4nP8vTeURxrBYWrrmWDmyAm9Yz3x5xYoNeKBPvFdAMP"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+    },
+    {
+      "name": "policy-currency",
+      "reason": "The policy pins the currency as well as the amount.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:20:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "400",
+            "currency": "BTC"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "authority": [
+          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:20:00Z",
+            "proofValue": "z4tFSKpS21ubu1bcDghB3ubJzRAwwLjThqGm9p7F1FQdu3NtygueCChKobVTnfzwLgaYA7ZAYRMYPwQ7qCAGVQ4d3"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+    },
+    {
+      "name": "policy-negative-amount",
+      "reason": "Amounts are non-negative decimal strings.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:20:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "-900",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "authority": [
+          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:20:00Z",
+            "proofValue": "z4wHJqCwm8zUKzrzdur8Pg3QgCDXEnr374CrWrqUm1Ftko2TnXqJKSqB1txGUS1CkYTmRG8eC2KyuohBMQyEHFiih"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+    },
+    {
+      "name": "policy-not-decimal-commas",
+      "reason": "Ordering operators compare decimals only; '1,000,000' is not a decimal.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:20:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "1,000,000",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "authority": [
+          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:20:00Z",
+            "proofValue": "z4hTyVxpNRiDLk9YsXp4xNgqmMaQJ9NLBuTyupcLk5H7FGPPzhETvSbKtkrb1fyBZnGyKKr2weoe7uDZD6YfuGoge"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+    },
+    {
+      "name": "policy-not-decimal-exponent",
+      "reason": "'1e2' is not a decimal string.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:20:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "1e2",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "authority": [
+          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:20:00Z",
+            "proofValue": "z2yxNCC6XpT4BHJWguhAT63cne3WKeZ4nLz8doprvZ3ASVPygSBU6fEcZq5q3TobnpqofgJyaMKBYZBRtDAzmERqS"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+    },
+    {
+      "name": "policy-not-decimal-infinity",
+      "reason": "'-Infinity' is not a decimal string.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:20:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "-Infinity",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "authority": [
+          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:20:00Z",
+            "proofValue": "zsXiXPwiMFwenWAT3gVquwhaNo9ppHB7eY3E3qeqTGw8EaujGjGG4uoPQSg7f4Q3zvM99Z7k5dx7K3AHthaHp5P5"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+    },
+    {
+      "name": "policy-not-decimal-spaces",
+      "reason": "' 400 ' is not a decimal string.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:20:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": " 400 ",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "authority": [
+          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:20:00Z",
+            "proofValue": "z5iEf6WKgte95Gc9RhNP7p8oywj8PRM6fvQ9sPKSDv4deLfgtZT78y9FoPmShLgdQm8XAQmHzdP2XkdeX9zVQvNjU"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+    },
+    {
+      "name": "policy-not-decimal-fullwidth",
+      "reason": "Full-width digits are not decimal digits.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:20:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "４００",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "authority": [
+          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:20:00Z",
+            "proofValue": "zj3EDfbTZcJrH7Fbkw8siEbZpU41jGHbywzaNqYDWECJm8ZZiZhrd6GngGXMuCraqWB6YMZKPDMKT2dHjdokaqMf"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+    },
+    {
+      "name": "removed-key-backdated",
+      "reason": "Amina removed her phone key on 2 Nov. A record signed with it and dated 1 Nov, first seen on 3 Nov, is evaluated at 3 Nov.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-11-01T08:00:00Z",
+        "expires": "2026-11-08T08:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-11-01T08:00:00Z",
+            "proofValue": "z5XZ9WVvxA8kza28s2Fr8nYAvHZDG4N4hXWVgT9G5rF5D9EzWHPgXKhXqeFgc9wnqxaZLa3ucP7yL2w6ni74VvcPr"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z4vRRzFpLnRWfksMGLqoqVnWT1Q3aeuuJiRnVepPUThZdakg8jKHzCLBihJufVHDL8xPJ8NCQDWJjPU6KnYdARVTg"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 2,
+            "prev": "bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i",
+            "created": "2026-11-02T08:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+              ],
+              "next": [
+                "bciqlztaugk22rnawzs6glt6bxbmy2smcv7ptzvjqhe2z4lgfbrnyjvi"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-11-02T08:00:00Z",
+                "proofValue": "z4CGeY2S9AoUTeKifHWPaW4aCcFmSAZaENNCLTYXhQAkRe1W4NrAD9YJpGhv69EWNbm9WEtB4ZMSG58KgcrdGoi9U"
+              }
+            ]
+          }
+        ]
+      ],
+      "seen": {
+        "bciqg7yojv42bd2zluz2b7prinqbpmj2xksxic3tavdac42upx6dnzyq": "2026-11-03T08:00:00Z"
+      }
+    },
+    {
+      "name": "compromised-key-backdated",
+      "reason": "The phone key is compromised since 31 Oct 00:00. A record dated 30 Oct but first seen on 1 Nov is evaluated at 1 Nov.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-10-30T23:00:00Z",
+        "expires": "2026-10-31T10:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T23:00:00Z",
+            "proofValue": "z5p17NFokAEFokdeX4UsP47s7BF6ETSwGoAwsR27x5qhrzbCZs3qA5gh6PKUqD5FxBHUfrMBzqTNa8ikWx4r7BH9e"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z4vRRzFpLnRWfksMGLqoqVnWT1Q3aeuuJiRnVepPUThZdakg8jKHzCLBihJufVHDL8xPJ8NCQDWJjPU6KnYdARVTg"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 2,
+            "prev": "bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i",
+            "created": "2026-11-02T08:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+              ],
+              "next": [
+                "bciqlztaugk22rnawzs6glt6bxbmy2smcv7ptzvjqhe2z4lgfbrnyjvi"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "revoked": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "compromisedSince": "2026-10-31T00:00:00Z"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-11-02T08:00:00Z",
+                "proofValue": "z3P38q6vnnRoArhSjKkqdEvEphmNwXqv9F1cthUGSVa5CQyAdudSgS6sKRahPcY8vNxytwoWq9VvwzFRhiaBHVmRD"
+              }
+            ]
+          }
+        ]
+      ],
+      "seen": {
+        "bciqpra5cr7nr2j3sqxtfqrobjiizusfssa52pvzly7vm54lm6gmrxia": "2026-11-01T00:00:00Z"
+      }
+    },
+    {
+      "name": "expired-delegation-backdated",
+      "reason": "The delegation expires on 30 Nov. A commitment dated 29 Nov but first seen on 5 Dec is evaluated at 5 Dec.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-11-29T00:00:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "120",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "authority": [
+          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-11-29T00:00:00Z",
+            "proofValue": "z4Knq8UmxujvUHWTQt1Bvk9eeNXqg3a9mbtgDRpxaGKrH9RuSk5KdVtESS56nS73NMZZd2ydKE6m3ZgHdtsMks5Lq"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+      "seen": {
+        "bciqijj4u7n2bfc2mgrrhafaivettixarlhqusehjcm4t6uraamptfri": "2026-12-05T00:00:00Z"
+      }
+    },
+    {
+      "name": "revoked-delegation",
+      "reason": "The delegation was revoked on 10 Nov. A commitment dated 5 Nov but first seen on 12 Nov comes after the revocation.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-11-05T00:00:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "120",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "authority": [
+          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-11-05T00:00:00Z",
+            "proofValue": "z5Jg3nFHjmXmYot8uuwVcNzL9uP84sMqz3Ttworm96vpbUbkQFhFbwf5bPyaQ7RFmPewxAeYtvVars1khFBCQ1L7x"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+      "extraRecords": [
+        {
+          "oip": "1",
+          "type": "Revocation",
+          "author": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+          "created": "2026-11-10T00:00:00Z",
+          "revokes": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq",
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui?versionId=0-bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui#z6MkrJ5iuv1vt3zBMNK9TvCQv7EC1zXkgxmudpScJJmDJiHX",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-11-10T00:00:00Z",
+              "proofValue": "z2eNugrXavwE9JKdSome2sCZppzd1hQWC8zY3MXPKuntsXPmV8hGH2nHBJAb7ko2FrQEd72y68LnEppcF2qgRySFu"
+            }
+          ]
+        }
+      ],
+      "seen": {
+        "bciqol5kqyhq3sn2fduirgmqk7fdh4dfaht4xhs3l7tsi5e7oprtah3a": "2026-11-12T00:00:00Z"
+      }
+    },
+    {
+      "name": "removed-member-backdated",
+      "reason": "The researcher left the collective on 31 Oct. Its signature on a record dated 30 Oct but first seen on 1 Nov does not count, so the 2-of-2 threshold is not met.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+        "created": "2026-10-30T23:00:00Z",
+        "want": "Hire a second reviewer for Swahili leases.",
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T23:00:00Z",
+            "proofValue": "z5XWjGhuLVTkErcAABb7HzPH6zzXN1KDobq8g3SNAadiRhLBDY6LGA289gfE9fhtaiL6ZLsDUa4eyvfg4unNiZ6e8"
+          },
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T23:00:00Z",
+            "proofValue": "z4cPnt3W4UANLgBXH9Bo2BBwwdixQcs9hqAFmkVcbrGn9mGefpfsyr5aoNNqevZiwnnJgT1srjTg5ySjKBKsR41QY"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "collective",
+            "created": "2026-10-30T09:20:00Z",
+            "controller": {
+              "members": [
+                "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+                "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+              ],
+              "threshold": 2
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:20:00Z",
+                "proofValue": "z3uC8c2D4vjJoLVcJRv5DBEdTyWZKjFpJy4xQ9Bf7H5HCFqEfn1SeBAzVYFWUvHjyjqGLGppBEfUyye3Ue2RJyPZW"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:20:00Z",
+                "proofValue": "z3SGz1p1eV8ky1XuCFiWgaio48UyCiGHcRYeQCTQs2UQegTkgsiuZ9Kwtoc8hkAzgSccgqpdQg93x1dsN965QFrHg"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:20:00Z",
+                "proofValue": "z2Yi6qpqht2VE4UyTEBj59NsEsSsKJck9fWVfSwpVPpqxcBX3Axq69yvA9XZgah9Sw8xsEJuzEwaqM7YJ7poxpyg8"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+            "seq": 1,
+            "prev": "bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+            "created": "2026-10-31T00:00:00Z",
+            "controller": {
+              "members": [
+                "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+                "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi"
+              ],
+              "threshold": 2
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-31T00:00:00Z",
+                "proofValue": "zzWUv66LwfNtStzgVGsDUjP9QjQrhBAfMBcNsMiHTvWxQbiXcsy1NFd4hWu47ANdPLWvvVpWFRPuTTCooeEzqxNY"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-31T00:00:00Z",
+                "proofValue": "z3pzsKZKJr3QBjZKsmXyLr6nTa92hF1fTCurTGmN6Af1xorkQ4vY4YveVSVZpLbKBc3nQGB1SYgyB4B3iB9ZfZJAt"
+              }
+            ]
+          }
+        ]
+      ],
+      "seen": {
+        "bciqlg3bn24u257d37y7ay2zgsw2smnei7ke6szdlp2ueh3aeggrb5va": "2026-11-01T00:00:00Z"
+      }
+    },
+    {
+      "name": "proof-from-the-future",
+      "reason": "The proof claims a time more than 300 seconds after the evidence that it existed.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-10-30T10:00:00Z",
+        "expires": "2026-10-31T10:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:30:00Z",
+            "proofValue": "z4uGq2xhfqFzHV7XmjTw6tPCNBR8p9gbQbXNZ32LWhRfGfRSp25p92jdyC8LsKeBUCyJLB5xVSoeWGw299yX2qyNG"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "seen": {
+        "bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i": "2026-10-30T10:00:00Z"
+      }
+    },
+    {
+      "name": "outsider-closes-intent",
+      "reason": "Only a commitment that counts for the Intent's author can satisfy it; two other minds cannot close Amina's Intent.",
+      "kind": "status",
+      "of": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-10-30T10:00:00Z",
+        "expires": "2026-10-31T10:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:00:00Z",
+            "proofValue": "zryAqjpsGHasCvk3qKHUVqhnUTdH8Ezmoz613gccm9Keu518wsJRPYutjRc6fvU7kAd6FnoyMVV3aEsKQAXMf12d"
+          }
+        ]
+      },
+      "records": [
+        {
+          "oip": "1",
+          "type": "Intent",
+          "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "created": "2026-10-30T10:00:00Z",
+          "expires": "2026-10-31T10:00:00Z",
+          "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+          "constraints": {
+            "deadline": "2026-11-02T17:00:00Z",
+            "budget": {
+              "max": "150",
+              "currency": "USD"
+            }
+          },
+          "audience": {
+            "query": {
+              "tags": [
+                "lang:sw",
+                "lang:en",
+                "domain:legal/*"
+              ]
+            }
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T10:00:00Z",
+              "proofValue": "zryAqjpsGHasCvk3qKHUVqhnUTdH8Ezmoz613gccm9Keu518wsJRPYutjRc6fvU7kAd6FnoyMVV3aEsKQAXMf12d"
+            }
+          ]
+        },
+        {
+          "oip": "1",
+          "type": "Commitment",
+          "author": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua",
+          "created": "2026-10-30T11:00:00Z",
+          "parties": [
+            {
+              "mind": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua",
+              "role": "debtor",
+              "required": true
+            },
+            {
+              "mind": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva",
+              "role": "creditor",
+              "required": true
+            }
+          ],
+          "promise": "The researcher will translate a lease for the fork.",
+          "terms": {
+            "price": {
+              "amount": "1",
+              "currency": "USD"
+            }
+          },
+          "resolves": [
+            "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i"
+          ],
+          "closesIntent": true,
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T11:00:00Z",
+              "proofValue": "z5erKy922GZGhBoKcL7WpT1VZS5H11trAkL81VdGERo1Cmsy7edDPBnbDbUJ6ZC7uuHebmvoQMwg8cnmpwNoGUyv"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva?versionId=0-bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva#z6Mkfp1nPdhNyJGjr6zfbnHLLVsCpppmiaGDRhEYiYsNvcWv",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T11:00:00Z",
+              "proofValue": "z2UxDbF5ZED6XiNYQCMHrn4HRRoRcQknA5zm6rDAEStStygq3i1CrMKWWMnk3UT53zspNJmfdEogE8BNbGdxYETix"
+            }
+          ]
+        }
+      ],
+      "at": "2026-10-30T12:00:00Z",
+      "expect": "open"
+    },
+    {
+      "name": "packet-short-nonce",
+      "reason": "A packet nonce has 8 to 64 characters.",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "Packet",
+        "from": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "to": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
+        ],
+        "created": "2026-10-30T10:04:05Z",
+        "expires": "2026-10-30T22:00:00Z",
+        "nonce": "p1",
+        "session": "bciqa3sa2tbotcf547qfzc67qop33nt37fvrafokk4oeo5bvtt277zxi",
+        "seq": 0,
+        "purpose": {
+          "verb": "propose",
+          "goal": "Offer to translate your lease"
+        },
+        "content": {
+          "parts": [
+            {
+              "mediaType": "application/oip+json",
+              "body": {
+                "oip": "1",
+                "type": "Session",
+                "participants": [
+                  "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                  "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
+                ],
+                "nonce": "5d2e8b1c9a7f4e30",
+                "created": "2026-10-30T10:03:00Z"
+              }
+            },
+            {
+              "mediaType": "application/oip+json",
+              "body": {
+                "oip": "1",
+                "type": "Offer",
+                "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                "created": "2026-10-30T10:04:00Z",
+                "expires": "2026-10-30T22:00:00Z",
+                "answers": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+                "provides": "English translation of the lease, reviewed by a qualified lawyer.",
+                "terms": {
+                  "summary": "120 USD, delivered by 1 Nov 18:00 UTC.",
+                  "price": {
+                    "amount": "120",
+                    "currency": "USD"
+                  },
+                  "deliveryBy": "2026-11-01T18:00:00Z"
+                },
+                "proof": [
+                  {
+                    "type": "DataIntegrityProof",
+                    "cryptosuite": "eddsa-jcs-2022",
+                    "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                    "proofPurpose": "assertionMethod",
+                    "created": "2026-10-30T10:04:00Z",
+                    "proofValue": "z4WLETt6K2b8rw4NYNqX4WtxfpLKEwyfPeu6xEiQx9ZsyuaoydXirPqbFdvEknys3BuaqjS8Wuiq428bVnk6sVTip"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "constraints": {
+          "retention": "P30D",
+          "prohibitedUses": [
+            "train"
+          ]
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:04:05Z",
+            "proofValue": "z5EWzTdy4K3sHgXjjGC9yS5AnPP4GYJsE4SgB596jGGWC1eBQwqvyrArYR6M6torm4L9iWy2yJme9F1bbCqBRgjWr"
+          }
+        ]
+      }
+    }
+  ]
 }

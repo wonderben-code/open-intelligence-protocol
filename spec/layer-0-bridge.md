@@ -1,6 +1,6 @@
 # OIP Layer 0: the Bridge
 
-**Revision 2026-10-30 · Status: Draft · Licensed under CC BY 4.0**
+**Revision 2026-10-31 · Status: Draft · Licensed under CC BY 4.0**
 
 This document specifies how existing systems take part in OIP through gateways, and how OIP minds take part in existing systems. It depends on [core.md](core.md), [layer-1-mind-network.md](layer-1-mind-network.md) and [layer-2-mind-web.md](layer-2-mind-web.md). Rationale is in Section 7 of the [technical architecture paper](../papers/02-technical-architecture.md).
 
@@ -10,14 +10,16 @@ Sections 2–4 are normative for implementations claiming the Gateway profile fo
 
 1.1. A **gateway** is a key-controlled mind that represents an external system on the OIP network.
 
-1.2. For each external system it represents, a gateway creates a **bridged mind**: a key-controlled mind of kind `service` (or `human`, for people reached through a human gateway, Section 6) whose control and operational keys are held by the gateway. The bridged mind's Participant profile MUST include an extension block:
+1.2. For each external system it represents, a gateway creates a **bridged mind**: a key-controlled mind of kind `service` (or `human`, for people reached through a human gateway, Section 6) whose control and operational keys are held by the gateway. The bridged mind's `Genesis` and its Participant profile MUST both include an extension block:
 
 ```json
 "ext": { "oip.bridge": { "protocol": "mcp", "endpoint": "https://tools.example/mcp",
                          "gateway": "did:oip:<gateway>", "assurance": "bridged" } }
 ```
 
-1.3. **Assurance levels.** `native`: the mind holds its own keys (the default; never declared by a gateway). `bridged`: a gateway acts for the external system and attests what it observed. `claimed`: an assertion nobody has verified. A gateway MUST declare `bridged` for every mind it bridges. Verifiers cannot detect undeclared bridging from records alone; a gateway that omits the declaration misrepresents its minds and is accountable for doing so.
+and the `Genesis` MUST carry, in addition to its control-key proofs, a proof by a valid operational key of the gateway (`proofPurpose` `assertionMethod`). The gateway SHOULD also list each mind it bridges in its own feed.
+
+1.3. **Assurance levels.** `native`: no gateway has declared the mind bridged (the default). `bridged`: a gateway acts for the external system and attests what it observed; a verifier treats a mind as bridged by a gateway only if the gateway's proof on the bridged mind's `Genesis` is valid. `claimed`: an assertion nobody has verified, including an `oip.bridge` block without a valid gateway proof. A gateway MUST declare `bridged` for every mind it bridges. Verifiers cannot detect undeclared bridging from records alone, so `native` means only that no gateway has declared otherwise; a gateway that omits the declaration misrepresents its minds and is accountable for doing so.
 
 1.4. Records signed by a bridged mind are statements by the gateway about the external system. Receipts produced by a gateway MUST describe what the gateway observed (for example, "the MCP server returned this result") and MUST NOT claim more.
 
@@ -45,7 +47,7 @@ Sections 2–4 are normative for implementations claiming the Gateway profile fo
 | `oip_receipt` | Create and publish a Receipt |
 | `oip_status` | Compute the status of an Intent, Offer or Commitment |
 
-The server MUST keep signing keys outside the model's context, MUST present packet content to the model as untrusted data, and SHOULD require the human user's confirmation before signing a Commitment or a Delegation unless the user has configured a policy that permits it.
+The server MUST keep signing keys outside the model's context, MUST present packet content to the model as untrusted data, and SHOULD require the human user's confirmation before signing a Commitment or a Delegation unless the user has configured a policy that permits it. These rules matter because a packet cannot grant authority (Layer 1, Section 12.5) but its content can still try to persuade a model to use authority the model already holds.
 
 ## 3. A2A
 
@@ -63,7 +65,7 @@ The server MUST keep signing keys outside the model's context, MUST present pack
 | Artifact | Delivered content; evidence of kind `uri` or `hash` |
 | `contextId` | Session |
 
-3.2. **OIP minds as A2A agents.** A host MAY publish an A2A Agent Card for a mind it serves, generated from the mind's Participant profile (capabilities as skills), with an A2A interface endpoint that the host translates into OIP packets.
+3.2. **OIP minds as A2A agents.** A host MAY publish an A2A Agent Card for a mind it serves, generated from the mind's Participant profile (capabilities as skills, each capability's `summary` also serving as the skill's `name` where no shorter name exists), with an A2A interface endpoint that the host translates into OIP packets. A2A defines one well-known Agent Card per origin, so a host serving many minds publishes each card at a URL of its own and lists it in the mind's Participant `interfaces`. The Participant profile maps onto an Agent Card but is not a superset of one: the host supplies the card's version, interfaces and default modes.
 
 3.3. **OIP extension for A2A.** A2A messages MAY carry a complete OIP packet as a data part with media type `application/oip+json`. Agents supporting this declare the extension with the URI `https://github.com/wonderben-code/open-intelligence-protocol/blob/main/spec/layer-0-bridge.md#a2a-extension` in their Agent Card. The receiver verifies the packet under Layer 1, Section 12.4.
 
@@ -78,19 +80,21 @@ The server MUST keep signing keys outside the model's context, MUST present pack
 | A DNS name `example.com` (written `dns:example.com`) | A TXT record at `_oip.example.com` with value `did=<address>` |
 | An AT Protocol handle (`at://alice.example.com`) | The handle's DID listing the `did:oip` address in its `alsoKnownAs` |
 
+DIDs whose documents cannot carry `alsoKnownAs`, such as `did:key`, cannot point back and so cannot be verified aliases.
+
 4.2. Gateways and clients MUST verify aliases before displaying them as belonging to a mind.
 
 ## 5. HTTP APIs and the web (informative)
 
 - A gateway can describe an HTTP API from its OpenAPI document, mapping each operation to a capability with `ext["oip.openapi"]` holding the operation identifier.
 - NLWeb sites expose MCP endpoints and are bridged under Section 2.
-- Minds calling websites sign requests as in Layer 1, Section 13.3, following the IETF Web Bot Auth profile.
+- Minds calling ordinary websites sign requests under the IETF Web Bot Auth profile: RFC 9421 signatures whose `keyid` is the JWK thumbprint of an operational key, with a `Signature-Agent` header naming a key directory that lists that key. A mind's host can serve that directory from the mind's operational keys.
 
 ## 6. People (informative)
 
 - A human gateway reaches a person by email, SMS or a messaging service, renders packets as readable messages and converts replies into packets.
 - Accepting a Commitment, granting a Delegation or any other binding act requires an explicit confirmation from the person (for example, a single-use confirmation link), and the resulting records are `bridged`.
-- A person may take full control of their mind at any time through a custody handover: an `Update` signed by the gateway's committed control key that commits to the hash of the person's own key (Layer 1, Section 3.7). The address does not change.
+- A person may take full control of their mind at any time through a custody handover: an `Update` signed by the gateway's committed control key that commits to the hash of the person's own key (Layer 1, Section 3.7), and removes the operational keys the gateway held. The address does not change. Once the handover event has been witnessed (Layer 1, Section 7.4), the former custodian can no longer control the mind: it could only create duplicity, which the resolution rule decides against it.
 
 ## 7. OAuth and credentials (informative)
 

@@ -1,16 +1,16 @@
 # OIP Core: Records, Identifiers and Proofs
 
-**Revision 2026-10-30 · Status: Draft · Licensed under CC BY 4.0**
+**Revision 2026-10-31 · Status: Draft · Licensed under CC BY 4.0**
 
 This document defines what every OIP record has in common, at every layer. See [README.md](README.md) for conventions.
 
 ## 1. Records
 
-1.1. A **record** is a JSON object (RFC 8259), encoded as UTF-8, that is also an I-JSON message (RFC 7493): it MUST NOT contain duplicate member names, and every string MUST be valid Unicode (no unpaired surrogates).
+1.1. A **record** is a JSON object (RFC 8259), encoded as UTF-8, that is also an I-JSON message (RFC 7493): it MUST NOT contain duplicate member names, and every string MUST be valid Unicode (no unpaired surrogates). Receivers SHOULD reject records with duplicate member names. Content IDs and proofs cover the record as parsed, so a receiver that cannot detect duplicates may disagree with others about whether a record is valid, but never accepts a value its signer did not sign.
 
-1.2. The values permitted anywhere in a record are objects, arrays, strings, `true`, `false`, `null`, and numbers whose value is an integer `n` with −(2⁵³−1) ≤ `n` ≤ 2⁵³−1. A record containing a number with a fractional part, or outside that range, MUST be rejected. Producers MUST write integers without a fraction or exponent.
+1.2. The values permitted anywhere in a record are objects, arrays, strings, `true`, `false`, `null`, and numbers whose value is an integer `n` with −(2⁵³−1) ≤ `n` ≤ 2⁵³−1. A record containing a number whose value has a fractional part, or lies outside that range, MUST be rejected. Validity depends on a number's value, not on how it is written: `1.0` and `1e2` are the integers 1 and 100, which canonical form writes as `1` and `100`. Producers MUST write integers without a fraction or exponent.
 
-1.3. **Decimal quantities** (prices, amounts, scores) MUST be strings matching `^-?(0|[1-9][0-9]*)(\.[0-9]+)?$`. Wherever this specification compares two decimal strings, the comparison is numeric.
+1.3. **Decimal quantities** (prices, amounts, scores) MUST be strings matching `^-?(0|[1-9][0-9]*)(\.[0-9]+)?$`, using the ASCII digits only. **Amounts** (prices, budgets and other sums of money or assets) MUST be non-negative, matching `^(0|[1-9][0-9]*)(\.[0-9]+)?$`. Wherever this specification compares two decimal strings, the comparison is numeric. Ordering comparisons (less than, greater than) are defined only between decimals; a string that does not match the pattern is not a decimal, however it looks (`"1,000"`, `"1e2"`, `" 400 "`, `"-Infinity"` and full-width digits are not decimals).
 
 1.4. **Timestamps** MUST be RFC 3339 strings in UTC matching `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$`. Timestamps are compared as instants, never as strings.
 
@@ -36,7 +36,9 @@ contentId(r) = "b" + base32lower( 0x12 ‖ 0x20 ‖ SHA-256( JCS( r without memb
 
 `base32lower` is the RFC 4648 base32 alphabet in lower case without padding. The bytes `0x12 0x20` are the multihash prefix for a 32-byte SHA-256 digest, and `b` is the multibase prefix for lower-case base32.
 
-3.2. A content ID MUST match `^b[a-z2-7]{55}$` (56 characters). In this revision the multihash prefix MUST be `0x12 0x20`; content IDs with any other prefix MUST be rejected.
+3.2. A content ID MUST match `^b[a-z2-7]{55}$` (56 characters, lower case only). In this revision the multihash prefix MUST be `0x12 0x20`; content IDs with any other prefix MUST be rejected. A later revision that adds a hash function will change the length of content IDs as well as the prefix.
+
+An OIP content ID is a multibase-encoded multihash. It is not an IPFS CID: storing OIP records in a content-addressed store such as IPFS requires a mapping to a CIDv1, and the stored bytes (the canonical form without proofs) do not carry the record's proofs.
 
 3.3. The 32-byte digest inside a content ID equals the `transformedDocumentHash` of every `eddsa-jcs-2022` proof on the record (Section 5).
 
@@ -53,11 +55,13 @@ contentId(r) = "b" + base32lower( 0x12 ‖ 0x20 ‖ SHA-256( JCS( r without memb
 
 4.2. Implementations MUST check the prefix and length of every Multikey they use and reject any that do not match the expected type.
 
-4.3. Revision 2026-10-30 requires Ed25519 for signatures and X25519 for encryption. Other key types are reserved for later revisions.
+4.3. This revision requires Ed25519 for signatures and X25519 for encryption. Other key types are reserved for later revisions; adding one is a change to the verification rules, not only to the format, because verifiers of this revision reject proofs by keys of other types.
+
+4.4. **Ed25519 verification.** Every implementation MUST apply the same rule, so that all verifiers agree on which signatures are valid: verification follows RFC 8032 Section 5.1.7 with the equation [S]B = R + [k]A, and MUST reject a signature whose `S` is not less than the group order L, or whose `R` or public key `A` is not a canonical encoding or is a point of small order.
 
 ## 5. Proofs
 
-5.1. A signed record carries a member `proof` whose value MUST be a non-empty array of proof objects (a W3C Data Integrity *proof set*). Records that this specification defines as unsigned (such as `Bundle`, `Session` and `Sealed`) MUST NOT carry `proof`.
+5.1. A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 proof objects (a W3C Data Integrity *proof set*). Records that this specification defines as unsigned (such as `Bundle`, `Session` and `Sealed`) MUST NOT carry `proof`.
 
 5.2. Each proof object MUST conform to W3C Data Integrity 1.0 with the `eddsa-jcs-2022` cryptosuite, and MUST contain exactly these members, plus any optional members listed:
 
@@ -83,9 +87,9 @@ proofValue = "z" + base58btc( Ed25519-Sign(privateKey, hashData) )
 
 and append `options` plus `proofValue` to the record's `proof` array. Every proof in a set is computed over the record without its `proof` member, so proofs can be created in any order and merged by union.
 
-5.4. **Verifying a proof.** Remove `proofValue` from a copy of the proof to obtain `options`; check that `type` and `cryptosuite` have the required values; compute `hashData` as in 5.3; resolve the verification method to an Ed25519 public key (Section 6 and Layer 1, Section 6); and verify the signature under RFC 8032, rejecting non-canonical encodings.
+5.4. **Verifying a proof.** Check that the proof has exactly the members 5.2 allows; remove `proofValue` from a copy of the proof to obtain `options`; check that `type` and `cryptosuite` have the required values and that `proofPurpose` is the one 5.6 requires for the record's type; if the record has `@context`, check that the proof's `@context` has the same value; compute `hashData` as in 5.3; resolve the verification method to an Ed25519 public key (Section 6 and Layer 1, Section 6); and verify the signature as in 4.4.
 
-5.5. A record MAY carry proofs that are irrelevant to its validity. Each proof is evaluated independently; an invalid proof does not invalidate the record, but it never counts towards any requirement.
+5.5. A record MAY carry proofs that are irrelevant to its validity. Each proof is evaluated independently; an invalid proof does not invalidate the record, but it never counts towards any requirement. Because every proof covers only the record's content (5.3), one proof is never evidence that another proof existed.
 
 5.6. **Proof purposes.**
 
@@ -130,7 +134,7 @@ record-ref       = mind-address "/" content-id
 | `oip` | REQUIRED in every record. The string `"1"`. Records with any other value MUST be rejected. |
 | `type` | REQUIRED in every record. A record type defined by this specification or by a critical extension. |
 | `author` | The mind making a statement. Identity events use `mind` and packets use `from` instead. |
-| `created` | REQUIRED in every record except `Bundle` and `Sealed`. The author's claimed creation time. |
+| `created` | REQUIRED in every record except `Bundle` and `Sealed`. The author's claimed creation time: a claim, never evidence of when the record existed (Section 9). |
 | `expires` | OPTIONAL. After this instant the record is closed for any purpose that depends on it being open. |
 | `ext` | OPTIONAL. Extension blocks (Section 8). |
 | `critical` | OPTIONAL. Extension namespaces the reader must understand (Section 8). |
@@ -155,7 +159,27 @@ record-ref       = mind-address "/" content-id
 
 9.1. Implementations MUST tolerate clock skew of up to 300 seconds when checking whether a record is from the future, has expired or is fresh.
 
-9.2. `created` is self-asserted. Trusted time comes only from anchored checkpoints (Layer 1, Section 10).
+9.2. `created`, in a record or in a proof, is asserted by the signer. A signer holding a stolen, removed or expired key can write any `created` it likes, so no rule that protects anyone may depend on `created` alone.
+
+9.3. **Evaluation time.** Every rule that depends on when a proof was made (key removal and compromise, retirement, delegation `notBefore` and `expires`, revocation, collective membership and charter roles) is evaluated at the proof's **evaluation time**
+
+```
+t(p) = max( p.created, τ(p) )
+```
+
+where `τ(p)` is the earliest time for which the verifier holds evidence (9.4) that the proof existed. A verifier that holds no such evidence uses the time at which it first obtained the proof, so for a proof received live `t(p)` is the time of receipt. A proof whose `created` is more than 300 seconds after `τ(p)` MUST NOT count for anything.
+
+9.4. **Evidence that a proof existed** at time `t` is one of:
+1. the verifier's own record that it obtained the proof at `t`;
+2. the record of a witness the verifier chooses to trust, such as its resolver or indexer, that it first saw the proof at `t` (Layer 1, Section 17);
+3. an anchored checkpoint (Layer 1, Section 10) covering a feed entry that commits to the proof, where `t` is the anchor's time;
+4. an `Ack` (Layer 1, Section 13.2) covering a packet that carries the proof, signed by a recipient the verifier trusts for this purpose, where `t` is its `received` time.
+
+A proof's own `created` is never evidence, and neither is another proof on the same record (5.5).
+
+9.5. **Identity events** are statements by a mind's controllers about the mind itself. The times at which they remove keys, declare compromise, change membership or retire the mind are taken from their own `created` (Layer 1, Section 6). Controllers who backdate such an event repudiate records they made, which is attributable to them; it gives them no power they lack otherwise.
+
+9.6. **Consequence.** A verifier that first sees a record long after it was made can count its proofs only from that moment, unless evidence shows they existed earlier. To keep records verifiable after the keys that signed them are removed or a delegation expires, minds publish them in feeds whose checkpoints are anchored (Layer 1, Section 10).
 
 ## 10. Media type and errors
 
@@ -179,4 +203,4 @@ record-ref       = mind-address "/" content-id
 
 ## 11. Security considerations
 
-The security analysis of the protocol is in Section 8 of the technical architecture paper. Two rules from this document are essential: proofs are evaluated independently, so an attacker cannot invalidate a record by adding a bad proof; and unknown fields are preserved, so a record can never be altered silently by an implementation that does not understand part of it.
+The security analysis of the protocol is in Section 8 of the technical architecture paper. Three rules from this document are essential: proofs are evaluated independently, so an attacker cannot invalidate a record by adding a bad proof; unknown fields are preserved, so a record can never be altered silently by an implementation that does not understand part of it; and time rules use evidence rather than claims (Section 9), so a stolen or retired key cannot be used by writing an earlier date.

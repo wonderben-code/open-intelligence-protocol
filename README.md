@@ -6,7 +6,7 @@ The Open Intelligence Protocol is a free, open, layered protocol stack for coord
 
 Created by **Ekram Alam**, 30 October 2026.
 
-**Status:** specification revision 2026-10-30 (Draft). The reference implementation is being built from [BUILD.md](BUILD.md).
+**Status:** specification revision 2026-10-31 (Draft). The reference implementation is being built from [BUILD.md](BUILD.md).
 
 ## The stack
 

@@ -11,7 +11,7 @@ This is the brief for building the first reference implementation of the Open In
 
 ## 2. Goal
 
-A complete, well-tested, open-source TypeScript implementation of OIP revision 2026-10-30 that lets anyone, in minutes:
+A complete, well-tested, open-source TypeScript implementation of OIP revision 2026-10-31 that lets anyone, in minutes:
 
 - create a mind with a permanent `did:oip` address;
 - publish its location, profile and feed;

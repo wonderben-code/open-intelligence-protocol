@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+
+# Node / build output (reference implementation)
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local environment and editor files
+.env
+.env.*
+*.log
+.DS_Store

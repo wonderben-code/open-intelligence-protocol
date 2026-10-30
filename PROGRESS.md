@@ -2,7 +2,7 @@
 
 Live status of the Open Intelligence Protocol project, so any session can resume exactly where the last one stopped.
 
-**Last updated:** 30 October 2026, 12:10 (UTC+7)
+**Last updated:** 30 October 2026, 12:20 (UTC+7)
 
 ## Done (on `main`, Bitcoin-timestamped)
 
@@ -18,8 +18,9 @@ Live status of the Open Intelligence Protocol project, so any session can resume
 
 ## In progress
 
-- **Two independent reviews**, one of the technical paper and one of the specifications. Their findings are being written to [reviews/](reviews/) as they go.
-- **Next action:** apply the review findings to the paper, the specs and the test vectors together; record the changes in [spec/CHANGELOG.md](spec/CHANGELOG.md); regenerate and re-check the vectors; push.
+- **Paper review: complete and saved** in [reviews/2026-10-30-paper-review.md](reviews/2026-10-30-paper-review.md). Verdict: every value and the worked scenario check out; the security core needs six fixes (C1–C6: key check in delegated signing, distinct keys in thresholds, what a delegate may sign, policy comparisons, backdated timestamps, forked identity logs), plus clearer claims. Most fixes are clearer rules, not redesigns.
+- **Spec review: still running.** It writes to `reviews/2026-10-30-spec-review.md`; its independent checker and probes are saved in [reviews/spec-review-workfiles/](reviews/spec-review-workfiles/). If the session ends before it finishes, re-run a spec review against the fixed specs rather than waiting for it.
+- **Next action:** apply both reviews' findings to the paper, the specs and the test vectors together, on branch `review-fixes`; add negative test vectors; record the changes in [spec/CHANGELOG.md](spec/CHANGELOG.md); regenerate and re-check the vectors (with both `oip_vectors.py` and the reviewer's `indep_check.py`); merge to `main`.
 
 ## Fixes already identified (apply with the review fixes)
 

@@ -21,21 +21,26 @@ const instants = fc.bigInt({ min: 0n, max: 4_000_000_000_000_000_000n });
 
 describe(`${clause("core 9.3")} the evaluation time of a proof`, () => {
   it("is the later of the proof's date and the evidence that it existed", () => {
-    expect(proofTime(at(10), at(20))).toEqual({ ok: true, value: at(20) });
-    expect(proofTime(at(20), at(10))).toEqual({ ok: true, value: at(20) });
-    expect(proofTime(at(10), at(10))).toEqual({ ok: true, value: at(10) });
+    expect(proofTime(at(10), at(20))).toEqual({ ok: true, value: { seen: at(20), time: at(20) } });
+    expect(proofTime(at(20), at(10))).toEqual({ ok: true, value: { seen: at(10), time: at(20) } });
+    expect(proofTime(at(10), at(10))).toEqual({ ok: true, value: { seen: at(10), time: at(10) } });
     fc.assert(
       fc.property(instants, instants, (created, seen) => {
         const time = proofTime(created, seen);
         if (created > seen + CLOCK_SKEW) return !time.ok;
-        return time.ok && time.value >= created && time.value >= seen;
+        return (
+          time.ok &&
+          time.value.time >= created &&
+          time.value.time >= seen &&
+          time.value.seen === seen
+        );
       }),
     );
   });
 
   it(`${clause("core 9.1")} counts for nothing when dated more than 300 seconds after its evidence`, () => {
     expect(CLOCK_SKEW).toBe(300n * 1_000_000_000n);
-    expect(proofTime(at(300), at(0))).toEqual({ ok: true, value: at(300) });
+    expect(proofTime(at(300), at(0))).toEqual({ ok: true, value: { seen: at(0), time: at(300) } });
     expect(proofTime(at(300.000000001), at(0))).toMatchObject({
       ok: false,
       issues: [{ clause: "core 9.3" }],
@@ -52,10 +57,16 @@ describe(`${clause("core 9.3")} the evaluation time of a proof`, () => {
 
 describe(`${clause("core 9.5")} the evaluation time of an identity event`, () => {
   it("is the latest of its date, its evidence and the time of the event before it", () => {
-    expect(eventTime(at(10), at(20))).toEqual({ ok: true, value: at(20) });
-    expect(eventTime(at(20), at(10))).toEqual({ ok: true, value: at(20) });
-    expect(eventTime(at(10), at(20), at(30))).toEqual({ ok: true, value: at(30) });
-    expect(eventTime(at(10), at(20), at(15))).toEqual({ ok: true, value: at(20) });
+    expect(eventTime(at(10), at(20))).toEqual({ ok: true, value: { seen: at(20), time: at(20) } });
+    expect(eventTime(at(20), at(10))).toEqual({ ok: true, value: { seen: at(10), time: at(20) } });
+    expect(eventTime(at(10), at(20), at(30))).toEqual({
+      ok: true,
+      value: { seen: at(20), time: at(30) },
+    });
+    expect(eventTime(at(10), at(20), at(15))).toEqual({
+      ok: true,
+      value: { seen: at(20), time: at(20) },
+    });
     fc.assert(
       fc.property(
         instants,
@@ -66,10 +77,11 @@ describe(`${clause("core 9.5")} the evaluation time of an identity event`, () =>
           if (created > seen + CLOCK_SKEW) return !time.ok;
           return (
             time.ok &&
-            time.value >= created &&
-            time.value >= seen &&
-            (previous === undefined || time.value >= previous) &&
-            [created, seen, previous].includes(time.value)
+            time.value.seen === seen &&
+            time.value.time >= created &&
+            time.value.time >= seen &&
+            (previous === undefined || time.value.time >= previous) &&
+            [created, seen, previous].includes(time.value.time)
           );
         },
       ),

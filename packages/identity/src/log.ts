@@ -28,7 +28,7 @@ import {
   validateRecord,
 } from "@oip/schema";
 
-import { type EvidenceView, eventTime } from "./evidence.ts";
+import { type Evaluation, type EvidenceView, eventTime } from "./evidence.ts";
 import { isJsonObject, no, ok, under } from "./result.ts";
 import {
   type ControllerState,
@@ -103,18 +103,15 @@ function memberProof(
   proof: PlacedProof,
   mind: string,
   versionId: string,
-  when: Instant,
+  { seen, time: when }: Evaluation,
   context: LogContext,
 ): Validation<number> {
   const held = context.memberLog?.(mind) ?? no(`no identity log is held for ${mind}`, "L1 6.3");
   if (!held.ok) return held;
   const log = held.value;
-  // core 9.4 asks for the log as it stood no earlier than the evidence for the
-  // event. The event is judged at its evaluation time, which can be later, so
-  // the log must reach that far: a removal in between would decide it.
-  if (log.asOf < when) {
+  if (log.asOf < seen) {
     return no(
-      "the member's log was obtained before this event's evaluation time: it may lack a later event",
+      "the member's log was obtained before the evidence for this event: it may lack a later event",
       "core 9.4",
     );
   }
@@ -145,7 +142,7 @@ function memberProof(
 function memberSigners(
   proofs: readonly PlacedProof[],
   members: readonly string[],
-  when: Instant,
+  when: Evaluation,
   context: LogContext,
 ): MemberSigners {
   const signers = new Map<string, number>();
@@ -278,7 +275,7 @@ function found(
   id: string,
   created: Instant,
   proofs: readonly PlacedProof[],
-  when: Instant,
+  when: Evaluation,
   context: LogContext,
 ): Validation<Step> {
   if (event.type !== "Genesis") {
@@ -342,7 +339,7 @@ function extend(
   id: string,
   created: Instant,
   proofs: readonly PlacedProof[],
-  when: Instant,
+  when: Evaluation,
   context: LogContext,
 ): Validation<Step> {
   const path = `/${position}`;
@@ -513,7 +510,7 @@ function replay(events: readonly unknown[], context: LogContext): Validation<Ver
     const applied = applyFields(next.value.state, event, path);
     if (!applied.ok) return applied;
     step = { state: applied.value, height: next.value.height };
-    entries.push({ event, state: step.state, time: when });
+    entries.push({ event, state: step.state, time: when.time });
   }
   const [genesis, ...later] = entries;
   if (genesis === undefined || step === undefined) {

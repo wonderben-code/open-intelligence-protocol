@@ -287,6 +287,11 @@ describe(`${clause("core 9.3", "core 9.4")} a proof is judged at the time eviden
     // The log's own date is not the proof's: what matters is when the proof was first seen.
     expect(refusal(intent, bookSeeing([bea], [[intent, 400]], at(399)))).toBe("core 9.4");
     expect(refusal(intent, bookSeeing([bea], [[intent, 400]], at(400)))).toBe("it counts");
+    // A proof dated a little ahead of the clock that received it is judged at its
+    // date, and the log need only reach the moment it was received: a verifier
+    // can count it at once, whatever the signer's clock says.
+    expect(refusal(intent, bookSeeing([bea], [[intent, 50]], at(50)))).toBe("it counts");
+    expect(refusal(intent, bookSeeing([bea], [[intent, 50]], at(49)))).toBe("core 9.4");
   });
 });
 
@@ -427,6 +432,9 @@ describe(`${clause("L1 6.4")} a member's proof on another mind's identity event`
     expect(verdict(club, [a, b, c], {}, at(9))).toBe("core 9.4");
     expect(verdict(club, [a, b, c], {}, at(10))).toBe("verifies");
     expect(verdict(club, [a, b, c], { 0: 50 }, at(49))).toBe("core 9.4");
+    // Seen before its own date: the log need only reach the evidence.
+    expect(verdict(club, [a, b, c], { 0: 5 }, at(5))).toBe("verifies");
+    expect(verdict(club, [a, b, c], { 0: 5 }, at(4))).toBe("core 9.4");
   });
 });
 

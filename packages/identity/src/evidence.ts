@@ -27,6 +27,14 @@ export interface EvidenceView {
   eventSeen(contentId: string): Instant | undefined;
 }
 
+/** When a proof or an identity event existed, and when it takes effect. */
+export interface Evaluation {
+  /** `τ`: the earliest time for which evidence is held that it existed (core 9.4). */
+  readonly seen: Instant;
+  /** The evaluation time (core 9.3, 9.5): every rule about time is judged at it. */
+  readonly time: Instant;
+}
+
 const later = (a: Instant, b: Instant): Instant => (a > b ? a : b);
 
 /**
@@ -37,7 +45,7 @@ const later = (a: Instant, b: Instant): Instant => (a > b ? a : b);
  * @param created - The proof's own `created`.
  * @param seen - `τ(p)`: the earliest evidence that the proof existed.
  */
-export function proofTime(created: Instant, seen: Instant | undefined): Validation<Instant> {
+export function proofTime(created: Instant, seen: Instant | undefined): Validation<Evaluation> {
   if (seen === undefined) {
     return no("no evidence is held of when this proof existed", "core 9.4");
   }
@@ -47,7 +55,7 @@ export function proofTime(created: Instant, seen: Instant | undefined): Validati
       "core 9.3",
     );
   }
-  return ok(later(created, seen));
+  return ok({ seen, time: later(created, seen) });
 }
 
 /**
@@ -63,7 +71,7 @@ export function eventTime(
   created: Instant,
   seen: Instant | undefined,
   previous?: Instant,
-): Validation<Instant> {
+): Validation<Evaluation> {
   if (seen === undefined) {
     return no("no evidence is held of when this event existed", "core 9.5");
   }
@@ -74,7 +82,7 @@ export function eventTime(
     );
   }
   const time = later(created, seen);
-  return ok(previous === undefined ? time : later(time, previous));
+  return ok({ seen, time: previous === undefined ? time : later(time, previous) });
 }
 
 /**

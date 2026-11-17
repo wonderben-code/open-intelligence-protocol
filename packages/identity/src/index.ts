@@ -41,6 +41,7 @@ export {
 } from "./did.ts";
 export {
   earliestEvidence,
+  type Evaluation,
   eventTime,
   type EvidenceView,
   FirstSeen,

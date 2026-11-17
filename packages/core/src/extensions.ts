@@ -33,10 +33,10 @@ export function isNamespace(value: unknown): value is string {
  * as naming something nobody understands.
  */
 export function unsupportedCritical(
-  record: { readonly critical?: unknown },
+  record: Readonly<Record<string, unknown>>,
   understood: Iterable<string> = [],
 ): string[] {
-  const critical = record.critical;
+  const critical = record["critical"];
   if (critical === undefined) return [];
   if (!Array.isArray(critical)) return ["critical"];
   const known = new Set(understood);
@@ -50,7 +50,7 @@ export function unsupportedCritical(
 
 /** Whether the caller may act on a record: it understands every critical extension (core 8.3). */
 export function understandsCritical(
-  record: { readonly critical?: unknown },
+  record: Readonly<Record<string, unknown>>,
   understood: Iterable<string> = [],
 ): boolean {
   return unsupportedCritical(record, understood).length === 0;

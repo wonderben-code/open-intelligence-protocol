@@ -7,6 +7,17 @@
  * reach them by any name, by replacing them with traps while its code runs.
  */
 
+/** What a run may reach although it is ambient. */
+export interface AmbientAllowance {
+  /**
+   * Leave the platform's random number generator in place. The one use is
+   * signing: the signature library masks secret scalars with random values
+   * as a defence against side channels (ADR-0002). The signature itself does
+   * not depend on them, which its own test shows.
+   */
+  readonly randomness?: boolean;
+}
+
 /**
  * Runs `run` with the clock and the sources of randomness replaced by traps,
  * and throws if any was reached. `run` must be synchronous and should only
@@ -16,7 +27,7 @@
  * It reports a trap that was reached even if the code under test caught the
  * exception the trap threw.
  */
-export function withAmbientTrapped<T>(run: () => T): T {
+export function withAmbientTrapped<T>(run: () => T, allow: AmbientAllowance = {}): T {
   const reached: string[] = [];
   const trap = (name: string) => (): never => {
     reached.push(name);
@@ -41,8 +52,10 @@ export function withAmbientTrapped<T>(run: () => T): T {
   });
   Math.random = trap("Math.random()");
   performance.now = trap("performance.now()");
-  crypto.getRandomValues = trap("crypto.getRandomValues()");
-  crypto.randomUUID = trap("crypto.randomUUID()");
+  if (allow.randomness !== true) {
+    crypto.getRandomValues = trap("crypto.getRandomValues()");
+    crypto.randomUUID = trap("crypto.randomUUID()");
+  }
 
   try {
     return run();

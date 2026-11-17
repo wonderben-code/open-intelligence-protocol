@@ -334,9 +334,10 @@ class Parser {
     }
     const value = integerValue(negative, integer, fraction, exponent);
     if (value === undefined) {
+      const written = text.slice(start, Math.min(this.#at, start + 40));
       this.#at = start;
       this.#fail(
-        `the number ${text.slice(start, start + 40)} is not an integer between -(2^53-1) and 2^53-1; write decimal quantities as strings`,
+        `the number ${written} is not an integer between -(2^53-1) and 2^53-1; write decimal quantities as strings`,
         "core 1.2",
       );
     }
@@ -376,8 +377,10 @@ export function parseJson(text: string, options: ParseOptions = {}): Validation<
   try {
     return { ok: true, value: new Parser(text).parse() };
   } catch (error) {
-    if (error instanceof Rejected) return { ok: false, issues: [error.issue] };
-    throw error;
+    // Anything but a rejection is a fault in this parser, not in the text, and is not hidden.
+    /* v8 ignore next -- @preserve */
+    if (!(error instanceof Rejected)) throw error;
+    return { ok: false, issues: [error.issue] };
   }
 }
 

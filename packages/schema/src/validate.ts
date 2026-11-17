@@ -209,12 +209,14 @@ const COMMON_MEMBER_CLAUSE: Readonly<Record<string, string>> = {
  * The clause an error is about: the one that defines the value's syntax or
  * the common member at fault, and otherwise the one that defines the record.
  */
-function clauseOf(error: ValidatorError, defining: string): string {
+function clauseOf(error: ValidatorError, name: string, defining: string): string {
   const pattern = error.keyword === "pattern" ? error.params?.["pattern"] : undefined;
   if (typeof pattern === "string") {
     const clause = PATTERN_CLAUSE.get(pattern);
     if (clause !== undefined) return clause;
   }
+  // A proof has a `type` too, and core 5.2 defines it, not core 7.
+  if (name === "Proof") return defining;
   return COMMON_MEMBER_CLAUSE[error.instancePath] ?? defining;
 }
 
@@ -228,7 +230,7 @@ function schemaIssues(name: string, defining: string): Issue[] {
     .map((error) => ({
       path: error.instancePath,
       message: error.message ?? `does not match the ${name} schema`,
-      clause: clauseOf(error, defining),
+      clause: clauseOf(error, name, defining),
     }));
   // The deepest value at fault first: it is the most specific thing to fix.
   return issues.sort((a, b) => depthOf(b.path) - depthOf(a.path));

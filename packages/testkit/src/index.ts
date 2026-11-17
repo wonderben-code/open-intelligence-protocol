@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 import { repoRoot } from "./vectors.ts";
 
-export { withAmbientTrapped } from "./ambient.ts";
+export { type AmbientAllowance, withAmbientTrapped } from "./ambient.ts";
 export {
   AMINA,
   CID,

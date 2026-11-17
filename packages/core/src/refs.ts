@@ -3,7 +3,7 @@
 
 /** References (core Section 6): addresses, versions, key references and record references. */
 
-import { type JsonValue, patterns } from "@oip/schema";
+import { patterns } from "@oip/schema";
 
 import { contentId, isContentId } from "./content-id.ts";
 
@@ -188,7 +188,7 @@ export function formatRecordRef(mind: string, recordContentId: string): string {
  * the record's. The mind part is ignored. A value that is not a record-ref,
  * or a record that has no content ID, matches nothing.
  */
-export function recordRefMatches(ref: unknown, record: JsonValue | undefined): boolean {
+export function recordRefMatches(ref: unknown, record: unknown): boolean {
   const parsed = parseRecordRef(ref);
   if (parsed === undefined) return false;
   try {

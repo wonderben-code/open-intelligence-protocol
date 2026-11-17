@@ -104,7 +104,8 @@ export interface VerifiedLog {
 
 /** The state after the latest event. */
 export function latestState(log: VerifiedLog): IdentityState {
-  return (log.entries.at(-1) ?? log.entries[0]).state;
+  const [genesis, ...later] = log.entries;
+  return (later.at(-1) ?? genesis).state;
 }
 
 /**

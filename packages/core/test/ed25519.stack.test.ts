@@ -11,12 +11,11 @@
  * which is when the fault this guards against was found.
  */
 
-import { clause } from "@oip/testkit";
+import { clause, withStackSpent } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import { ed25519PublicKey, isEd25519PublicKey, signEd25519, verifyEd25519 } from "../src/index.ts";
 import { hasOrderL } from "../src/ed25519.ts";
-import { withStackSpent } from "./stack.ts";
 
 describe(`${clause("core 4.4")} a check that could not be finished`, () => {
   it("leaves no trace: a spent stack never marks an honest key as bad", () => {

@@ -4,7 +4,7 @@
 import { createHash } from "node:crypto";
 
 import { type Proof, UNSIGNED_RECORD_TYPES } from "@oip/schema";
-import { clause, copy, type JsonObject } from "@oip/testkit";
+import { clause, copy, type JsonObject, withStackSpent } from "@oip/testkit";
 import { base58 } from "@scure/base";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -39,7 +39,6 @@ import {
 } from "../src/index.ts";
 import { contentIdIfAny } from "../src/content-id.ts";
 import { craftSignature, expand, Point, smallOrderPoints, unreduced } from "./curve.ts";
-import { withStackSpent } from "./stack.ts";
 import { at, keys, log, named, negative, privateKeyOf, signedRecords } from "./vectors.ts";
 
 type AnyProof = Record<string, unknown>;

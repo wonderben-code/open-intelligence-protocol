@@ -15,6 +15,7 @@ import {
   type JsonObject,
   sampleRecords,
   withAmbientTrapped,
+  withStackSpent,
 } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -40,7 +41,6 @@ import {
   verifyProofs,
   withProofs,
 } from "../src/index.ts";
-import { withStackSpent } from "./stack.ts";
 import { log, named, negative, positiveVectorRecords, privateKeyOf } from "./vectors.ts";
 
 const utf8 = (text: string) => new TextEncoder().encode(text);

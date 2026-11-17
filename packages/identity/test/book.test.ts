@@ -219,6 +219,46 @@ describe(`${clause("L1 7.3")} resolving duplicity`, () => {
     });
   });
 
+  it("applies the earliest removal among the branches, whichever branch is held first", () => {
+    // One branch removes key 0 at 30, the other at 20.
+    const slow = new KeyMind("ada").update(20, { homes: [] }).update(30, { keys: [] });
+    const fast = new KeyMind("ada").update(20, { keys: [] });
+    const intent = slow.sign(intentBy(slow, 25), { position: 0 });
+    for (const order of [
+      [slow.events, fast.events],
+      [fast.events, slow.events],
+    ]) {
+      const { book, evidence } = bookOf(order);
+      expect(heads(book, slow.address).log.duplicitous).toBe(true);
+      evidence.sawProof(proofDigest(intent.proof[0]!), at(25));
+      const judged = judgeRecord(intent);
+      expect(judged.ok && ownSignedTime(judged.value, slow.address, book)).toBeUndefined();
+    }
+  });
+
+  it("applies the earliest compromise declaration among the branches", () => {
+    const key = new KeyMind("ada").operational().publicKey;
+    const late = new KeyMind("ada").update(20, { revoked: [{ key, compromisedSince: T(15) }] });
+    const early = new KeyMind("ada").update(20, { revoked: [{ key, compromisedSince: T(5) }] });
+    const none = new KeyMind("ada").update(20, { revoked: [{ key }] });
+    const intent = late.sign(intentBy(late, 10), { position: 0 });
+    for (const order of [
+      [late.events, early.events, none.events],
+      [none.events, early.events, late.events],
+      [early.events, none.events, late.events],
+    ]) {
+      const { book, evidence } = bookOf(order);
+      evidence.sawProof(proofDigest(intent.proof[0]!), at(10));
+      const judged = judgeRecord(intent);
+      expect(judged.ok && ownSignedTime(judged.value, late.address, book)).toBeUndefined();
+    }
+    // Without the early declaration, the proof at 10 stands: 15 is after it.
+    const { book, evidence } = bookOf([late.events, none.events]);
+    evidence.sawProof(proofDigest(intent.proof[0]!), at(10));
+    const judged = judgeRecord(intent);
+    expect(judged.ok && ownSignedTime(judged.value, late.address, book)).toBe(at(10));
+  });
+
   it("applies the compromise declarations of every branch", () => {
     const left = new KeyMind("ada");
     const key = left.operational().publicKey;

@@ -84,12 +84,6 @@ function controlSigners(proofs: readonly PlacedProof[]): Set<string> {
   return keys;
 }
 
-/** When an identity event existed: the earliest evidence of it, `τ(e)`, and its evaluation time (core 9.5). */
-interface Times {
-  readonly seen: Instant;
-  readonly when: Instant;
-}
-
 /** The members that signed an event, each with its height, and why the proofs of the others did not count. */
 interface MemberSigners {
   readonly signers: Map<string, number>;
@@ -109,15 +103,18 @@ function memberProof(
   proof: PlacedProof,
   mind: string,
   versionId: string,
-  { seen, when }: Times,
+  when: Instant,
   context: LogContext,
 ): Validation<number> {
   const held = context.memberLog?.(mind) ?? no(`no identity log is held for ${mind}`, "L1 6.3");
   if (!held.ok) return held;
   const log = held.value;
-  if (log.asOf < seen) {
+  // core 9.4 asks for the log as it stood no earlier than the evidence for the
+  // event. The event is judged at its evaluation time, which can be later, so
+  // the log must reach that far: a removal in between would decide it.
+  if (log.asOf < when) {
     return no(
-      "the member's log was obtained before the evidence for this event: it may lack a later event",
+      "the member's log was obtained before this event's evaluation time: it may lack a later event",
       "core 9.4",
     );
   }
@@ -148,7 +145,7 @@ function memberProof(
 function memberSigners(
   proofs: readonly PlacedProof[],
   members: readonly string[],
-  times: Times,
+  when: Instant,
   context: LogContext,
 ): MemberSigners {
   const signers = new Map<string, number>();
@@ -158,7 +155,7 @@ function memberSigners(
     if (method.kind !== "key" || !members.includes(method.mind) || signers.has(method.mind)) {
       continue;
     }
-    const counted = memberProof(proof, method.mind, method.versionId, times, context);
+    const counted = memberProof(proof, method.mind, method.versionId, when, context);
     if (counted.ok) {
       signers.set(method.mind, counted.value);
       refused.delete(method.mind);
@@ -234,17 +231,8 @@ function applyFields(
   const revoked = new Map(state.revoked);
   let left = { keys, invocation };
   if (event.type !== "Genesis" && event.revoked !== undefined) {
-    for (const [i, entry] of event.revoked.entries()) {
-      const stated =
-        (event.keys !== undefined && keys.includes(entry.key)) ||
-        (event.invocation !== undefined && invocation.includes(entry.key));
-      if (stated) {
-        return no(
-          `key ${entry.key} is revoked by this event and must not remain in its keys`,
-          "L1 4.5",
-          `${path}/revoked/${i}/key`,
-        );
-      }
+    // A key the event both revokes and keeps was refused with the event (Layer 1, 4.5).
+    for (const entry of event.revoked) {
       left = {
         keys: left.keys.filter((key) => key !== entry.key),
         invocation: left.invocation.filter((key) => key !== entry.key),
@@ -290,7 +278,7 @@ function found(
   id: string,
   created: Instant,
   proofs: readonly PlacedProof[],
-  times: Times,
+  when: Instant,
   context: LogContext,
 ): Validation<Step> {
   if (event.type !== "Genesis") {
@@ -300,11 +288,8 @@ function found(
   const controller = event.controller;
   let height = 0;
   if ("members" in controller) {
-    const own = controller.members.indexOf(mind);
-    if (own !== -1) {
-      return no("a mind is not a member of itself", "L1 3.4", `/0/controller/members/${own}`);
-    }
-    const { signers, refused } = memberSigners(proofs, controller.members, times, context);
+    // A genesis cannot list its own address, which is the hash of the genesis.
+    const { signers, refused } = memberSigners(proofs, controller.members, when, context);
     // The threshold is for later events: no mind is named a founder without its consent.
     const missing = controller.members.find((member) => !signers.has(member));
     if (missing !== undefined) return unsigned(missing, refused, "/0", "L1 4.1");
@@ -357,7 +342,7 @@ function extend(
   id: string,
   created: Instant,
   proofs: readonly PlacedProof[],
-  times: Times,
+  when: Instant,
   context: LogContext,
 ): Validation<Step> {
   const path = `/${position}`;
@@ -392,7 +377,7 @@ function extend(
     if (given !== undefined && !("members" in given)) {
       return no("a member-controlled mind stays member-controlled", "L1 3.4", `${path}/controller`);
     }
-    const { signers, refused } = memberSigners(proofs, state.controller.members, times, context);
+    const { signers, refused } = memberSigners(proofs, state.controller.members, when, context);
     if (signers.size < state.controller.threshold) {
       const [first] = refused.values();
       // A member's proof that was refused says more than the count does.
@@ -408,7 +393,7 @@ function extend(
     if (given !== undefined) {
       const current = state.controller.members;
       const joining = given.members.filter((member) => !current.includes(member));
-      const joined = memberSigners(proofs, joining, times, context);
+      const joined = memberSigners(proofs, joining, when, context);
       added = joined.signers;
       const missing = joining.find((member) => !added.has(member));
       if (missing !== undefined) return unsigned(missing, joined.refused, path, "L1 4.4");
@@ -517,16 +502,13 @@ function replay(events: readonly unknown[], context: LogContext): Validation<Ver
     const proofs = verifyProofs(event).verified;
     const created = parseTimestamp(event.created);
     if (created === undefined) return no("created is not a timestamp", "core 1.4", path);
-    const seen = context.evidence.eventSeen(id);
-    const time = eventTime(created, seen, entries.at(-1)?.time);
+    const time = eventTime(created, context.evidence.eventSeen(id), entries.at(-1)?.time);
     if (!time.ok) return under(path, time);
     const when = time.value;
-    // The evidence is at hand, or the event would have no evaluation time.
-    const times: Times = { seen: seen ?? when, when };
     const next: Validation<Step> =
       step === undefined
-        ? found(event, id, created, proofs, times, context)
-        : extend(step, event, i, id, created, proofs, times, context);
+        ? found(event, id, created, proofs, when, context)
+        : extend(step, event, i, id, created, proofs, when, context);
     if (!next.ok) return next;
     const applied = applyFields(next.value.state, event, path);
     if (!applied.ok) return applied;

@@ -3,7 +3,7 @@
 
 import { contentId, formatVersionId, keyHash, parseTimestamp } from "@oip/core";
 import type { Issue, Validation } from "@oip/schema";
-import { clause, copy, type JsonObject } from "@oip/testkit";
+import { clause, copy, type JsonObject, withStackSpent } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -890,6 +890,67 @@ describe(`${clause("L1 4.7")} nesting and work`, () => {
   });
 });
 
+describe(`${clause("L1 6.4", "L1 9.2", "L1 9.3")} the members' proofs on a collective's events`, () => {
+  const [a, b, c] = ["a", "b", "c"].map((name) => new KeyMind(name)) as [KeyMind, KeyMind, KeyMind];
+
+  it("refuses a proof pinned to a version the member's log does not have", () => {
+    const longer = new KeyMind("a").update(5);
+    const genesis = signEventSync(
+      draftGenesis(T(10), {
+        kind: "collective",
+        controller: { members: [a.address, b.address], threshold: 2 },
+      }),
+      [longer.asMember(), b.asMember()],
+    );
+    const book = bookOf([a, b]);
+    const context = {
+      evidence: witness([[genesis], longer.events, b.events]),
+      asOf: LATER,
+      memberLog: (member: string) => book.log(member),
+    };
+    expect(refusal(verifyLog([genesis], context))).toMatchObject({
+      clause: "L1 6.4",
+      path: "/0/proof/0",
+    });
+    const known = bookOf([longer, b]);
+    expect(verifyLog([genesis], { ...context, memberLog: (member) => known.log(member) }).ok).toBe(
+      true,
+    );
+  });
+
+  it("counts a member once, by its first proof that counts, and reports its first that does not", () => {
+    const club = new Collective("club", [a, b, c], 2);
+    const head = { mind: club.address, seq: 0, head: contentId(club.events[0]) };
+    const operational = {
+      member: a.address,
+      versionId: a.versionId(),
+      invocation: a.operational(),
+    };
+    const stranger = { member: a.address, versionId: a.versionId(), invocation: signer("x") };
+    const event = (signers: Parameters<typeof signEventSync>[1]) => {
+      const tried = new Collective("club", [a, b, c], 2);
+      tried.events.push(signEventSync(draftUpdate(head, T(10)), signers));
+      return bookOf([tried, a, b, c]).log(tried.address);
+    };
+    // Two proofs of a's that do not count: the first is the one reported.
+    expect(refusal(event([operational, stranger]))).toMatchObject({
+      clause: "L1 6.4",
+      path: "/1/proof/0",
+    });
+    // A bad proof beside a good one by the same member does no harm, in either order.
+    expect(event([operational, a.asMember(), b.asMember()]).ok).toBe(true);
+    expect(event([a.asMember(), operational, b.asMember()]).ok).toBe(true);
+    // One good proof is not a threshold of two, and nothing was refused: the count is the reason.
+    expect(refusal(event([a.asMember()]))).toMatchObject({ clause: "L1 4.4", path: "/1/proof" });
+  });
+
+  it("refuses a height that is not declared and would be over 4", () => {
+    const tall = new Collective("tall", [a], 1, 0, { height: 4 });
+    const over = new Collective("over", [tall], 1, 10);
+    expect(refused(over, [tall, a])).toMatchObject({ clause: "L1 4.7", path: "/0" });
+  });
+});
+
 describe("a log is judged, never trusted", () => {
   it("answers and does not throw, whatever it is given", () => {
     const hostile = new Proxy([], {
@@ -924,6 +985,29 @@ describe("a log is judged, never trusted", () => {
     if (!log.ok) throw new Error("the log does not verify");
     (given[1] as { created: string }).created = T(99);
     expect(events(log.value)[1]?.created).toBe(T(10));
+  });
+
+  it(`${clause("core 1.4")} refuses an event dated on a day that does not exist`, () => {
+    const ada = new KeyMind("ada");
+    const genesis = rawSign({ ...ada.events[0], created: "2026-02-30T00:00:00Z" }, [
+      { control: ada.control(0) },
+    ]);
+    const evidence = new FirstSeen();
+    evidence.sawEvent(contentId(genesis), 0n);
+    expect(refusal(verifyLog([genesis], { evidence, asOf: LATER }))).toMatchObject({
+      clause: "core 1.4",
+    });
+  });
+
+  it("answers and does not throw with the stack all but spent", () => {
+    const ada = new KeyMind("ada").update(10);
+    const evidence = witness([ada.events]);
+    const answers = withStackSpent(() => verifyLog(ada.events, { evidence, asOf: LATER }));
+    expect(answers).toHaveLength(200);
+    for (const answer of answers) {
+      if (!answer.ok) expect(answer.issues[0].message.length).toBeGreaterThan(0);
+    }
+    expect(verifyLog(ada.events, { evidence, asOf: LATER }).ok).toBe(true);
   });
 
   it("refuses a log whose size or shape breaks the rules for any record", () => {

@@ -114,14 +114,15 @@ export function operationalProofTime(
   const held = view.log(method.mind);
   if (!held.ok) return held;
   const log = held.value;
-  const seen = view.evidence.proofSeen(proof.digest);
-  const evaluated = proofTime(proof.created, seen);
+  const evaluated = proofTime(proof.created, view.evidence.proofSeen(proof.digest));
   if (!evaluated.ok) return evaluated;
   const time = evaluated.value;
-  // The evidence is at hand, or the proof would have no evaluation time.
-  if (log.asOf < (seen ?? time)) {
+  // core 9.4 asks for the log as it stood no earlier than the evidence for the
+  // proof. The proof is judged at its evaluation time, which can be later, so
+  // the log must reach that far: a removal in between would decide it.
+  if (log.asOf < time) {
     return no(
-      "the signer's log was obtained before the evidence for this proof: it may lack a later event",
+      "the signer's log was obtained before this proof's evaluation time: it may lack a later event",
       "core 9.4",
     );
   }

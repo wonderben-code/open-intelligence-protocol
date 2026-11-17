@@ -28,7 +28,7 @@ export interface IdentityView {
 
 interface Held {
   /** One log, or the conflicting branches of one (Layer 1, Section 7). */
-  readonly branches: unknown[];
+  readonly branches: readonly [unknown, ...unknown[]];
   readonly asOf: Instant;
 }
 
@@ -196,12 +196,15 @@ export class LogBook implements IdentityView {
       memberLog: (member) => this.#log(member, depth + 1),
       ...(this.#maxEvents === undefined ? {} : { maxEvents: this.#maxEvents }),
     };
-    const results = held.branches.map((branch) => verifyLog(branch, context));
-    const [first, ...rest] = results.flatMap((result) => (result.ok ? [result.value] : []));
-    if (first !== undefined) return ok(resolveBranches([first, ...rest], this.evidence));
+    const [first, ...others] = held.branches;
+    const one = verifyLog(first, context);
+    const verified = [one, ...others.map((branch) => verifyLog(branch, context))].flatMap(
+      (result) => (result.ok ? [result.value] : []),
+    );
+    const [log, ...rest] = verified;
     // A branch that does not verify is no event at all. With no branch that
     // verifies, the reasons of the first are given.
-    return results[0] ?? no("no identity log is held", "L1 6.3");
+    return log === undefined ? one : ok(resolveBranches([log, ...rest], this.evidence));
   }
 }
 

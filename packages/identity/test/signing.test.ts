@@ -3,7 +3,7 @@
 
 import { CLOCK_SKEW, contentId, type Instant, proofDigest } from "@oip/core";
 import type { Proof } from "@oip/schema";
-import { clause, copy } from "@oip/testkit";
+import { clause, copy, withStackSpent } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -27,6 +27,7 @@ import {
   LATER,
   locationBy,
   type Mind,
+  rawSign,
   T,
   witness,
 } from "./build.ts";
@@ -227,6 +228,12 @@ describe(`${clause("L1 6.1")} a proof by a valid operational key`, () => {
     const once = ada.sign(intentBy(ada, 10), { key: 1, created: T(30) });
     const twice = ada.sign(once, { key: 0, created: T(20) });
     expect(signedAt(twice, ada)).toBe(at(20));
+    // Whichever comes first in the record.
+    const other = ada.sign(ada.sign(intentBy(ada, 10), { key: 0, created: T(20) }), {
+      key: 1,
+      created: T(30),
+    });
+    expect(signedAt(other, ada)).toBe(at(20));
     expect(operationalProofs(judged(twice), ada.address, bookOf([ada], [twice]))).toHaveLength(2);
   });
 });
@@ -551,6 +558,43 @@ describe(`${clause("L1 9.1", "L1 9.4", "L1 9.5")} a collective acts as one`, () 
   });
 });
 
+describe(`${clause("L1 3.11", "core 6.2")} the keys that sign records`, () => {
+  it("does not take a control key's proof for an operational one", () => {
+    const ada = new KeyMind("ada");
+    const intent = rawSign(intentBy(ada, 10), [{ control: ada.control(0) }], {
+      purpose: "assertionMethod",
+    });
+    const record = judged(intent);
+    // The signature is good: what it is not is a proof by a key of any mind.
+    expect(record.proofs).toHaveLength(1);
+    const book = bookOf([ada], [intent]);
+    const [proof] = record.proofs;
+    if (proof === undefined) throw new Error("the proof does not verify");
+    expect(operationalProofTime("Intent", proof, book)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "L1 3.11" }],
+    });
+    expect(ownSignedTime(record, ada.address, book)).toBeUndefined();
+  });
+
+  it("counts nothing for a mind whose log is not held", () => {
+    const ada = new KeyMind("ada");
+    const intent = ada.sign(intentBy(ada, 10));
+    expect(ownSignedTime(judged(intent), ada.address, bookOf([], [intent]))).toBeUndefined();
+  });
+
+  it("does not count towards a threshold a member's proof by a key it has removed", () => {
+    const [a, b, c] = [new KeyMind("a"), new KeyMind("b"), new KeyMind("c")] as const;
+    const club = new Collective("club", [a, b, c], 2, 5);
+    a.update(20, { keys: [] });
+    const all = [club, a, b, c];
+    const late = b.sign(a.sign(intentBy(club, 30), { position: 0 }));
+    expect(signedAt(late, club, all)).toBeUndefined();
+    const early = b.sign(a.sign(intentBy(club, 10), { position: 0 }));
+    expect(signedAt(early, club, all)).toBe(at(10));
+  });
+});
+
 describe("judging a record", () => {
   it("validates it, and keeps only the proofs that verify", () => {
     const ada = new KeyMind("ada");
@@ -584,6 +628,18 @@ describe("judging a record", () => {
       ok: false,
       issues: [{ clause: "core 1.6" }],
     });
+  });
+
+  it("answers and does not throw with the stack all but spent", () => {
+    const ada = new KeyMind("ada");
+    const intent = ada.sign(intentBy(ada, 10));
+    const book = bookOf([ada], [intent]);
+    const answers = withStackSpent(() => {
+      const record = judgeRecord(intent);
+      return record.ok ? ownSignedTime(record.value, ada.address, book) : record.issues[0].clause;
+    });
+    expect(answers).toHaveLength(200);
+    expect(answers.at(-1)).toBe(at(10));
   });
 
   it("reads a record of a type an extension defines", () => {

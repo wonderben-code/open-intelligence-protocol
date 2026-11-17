@@ -36,14 +36,16 @@ The signatures of a 1,000-event identity log therefore take about 2 s. Replaying
 
 1. **The portable implementation gets its own budgets**, which a regression must not exceed, on this reference machine:
 
-   | Operation                                                | Budget          |
-   | -------------------------------------------------------- | --------------- |
-   | Verify a record with two proofs, read from text          | 6 ms median     |
-   | Verify the signatures of an identity log of 1,000 events | 3 s             |
-   | The order check of a public key seen before              | 0.05 ms median  |
-   | `verifyEd25519` against the library's bare verification  | a ratio below 2 |
+   | Operation                                                | Budget         |
+   | -------------------------------------------------------- | -------------- |
+   | Verify a record with two proofs, read from text          | 6 ms           |
+   | Verify the signatures of an identity log of 1,000 events | 3 s            |
+   | The order check of a public key seen before              | 0.05 ms        |
+   | `verifyEd25519` against the library's bare verification  | a ratio of 2.2 |
 
-   `pnpm bench` asserts all four, and CI runs it. The ratio does not depend on the machine: core 4.4 adds one scalar multiplication to the library's two, which measures at about 1.6, and a second one would pass 2.
+   `pnpm bench` asserts all four, and CI runs it. It compares each budget with the fastest sample of a run, not the median: on a shared machine other work only ever adds time, so the fastest sample is the steadiest measure of what the code costs, and a regression moves it as surely as it moves the median. Medians on this machine varied between 3.9 ms and 5.4 ms from run to run for the first row, while the fastest sample stayed at 3.7 ms.
+
+   The ratio does not depend on the machine: core 4.4 adds one scalar multiplication to the library's two, which measures at about 1.8, and a second one would pass 2.5.
 
 2. **The starting budgets stay as the targets for the servers**, where throughput matters (M5). They need a native Ed25519, and one is available without weakening core 4.4:
 

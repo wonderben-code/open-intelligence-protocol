@@ -1,6 +1,6 @@
 {
   "comment": "Which milestone of BUILD.md owes each clause of the specifications and each kind of test-vector case. `completed` lists the milestones that are done. `pnpm spec:coverage` fails if a clause owed by a completed milestone has no passing test that cites it, or if a vector case owed by one is still pending. A clause is matched by its own ID, then by its section, then by its document. A clause with parts in several milestones is owed by the last of them; earlier milestones test it in part. `informative` lists the clauses that state no requirement, each with the reason; every other clause is gated, whether or not it contains a BCP 14 key word, because most of the verification algorithms are written without one. `packages` says which milestone delivers each workspace package: a clause counts as tested once a package of the milestone that owes it, or of a later one, has a passing test that cites it, so an early test of part of a clause cannot stand in for the whole.",
-  "completed": ["M0"],
+  "completed": ["M0", "M1"],
   "packages": {
     "schema": "M0",
     "conformance": "M0",
@@ -66,6 +66,7 @@
     "countsFor": "M3",
     "sentFor": "M3",
     "status": "M3",
-    "assurance": "M9"
+    "assurance": "M9",
+    "json": "M1"
   }
 }

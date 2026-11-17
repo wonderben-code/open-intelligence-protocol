@@ -3,9 +3,28 @@
 
 /** Bytes and text. */
 
-import { bytesToHex, concatBytes, hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
+import {
+  bytesToHex as toHex,
+  concatBytes,
+  hexToBytes as fromHex,
+  utf8ToBytes,
+} from "@noble/hashes/utils.js";
 
-export { bytesToHex, concatBytes, hexToBytes };
+export { concatBytes };
+
+/** Bytes as lower-case hexadecimal text, two digits a byte. */
+export function bytesToHex(bytes: Uint8Array): string {
+  return toHex(bytes);
+}
+
+/**
+ * The bytes that hexadecimal text writes, in either case.
+ *
+ * @throws Error if the text is not hexadecimal digits in pairs.
+ */
+export function hexToBytes(hex: string): Uint8Array {
+  return fromHex(hex);
+}
 
 /** Whether a string is valid Unicode: every surrogate is half of a pair (core 1.1). */
 export function isWellFormed(text: string): boolean {
@@ -57,18 +76,16 @@ const strictDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true })
  * the JSON parser rejects it.
  */
 export function decodeUtf8(bytes: Uint8Array): string | undefined {
+  let text: string | undefined;
   try {
-    return strictDecoder.decode(bytes);
+    text = strictDecoder.decode(bytes);
   } catch {
-    return undefined;
+    // Not UTF-8: there is no text.
   }
+  return text;
 }
 
 /** Whether two byte strings are equal. Not constant-time: use it on public values only. */
 export function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
+  return a.length === b.length && a.every((byte, i) => byte === b[i]);
 }

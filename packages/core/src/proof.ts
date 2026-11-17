@@ -322,6 +322,7 @@ function prepare(record: unknown, options: ProofOptions, publicKey: string): Dra
   if (!draft.ok) throw invalidProof(draft.issues);
   const { proofValue: _placeholder, ...checked } = draft.value as Proof & JsonObject;
   const recordCreated = parseTimestamp(subject["created"]);
+  // Stryker disable next-line ConditionalExpression: a comparison with undefined is false anyway.
   if (recordCreated !== undefined && instantOf(options.created) < recordCreated) {
     throw new OipError(
       "invalid-proof",

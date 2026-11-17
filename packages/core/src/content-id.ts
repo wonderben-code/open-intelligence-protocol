@@ -100,6 +100,17 @@ export function contentId(record: unknown): string {
 }
 
 /**
+ * The content ID of a value if it has one, and `undefined` if it is not a
+ * JSON object within the profile. For code that judges: it never throws.
+ */
+export function contentIdIfAny(record: unknown): string | undefined {
+  const checked = validateJson(record);
+  return checked.ok && isJsonObject(checked.value)
+    ? contentIdOfDigest(documentHashOf(checked.value))
+    : undefined;
+}
+
+/**
  * The key hash of a Multikey string, used for pre-rotation commitments
  * (core 3.4). It is the hash of the string as written, so it is defined for
  * any string; whether the string is a Multikey is checked where the key is

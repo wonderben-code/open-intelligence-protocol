@@ -60,6 +60,11 @@ describe(`${clause("core 8.1")} namespaces`, () => {
       undefined,
       1,
       ["x402"],
+      // Values that read as a namespace when turned into a string.
+      ["com.example"],
+      ["oip.profile"],
+      { toString: () => "com.example.escrow" },
+      new String("x402"),
     ]) {
       expect(isNamespace(bad), show(bad)).toBe(false);
     }

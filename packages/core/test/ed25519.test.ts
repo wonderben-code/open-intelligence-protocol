@@ -430,7 +430,9 @@ describe("the memo that remembers order checks", () => {
     expect(cache.size).toBe(1);
     expect(cache.has("a")).toBe(false);
     for (const bad of [0, -1, 1.5, Number.NaN, Infinity]) {
-      expect(() => new BoundedCache(bad)).toThrow(TypeError);
+      expect(() => new BoundedCache(bad)).toThrow(
+        new TypeError("a cache holds at least one entry"),
+      );
     }
   });
 });

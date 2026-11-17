@@ -192,8 +192,19 @@ describe(`${clause("core 6.1")} the grammar of references`, () => {
       "",
       null,
       [written],
+      // A value that is not a string, though it reads as one.
+      new String(written),
     ]) {
       expect(parseKeyRef(bad), show(bad)).toBeUndefined();
+    }
+    expect(parseVerificationMethod(new String(written))).toBeUndefined();
+    for (const notText of [[KEY], new String(KEY)]) {
+      expect(() => formatKeyRef(MIND, `2-${OTHER}`, notText as never)).toThrow(
+        new TypeError("a key reference names a Multikey"),
+      );
+      expect(() => formatControlKeyRef(notText as never)).toThrow(
+        new TypeError("a key reference names a Multikey"),
+      );
     }
     expect(() => formatKeyRef(CID, `2-${OTHER}`, KEY)).toThrow(
       new TypeError("a key reference starts with a mind address"),
@@ -299,6 +310,8 @@ describe(`${clause("core 6.2")} which reference a proof uses`, () => {
       `${KEY}#${KEY}`,
       "",
       null,
+      new String(`did:key:${KEY}#${KEY}`),
+      [`did:key:${KEY}#${KEY}`],
     ]) {
       expect(parseControlKeyRef(bad), show(bad)).toBeUndefined();
     }

@@ -18,7 +18,7 @@ export interface AssuranceCase extends CaseBase {
 }
 
 // @public
-export const CASE_KINDS: readonly ["log", "countsFor", "sentFor", "status", "assurance", "record"];
+export const CASE_KINDS: readonly ["log", "countsFor", "sentFor", "status", "assurance", "record", "json"];
 
 // @public
 export interface CaseBase {
@@ -60,9 +60,14 @@ export function compareVerdicts(adapter: ConformanceAdapter, judge: Judge, vecto
 export interface ConformanceAdapter {
     assurance?(profile: JsonObject, view: VerifierView): string;
     canonicalize?(value: unknown): string;
+    contentId?(record: JsonObject): string;
     countsFor?(record: JsonObject, mind: string, view: VerifierView): boolean;
+    createProof?(record: JsonObject, request: ProofRequest, privateKey: Uint8Array): JsonObject;
+    jsonIsWithinProfile?(text: string): boolean;
+    keyHash?(multikey: string): string;
     logVerifies?(log: Log, view: VerifierView): boolean;
     readonly name: string;
+    proofVerifies?(record: JsonObject, proof: unknown): boolean;
     recordIsWellFormed?(record: unknown): boolean;
     sentFor?(packet: JsonObject, mind: string, view: VerifierView): boolean;
     status?(of: JsonObject, records: readonly JsonObject[], at: string, view: VerifierView): string;
@@ -103,6 +108,14 @@ export interface ExpectedStatus {
 }
 
 // @public
+export interface JsonCase extends CaseBase {
+    // (undocumented)
+    readonly kind: "json";
+    // (undocumented)
+    readonly text: string;
+}
+
+// @public
 export type JsonObject = Readonly<Record<string, unknown>>;
 
 // @public
@@ -136,6 +149,7 @@ export const METHOD_FOR_KIND: {
     readonly status: "status";
     readonly assurance: "assurance";
     readonly record: "recordIsWellFormed";
+    readonly json: "jsonIsWithinProfile";
 };
 
 // @public
@@ -166,6 +180,20 @@ export function positiveRecords(vectors: Vectors): {
     name: string;
     record: JsonObject;
 }[];
+
+// @public
+export interface ProofRequest {
+    // (undocumented)
+    readonly authority?: readonly unknown[];
+    // (undocumented)
+    readonly challenge?: string;
+    // (undocumented)
+    readonly created: string;
+    // (undocumented)
+    readonly domain?: string;
+    // (undocumented)
+    readonly verificationMethod: string;
+}
 
 // @public
 export class PythonJudge {
@@ -247,7 +275,7 @@ export interface TestKey {
 }
 
 // @public (undocumented)
-export type VectorCase = LogCase | CountsForCase | SentForCase | StatusCase | AssuranceCase | RecordCase;
+export type VectorCase = LogCase | CountsForCase | SentForCase | StatusCase | AssuranceCase | RecordCase | JsonCase;
 
 // @public
 export interface Vectors {

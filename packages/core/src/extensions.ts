@@ -28,13 +28,14 @@ export function isNamespace(value: unknown): value is string {
  * must not be acted on or treated as valid for any decision; an HTTP service
  * answers `unsupported-critical` (core 10.2).
  *
- * `understood` holds the namespaces the caller implements. The record should
+ * `understood` holds the namespaces the caller implements; without it, the
+ * caller implements none. The record should
  * have been validated; a `critical` that is not an array of strings is read
  * as naming something nobody understands.
  */
 export function unsupportedCritical(
   record: Readonly<Record<string, unknown>>,
-  understood: Iterable<string> = [],
+  understood?: Iterable<string>,
 ): string[] {
   const critical = record["critical"];
   if (critical === undefined) return [];
@@ -51,7 +52,7 @@ export function unsupportedCritical(
 /** Whether the caller may act on a record: it understands every critical extension (core 8.3). */
 export function understandsCritical(
   record: Readonly<Record<string, unknown>>,
-  understood: Iterable<string> = [],
+  understood?: Iterable<string>,
 ): boolean {
   return unsupportedCritical(record, understood).length === 0;
 }

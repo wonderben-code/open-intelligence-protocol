@@ -35,6 +35,9 @@ export default {
   jsonReporter: { fileName: "reports/mutation/mutation.json" },
   htmlReporter: { fileName: "reports/mutation/mutation.html" },
   tempDirName: ".stryker-tmp",
+  // Copies left behind by a run that was interrupted would be linted and
+  // measured by the other checks.
+  cleanTempDir: "always",
   timeoutMS: 20_000,
   timeoutFactor: 3,
   concurrency: 4,

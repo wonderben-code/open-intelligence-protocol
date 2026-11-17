@@ -354,6 +354,20 @@ describe(`${clause("core 1.6")} size`, () => {
     expect(parseRecord(JSON.stringify(evidence)).ok).toBe(true);
   });
 
+  it("reads a Bundle with or without a location and a profile", () => {
+    const whole = sampleRecords["Bundle"] ?? {};
+    const { location: _location, participant: _participant, ...bare } = whole;
+    expect(parseRecord(JSON.stringify(bare))).toEqual({ ok: true, value: bare });
+    expect(checkSize(bare as unknown as OipRecord)).toEqual([]);
+    const large = padded("Genesis", MAX_RECORD_BYTES + 1);
+    const parsed = parseRecord(JSON.stringify({ ...bare, log: [large] }));
+    expect(!parsed.ok && parsed.issues).toMatchObject([{ path: "/log/0", clause: "core 1.6" }]);
+    for (const member of ["location", "participant"]) {
+      const one = { ...bare, [member]: whole[member] };
+      expect(parseRecord(JSON.stringify(one)).ok, member).toBe(true);
+    }
+  });
+
   it("rejects a container that carries a record over the limit, and says which", () => {
     const over = (type: string) => padded(type, MAX_RECORD_BYTES + 1);
     const at = (type: string) => padded(type, MAX_RECORD_BYTES);

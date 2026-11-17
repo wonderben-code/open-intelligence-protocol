@@ -2,7 +2,9 @@
   "$schema": "https://developer.microsoft.com/json-schemas/api-extractor/v7/api-extractor.schema.json",
   "mainEntryPointFilePath": "<projectFolder>/dist/index.d.ts",
   "compiler": {
-    "tsconfigFilePath": "<projectFolder>/tsconfig.build.json"
+    // Each package's tsconfig.api.json drops the "@oip/source" condition, so that a
+    // dependency is read as its consumers read it: from its built declarations.
+    "tsconfigFilePath": "<projectFolder>/tsconfig.api.json"
   },
   "apiReport": {
     "enabled": true,

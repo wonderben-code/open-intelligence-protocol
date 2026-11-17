@@ -173,6 +173,13 @@ describe("the JSON profile: what is JSON", () => {
     expect(message(String.raw`"a\u12"`)).toBe(
       String.raw`\u must be followed by four hexadecimal digits (at character 4)`,
     );
+    // The text ends inside the escape: the digits that are there are not four.
+    expect(message(String.raw`"\u12`)).toBe(
+      String.raw`\u must be followed by four hexadecimal digits (at character 3)`,
+    );
+    expect(message(String.raw`"\u123`)).toBe(
+      String.raw`\u must be followed by four hexadecimal digits (at character 3)`,
+    );
     expect(message("-x")).toBe("not a JSON number (at character 0)");
     expect(message("[012]")).toBe("not a JSON number (at character 1)");
     expect(message("1.x")).toBe("a digit must follow the decimal point (at character 2)");
@@ -181,12 +188,18 @@ describe("the JSON profile: what is JSON", () => {
   });
 
   it("never throws, whatever it is given", () => {
-    for (const notText of [undefined, null, 1, {}, [], Symbol("x"), 1n]) {
-      const parsed = parseJson(notText as string);
-      expect(parsed.ok).toBe(false);
+    for (const notText of [undefined, null, 1, {}, [], Symbol("x"), 1n, new String("1")]) {
+      expect(parseJson(notText as string)).toEqual({
+        ok: false,
+        issues: [{ path: "", message: "not text", clause: "core 1.1" }],
+      });
     }
-    expect(parseJsonBytes("{}" as unknown as Uint8Array).ok).toBe(false);
-    expect(parseJsonBytes([123, 125] as unknown as Uint8Array).ok).toBe(false);
+    for (const notBytes of ["{}", [123, 125], null, undefined, new ArrayBuffer(2)]) {
+      expect(parseJsonBytes(notBytes as unknown as Uint8Array)).toEqual({
+        ok: false,
+        issues: [{ path: "", message: "not bytes", clause: "core 1.1" }],
+      });
+    }
   });
 });
 
@@ -234,6 +247,16 @@ describe(`${clause("core 1.1")} no duplicate member names`, () => {
     expect(Object.getOwnPropertyDescriptor(parsed, "__proto__")?.value).toEqual({ polluted: true });
     expect(({} as { polluted?: boolean }).polluted).toBeUndefined();
     expect(rejection('{"__proto__":1,"__proto__":2}')).toBe("core 1.1");
+    // Every member is an ordinary one: it can be read, listed, changed and removed.
+    for (const name of ["a", "__proto__"]) {
+      const read = value(`{"${name}":1}`) as Record<string, unknown>;
+      expect(Object.getOwnPropertyDescriptor(read, name)).toEqual({
+        value: 1,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+    }
     expect(rejection('{"constructor":1,"constructor":2}')).toBe("core 1.1");
     expect(rejection('{"toString":1,"toString":2}')).toBe("core 1.1");
   });
@@ -255,6 +278,9 @@ describe(`${clause("core 1.1")} every string is valid Unicode`, () => {
       String.raw`"\udc00\ud800"`,
       String.raw`"\ud83d\u0041"`,
       String.raw`"\ud83d\ude00\ud83d"`,
+      String.raw`"\udc00\udc00"`,
+      String.raw`"\ud800\ue000"`,
+      `"\udc00\udc00"`,
       `"\ud800"`,
       `"a\udc00b"`,
       `"\udbff"`,
@@ -288,6 +314,8 @@ describe(`${clause("core 1.2")} numbers are safe integers, judged by value`, () 
     expect(value("123456789e-0")).toBe(123456789);
     expect(value("1e0")).toBe(1);
     expect(value("1e00002")).toBe(100);
+    expect(value("1e000000000000000000002")).toBe(100);
+    expect(value("100e-000000000000000000002")).toBe(1);
     expect(value("5000e-3")).toBe(5);
     expect(value("9007199254740991")).toBe(Number.MAX_SAFE_INTEGER);
     expect(value("-9007199254740991")).toBe(-Number.MAX_SAFE_INTEGER);

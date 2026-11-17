@@ -44,6 +44,11 @@ describe(`${clause("core 1.1")} valid Unicode`, () => {
       "😀\ud83d",
       "\udbff",
       "\ud800a\udc00",
+      // Two low halves, and a high half followed by something that is not a low half.
+      "\udc00\udc00",
+      "\udfff\udc00",
+      "\ud800\ue000",
+      "\udbff\uffff",
     ]) {
       expect(isWellFormed(bad), JSON.stringify(bad)).toBe(false);
     }
@@ -120,6 +125,12 @@ describe(`${clause("core 1.8")} string lengths count code points`, () => {
     expect(codePointLength("\udc00\ud800")).toBe(2);
     expect(codePointLength("\ud800\ud800\udc00")).toBe(2);
     expect(codePointLength("\ud800a")).toBe(2);
+    expect(codePointLength("a\udc00")).toBe(2);
+    expect(codePointLength("\udc00\udc00")).toBe(2);
+    expect(codePointLength("\ud800\ue000")).toBe(2);
+    expect(codePointLength("\udbff\uffff")).toBe(2);
+    expect(codePointLength("\ue000\udc00")).toBe(2);
+    expect(codePointLength("\u{ffff}\udfff")).toBe(2);
   });
 
   it("agrees with the platform on any string", () => {
@@ -146,6 +157,11 @@ describe("bytes", () => {
   it("writes and reads hex", () => {
     expect(bytesToHex(Uint8Array.of(0, 1, 0xab, 0xff))).toBe("0001abff");
     expect([...hexToBytes("0001abff")]).toEqual([0, 1, 0xab, 0xff]);
+    expect([...hexToBytes("0001ABFF")]).toEqual([0, 1, 0xab, 0xff]);
+    expect(hexToBytes("")).toHaveLength(0);
+    for (const bad of ["0", "abc", "zz", "0x01", " 01"]) {
+      expect(() => hexToBytes(bad), bad).toThrow();
+    }
     fc.assert(
       fc.property(fc.uint8Array({ maxLength: 64 }), (bytes) => {
         expect(bytesEqual(hexToBytes(bytesToHex(bytes)), bytes)).toBe(true);

@@ -78,6 +78,16 @@ const baseOptions = (record: JsonObject, method = phoneMethod): AnyProof => ({
   created: WHEN,
 });
 
+/** What a function throws, or `undefined` if it returns. */
+function thrownBy(run: () => unknown): unknown {
+  try {
+    run();
+  } catch (error) {
+    return error;
+  }
+  return undefined;
+}
+
 function issueOf(result: Validation<unknown>) {
   if (result.ok) throw new Error("accepted");
   return result.issues[0];
@@ -146,6 +156,15 @@ describe(`${clause("core 5.6")} proof purposes`, () => {
         ).toBe(right ? "accepted" : "core 5.6");
       }
     }
+    // A type name from the input is quoted only up to a length.
+    const longType = { ...intent, type: "T".repeat(5000) };
+    const onLong = handSigned(longType, {
+      ...baseOptions(longType),
+      proofPurpose: "authentication",
+    });
+    expect(issueOf(verifyProof(longType, onLong)).message).toBe(
+      `a ${"T".repeat(64)} record needs a proof with the purpose assertionMethod; this proof's purpose is authentication`,
+    );
     const wrong = handSigned(intent, { ...baseOptions(intent), proofPurpose: "authentication" });
     expect(issueOf(verifyProof(intent, wrong))).toEqual({
       path: "/proofPurpose",
@@ -374,7 +393,13 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
       const error = await failure(createProof(bad, options, phoneSigner));
       expect(error.code).toBe("invalid-record");
     }
-    expect((await failure(createProof({}, options, phoneSigner))).clause).toBe("core 7");
+    expect(await failure(createProof({}, options, phoneSigner))).toMatchObject({
+      clause: "core 7",
+      detail: "type must name a record type",
+    });
+    expect((await failure(createProof([], options, phoneSigner))).detail).toBe(
+      "a record is a JSON object",
+    );
     // An unsigned type carries no proof.
     const unsigned = await failure(createProof(session, options, phoneSigner));
     expect([unsigned.code, unsigned.clause]).toEqual(["invalid-proof", "core 5.1"]);
@@ -474,6 +499,11 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
     for (const [name, sign, expected] of cases) {
       const run = createProof(intent, options, faulty(sign));
       await expect(run, name).rejects.toMatchObject({ code: "invalid-proof", clause: expected });
+      if (expected === "core 5.2") {
+        await expect(createProof(intent, options, faulty(sign)), name).rejects.toThrow(
+          "the signer did not return a signature of 64 bytes",
+        );
+      }
     }
     expect(
       await createProof(
@@ -489,6 +519,10 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
     expect(() => proofHashData(intent, intentProof)).toThrow(
       "the options of a proof do not include proofValue",
     );
+    expect(thrownBy(() => proofHashData(intent, intentProof))).toMatchObject({
+      code: "invalid-proof",
+      clause: "core 5.3",
+    });
     for (const bad of [null, [], "x", { a: 0.1 }]) {
       expect(() => proofHashData(intent, bad)).toThrow(OipError);
       expect(() => proofHashData(bad, {})).toThrow(OipError);
@@ -705,6 +739,13 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
     reject(formatControlKeyRef(x25519), "core 4.2");
     reject(`did:key:${phone}#${laptop.publicKey}`, "core 6.2");
     reject(phoneMethod.replace(/versionId=[0-9]+/, "versionId=9007199254740992"), "core 6.1");
+    const beyond = handSigned(intent, {
+      ...baseOptions(intent),
+      verificationMethod: phoneMethod.replace(/versionId=[0-9]+/, "versionId=9007199254740992"),
+    });
+    expect(issueOf(verifyProof(intent, beyond)).message).toBe(
+      "the verification method pins a position beyond 2^53-1, which no identity log has",
+    );
     reject(phoneMethod.replace(/versionId=[0-9]+/, "versionId=01"), "core 6.1");
     reject(phone, "core 6.1");
     reject(`${intent["author"] as string}#${phone}`, "core 6.1");
@@ -1025,6 +1066,18 @@ describe("the proof set of a record", () => {
     expect(() => withProofs({ ...unsigned, proof: "x" }, [first])).toThrow(
       "proof must be an array",
     );
+    expect(thrownBy(() => withProofs({ ...unsigned, proof: "x" }, [first]))).toMatchObject({
+      code: "invalid-record",
+      clause: "core 5.1",
+    });
+    const tooMany = Array.from({ length: MAX_PROOFS + 1 }, (_, i) => ({
+      ...first,
+      created: `2026-10-30T10:00:00.${String(i).padStart(3, "0")}Z`,
+    }));
+    expect(thrownBy(() => withProofs(unsigned, tooMany))).toMatchObject({
+      code: "invalid-record",
+      clause: "core 5.1",
+    });
     expect(() => withProofs({ ...unsigned, proof: { a: 1 } }, [first])).toThrow(OipError);
     expect(() => withProofs([], [first])).toThrow("a record is a JSON object");
     expect(() => withProofs({ ...unsigned, n: 0.5 }, [first])).toThrow(OipError);
@@ -1071,6 +1124,11 @@ describe(`${clause("core 9.4")} evidence is keyed by the proof's digest`, () => 
     for (const bad of [null, [], "proof", 1, { a: 0.5 }, undefined]) {
       expect(() => proofDigest(bad)).toThrow(OipError);
     }
+    expect(thrownBy(() => proofDigest([]))).toMatchObject({
+      code: "invalid-record",
+      clause: "core 5.2",
+      detail: "a proof is a JSON object",
+    });
   });
 });
 

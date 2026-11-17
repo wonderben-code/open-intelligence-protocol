@@ -6,7 +6,7 @@ This page lists every numbered clause of the specifications (revision 2026-11-17
 
 - A test cites a clause by putting `clause("L1 6.4")` in its name. Only tests that pass count.
 - [plan.json](plan.json) says which milestone of [BUILD.md](../../BUILD.md) owes each clause and each kind of vector case.
-- Completed milestones: M0. A clause owed by a completed milestone must have a test, or `pnpm spec:coverage` fails. That holds for every clause not listed as informative in plan.json, with or without a key word: most of the verification algorithms are written without one.
+- Completed milestones: M0, M1. A clause owed by a completed milestone must have a test, or `pnpm spec:coverage` fails. That holds for every clause not listed as informative in plan.json, with or without a key word: most of the verification algorithms are written without one.
 - A citation says a test enforces part of a clause, not all of it. The milestone reviews check the rest.
 - "Tested in part" means an earlier milestone already tests some of a clause that a later milestone completes.
 
@@ -14,11 +14,11 @@ This page lists every numbered clause of the specifications (revision 2026-11-17
 
 | Document | Clauses | Gated | Gated with a passing test | MUST-level | MUST-level with a passing test |
 |---|---:|---:|---:|---:|---:|
-| [core](../../spec/core.md) | 46 | 45 | 19 | 24 | 14 |
+| [core](../../spec/core.md) | 47 | 46 | 41 | 26 | 25 |
 | [L0](../../spec/layer-0-bridge.md) | 17 | 12 | 0 | 6 | 0 |
 | [L1](../../spec/layer-1-mind-network.md) | 93 | 92 | 25 | 43 | 17 |
 | [L2](../../spec/layer-2-mind-web.md) | 28 | 27 | 8 | 10 | 6 |
-| **All** | 184 | 176 | 52 | 83 | 37 |
+| **All** | 185 | 177 | 74 | 85 | 48 |
 
 ## Golden vectors
 
@@ -28,21 +28,25 @@ Cases the implementation cannot answer yet are pending, never passed.
 |---|---|---|---:|---:|---:|
 | valid | `log` | M2 | 0 | 1 | 0 |
 | valid | `countsFor` | M3 | 0 | 4 | 0 |
+| valid | `json` | M1 | 4 | 0 | 0 |
 | negative | `log` | M2 | 0 | 18 | 0 |
 | negative | `countsFor` | M3 | 0 | 30 | 0 |
 | negative | `sentFor` | M3 | 0 | 1 | 0 |
 | negative | `status` | M3 | 0 | 3 | 0 |
 | negative | `assurance` | M9 | 0 | 1 | 0 |
 | negative | `record` | M0 | 2 | 0 | 0 |
+| negative | `json` | M1 | 8 | 0 | 0 |
 | controls | `log` | M2 | 0 | 3 | 0 |
 | controls | `countsFor` | M3 | 0 | 8 | 0 |
 
 | Positive check (and the milestone that owes it) | Status |
 |---|---|
 | every record in the positive vectors is well formed (M0) | passed |
-| JCS example (M1) | pending |
-| content IDs use the canonical spelling and reproduce (M1) | pending |
-| every proofValue reproduces from its test key (M1) | pending |
+| JCS example (M1) | passed |
+| content IDs use the canonical spelling and reproduce (M1) | passed |
+| key hashes reproduce: every revealed control key was committed to (M1) | passed |
+| every proofValue reproduces from its test key (M1) | passed |
+| proofs verify, and signatures that break core 4.4 do not (M1) | passed |
 | identity logs verify; addresses derive from genesis (M2) | pending |
 | 2-of-3 pre-rotation with distinct keys (M2) | pending |
 | lineage acknowledged by a Fork event and by a Lineage record (M2) | pending |
@@ -65,50 +69,51 @@ Cases the implementation cannot answer yet are pending, never passed.
 
 | Clause | Level | Owed by | Tests | Status | Text |
 |---|---|---|---:|---|---|
-| core 1.1 | MUST | M1 | 3 | tested in part (due M1) | A record is a JSON object (RFC 8259), encoded as UTF-8, that is also an I-JSON message (RFC 749… |
-| core 1.2 | MUST | M1 | 1 | tested in part (due M1) | The values permitted anywhere in a record are objects, arrays, strings, `true`, `false`, `null`… |
-| core 1.3 | MUST | M1 | 5 | tested in part (due M1) | Decimal quantities (prices, amounts, scores) MUST be strings matching `^-?(0\|[1-9][0-9]*)(\.[0-… |
-| core 1.4 | MUST | M1 | 4 | tested in part (due M1) | Timestamps MUST be RFC 3339 strings in UTC matching `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]… |
-| core 1.5 | MUST | M1 | 1 | tested in part (due M1) | Durations MUST be ISO 8601 durations matching `^P(?!$)([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?… |
-| core 1.6 | MUST | M1 | 0 | pending M1 | Size. The canonical form (Section 2) of a record MUST NOT exceed 1 MiB. Implementations MAY app… |
-| core 1.7 | MUST | M1 | 1 | tested in part (due M1) | Field names use camelCase. Implementations MUST preserve fields they do not recognise when stor… |
-| core 1.8 |  | M1 | 2 | tested in part (due M1) | String lengths ("at most N characters") are counted in Unicode code points. |
-| core 2.1 |  | M1 | 0 | pending M1 | The canonical form of a JSON value is its serialisation under the JSON Canonicalization Scheme,… |
-| core 2.2 |  | M1 | 0 | pending M1 | Because Section 1.2 restricts numbers to safe integers, JCS number serialisation reduces to the… |
-| core 3.1 |  | M1 | 0 | pending M1 | The content ID of a record `r` is: ``` contentId(r) = "b" + base32lower( 0x12 ‖ 0x20 ‖ SHA-256(… |
-| core 3.2 | MUST | M1 | 1 | tested in part (due M1) | In this revision a content ID MUST match `^bciq[a-p][a-z2-7]{50}[aiqy]$` (56 characters, lower… |
-| core 3.3 |  | M1 | 0 | pending M1 | The 32-byte digest inside a content ID equals the `transformedDocumentHash` of every `eddsa-jcs… |
-| core 3.4 |  | M1 | 0 | pending M1 | The key hash of a Multikey string `k`, used for pre-rotation commitments, is `"b" + base32lower… |
-| core 4.1 |  | M1 | 1 | tested in part (due M1) | Public keys are written as Multikey strings: `"z"` followed by the base58btc encoding of a mult… |
-| core 4.2 | MUST | M1 | 0 | pending M1 | Implementations MUST check the prefix and length of every Multikey they use and reject any that… |
-| core 4.3 |  | M1 | 0 | pending M1 | This revision requires Ed25519 for signatures and X25519 for encryption. Other key types are re… |
-| core 4.4 | MUST | M1 | 0 | pending M1 | Ed25519 verification. Every implementation MUST apply the same rule, so that all verifiers agre… |
-| core 5.1 | MUST | M1 | 3 | tested in part (due M1) | A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 p… |
-| core 5.2 | MUST | M1 | 9 | tested in part (due M1) | Each proof object MUST conform to W3C Data Integrity 1.0 with the `eddsa-jcs-2022` cryptosuite,… |
-| core 5.3 |  | M1 | 0 | pending M1 | Creating a proof. Let `options` be the proof object without `proofValue`. Compute ``` hashData… |
-| core 5.4 |  | M1 | 0 | pending M1 | Verifying a proof. Check that the proof has exactly the members 5.2 allows; remove `proofValue`… |
-| core 5.5 | MAY | M1 | 1 | tested in part (due M1) | A record MAY carry proofs that are irrelevant to its validity. Each proof is evaluated independ… |
-| core 5.6 | MUST | M1 | 3 | tested in part (due M1) | Proof purposes. \| Records \| `proofPurpose` \| \|---\|---\| \| Identity-log events (`Genesis`, `Updat… |
-| core 5.7 | SHOULD | M1 | 0 | pending M1 | A proof's `created` SHOULD NOT be earlier than the record's `created`. |
-| core 6.1 |  | M1 | 4 | tested in part (due M1) | References use DID syntax (W3C DID Core) and are defined by this grammar (ABNF, RFC 5234): ```… |
-| core 6.2 | MUST | M1 | 1 | tested in part (due M1) | A proof by a mind's operational key MUST use a `key-ref`, which pins the version of the mind's… |
-| core 6.3 | MUST | M1 | 0 | pending M1 | A `record-ref` names a record by its content ID and says which mind's records to fetch it from.… |
-| core 6.4 | MUST | M1 | 0 | pending M1 | User interfaces MAY abbreviate addresses for display. Abbreviated forms MUST NOT be used in rec… |
-| core 7 | MUST | M1 | 6 | tested in part (due M1) | Common fields (table) |
-| core 8.1 |  | M1 | 4 | tested in part (due M1) | `ext` is an object whose member names are namespaces and whose values are objects. A namespace… |
-| core 8.2 | MAY | M1 | 0 | pending M1 | An extension block MAY contain a member `v` giving its own version. |
-| core 8.3 | MUST | M1 | 3 | tested in part (due M1) | `critical` is an array of namespaces, each of which MUST also appear in `ext`. An implementatio… |
-| core 8.4 | MUST | M1 | 0 | pending M1 | Extensions MUST NOT change the validity of a record under this specification unless they are li… |
-| core 8.5 | MUST | M1 | 0 | pending M1 | Within major version `"1"`, later revisions MAY add OPTIONAL members. A member whose being igno… |
-| core 9.1 | MUST | M2 | 0 | pending M2 | Implementations MUST tolerate clock skew of up to 300 seconds when checking whether a record is… |
+| core 1.1 | MUST | M1 | 23 | tested | A record is a JSON object (RFC 8259), encoded as UTF-8, that is also an I-JSON message (RFC 749… |
+| core 1.2 | MUST | M1 | 17 | tested | The values permitted anywhere in a record are objects, arrays, strings, `true`, `false`, `null`… |
+| core 1.3 | MUST | M1 | 15 | tested | Decimal quantities (prices, amounts, scores) MUST be strings matching `^-?(0\|[1-9][0-9]*)(\.[0-… |
+| core 1.4 | MUST | M1 | 13 | tested | Timestamps MUST be RFC 3339 strings in UTC matching `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]… |
+| core 1.5 | MUST | M1 | 5 | tested | Durations MUST be ISO 8601 durations matching `^P(?!$)([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?… |
+| core 1.6 | MUST | M1 | 10 | tested | Size. The canonical form (Section 2) of a record, with its `proof` member, MUST NOT exceed 1 Mi… |
+| core 1.7 | MUST | M1 | 4 | tested | Field names use camelCase. Implementations MUST preserve fields they do not recognise when stor… |
+| core 1.8 |  | M1 | 5 | tested | String lengths ("at most N characters") are counted in Unicode code points. |
+| core 1.9 | MUST | M1 | 4 | tested | Depth. The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is… |
+| core 2.1 |  | M1 | 10 | tested | The canonical form of a JSON value is its serialisation under the JSON Canonicalization Scheme,… |
+| core 2.2 |  | M1 | 3 | tested | Because Section 1.2 restricts numbers to safe integers, JCS number serialisation reduces to the… |
+| core 3.1 |  | M1 | 8 | tested | The content ID of a record `r` is: ``` contentId(r) = "b" + base32lower( 0x12 ‖ 0x20 ‖ SHA-256(… |
+| core 3.2 | MUST | M1 | 5 | tested | In this revision a content ID MUST match `^bciq[a-p][a-z2-7]{50}[aiqy]$` (56 characters, lower… |
+| core 3.3 |  | M1 | 2 | tested | The 32-byte digest inside a content ID equals the `transformedDocumentHash` of every `eddsa-jcs… |
+| core 3.4 | MUST | M1 | 4 | tested | The key hash of a Multikey string `k`, used for pre-rotation commitments, is `"b" + base32lower… |
+| core 4.1 |  | M1 | 7 | tested | Public keys are written as Multikey strings: `"z"` followed by the base58btc encoding of a mult… |
+| core 4.2 | MUST | M1 | 6 | tested | Implementations MUST check the prefix and length of every Multikey they use and reject any that… |
+| core 4.3 |  | M1 | 1 | tested | This revision requires Ed25519 for signatures and X25519 for encryption. Other key types are re… |
+| core 4.4 | MUST | M1 | 20 | tested | Ed25519 verification. Every implementation MUST apply the same rule, so that all verifiers agre… |
+| core 5.1 | MUST | M1 | 5 | tested | A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 p… |
+| core 5.2 | MUST | M1 | 13 | tested | Each proof object MUST conform to W3C Data Integrity 1.0 with the `eddsa-jcs-2022` cryptosuite,… |
+| core 5.3 |  | M1 | 13 | tested | Creating a proof. Let `options` be the proof object without `proofValue`. Compute ``` hashData… |
+| core 5.4 |  | M1 | 11 | tested | Verifying a proof. Check that the proof has exactly the members 5.2 allows; remove `proofValue`… |
+| core 5.5 | MAY | M1 | 3 | tested | A record MAY carry proofs that are irrelevant to its validity. Each proof is evaluated independ… |
+| core 5.6 | MUST | M1 | 7 | tested | Proof purposes. \| Records \| `proofPurpose` \| \|---\|---\| \| Identity-log events (`Genesis`, `Updat… |
+| core 5.7 | SHOULD | M1 | 4 | tested | A proof's `created` SHOULD NOT be earlier than the record's `created`. |
+| core 6.1 |  | M1 | 12 | tested | References use DID syntax (W3C DID Core) and are defined by this grammar (ABNF, RFC 5234): ```… |
+| core 6.2 | MUST | M1 | 3 | tested | A proof by a mind's operational key MUST use a `key-ref`, which pins the version of the mind's… |
+| core 6.3 | MUST | M1 | 4 | tested | A `record-ref` names a record by its content ID and says which mind's records to fetch it from.… |
+| core 6.4 | MUST | M1 | 1 | tested | User interfaces MAY abbreviate addresses for display. Abbreviated forms MUST NOT be used in rec… |
+| core 7 | MUST | M1 | 11 | tested | Common fields (table) |
+| core 8.1 |  | M1 | 6 | tested | `ext` is an object whose member names are namespaces and whose values are objects. A namespace… |
+| core 8.2 | MAY | M1 | 1 | tested | An extension block MAY contain a member `v` giving its own version. |
+| core 8.3 | MUST | M1 | 9 | tested | `critical` is an array of namespaces, each of which MUST also appear in `ext`. Naming a namespa… |
+| core 8.4 | MUST | M1 | 1 | tested | Extensions MUST NOT change the validity of a record under this specification unless they are li… |
+| core 8.5 | MUST | M1 | 2 | tested | Within major version `"1"`, later revisions MAY add OPTIONAL members. A member whose being igno… |
+| core 9.1 | MUST | M2 | 1 | tested in part (due M2) | Implementations MUST tolerate clock skew of up to 300 seconds when checking whether a record is… |
 | core 9.2 |  | M2 | 0 | pending M2 | `created`, in a record or in a proof, is asserted by the signer. A signer holding a stolen, rem… |
 | core 9.3 | MUST | M2 | 0 | pending M2 | Evaluation time. Every rule that depends on when a proof was made (key removal and compromise,… |
-| core 9.4 | MUST | M2 | 0 | pending M2 | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
+| core 9.4 | MUST | M2 | 4 | tested in part (due M2) | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
 | core 9.5 |  | M2 | 0 | pending M2 | Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where… |
 | core 9.6 |  | M2 | 0 | pending M2 | Expiry. A proof whose evaluation time is more than 300 seconds after its record's `expires` doe… |
 | core 9.7 |  | M2 | 0 | pending M2 | Consequence. A verifier that first sees a record long after it was made can count its proofs on… |
-| core 10.1 |  | M1 | 0 | pending M1 | OIP records are exchanged as `application/oip+json`. |
-| core 10.2 |  | M1 | 0 | pending M1 | HTTP APIs report errors as RFC 9457 problem details with a `type` of the form `urn:oip:error:<c… |
+| core 10.1 |  | M1 | 1 | tested | OIP records are exchanged as `application/oip+json`. |
+| core 10.2 |  | M1 | 3 | tested | HTTP APIs report errors as RFC 9457 problem details with a `type` of the form `urn:oip:error:<c… |
 | core 11 | MUST | M0 | 123 | tested | Record types (table) |
 | core 12 |  |  | 0 | informative | The security analysis of the protocol is in Section 8 of the technical architecture paper. Thre… |
 

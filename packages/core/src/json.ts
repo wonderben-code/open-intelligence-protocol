@@ -41,12 +41,6 @@ export interface ParseOptions {
  */
 export const MAX_TEXT_LENGTH = 8 * 1024 * 1024;
 
-/**
- * No exponent's size matters beyond this: the text is shorter than this
- * many characters, so no run of digits can be moved back into range.
- */
-const EXPONENT_CAP = 1_000_000_000;
-
 class Rejected extends Error {
   readonly issue: Issue;
   constructor(message: string, clause: string, at: number) {
@@ -287,7 +281,7 @@ class Parser {
         return "\t";
       case 0x75: {
         const hex = text.slice(this.#at, this.#at + 4);
-        if (!/^[0-9a-fA-F]{4}$/.test(hex)) {
+        if (hex.length !== 4 || /[^0-9a-fA-F]/.test(hex)) {
           this.#fail("\\u must be followed by four hexadecimal digits", "core 1.1");
         }
         this.#at += 4;
@@ -328,8 +322,10 @@ class Parser {
       while (isDigit(text.charCodeAt(this.#at))) this.#at++;
       const written = text.slice(exponentStart, this.#at);
       if (written === "") this.#fail("a digit must follow the exponent", "core 1.1");
-      const significant = written.replace(/^0+/, "");
-      const size = significant.length > 9 ? EXPONENT_CAP : Number(significant);
+      // The exponent may be any run of digits. A size too large to hold
+      // exactly, or infinite, still puts the value out of range below, as it
+      // should: the text is far too short to bring such a value back.
+      const size = Number(written);
       exponent = sign === MINUS ? -size : size;
     }
     const value = integerValue(negative, integer, fraction, exponent);
@@ -378,6 +374,7 @@ export function parseJson(text: string, options: ParseOptions = {}): Validation<
     return { ok: true, value: new Parser(text).parse() };
   } catch (error) {
     // Anything but a rejection is a fault in this parser, not in the text, and is not hidden.
+    // Stryker disable next-line all: no test can reach it while the parser is sound.
     /* v8 ignore next -- @preserve */
     if (!(error instanceof Rejected)) throw error;
     return { ok: false, issues: [error.issue] };

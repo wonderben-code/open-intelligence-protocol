@@ -5,7 +5,7 @@
 
 import { patterns } from "@oip/schema";
 
-import { contentId, isContentId } from "./content-id.ts";
+import { contentIdIfAny, isContentId } from "./content-id.ts";
 
 const MIND_ADDRESS = new RegExp(patterns.mindAddress);
 const VERSION_ID = new RegExp(patterns.versionId);
@@ -190,10 +190,5 @@ export function formatRecordRef(mind: string, recordContentId: string): string {
  */
 export function recordRefMatches(ref: unknown, record: unknown): boolean {
   const parsed = parseRecordRef(ref);
-  if (parsed === undefined) return false;
-  try {
-    return contentId(record) === parsed.contentId;
-  } catch {
-    return false;
-  }
+  return parsed !== undefined && contentIdIfAny(record) === parsed.contentId;
 }

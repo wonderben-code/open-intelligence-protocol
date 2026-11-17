@@ -116,12 +116,12 @@ export function formatTimestamp(instant: Instant): string {
   );
 }
 
-const UNIT_SECONDS: ReadonlyMap<string, bigint> = new Map([
-  ["D", 86400n],
-  ["H", 3600n],
-  ["M", 60n],
-  ["S", 1n],
-]);
+/** The seconds in one unit of a duration. A day is 86,400 seconds. */
+function secondsIn(unit: string): bigint {
+  if (unit === "D") return 86400n;
+  if (unit === "H") return 3600n;
+  return unit === "M" ? 60n : 1n;
+}
 
 /**
  * The length of a duration in nanoseconds, or `undefined` if the value is
@@ -132,16 +132,9 @@ const UNIT_SECONDS: ReadonlyMap<string, bigint> = new Map([
 export function parseDuration(value: unknown): bigint | undefined {
   if (!isDuration(value)) return undefined;
   let seconds = 0n;
-  let digits = "";
-  for (const character of value) {
-    if (character >= "0" && character <= "9") {
-      digits += character;
-      continue;
-    }
-    // After the pattern, every run of digits ends at its unit. "P" and "T" follow no digits.
-    const unit = UNIT_SECONDS.get(character);
-    if (unit !== undefined) seconds += BigInt(digits) * unit;
-    digits = "";
+  // After the pattern, the value is a run of digits before each unit, and nothing else counts.
+  for (const [part] of value.matchAll(/[0-9]+[DHMS]/g)) {
+    seconds += BigInt(part.slice(0, -1)) * secondsIn(part.slice(-1));
   }
   return seconds * NANOSECONDS_PER_SECOND;
 }

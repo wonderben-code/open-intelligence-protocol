@@ -7,13 +7,7 @@
  * steps of "validate, verify, then use".
  */
 
-import {
-  CONTAINER_RECORD_TYPES,
-  type Issue,
-  type OipRecord,
-  type Validation,
-  validateRecord,
-} from "@oip/schema";
+import { type Issue, type OipRecord, type Validation, validateRecord } from "@oip/schema";
 
 import type { JsonObject } from "./content-id.ts";
 import { canonicalBytesOf } from "./jcs.ts";
@@ -40,19 +34,18 @@ function sizeOf(value: object): number {
   return canonicalBytesOf(value as JsonObject).length;
 }
 
-/** The records a container carries, with the path of each (core 1.6). */
-function contained(record: OipRecord): [path: string, record: object][] {
+/**
+ * The records a container carries, with the path of each (core 1.6), or
+ * `undefined` for a record that is not a container.
+ */
+function contained(record: OipRecord): [path: string, record: object][] | undefined {
   switch (record.type) {
-    case "Bundle":
-      return [
-        ...record.log.map((event, i): [string, object] => [`/log/${i}`, event]),
-        ...(record.location === undefined
-          ? []
-          : [["/location", record.location] as [string, object]]),
-        ...(record.participant === undefined
-          ? []
-          : [["/participant", record.participant] as [string, object]]),
-      ];
+    case "Bundle": {
+      const inner: [string, object][] = record.log.map((event, i) => [`/log/${i}`, event]);
+      if (record.location !== undefined) inner.push(["/location", record.location]);
+      if (record.participant !== undefined) inner.push(["/participant", record.participant]);
+      return inner;
+    }
     case "LogPage":
       return record.events.map((event, i) => [`/events/${i}`, event]);
     case "FeedPage":
@@ -62,7 +55,7 @@ function contained(record: OipRecord): [path: string, record: object][] {
         pair.map((event, j): [string, object] => [`/pairs/${i}/${j}`, event]),
       );
     default:
-      return [];
+      return undefined;
   }
 }
 
@@ -81,9 +74,10 @@ export function checkSize(record: OipRecord): Issue[] {
     message: `the canonical form is ${size} bytes; the limit is ${limit}. Carry larger content by reference`,
     clause: "core 1.6",
   });
-  if ((CONTAINER_RECORD_TYPES as readonly string[]).includes(record.type)) {
-    return contained(record).flatMap(([path, inner]) => {
-      const size = sizeOf(inner);
+  const inner = contained(record);
+  if (inner !== undefined) {
+    return inner.flatMap(([path, carried]) => {
+      const size = sizeOf(carried);
       return size > MAX_RECORD_BYTES ? [tooLarge(path, size, MAX_RECORD_BYTES)] : [];
     });
   }

@@ -194,8 +194,19 @@ describe(`${clause("core 3.1")} content IDs`, () => {
       expect(() => documentHash(bad)).toThrow(OipError);
     }
     expect(() => contentId([])).toThrow("a record is a JSON object");
+    for (const notObject of [[], null, "text", 1]) {
+      let thrown: unknown;
+      try {
+        contentId(notObject);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toMatchObject({ code: "invalid-record", clause: "core 1.1" });
+    }
     for (const bad of [new Uint8Array(31), new Uint8Array(33), new Uint8Array(0), "digest", null]) {
-      expect(() => contentIdOfDigest(bad as Uint8Array)).toThrow(TypeError);
+      expect(() => contentIdOfDigest(bad as Uint8Array)).toThrow(
+        new TypeError("a content ID carries a SHA-256 digest of 32 bytes"),
+      );
     }
   });
 });
@@ -325,8 +336,11 @@ describe(`${clause("core 3.4")} key hashes`, () => {
   });
 
   it("refuses what is not a string of valid Unicode", () => {
-    for (const bad of [null, undefined, 1, new Uint8Array(34), ["z6Mk"], "\ud800"]) {
-      expect(() => keyHash(bad as string)).toThrow(TypeError);
+    for (const bad of [null, undefined, 1, new Uint8Array(34), ["z6Mk"], new String("z6Mk")]) {
+      expect(() => keyHash(bad as string)).toThrow(
+        new TypeError("a key hash is the hash of a string"),
+      );
     }
+    expect(() => keyHash("\ud800")).toThrow(TypeError);
   });
 });

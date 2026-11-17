@@ -25,6 +25,8 @@ export default defineConfig({
         "**/testkit/**",
         // Build scripts, and the fixtures that break the layering rules on purpose.
         "**/scripts/**",
+        // Mutation testing works on copies of the repository (stryker.config.mjs).
+        ".stryker-tmp/**",
       ],
       thresholds: {
         // Each file must meet the threshold, so that an untested file cannot

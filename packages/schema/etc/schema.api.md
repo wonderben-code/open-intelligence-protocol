@@ -407,7 +407,7 @@ export const ExtensionRecord: Type.TObject<{
     created: Type.TOptional<Type.TUnsafe<string>>;
     expires: Type.TOptional<Type.TUnsafe<string>>;
     ext: Type.TOptional<Type.TUnsafe<Readonly<Record<string, Readonly<Record<string, unknown>>>>>>;
-    critical: Type.TOptional<Type.TArray<Type.TString>>;
+    critical: Type.TArray<Type.TString>;
     proof: Type.TOptional<Type.TUnsafe<Readonly<Record<string, unknown>>[]>>;
 }>;
 
@@ -701,6 +701,11 @@ export type JsonSchema = Readonly<Record<string, unknown>>;
 
 // @public
 export const jsonSchemas: Readonly<Record<string, JsonSchema>>;
+
+// @public
+export type JsonValue = null | boolean | number | string | readonly JsonValue[] | {
+    readonly [name: string]: JsonValue;
+};
 
 // @public
 export const KeyController: Type.TUnsafe<{
@@ -1437,6 +1442,9 @@ export type Update = Static<typeof Update>;
 
 // @public
 export function validateExtensionRecord(value: unknown): Validation<ExtensionRecord>;
+
+// @public
+export function validateJson(value: unknown): Validation<JsonValue>;
 
 // @public
 export function validateProof(value: unknown): Validation<Proof>;

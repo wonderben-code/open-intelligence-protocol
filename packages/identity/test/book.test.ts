@@ -7,6 +7,7 @@ import { clause } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import {
+  divergence,
   draftGenesis,
   draftUpdate,
   type EvidenceView,
@@ -97,6 +98,44 @@ describe(`${clause("L1 7.1")} duplicity`, () => {
     const withForgery = bookOf([ada.events, [forged.events[0], unsigned] as never]);
     expect(heads(withForgery.book, ada.address).log.duplicitous).toBe(false);
     expect(heads(withForgery.book, ada.address).heads).toHaveLength(3);
+  });
+});
+
+describe(`${clause("L1 7.1")} finding where two logs part`, () => {
+  const verifiedAlone = (events: Events) => {
+    const { book } = bookOf([events]);
+    return heads(book, `did:oip:${contentId(events[0])}`).log;
+  };
+
+  it("gives the position and the two events, in the order the logs were given", () => {
+    const { left, right } = twoBranches();
+    right.update(30);
+    const [a, b] = [verifiedAlone(left.events), verifiedAlone(right.events)];
+    const found = divergence(a, b);
+    expect(found?.position).toBe(1);
+    expect(found?.events.map((event) => contentId(event))).toEqual([
+      contentId(left.events[1]),
+      contentId(right.events[1]),
+    ]);
+    expect(divergence(b, a)?.events.map((event) => contentId(event))).toEqual([
+      contentId(right.events[1]),
+      contentId(left.events[1]),
+    ]);
+    // A later parting is found where it is.
+    const one = new KeyMind("ada").update(20).update(30, { homes: [] });
+    const two = new KeyMind("ada").update(20).update(30, { keys: [] });
+    expect(divergence(verifiedAlone(one.events), verifiedAlone(two.events))?.position).toBe(2);
+  });
+
+  it("finds none in a log and its own beginning, in one log twice, or in the logs of two minds", () => {
+    const ada = new KeyMind("ada").update(20).update(30);
+    const whole = verifiedAlone(ada.events);
+    const start = verifiedAlone(ada.events.slice(0, 2));
+    expect(divergence(whole, start)).toBeUndefined();
+    expect(divergence(start, whole)).toBeUndefined();
+    expect(divergence(whole, whole)).toBeUndefined();
+    const bea = verifiedAlone(new KeyMind("bea").update(20).events);
+    expect(divergence(whole, bea)).toBeUndefined();
   });
 });
 

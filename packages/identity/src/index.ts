@@ -14,7 +14,13 @@
  * @packageDocumentation
  */
 
-export { type IdentityView, LogBook, type LogBookOptions } from "./book.ts";
+export {
+  type Divergence,
+  divergence,
+  type IdentityView,
+  LogBook,
+  type LogBookOptions,
+} from "./book.ts";
 export {
   draftFork,
   draftGenesis,

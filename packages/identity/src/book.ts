@@ -40,6 +40,31 @@ export interface LogBookOptions {
 
 type Logs = readonly [VerifiedLog, ...VerifiedLog[]];
 
+/** Where two logs of one mind part: the position, and the event each has there. */
+export interface Divergence {
+  readonly position: number;
+  /** The two events, in the order the logs were given. Each is valid against the same predecessor. */
+  readonly events: readonly [LogEntry["event"], LogEntry["event"]];
+}
+
+/**
+ * Layer 1, 7.1: whether two verified logs show duplicity, and where. They do
+ * when they are logs of the same mind and hold different events at one
+ * position; a log that is the beginning of the other does not. The pair of
+ * events is what a resolver publishes as evidence (Layer 1, 7.2).
+ */
+export function divergence(a: VerifiedLog, b: VerifiedLog): Divergence | undefined {
+  if (a.mind !== b.mind) return undefined;
+  for (const [position, entry] of a.entries.entries()) {
+    const other = b.entries[position];
+    if (other === undefined) return undefined;
+    if (other.state.head !== entry.state.head) {
+      return { position, events: [entry.event, other.event] };
+    }
+  }
+  return undefined;
+}
+
 /**
  * Layer 1, 7.3: one log from the branches held for a mind. Never by length
  * or by recency: where two branches part, the event with strictly the

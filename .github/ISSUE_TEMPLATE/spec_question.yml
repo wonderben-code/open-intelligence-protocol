@@ -1,0 +1,86 @@
+name: Specification question
+description: Ask what a clause means, or report an ambiguity, a gap, a contradiction or a suspected mistake in the specifications.
+title: "Spec: "
+labels: ["spec"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The documents in `spec/` are normative. Use this form when one of them is unclear, incomplete or wrong, or when it disagrees with the test vectors or the technical paper.
+
+        **If the problem can be exploited, do not describe it here.** A flaw in the protocol is a vulnerability. Report it privately at https://github.com/wonderben-code/open-intelligence-protocol/security/advisories/new.
+
+        To propose a change to the protocol, use the "OEP proposal" form instead.
+  - type: dropdown
+    id: document
+    attributes:
+      label: Document
+      description: The document your question is about.
+      options:
+        - "core.md (core)"
+        - "layer-1-mind-network.md (L1)"
+        - "layer-2-mind-web.md (L2)"
+        - "layer-0-bridge.md (L0)"
+        - "Test vectors (spec/test-vectors)"
+        - "Technical architecture paper"
+        - "More than one document, or not sure"
+    validations:
+      required: true
+  - type: input
+    id: clause
+    attributes:
+      label: Clause number
+      description: The clause or clauses, written as the tests cite them. If the text is silent on your case, give the nearest clause.
+      placeholder: "L1 6.4"
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Specification revision
+      description: The revision date printed at the top of the document you read.
+      placeholder: "2026-11-17"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of question
+      options:
+        - "Meaning: I want to know what a clause requires"
+        - "Ambiguity: the text allows more than one reading"
+        - "Gap: the text does not cover a case"
+        - "Contradiction: between clauses, documents or the test vectors"
+        - "Suspected mistake"
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Quote the text and say what is unclear or wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: readings
+    attributes:
+      label: Possible readings
+      description: Optional. The readings you considered and how they differ. A record or a log that one reading accepts and another rejects is the most useful evidence.
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Why it matters
+      description: Optional. What you are building, which behaviour depends on the answer, and which test-vector cases are involved.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: This is not a security vulnerability.
+          required: true
+        - label: I searched the existing issues and did not find this question.
+          required: true

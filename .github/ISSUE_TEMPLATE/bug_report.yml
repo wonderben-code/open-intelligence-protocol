@@ -1,0 +1,88 @@
+name: Bug report
+description: Report a defect in the reference implementation, the Python vector checker or the repository tooling.
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not report a vulnerability here.** If the defect could let someone forge, backdate or misattribute a record, bypass verification, exhaust a server or expose a key, report it privately at https://github.com/wonderben-code/open-intelligence-protocol/security/advisories/new. The [security policy](https://github.com/wonderben-code/open-intelligence-protocol/security/policy) explains how.
+
+        Do not paste private keys, seeds, tokens or other secrets. The keys in `spec/test-vectors/vectors.json` are public test keys and are safe to quote.
+
+        If your question is about what a specification means, use the "Specification question" form instead.
+  - type: input
+    id: package
+    attributes:
+      label: Package or area
+      description: The package or the part of the repository where the defect is.
+      placeholder: "@oip/core"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The package version. If you run from source, give the commit hash.
+      placeholder: "0.1.0, or commit 631e93d"
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: The output of `node --version`. Node.js 24 or later is supported.
+      placeholder: "v24.0.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and other runtime
+      description: Your operating system. If the defect appears outside Node.js, add the browser, Deno or Bun version.
+      placeholder: "Ubuntu 24.04"
+    validations:
+      required: false
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: The smallest steps, code or record that show the defect. A failing test, or a case in the format of the test vectors, is ideal.
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What should happen. Cite the specification clause if you know it, for example "L1 6.4".
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What happens instead. Include the error code and message, if there is one.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: Optional. Remove any secret first. The text is formatted as code automatically.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: This is not a security vulnerability.
+          required: true
+        - label: This report contains no private keys or other secrets.
+          required: true
+        - label: I searched the existing issues and did not find this defect.
+          required: true

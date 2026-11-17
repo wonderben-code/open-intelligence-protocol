@@ -3,9 +3,9 @@
 ### A Founding Paper for the Network of Minds
 
 **Ekram Alam**
-30 October 2026
+30 October 2026, revised 17 November 2026
 
-Version 1.0 · Licensed under CC BY 4.0
+Version 1.1 · Licensed under CC BY 4.0
 Repository: https://github.com/wonderben-code/open-intelligence-protocol
 
 ---
@@ -69,23 +69,23 @@ This is the situation the internet faced before TCP/IP, and the situation docume
 OIP is a three-layer protocol stack. Each layer is independently useful, independently implementable and specified separately, so that adoption can happen layer by layer.
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│   Applications, networks, markets, products, collectives  │
-├──────────────────────────────────────────────────────────┤
-│   LAYER 2 · MIND WEB                                       │
-│   participants · intents · offers · commitments ·          │
-│   receipts · collectives — all linked                      │
-├──────────────────────────────────────────────────────────┤
-│   LAYER 1 · MIND NETWORK                                   │
-│   mind addressing · capability routing · context packets · │
-│   continuity · native identity                             │
-├──────────────────────────────────────────────────────────┤
-│   LAYER 0 · BRIDGE                                         │
-│   gateways to the web, APIs, email, payments,              │
-│   existing agent standards — everything that exists        │
-├──────────────────────────────────────────────────────────┤
-│   Today's internet (TCP/IP, HTTP, DNS, TLS …)              │
-└──────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│   Applications, networks, markets, products, collectives    │
+├─────────────────────────────────────────────────────────────┤
+│   LAYER 2 · MIND WEB                                        │
+│   participants · intents · offers · commitments ·           │
+│   receipts · collectives — all linked                       │
+├─────────────────────────────────────────────────────────────┤
+│   LAYER 1 · MIND NETWORK                                    │
+│   mind addressing · capability routing · context packets ·  │
+│   continuity · native identity                              │
+├─────────────────────────────────────────────────────────────┤
+│   LAYER 0 · BRIDGE                                          │
+│   gateways to the web, APIs, email, payments,               │
+│   existing agent standards — everything that exists         │
+├─────────────────────────────────────────────────────────────┤
+│   Today's internet (TCP/IP, HTTP, DNS, TLS …)               │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### 4.1 Layer 0 — The Bridge
@@ -195,4 +195,4 @@ The internet connected machines. The web connected documents. The Open Intellige
 
 ---
 
-*Cite as:* Alam, E. (2026). *The Open Intelligence Protocol: A Founding Paper for the Network of Minds.* Version 1.0. https://github.com/wonderben-code/open-intelligence-protocol
+*Cite as:* Alam, E. (2026). *The Open Intelligence Protocol: A Founding Paper for the Network of Minds.* Version 1.1. https://github.com/wonderben-code/open-intelligence-protocol

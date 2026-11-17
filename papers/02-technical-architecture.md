@@ -107,23 +107,23 @@ Six lessons from earlier systems determined the shape of OIP.
 ### 3.1 The stack
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│  Applications, markets, reputation, payments, governance          │
-├──────────────────────────────────────────────────────────────────┤
+┌────────────────────────────────────────────────────────────────────┐
+│  Applications, markets, reputation, payments, governance           │
+├────────────────────────────────────────────────────────────────────┤
 │  LAYER 2 · MIND WEB                                                │
-│  Participant · Intent · Offer · Commitment · Receipt · Collective │
-│  immutable, signed, content-addressed, linked                     │
-├──────────────────────────────────────────────────────────────────┤
+│  Participant · Intent · Offer · Commitment · Receipt · Collective  │
+│  immutable, signed, content-addressed, linked                      │
+├────────────────────────────────────────────────────────────────────┤
 │  LAYER 1 · MIND NETWORK                                            │
-│  did:oip addresses · identity logs · lineage · delegation ·       │
-│  location records · capability routing · context packets ·        │
-│  sessions · public feeds                                          │
-├──────────────────────────────────────────────────────────────────┤
+│  did:oip addresses · identity logs · lineage · delegation ·        │
+│  location records · capability routing · context packets ·         │
+│  sessions · public feeds                                           │
+├────────────────────────────────────────────────────────────────────┤
 │  LAYER 0 · BRIDGE                                                  │
-│  gateways for MCP, A2A, the web, email, payments, identity        │
-├──────────────────────────────────────────────────────────────────┤
-│  Today's internet: TCP/IP, TLS, HTTP, WebSocket, DNS, QUIC        │
-└──────────────────────────────────────────────────────────────────┘
+│  gateways for MCP, A2A, the web, email, payments, identity         │
+├────────────────────────────────────────────────────────────────────┤
+│  Today's internet: TCP/IP, TLS, HTTP, WebSocket, DNS, QUIC         │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 OIP runs over today's internet, as the early internet ran over telephone lines. Version 1 uses HTTPS and WebSockets; peer-to-peer bindings come later without changing any record format (Section 10).
@@ -159,6 +159,7 @@ No role is privileged. A client can use several resolvers and indexers at once a
 
 The test vectors follow one scenario from start to finish. Amina, a person, needs a Swahili commercial lease translated into English. Lexis Ltd, a translation firm, runs an AI agent that takes on this work within limits the firm has delegated to it.
 
+<!-- pdf: figure after list -->
 ```mermaid
 sequenceDiagram
     participant A as Amina (human mind)
@@ -424,7 +425,10 @@ For short-lived helpers, such as a sub-agent spun up for one task, delegation (S
 A collective needs its own address, so that it can receive packets, make commitments and be a member of other collectives. It also needs authority that comes from its members rather than from a key that someone holds. OIP gives it both with one change to the identity log: **a collective's genesis names member minds and a majority threshold instead of control keys.**
 
 ```json
-"controller": { "members": ["did:oip:<amina>", "did:oip:<lexis>", "did:oip:<researcher>"], "threshold": 2 }
+"controller": {
+  "members": ["did:oip:<amina>", "did:oip:<lexis>", "did:oip:<researcher>"],
+  "threshold": 2
+}
 ```
 
 - **Founding requires consent.** Every founding member signs the genesis, with its invocation key. Nobody is made a member without agreeing.
@@ -495,9 +499,12 @@ The identity log says *who* a mind is. A **location record** says where it can b
   "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
   "seq": 1, "created": "2026-10-30T10:05:00Z", "ttl": 900, "status": "active",
   "endpoints": [
-    { "binding": "https",   "url": "https://lexis.example/oip",     "instance": "i1", "priority": 10 },
-    { "binding": "wss",     "url": "wss://lexis.example/oip/ws",    "instance": "i1", "priority": 20 },
-    { "binding": "mailbox", "url": "https://mailbox.example/oip/mbox/bciqluymzsdo…", "priority": 90 }
+    { "binding": "https", "url": "https://lexis.example/oip",
+      "instance": "i1", "priority": 10 },
+    { "binding": "wss", "url": "wss://lexis.example/oip/ws",
+      "instance": "i1", "priority": 20 },
+    { "binding": "mailbox", "url": "https://mailbox.example/oip/mbox/bciqluymzsdo…",
+      "priority": 90 }
   ],
   "homes": ["https://lexis.example"],
   "participant": "bciqccafqqvuszyifsdpn4wik3b5jas7yukbmpdhn66yc2tlttby5eea",
@@ -537,11 +544,13 @@ A mind describes itself in a signed **Participant** profile. The profile is both
   "capabilities": [{
     "id": "translate-legal-sw-en",
     "summary": "Translate Swahili commercial-law documents to and from English",
-    "tags": ["oasf:natural_language_processing/translation", "domain:legal/commercial", "lang:sw", "lang:en"],
+    "tags": ["oasf:natural_language_processing/translation", "domain:legal/commercial",
+             "lang:sw", "lang:en"],
     "subject": "cap.nlp.translation.legal",
     "inputs": ["text/plain", "application/pdf"], "outputs": ["text/markdown"]
   }],
-  "actsFor": [{ "mind": "did:oip:<lexis-ltd>", "authority": "did:oip:<lexis-ltd>/<delegation-id>" }],
+  "actsFor": [{ "mind": "did:oip:<lexis-ltd>",
+                "authority": "did:oip:<lexis-ltd>/<delegation-id>" }],
   "proof": [ … ]
 }
 ```
@@ -561,7 +570,8 @@ POST /oip/v1/query
   "constraints": { "maxPrice": { "amount": "200", "currency": "USD" } },
   "evidence": { "minReceipts": 20 },
   "limit": 20 }
-→ a QueryResult listing minds, capability IDs, scores, reasons and hints, signed by the indexer's own mind
+→ a QueryResult listing minds, capability IDs, scores, reasons and hints,
+  signed by the indexer's own mind
 ```
 
 Ranking is the indexer's own policy, and its signature makes it accountable for that policy. Clients must fetch and verify the profiles and evidence before acting, and can ask several indexers and merge the answers. An indexer can rank badly; it cannot forge a capability.
@@ -779,10 +789,13 @@ The Commitment from the test vectors, after both signatures (proof values abbrev
   "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
   "created": "2026-10-30T10:20:00Z",
   "parties": [
-    { "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui", "role": "debtor",   "required": true },
-    { "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna", "role": "creditor", "required": true }
+    { "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+      "role": "debtor", "required": true },
+    { "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "role": "creditor", "required": true }
   ],
-  "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+  "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026
+              18:00 UTC; Amina will pay 120 USD on delivery.",
   "terms": { "deadline": "2026-11-01T18:00:00Z",
              "price": { "amount": "120", "currency": "USD",
                         "payer": "did:oip:bciqmwrzo6zt…", "payee": "did:oip:bciqm33shzk5…" } },
@@ -1206,7 +1219,8 @@ signedTime(r, P):                            # earliest time r counts for P, or 
     if r.type ∈ {Intent, Offer, Commitment, Receipt}:                          # delegable
         for p in r.proof by a valid key of some D ≠ P whose authority is d1 … dn (n ≤ 8):
             if exactly as listed, root first:                                  # no search
-                   every di is a Delegation signed by its author's own authority no later than t(r, p),
+                   every di is a Delegation signed by its author's own authority
+                       no later than t(r, p),
                    d1.author == P, every di.subject == P, links connect di.delegate → di+1.author,
                    dn.delegate == D, no di.delegate == di.author,
                    each step narrows its parent (command, policy, expiry),
@@ -1226,7 +1240,8 @@ signedTime(r, P):                            # earliest time r counts for P, or 
 
 countsFor(r, P) = signedTime(r, P) is not none
 accepted(c) = countsFor(c, c.author)
-              and (c.author is a party or a proof by c.author counts for a party by delegation or role)
+              and (c.author is a party
+                   or a proof by c.author counts for a party by delegation or role)
               and countsFor(c, party) for every required party
 ```
 
@@ -1240,10 +1255,12 @@ status(c, records, now):
         excluding receipts superseded by a later receipt of the same author, and "revoked" ones
     if the "cancelled" receipts in R together count for every required party: return "cancelled"
     F = receipts in R with outcome "fulfilled"
-    if some receipt in F counts for a creditor, or (c.terms.selfReport and F non-empty): s = "fulfilled"
+    if some receipt in F counts for a creditor, or (c.terms.selfReport and F non-empty):
+        s = "fulfilled"
     else if F non-empty: s = "claimed-fulfilled"
     else: s = "accepted"
-    if s ∈ {fulfilled, claimed-fulfilled} and R has a "broken" or "disputed" receipt: return "disputed"
+    if s ∈ {fulfilled, claimed-fulfilled} and R has a "broken" or "disputed" receipt:
+        return "disputed"
     if s == "accepted" and R has a "broken" receipt: return "broken"
     if s == "accepted" and R has a "disputed" receipt: return "disputed"
     if s == "accepted" and now > c.terms.deadline: return "overdue"

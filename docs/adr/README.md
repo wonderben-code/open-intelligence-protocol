@@ -11,6 +11,7 @@ An ADR records a decision that is hard to reverse: what was decided, why, and wh
 | [0005](0005-cryptography-libraries-as-adopted.md) | The cryptography libraries as adopted in `@oip/core` |
 | [0006](0006-performance-budgets.md)               | Performance budgets, as measured in M1               |
 | [0007](0007-programming-errors.md)                | A wrong argument is a `TypeError`                    |
+| [0008](0008-holding-logs.md)                      | The log book, and the time a log is known up to      |
 
 ## Writing one
 

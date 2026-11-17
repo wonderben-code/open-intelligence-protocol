@@ -60,7 +60,7 @@ Services return RFC 9457 problem details (`application/problem+json`) with `type
 
 ### Messages
 
-A message says what is wrong and, where there is a remedy, what to do: `"the number 1.5 is not an integer between -(2^53-1) and 2^53-1; write decimal quantities as strings"`. Messages are reviewed like code. `clause` is always present, so that a reader can check the rule; an implementation limit that the specification does not set says so (`"implementation limit"`).
+A message says what is wrong and, where there is a remedy, what to do: `"the record contains the number 1.5, which is not an integer …; write decimal quantities as strings"`. Messages are reviewed like code. `clause` is always present, so that a reader can check the rule; an implementation limit that the specification does not set says so (`"implementation limit"`).
 
 ## Consequences
 

@@ -16520,7 +16520,7 @@ validate390.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false}
 
 
 
-const schema80 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:oip:schema:ExtensionRecord","title":"ExtensionRecord","description":"A record of a type this revision does not define, as an extension may define one (core Section 7). Only the members every record shares are checked.","type":"object","required":["oip","type"],"properties":{"oip":{"type":"string","const":"1"},"type":{"type":"string"},"created":{"$ref":"urn:oip:schema:def:timestamp"},"expires":{"$ref":"urn:oip:schema:def:timestamp"},"ext":{"$ref":"urn:oip:schema:def:ext"},"critical":{"type":"array","items":{"type":"string"}},"proof":{"$ref":"urn:oip:schema:def:proofSet"}}};
+const schema80 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:oip:schema:ExtensionRecord","title":"ExtensionRecord","description":"A record of a type this revision does not define, as an extension may define one (core Section 7). Only the members every record shares are checked. It lists the extension that defines its type in `critical`.","type":"object","required":["oip","type","critical"],"properties":{"oip":{"type":"string","const":"1"},"type":{"type":"string"},"created":{"$ref":"urn:oip:schema:def:timestamp"},"expires":{"$ref":"urn:oip:schema:def:timestamp"},"ext":{"$ref":"urn:oip:schema:def:ext"},"critical":{"type":"array","items":{"type":"string"},"minItems":1},"proof":{"$ref":"urn:oip:schema:def:proofSet"}}};
 
 function validate392(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="urn:oip:schema:ExtensionRecord" */;
@@ -16536,7 +16536,7 @@ evaluated0.items = undefined;
 if(errors === 0){
 if(data && typeof data == "object" && !Array.isArray(data)){
 let missing0;
-if(((data.oip === undefined) && (missing0 = "oip")) || ((data.type === undefined) && (missing0 = "type"))){
+if((((data.oip === undefined) && (missing0 = "oip")) || ((data.type === undefined) && (missing0 = "type"))) || ((data.critical === undefined) && (missing0 = "critical"))){
 validate392.errors = [{instancePath,schemaPath:"#/required",keyword:"required",params:{missingProperty: missing0},message:"must have required property '"+missing0+"'"}];
 return false;
 }
@@ -16611,6 +16611,11 @@ let data5 = data.critical;
 const _errs8 = errors;
 if(errors === _errs8){
 if(Array.isArray(data5)){
+if(data5.length < 1){
+validate392.errors = [{instancePath:instancePath+"/critical",schemaPath:"#/properties/critical/minItems",keyword:"minItems",params:{limit: 1},message:"must NOT have fewer than 1 items"}];
+return false;
+}
+else {
 var valid1 = true;
 const len0 = data5.length;
 for(let i0=0; i0<len0; i0++){
@@ -16622,6 +16627,7 @@ return false;
 var valid1 = _errs10 === errors;
 if(!valid1){
 break;
+}
 }
 }
 }

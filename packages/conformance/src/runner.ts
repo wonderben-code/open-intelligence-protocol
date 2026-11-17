@@ -53,8 +53,8 @@ export function viewFor(vectors: Vectors, vectorCase: VectorCase): VerifierView 
 /**
  * Whether a case's claim holds for the implementation: the log verifies, the
  * record counts for (or was sent for) the mind, the status or assurance is
- * the one expected, or the record is well formed. `undefined` when the
- * adapter lacks the method the case needs.
+ * the one expected, the record is well formed, or the text is JSON within
+ * the profile. `undefined` when the adapter lacks the method the case needs.
  *
  * It lets an exception from the adapter through. A verifier judges hostile
  * input and answers; one that throws has not answered, and must never pass a
@@ -83,6 +83,8 @@ export function claimHolds(
       return named(adapter.assurance?.(vectorCase.record, view)) === vectorCase.expect;
     case "record":
       return verdict(adapter.recordIsWellFormed?.(vectorCase.record));
+    case "json":
+      return verdict(adapter.jsonIsWithinProfile?.(vectorCase.text));
   }
 }
 

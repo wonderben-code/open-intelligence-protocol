@@ -256,7 +256,7 @@ describe(`${clause("core 1.2")} nothing outside the profile has a canonical form
     let nested: unknown = 1;
     for (let i = 0; i < MAX_DEPTH; i++) nested = [nested];
     expect(canonicalize(nested)).toBe(`${"[".repeat(MAX_DEPTH)}1${"]".repeat(MAX_DEPTH)}`);
-    expect(rejected([nested]).clause).toBe("implementation limit");
+    expect(rejected([nested]).clause).toBe("core 1.9");
   });
 
   it("is not fooled by members named like the things it refuses", () => {

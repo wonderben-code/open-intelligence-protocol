@@ -48,6 +48,13 @@ export interface ConformanceAdapter {
   /** `record` cases: whether the value is a well-formed record. */
   recordIsWellFormed?(record: unknown): boolean;
 
+  /**
+   * `json` cases: whether the text is JSON within the profile of core
+   * Section 1: RFC 8259, valid Unicode, numbers that are integers within
+   * the safe range whatever their spelling, and nesting of at most 64.
+   */
+  jsonIsWithinProfile?(text: string): boolean;
+
   /** `log` cases: whether the identity log verifies (Layer 1, Section 4). */
   logVerifies?(log: Log, view: VerifierView): boolean;
 
@@ -105,4 +112,5 @@ export const METHOD_FOR_KIND = {
   status: "status",
   assurance: "assurance",
   record: "recordIsWellFormed",
+  json: "jsonIsWithinProfile",
 } as const satisfies Record<string, keyof ConformanceAdapter>;

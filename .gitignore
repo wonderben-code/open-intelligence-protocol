@@ -19,3 +19,7 @@ docs/api/
 
 # API Extractor's working copy of each API report
 temp/
+
+# Mutation testing
+.stryker-tmp/
+reports/

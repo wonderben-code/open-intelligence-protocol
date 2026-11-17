@@ -35,3 +35,5 @@ LICENSES/
 # Kept as the workflows' author wrote them (BUILD.md, M0: leave them as they are).
 .github/workflows/bitcoin-timestamp.yml
 .github/workflows/bitcoin-timestamp-branches.yml
+.stryker-tmp
+reports

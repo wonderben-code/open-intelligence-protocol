@@ -50,6 +50,6 @@ Patterns are ECMAScript regular expressions, as JSON Schema specifies, and are m
 | [`Sealed`](Sealed.json) | `urn:oip:schema:Sealed` | L1 12.6 | A packet encrypted to one of the recipient's agreement keys with HPKE. Unsigned (Layer 1, 12.6). |
 | [`Proof`](Proof.json) | `urn:oip:schema:Proof` |  | One proof of a record's proof set (core 5.2). |
 | [`Policy`](Policy.json) | `urn:oip:schema:Policy` |  | A policy: at most 64 statements, all of which must hold for the record being authorised (Layer 1, 11.3). |
-| [`ExtensionRecord`](ExtensionRecord.json) | `urn:oip:schema:ExtensionRecord` |  | A record of a type this revision does not define, as an extension may define one (core Section 7). Only the members every record shares are checked. |
+| [`ExtensionRecord`](ExtensionRecord.json) | `urn:oip:schema:ExtensionRecord` |  | A record of a type this revision does not define, as an extension may define one (core Section 7). Only the members every record shares are checked. It lists the extension that defines its type in `critical`. |
 | [`Defs`](Defs.json) | `urn:oip:schema:Defs` |  | Value syntaxes and structures that several record types share (core Sections 1, 3, 4, 6 and 8). |
 | [`Record`](Record.json) | `urn:oip:schema:Record` |  | Any record this revision defines (core Section 11). Merge is reserved and matches nothing. |

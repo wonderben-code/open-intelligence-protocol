@@ -72,11 +72,30 @@ export interface RecordCase extends CaseBase {
   readonly record: unknown;
 }
 
+/**
+ * The text in `text` is JSON within the profile of core Section 1
+ * (must-accept) or is not (negative). The text is given as a string because
+ * what it tests is lost on parsing: how a number is written, an escape, a
+ * depth of nesting.
+ */
+export interface JsonCase extends CaseBase {
+  readonly kind: "json";
+  readonly text: string;
+}
+
 export type VectorCase =
-  LogCase | CountsForCase | SentForCase | StatusCase | AssuranceCase | RecordCase;
+  LogCase | CountsForCase | SentForCase | StatusCase | AssuranceCase | RecordCase | JsonCase;
 
 /** The kinds of case, in the order the vectors' README lists them. */
-export const CASE_KINDS = ["log", "countsFor", "sentFor", "status", "assurance", "record"] as const;
+export const CASE_KINDS = [
+  "log",
+  "countsFor",
+  "sentFor",
+  "status",
+  "assurance",
+  "record",
+  "json",
+] as const;
 export type CaseKind = (typeof CASE_KINDS)[number];
 
 /** The three lists of cases. */
@@ -134,6 +153,7 @@ const REQUIRED_MEMBERS: Readonly<Record<CaseKind, readonly string[]>> = {
   status: ["of", "records", "at", "expect"],
   assurance: ["record", "expect"],
   record: ["record"],
+  json: ["text"],
 };
 
 /** The members any case may have. */
@@ -189,6 +209,7 @@ function checkCase(section: Section, value: unknown, index: number): void {
     ["mind", (found) => typeof found === "string", "an address"],
     ["at", (found) => typeof found === "string", "a timestamp"],
     ["expect", (found) => typeof found === "string", "a string"],
+    ["text", (found) => typeof found === "string", "a string"],
     [
       "seen",
       (found) => isObject(found) && Object.values(found).every((time) => typeof time === "string"),

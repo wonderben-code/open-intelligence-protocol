@@ -5,7 +5,7 @@ The conformance suite of the [Open Intelligence Protocol](../../README.md): the 
 The specification says what a conforming implementation must do with the vectors ([spec/README.md](../../spec/README.md)): reproduce every value, accept every must-accept case and every control, and reject every negative case. This package checks exactly that.
 
 - A typed loader for [`spec/test-vectors/vectors.json`](../../spec/test-vectors/README.md).
-- A runner for each kind of case: `log`, `countsFor`, `sentFor`, `status`, `assurance` and `record`.
+- A runner for each kind of case: `log`, `countsFor`, `sentFor`, `status`, `assurance`, `record` and `json`.
 - Differential testing against the independent Python checker, [`oip_vectors.py`](../../spec/test-vectors/oip_vectors.py).
 
 From M5 it will also run over the wire, by profile, against any implementation's endpoints.
@@ -37,7 +37,7 @@ export function report(recordIsWellFormed: (record: unknown) => boolean): string
 This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the two malformed records it should have rejected:
 
 ```
-my implementation: 1 passed, 2 failed, 89 pending
+my implementation: 1 passed, 2 failed, 101 pending
 FAIL negative packet-short-nonce: must be rejected. A packet nonce has 8 to 64 characters.
 FAIL negative delegation-to-self: must be rejected. A delegation's delegate must differ from its author.
 ```
@@ -47,6 +47,7 @@ FAIL negative delegation-to-self: must be rejected. A delegation's delegate must
 | Method                                     | Kind of case    | Question                                                                                     |
 | ------------------------------------------ | --------------- | -------------------------------------------------------------------------------------------- |
 | `recordIsWellFormed(record)`               | `record`        | Is the value a well-formed record?                                                           |
+| `jsonIsWithinProfile(text)`                | `json`          | Is the text JSON within the profile of core Section 1?                                       |
 | `logVerifies(log, view)`                   | `log`           | Does the identity log verify (Layer 1, Section 4)?                                           |
 | `countsFor(record, mind, view)`            | `countsFor`     | Does the record count for the mind (Layer 2, 7.1)?                                           |
 | `sentFor(packet, mind, view)`              | `sentFor`       | Does the packet count as sent on the mind's behalf (Layer 1, 11.2)?                          |

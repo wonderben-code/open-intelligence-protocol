@@ -3069,6 +3069,30 @@
         "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq": "2026-10-30T09:05:00Z",
         "bciqgvphvnx2hbi27a6fmvp7zgf7th3z4uhgiqwbopkuggaflxmvczbq": "2026-10-30T09:05:00Z"
       }
+    },
+    {
+      "name": "json-integers-however-written",
+      "reason": "Validity depends on a number's value, not on how it is written (core 1.2): these are the integers 1, 100, 1, 0 and 2^53-1, and canonical form writes them 1, 100, 1, 0 and 9007199254740991.",
+      "kind": "json",
+      "text": "{\"a\":1.0,\"b\":1e2,\"c\":100e-2,\"d\":-0,\"e\":9007199254740991.0}"
+    },
+    {
+      "name": "json-escapes-are-spellings",
+      "reason": "An escape is another spelling of the same character: the member names are `oip` and `name`, and the value is one character outside the basic plane, written as a surrogate pair.",
+      "kind": "json",
+      "text": "{\"\\u006fip\":\"1\",\"na\\u006de\":\"\\ud83d\\ude00\"}"
+    },
+    {
+      "name": "json-same-name-in-different-objects",
+      "reason": "Member names must be distinct within one object, not across objects.",
+      "kind": "json",
+      "text": "{\"a\":{\"a\":1},\"b\":[{\"a\":1},{\"a\":2}]}"
+    },
+    {
+      "name": "json-nested-64-deep",
+      "reason": "Arrays and objects may nest 64 deep (core 1.9).",
+      "kind": "json",
+      "text": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]"
     }
   ],
   "negative": [
@@ -7426,6 +7450,54 @@
         "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq": "2026-10-30T09:05:00Z",
         "bciqgvphvnx2hbi27a6fmvp7zgf7th3z4uhgiqwbopkuggaflxmvczbq": "2026-10-30T09:05:00Z"
       }
+    },
+    {
+      "name": "json-number-with-fraction",
+      "reason": "A number whose value has a fractional part is rejected; decimal quantities travel as strings (core 1.2, 1.3).",
+      "kind": "json",
+      "text": "{\"amount\":1.5}"
+    },
+    {
+      "name": "json-number-with-negative-exponent",
+      "reason": "1e-1 is one tenth, which is not an integer.",
+      "kind": "json",
+      "text": "{\"n\":1e-1}"
+    },
+    {
+      "name": "json-integer-beyond-safe-range",
+      "reason": "2^53 is outside the range -(2^53-1) to 2^53-1 (core 1.2).",
+      "kind": "json",
+      "text": "{\"n\":9007199254740992}"
+    },
+    {
+      "name": "json-exponent-beyond-safe-range",
+      "reason": "1e16 is an integer, and outside the range.",
+      "kind": "json",
+      "text": "{\"n\":1e16}"
+    },
+    {
+      "name": "json-unpaired-surrogate",
+      "reason": "Every string is valid Unicode (core 1.1): an escape that writes half of a surrogate pair is not.",
+      "kind": "json",
+      "text": "{\"s\":\"\\ud800\"}"
+    },
+    {
+      "name": "json-nested-65-deep",
+      "reason": "Arrays and objects nest at most 64 deep (core 1.9).",
+      "kind": "json",
+      "text": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]"
+    },
+    {
+      "name": "json-trailing-comma",
+      "reason": "A record is JSON (RFC 8259), which has no trailing commas.",
+      "kind": "json",
+      "text": "{\"a\":1,}"
+    },
+    {
+      "name": "json-not-a-number",
+      "reason": "NaN is not JSON.",
+      "kind": "json",
+      "text": "{\"n\":NaN}"
     }
   ],
   "controls": [

@@ -8,6 +8,7 @@ import {
   contentId,
   createProofSync,
   keyHash,
+  parseJson,
   type ProofOptions,
   signerFromPrivateKey,
   verifyProof,
@@ -23,6 +24,7 @@ import type { ConformanceAdapter } from "./adapter.ts";
 export const referenceAdapter: ConformanceAdapter = {
   name: "OIP reference implementation (TypeScript)",
   recordIsWellFormed: (record) => validateRecord(record).ok,
+  jsonIsWithinProfile: (text) => parseJson(text).ok,
   canonicalize,
   contentId,
   keyHash,

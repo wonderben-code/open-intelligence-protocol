@@ -59,12 +59,14 @@ describe("limits on every value", () => {
     expect(validateRecord(sample("Intent", { want: "paired \ud83d\ude00 and 𝛑" })).ok).toBe(true);
   });
 
-  it("accepts nesting up to the implementation limit and rejects anything deeper", () => {
+  it(`${clause("core 1.9")} accepts nesting up to 64 deep and rejects anything deeper`, () => {
     // The record is level 1 and the member's value starts at level 2.
     expect(validateRecord(sample("Intent", { futureMember: nest(MAX_DEPTH - 1) })).ok).toBe(true);
     const result = validateRecord(sample("Intent", { futureMember: nest(MAX_DEPTH) }));
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.issues[0].clause).toBe(IMPLEMENTATION_LIMIT);
+    if (!result.ok) expect(result.issues[0].clause).toBe("core 1.9");
+    expect(MAX_DEPTH).toBe(64);
+    expect(IMPLEMENTATION_LIMIT).toBe("implementation limit");
   });
 
   it("rejects hostile nesting without exhausting the stack", () => {

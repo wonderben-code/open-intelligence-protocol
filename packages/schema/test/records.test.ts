@@ -325,7 +325,30 @@ describe(`${clause("core 7")} records of a type an extension defines`, () => {
   it("are accepted by validateExtensionRecord when their common members are well formed", () => {
     const result = validateExtensionRecord(escrow);
     expect(result.ok ? [] : result.issues).toEqual([]);
-    expect(validateExtensionRecord({ oip: "1", type: "com.example.Minimal" }).ok).toBe(true);
+    const minimal = {
+      oip: "1",
+      type: "com.example.Minimal",
+      ext: { "com.example.minimal": {} },
+      critical: ["com.example.minimal"],
+    };
+    expect(validateExtensionRecord(minimal).ok).toBe(true);
+  });
+
+  it("must list the extension that defines the type in critical", () => {
+    const { critical: _critical, ...unlisted } = escrow;
+    for (const record of [
+      unlisted,
+      { ...escrow, critical: [] },
+      { oip: "1", type: "com.example.Minimal" },
+      { oip: "1", type: "com.example.Minimal", ext: { "com.example.minimal": {} } },
+    ]) {
+      const result = validateExtensionRecord(record);
+      // A missing list is against core 7; an empty one is reported where the list is.
+      expect(result.ok ? undefined : result.issues[0]).toMatchObject({
+        path: expect.stringMatching(/^(\/critical)?$/) as string,
+        clause: expect.stringMatching(/^core (7|8\.3)$/) as string,
+      });
+    }
   });
 
   it("are rejected when a common member is malformed", () => {

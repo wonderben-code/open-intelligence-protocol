@@ -1,5 +1,24 @@
 # Specification changelog
 
+## Since revision 2026-11-17 (not yet dated)
+
+Changes adopted while the reference implementation is built. They stay under this heading until the maintainer dates the next revision ([GOVERNANCE.md](../GOVERNANCE.md)), which [BUILD.md](../BUILD.md) plans for the release candidate (M12). Each names its OEP.
+
+**Core clarifications ([OEP-0001](../oeps/oep-0001-core-clarifications.md), found while building `@oip/core`).** No address, content ID or proof in the test vectors changes.
+
+- **Depth (core 1.9, new).** Arrays and objects nest at most 64 deep, the record itself being depth 1. The specification set no limit, so two implementations could disagree about a deeply nested record, and one could be made to exhaust its stack. Layer 1, Section 19 lists the limit.
+- **Size counts proofs (core 1.6).** The 1 MiB limit is on the canonical form of the record with its `proof` member. The rules of core 1 apply to every entry of `proof`.
+- **Proof entries are objects (core 5.1).** An entry of `proof` that is not a JSON object makes the record malformed. An entry that is an object but not a valid proof does not count and does not.
+- **Year 0000 (core 1.4).** Years run from `0000` to `9999` of the proleptic Gregorian calendar, as in RFC 3339, and year `0000` is a leap year. The Python checker rejected year `0000`; it now accepts it.
+- **`"-0"` (core 1.3).** It is a decimal equal to `"0"`, and not an amount.
+- **Key hashes (core 3.4).** A key hash matches the content-ID pattern of core 3.2. Both implementations already required it.
+- **Positions (core 6.1).** A `seq` greater than 2⁵³−1 names no event.
+- **Types that extensions define (core 7).** A record whose `type` this specification does not define lists the extension that defines it in `critical`. core 7 said "defined by this specification or by a critical extension"; this states what follows.
+- **Extension names (core 8.1, 8.3).** A member of `ext` whose name is not a namespace makes the record malformed. A namespace repeated in `critical` counts once.
+- **`kind` (Layer 1, 3.6).** A `kind` is not empty. Both implementations already required it.
+
+**Test vectors.** A new kind of case, `json`, gives texts that a parser of the JSON profile must read (4 must-accept cases: integers however they are written, escapes, the same member name in different objects, nesting 64 deep) and must refuse (8 negative cases: fractions, integers outside the safe range, an unpaired surrogate, nesting 65 deep, text that is not JSON). Duplicate member names are not among them, because core 1.1 says receivers SHOULD reject those. The Python checker gained a parser for the profile, and applies core 1.1, 1.2 and 1.9 to every record it judges. Every other value in `vectors.json` is byte for byte what it was.
+
 ## Revision 2026-11-17 (Draft)
 
 Security and consistency fixes from two independent reviews of revision 2026-10-30, one of the technical paper and one of the specifications, and from a third independent check of those fixes before publication ([reviews/](../reviews/)). Record formats change little; most changes are clearer rules about who may sign what, and when. Every mind address in the test vectors is unchanged.

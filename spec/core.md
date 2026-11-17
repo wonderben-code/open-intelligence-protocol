@@ -10,17 +10,19 @@ This document defines what every OIP record has in common, at every layer. See [
 
 1.2. The values permitted anywhere in a record are objects, arrays, strings, `true`, `false`, `null`, and numbers whose value is an integer `n` with −(2⁵³−1) ≤ `n` ≤ 2⁵³−1. A record containing a number whose value has a fractional part, or lies outside that range, MUST be rejected. Validity depends on a number's value, not on how it is written: `1.0` and `1e2` are the integers 1 and 100, which canonical form writes as `1` and `100`. Producers MUST write integers without a fraction or exponent.
 
-1.3. **Decimal quantities** (prices, amounts, scores) MUST be strings matching `^-?(0|[1-9][0-9]*)(\.[0-9]+)?$`, using the ASCII digits only. **Amounts** (prices, budgets and other sums of money or assets) MUST be non-negative, matching `^(0|[1-9][0-9]*)(\.[0-9]+)?$`. Wherever this specification compares two decimal strings, the comparison is numeric. Ordering comparisons (less than, greater than) are defined only between decimals; a string that does not match the pattern is not a decimal, however it looks (`"1,000"`, `"1e2"`, `" 400 "`, `"-Infinity"` and full-width digits are not decimals). A decimal string MUST NOT exceed 64 characters, and decimals are compared with exact decimal arithmetic, never binary floating point.
+1.3. **Decimal quantities** (prices, amounts, scores) MUST be strings matching `^-?(0|[1-9][0-9]*)(\.[0-9]+)?$`, using the ASCII digits only. **Amounts** (prices, budgets and other sums of money or assets) MUST be non-negative, matching `^(0|[1-9][0-9]*)(\.[0-9]+)?$`. Wherever this specification compares two decimal strings, the comparison is numeric. Ordering comparisons (less than, greater than) are defined only between decimals; a string that does not match the pattern is not a decimal, however it looks (`"1,000"`, `"1e2"`, `" 400 "`, `"-Infinity"` and full-width digits are not decimals). A decimal string MUST NOT exceed 64 characters, and decimals are compared with exact decimal arithmetic, never binary floating point. `"-0"`, with or without a fraction of zeros, is a decimal equal to `"0"`; it is not an amount, because an amount has no sign.
 
-1.4. **Timestamps** MUST be RFC 3339 strings in UTC matching `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$` that name a real date and time (no month 13, no second 60 or above). Timestamps are compared as instants at full precision (up to nanoseconds), never as strings.
+1.4. **Timestamps** MUST be RFC 3339 strings in UTC matching `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$` that name a real date and time (no month 13, no second 60 or above). Years run from `0000` to `9999` of the proleptic Gregorian calendar, as in RFC 3339; year `0000` is a leap year. Timestamps are compared as instants at full precision (up to nanoseconds), never as strings.
 
 1.5. **Durations** MUST be ISO 8601 durations matching `^P(?!$)([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?([0-9]+S)?)?$`, for example `P30D` or `PT15M`.
 
-1.6. **Size.** The canonical form (Section 2) of a record MUST NOT exceed 1 MiB. Implementations MAY apply lower limits to particular record types but MUST accept records of at least 256 KiB. Larger content is carried by reference (Layer 1, Section 12). `Bundle`, `LogPage`, `FeedPage` and `DuplicityEvidence` are containers: the limit applies to each record they contain, not to the container. A `Sealed` record MAY exceed the limit by its encoding overhead.
+1.6. **Size.** The canonical form (Section 2) of a record, with its `proof` member, MUST NOT exceed 1 MiB. Implementations MAY apply lower limits to particular record types but MUST accept records of at least 256 KiB. Larger content is carried by reference (Layer 1, Section 12). `Bundle`, `LogPage`, `FeedPage` and `DuplicityEvidence` are containers: the limit applies to each record they contain, not to the container. A `Sealed` record MAY exceed the limit by its encoding overhead.
 
 1.7. **Field names** use camelCase. Implementations MUST preserve fields they do not recognise when storing or forwarding a record, because those fields are covered by its proofs, and MUST otherwise ignore them (Section 8).
 
 1.8. **String lengths** ("at most N characters") are counted in Unicode code points.
+
+1.9. **Depth.** The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is at depth 1, and a value that is neither an array nor an object adds no depth. A record that nests more deeply MUST be rejected. The rules of this section apply to the whole record, including every entry of `proof`.
 
 ## 2. Canonical form
 
@@ -44,7 +46,7 @@ An OIP content ID is a multibase-encoded multihash. It is not an IPFS CID: stori
 
 3.3. The 32-byte digest inside a content ID equals the `transformedDocumentHash` of every `eddsa-jcs-2022` proof on the record (Section 5).
 
-3.4. The **key hash** of a Multikey string `k`, used for pre-rotation commitments, is `"b" + base32lower(0x12 ‖ 0x20 ‖ SHA-256(UTF-8(k)))`.
+3.4. The **key hash** of a Multikey string `k`, used for pre-rotation commitments, is `"b" + base32lower(0x12 ‖ 0x20 ‖ SHA-256(UTF-8(k)))`. A key hash has the form of a content ID and MUST match the pattern of 3.2.
 
 ## 4. Keys
 
@@ -69,7 +71,7 @@ Because no point with a torsion component is accepted, the cofactored and cofact
 
 ## 5. Proofs
 
-5.1. A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 proof objects (a W3C Data Integrity *proof set*). Records that this specification defines as unsigned (such as `Bundle`, `Session` and `Sealed`) MUST NOT carry `proof`.
+5.1. A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 proof objects (a W3C Data Integrity *proof set*). Every entry MUST be a JSON object. An entry that is an object but is not a valid proof does not count (5.5) and does not make the record malformed. Records that this specification defines as unsigned (such as `Bundle`, `Session` and `Sealed`) MUST NOT carry `proof`.
 
 5.2. Each proof object MUST conform to W3C Data Integrity 1.0 with the `eddsa-jcs-2022` cryptosuite, and MUST contain exactly these members, plus any optional members listed:
 
@@ -132,6 +134,8 @@ control-key-ref  = "did:key:" multikey "#" multikey
 record-ref       = mind-address "/" content-id
 ```
 
+`seq` is the position of an identity event in its log, which is an integer of a record (1.2): a `seq` greater than 2⁵³−1 names no event.
+
 6.2. A proof by a mind's operational key MUST use a `key-ref`, which pins the version of the mind's identity at which the key is asserted to be valid. A proof by a control key MUST use a `control-key-ref` in which both occurrences of the Multikey are identical.
 
 6.3. A `record-ref` names a record by its content ID and says which mind's records to fetch it from. A record-ref matches a record when its content ID equals the record's content ID; the mind part is only a hint for fetching and MUST be ignored when matching. The content ID alone is sufficient to check that a fetched record is the one referenced.
@@ -143,7 +147,7 @@ record-ref       = mind-address "/" content-id
 | Field | Meaning |
 |---|---|
 | `oip` | REQUIRED in every record. The string `"1"`. Records with any other value MUST be rejected. |
-| `type` | REQUIRED in every record. A record type defined by this specification or by a critical extension. |
+| `type` | REQUIRED in every record. A record type defined by this specification or by a critical extension: a record whose `type` this specification does not define MUST list in `critical` the namespace of the extension that defines it, and a reader that does not understand that extension treats the record as Section 8.3 says. |
 | `author` | The mind making a statement. Identity events use `mind` and packets use `from` instead. |
 | `created` | REQUIRED in every record except the containers and `Sealed` (Section 11). The author's claimed creation time: a claim, never evidence of when the record existed (Section 9). |
 | `expires` | OPTIONAL. After this instant the record is closed for any purpose that depends on it being open. |
@@ -158,9 +162,11 @@ record-ref       = mind-address "/" content-id
 - a short name recognised by this specification: `x402`, `ap2`, `acp`, `l402`, `vc`, `as2`;
 - a name beginning `oip.`, reserved for profiles published by the OIP project.
 
+A record whose `ext` has a member with any other name is malformed.
+
 8.2. An extension block MAY contain a member `v` giving its own version.
 
-8.3. `critical` is an array of namespaces, each of which MUST also appear in `ext`. An implementation that does not understand a namespace listed in `critical` MAY store and forward the record but MUST NOT act on it or treat it as valid for any decision.
+8.3. `critical` is an array of namespaces, each of which MUST also appear in `ext`. Naming a namespace more than once has the effect of naming it once. An implementation that does not understand a namespace listed in `critical` MAY store and forward the record but MUST NOT act on it or treat it as valid for any decision.
 
 8.4. Extensions MUST NOT change the validity of a record under this specification unless they are listed in `critical`.
 

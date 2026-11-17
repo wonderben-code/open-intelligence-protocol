@@ -7,8 +7,8 @@
  * `JSON.parse` cannot be used for records. It keeps the last of two members
  * with the same name, so two receivers could read one text as two different
  * records; it turns `1e400` into Infinity and `0.1` into a float. This
- * parser rejects all of those, and nests no deeper than the limit, so no
- * text can exhaust the stack.
+ * parser rejects all of those, and nests no deeper than the limit of
+ * core 1.9, so no text can exhaust the stack.
  */
 
 import {
@@ -156,7 +156,7 @@ class Parser {
 
   #deeper(depth: number): void {
     if (depth > MAX_DEPTH) {
-      this.#fail(`arrays and objects nest more than ${MAX_DEPTH} deep`, IMPLEMENTATION_LIMIT);
+      this.#fail(`arrays and objects nest more than ${MAX_DEPTH} deep`, "core 1.9");
     }
   }
 
@@ -361,7 +361,7 @@ function tooLong<T>(limit: number, unit: string): Validation<T> {
 /**
  * Parses JSON text under the profile of core Section 1. It rejects, and
  * says why: duplicate member names and invalid Unicode (1.1), numbers that
- * are not safe integers (1.2), nesting deeper than `MAX_DEPTH`, and anything
+ * are not safe integers (1.2), nesting deeper than 64 (1.9), and anything
  * that is not JSON (RFC 8259), including a byte order mark. Any JSON value
  * may stand at the top; whether it is a record is `parseRecord`'s question.
  *

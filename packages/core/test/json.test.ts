@@ -419,17 +419,18 @@ describe(`${clause("core 1.2")} numbers are safe integers, judged by value`, () 
   });
 });
 
-describe("depth and length", () => {
+describe(`${clause("core 1.9")} depth, and the length of a text`, () => {
   const nested = (depth: number, open: string, close: string) =>
     open.repeat(depth) + close.repeat(depth);
 
   it(`reads arrays and objects nested ${MAX_DEPTH} deep, and no deeper`, () => {
     expect(parseJson(nested(MAX_DEPTH, "[", "]")).ok).toBe(true);
-    expect(rejection(nested(MAX_DEPTH + 1, "[", "]"))).toBe(IMPLEMENTATION_LIMIT);
+    expect(MAX_DEPTH).toBe(64);
+    expect(rejection(nested(MAX_DEPTH + 1, "[", "]"))).toBe("core 1.9");
     const objects = (depth: number) => `${'{"a":'.repeat(depth)}1${"}".repeat(depth)}`;
     // The number inside is not a level: only arrays and objects nest.
     expect(parseJson(objects(MAX_DEPTH)).ok).toBe(true);
-    expect(rejection(objects(MAX_DEPTH + 1))).toBe(IMPLEMENTATION_LIMIT);
+    expect(rejection(objects(MAX_DEPTH + 1))).toBe("core 1.9");
     expect(
       parseJson(`[${nested(MAX_DEPTH - 1, "[", "]")},${nested(MAX_DEPTH - 1, "[", "]")}]`).ok,
     ).toBe(true);
@@ -440,7 +441,7 @@ describe("depth and length", () => {
 
   it("is not exhausted by a text that only opens", () => {
     for (const open of ["[", '{"a":', '[[[{"a":']) {
-      expect(rejection(open.repeat(200_000))).toBe(IMPLEMENTATION_LIMIT);
+      expect(rejection(open.repeat(200_000))).toBe("core 1.9");
     }
     expect(rejection("[".repeat(10))).toBe("core 1.1");
   });

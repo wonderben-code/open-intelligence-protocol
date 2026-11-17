@@ -26,6 +26,7 @@
     "api": "pnpm clean && pnpm build && pnpm -r --if-present run api",
     "api:check": "pnpm clean && pnpm build && pnpm -r --if-present run api:check",
     "bench": "vitest bench --run --reporter=verbose",
+    "mutation": "stryker run",
     "docs": "typedoc",
     "changeset": "changeset",
     "ci": "node scripts/ci.ts"
@@ -35,6 +36,8 @@
     "@changesets/cli": "^3.0.3",
     "@eslint/js": "^10.0.1",
     "@microsoft/api-extractor": "^7.60.1",
+    "@stryker-mutator/core": "10.1.1",
+    "@stryker-mutator/vitest-runner": "10.1.1",
     "@types/node": "^24.19.2",
     "@vitest/coverage-v8": "^5.1.0",
     "dependency-cruiser": "^18.7.2",

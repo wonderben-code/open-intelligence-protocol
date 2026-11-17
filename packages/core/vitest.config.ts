@@ -11,6 +11,9 @@ export default defineProject({
     name: "@oip/core",
     environment: "node",
     include: ["test/**/*.test.ts"],
+    // Signatures and megabyte records take real time, more so on a busy CI
+    // machine or under mutation testing.
+    testTimeout: 60_000,
     benchmark: { include: ["bench/**/*.bench.ts"] },
   },
 });

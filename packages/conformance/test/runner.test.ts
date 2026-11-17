@@ -33,6 +33,7 @@ const first = (kind: CaseKind, section: "valid" | "negative" | "controls" = "neg
 const always = (answer: boolean, status = "open"): ConformanceAdapter => ({
   name: `always ${String(answer)}`,
   recordIsWellFormed: () => answer,
+  jsonIsWithinProfile: () => answer,
   logVerifies: () => answer,
   countsFor: () => answer,
   sentFor: () => answer,
@@ -99,6 +100,7 @@ describe("running a case", () => {
     const throwing: ConformanceAdapter = {
       name: "throws",
       recordIsWellFormed: crash,
+      jsonIsWithinProfile: crash,
       logVerifies: crash,
       countsFor: crash,
       sentFor: crash,
@@ -122,6 +124,7 @@ describe("running a case", () => {
       const loose: ConformanceAdapter = {
         name: "loose",
         recordIsWellFormed: say,
+        jsonIsWithinProfile: say,
         logVerifies: say,
         countsFor: say,
         sentFor: say,

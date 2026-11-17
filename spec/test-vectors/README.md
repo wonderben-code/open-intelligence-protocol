@@ -18,14 +18,15 @@ It needs only the `cryptography` package. It applies core 4.4 itself (it decodes
 
 **Positive cases:** address derivation and canonical content IDs; identity logs with pre-rotation, a 2-of-3 rotation, forks, invocation keys and a collective; DID documents, current and versioned; lineage acknowledged by a `Fork` event and by a `Lineage` record; signatures with proof purposes and key validity; feed entries committing to the proofs of what they publish, and a checkpoint's Merkle root; a packet that opens its session, and its `Ack`; a packet sent on Amina's behalf under a `/oip/send` delegation; co-signing without changing a content ID; two agents signing one commitment for their principals, each carrying its delegation in its own proof; delegation policy (120 and 500 USD within the agent's authority, 500.01 and 900 not); a two-step delegation chain; collective signing by threshold and by a charter role; a mind bridged by its gateway; Layer 2 status (every state of Intents, Offers and Commitments: `open`, `satisfied`, `withdrawn`, `superseded`, `expired`, `exhausted`, `proposed`, `accepted`, `claimed-fulfilled`, `fulfilled`, `overdue`, `broken`, `disputed`, `cancelled`); and JCS canonicalisation.
 
-**Must-accept cases** (`valid`): records that look suspicious but are valid: a collective's log after a member's backdated compromise claim, a receipt after a backdated key removal, a commitment after a backdated revocation, a duplicity resolved by first-seen evidence, and a record pinned before an unresolved duplicity.
+**Must-accept cases** (`valid`): 9 cases that look suspicious but are valid: a collective's log after a member's backdated compromise claim, a receipt after a backdated key removal, a commitment after a backdated revocation, a duplicity resolved by first-seen evidence, a record pinned before an unresolved duplicity, and four JSON texts (integers written with a fraction or an exponent, escaped characters, one member name in different objects, and nesting exactly 64 deep).
 
-**Negative cases** (`negative`): 55 records or logs that every implementation must reject, each with the reason. They cover:
+**Negative cases** (`negative`): 63 records, logs or texts that every implementation must reject, each with the reason. They cover:
 - identity logs: duplicate control keys, forged rotations, zero and minority thresholds, a missing founder, collective events signed with operational keys, events after `Retire`, the reserved `Merge` and `recovery`, a non-canonical content ID, a revoked key added again, a collective takeover with removed invocation keys, a collective genesis first seen after a founder removed its key, and a collective joining one that is not tall enough;
 - Ed25519: the identity point as a key, a mixed-order key, `S` not reduced, and `R` the identity point;
 - signatures and delegation: wrong proof purposes, a delegate's key that is not in its log, delegations listed outside the proof, delegates signing delegations, reserved blanket commands, a chain listed out of order, a delegation to oneself, policy bypasses (currency, negative and non-decimal amounts, a counterparty outside the policy, the firm paying instead of being paid, the agent dealing with itself, a negated comparison on a missing member), a charter role used without naming the charter, and a packet claiming to be sent on someone's behalf without a delegation;
 - time: backdated proofs by removed and compromised keys, a backdated co-signature added to a record seen earlier, an expired and a revoked delegation, a removed collective member, proofs from the future and after a record's expiry, and a collective's location record after a member left;
-- Layer 2 and the bridge: an outsider closing someone else's Intent, a compromise claim that turns a commitment `disputed`, a commitment whose author is not a party, an unresolved duplicity, a self-attested bridged mind, and a short packet nonce.
+- Layer 2 and the bridge: an outsider closing someone else's Intent, a compromise claim that turns a commitment `disputed`, a commitment whose author is not a party, an unresolved duplicity, a self-attested bridged mind, and a short packet nonce;
+- the JSON profile (core Section 1): numbers with a fractional part, integers outside the safe range, an unpaired surrogate, nesting 65 deep, and text that is not JSON. Duplicate member names are not among them, because core 1.1 says receivers SHOULD reject those.
 
 **Controls** (`controls`): 11 negative cases, each changed only in the respect its reason names, which must be accepted. They show that each fails for its stated reason and nothing else: for example, the backdated proofs pass when first seen in time, the collective takeover passes when evidence shows it came before the key removals, and the collective joining passes when the collective was founded tall enough.
 
@@ -35,7 +36,8 @@ Each case has a `kind`, evaluated with the **baseline** (the identity logs and r
 - `sentFor`: the packet in `record` must not count as sent on `mind`'s behalf (negative);
 - `status`: the status of `of`, given `records` at time `at`, must be `expect`;
 - `assurance`: the assurance level (Layer 0, 1.3) of the profile in `record` must be `expect`;
-- `record`: `record` is malformed.
+- `record`: `record` is malformed;
+- `json`: the text in `text` is JSON within the profile of core Section 1 (must-accept) or is not (negative). It needs no baseline. The text is given as a string because what it tests is lost on parsing: how a number is written, an escape, a depth of nesting.
 
 ## Judging other cases
 
@@ -52,11 +54,11 @@ Each verdict is one line of JSON:
 {"name": "delegation-to-self", "kind": "record", "holds": false}
 ```
 
-- `holds` says whether the case's claim holds: the log verifies, the record counts for (or was sent for) the mind, the status or assurance is `expect`, or the record is well formed.
+- `holds` says whether the case's claim holds: the log verifies, the record counts for (or was sent for) the mind, the status or assurance is `expect`, the record is well formed, or the text is JSON within the profile.
 - For `status` and `assurance` cases, `value` is the result computed, and `expect` may be left out.
 - Input this implementation cannot process at all gives `"holds": false` with an `error`. An error is never an acceptance.
 
-`record` cases use this generator's structural checks, which are the ones it relies on and not a full schema. The JSON Schemas in [`../schemas/`](../schemas/) check more.
+`record` cases use this generator's structural checks, which are the ones it relies on and not a full schema. The JSON Schemas in [`../schemas/`](../schemas/) check more. `json` cases are judged in full: the checker has its own parser for the profile (`read_json`), which shares nothing with the reference implementation's.
 
 ## Evaluation times
 

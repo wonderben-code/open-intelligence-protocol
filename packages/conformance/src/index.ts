@@ -44,6 +44,7 @@ export {
   type CaseKind,
   type CountsForCase,
   type ExpectedStatus,
+  type JsonCase,
   type JsonObject,
   type Log,
   type LogCase,

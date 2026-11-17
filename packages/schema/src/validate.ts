@@ -23,10 +23,9 @@ import {
 import { checkExtensionRules, checkProofRules, checkRecordRules } from "./rules.ts";
 
 /**
- * The deepest nesting of arrays and objects this implementation accepts in a
- * record. The specification sets no limit yet; this one is an implementation
- * limit, far above anything the defined record types need, that keeps
- * recursive code safe from hostile input.
+ * core 1.9: the deepest nesting of arrays and objects in a record. The record
+ * itself is at depth 1. It is far above anything the defined record types
+ * need, and it keeps recursive code safe from hostile input.
  */
 export const MAX_DEPTH = 64;
 
@@ -92,7 +91,7 @@ const NOT_JSON: Issue = {
 const TOO_DEEP: Issue = {
   path: "",
   message: `arrays and objects nest more than ${MAX_DEPTH} deep`,
-  clause: IMPLEMENTATION_LIMIT,
+  clause: "core 1.9",
 };
 
 const TOO_MANY: Issue = {

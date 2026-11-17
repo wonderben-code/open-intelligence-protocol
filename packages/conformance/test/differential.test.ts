@@ -7,9 +7,15 @@
  * skipped, unless OIP_REQUIRE_PYTHON is set (as it is in CI), in which case
  * it fails.
  *
- * At M0 it covers `record` cases. The Python checker's structural checks are
- * a subset of the schemas, so the rule is "no laxer": whatever the schemas
- * accept, the checker accepts. M2 extends it to logs with the rule "same".
+ * It covers `record` cases and `json` cases.
+ *
+ * - `record`: the Python checker's structural checks are a subset of the
+ *   schemas, by design, so the rule is "no laxer": whatever the schemas
+ *   accept, the checker accepts.
+ * - `json` (M1): whether a text is JSON within the profile of core Section 1.
+ *   Both implementations decide that completely, so the rule is "same".
+ *
+ * M2 extends it to identity logs, with the rule "same".
  */
 
 import { spawnSync } from "node:child_process";
@@ -23,6 +29,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   compareVerdicts,
+  type JsonCase,
   type JsonObject,
   loadVectors,
   positiveRecords,
@@ -52,9 +59,14 @@ const records = [
 /** Values that tend to break a structural check. */
 const junk = fc.oneof(
   fc.constantFrom<unknown>(null, true, 0, -1, 1.5, "", "short", [], {}, "1,000", "-5", "1e2"),
-  // Year 0000 is left out: the Python checker rejects it, the specification
-  // does not, and the question is queued for M1 (PROGRESS.md, spec feedback).
-  fc.constantFrom("2026-02-30T00:00:00Z", "2026-10-30T09:00:00Z", "2026-13-01T00:00:00Z"),
+  fc.constantFrom(
+    "2026-02-30T00:00:00Z",
+    "2026-10-30T09:00:00Z",
+    "2026-13-01T00:00:00Z",
+    // Year 0000 is a year of RFC 3339, and a leap year (core 1.4).
+    "0000-02-29T00:00:00Z",
+    "0000-01-01T00:00:00.5Z",
+  ),
   fc.string({ maxLength: 80 }),
   fc.integer(),
 );
@@ -119,6 +131,155 @@ const mutatedRecord = fc.constantFrom(...records).chain((record) => {
     .map((mutations) => mutations.reduce(apply, record));
 });
 
+/** Pieces of JSON text, well formed and not, that the two parsers must judge alike. */
+const fragment = fc.oneof(
+  { weight: 6, arbitrary: fc.json({ maxDepth: 4 }) },
+  {
+    weight: 3,
+    arbitrary: fc.constantFrom(
+      "1.0",
+      "1e2",
+      "100e-2",
+      "-0",
+      "0.0e-7",
+      "9007199254740991",
+      "9007199254740991.0",
+      "9007199254740992",
+      "-9007199254740992",
+      "1.5",
+      "1e-1",
+      "1e16",
+      "1e400",
+      "0e99999999999999999999",
+      "01",
+      "+1",
+      ".5",
+      "1.",
+      "NaN",
+      "Infinity",
+      "-Infinity",
+      '"\\ud800"',
+      '"\\ud83d\\ude00"',
+      '"\\udc00\\ud800"',
+      '"\\x41"',
+      '"tab\tinside"',
+      '{"a":1,"a":1}',
+      '{"a":1,"\\u0061":2}',
+      '{"a":{"a":1},"b":{"a":1}}',
+      '{"__proto__":1}',
+      "[1,]",
+      "{,}",
+      "\ufeff1",
+      "// comment",
+      "'single'",
+      "",
+      " ",
+    ),
+  },
+  { weight: 1, arbitrary: fc.string({ unit: "binary", maxLength: 20 }) },
+  {
+    weight: 1,
+    arbitrary: fc
+      .string({
+        unit: fc.constantFrom(...'[]{}:,"\\ 0123456789.eE-+truefalsn'.split("")),
+        maxLength: 30,
+      })
+      .map((text) => text),
+  },
+);
+
+/** A JSON-like text: a fragment, sometimes wrapped, nested or joined to another. */
+const jsonText = fc
+  .tuple(
+    fragment,
+    fragment,
+    fc.constantFrom("plain", "array", "member", "deep63", "deep64", "pair"),
+  )
+  .map(([one, other, shape]) => {
+    switch (shape) {
+      case "array":
+        return `[${one}, ${other}]`;
+      case "member":
+        return `{"a": ${one}, "b": ${other}}`;
+      case "deep63":
+        return `${"[".repeat(63)}${one}${"]".repeat(63)}`;
+      case "deep64":
+        return `${"[".repeat(64)}${one}${"]".repeat(64)}`;
+      case "pair":
+        return `${one}${other}`;
+      default:
+        return one;
+    }
+  })
+  // A lone surrogate cannot be sent to the checker as UTF-8; the escapes above cover that rule.
+  .filter((text) => text.isWellFormed());
+
+describe.skipIf(unavailable !== undefined && !required)("differential: the JSON profile", () => {
+  let judge: PythonJudge;
+
+  beforeAll(() => {
+    if (unavailable !== undefined) throw new Error(`OIP_REQUIRE_PYTHON is set, but ${unavailable}`);
+    judge = new PythonJudge();
+  });
+
+  afterAll(async () => {
+    await judge.close();
+  });
+
+  const jsonCase = (text: string): JsonCase => ({ name: "generated", kind: "json", text });
+
+  it("agrees with the Python checker on every json case of the vectors", async () => {
+    let compared = 0;
+    for (const section of SECTIONS) {
+      for (const vectorCase of vectors[section]) {
+        if (vectorCase.kind !== "json") continue;
+        const theirs = await judge.judge(vectorCase);
+        expect(theirs.holds, vectorCase.name).toBe(section !== "negative");
+        expect(referenceAdapter.jsonIsWithinProfile?.(vectorCase.text), vectorCase.name).toBe(
+          theirs.holds,
+        );
+        compared++;
+      }
+    }
+    expect(compared).toBe(12);
+  });
+
+  it("agrees with it on what neither is required to reject: duplicate member names", async () => {
+    // core 1.1 says receivers SHOULD reject these. Both implementations do.
+    for (const text of ['{"a":1,"a":1}', '{"a":1,"\\u0061":2}', '[{"x":null,"x":null}]']) {
+      expect((await judge.judge(jsonCase(text))).holds, text).toBe(false);
+      expect(referenceAdapter.jsonIsWithinProfile?.(text), text).toBe(false);
+    }
+  });
+
+  it(
+    `gives the same verdict as the Python checker on ${RUNS} generated texts`,
+    async () => {
+      let accepted = 0;
+      let rejected = 0;
+      await fc.assert(
+        fc.asyncProperty(jsonText, async (text) => {
+          const disagreement = await compareVerdicts(
+            referenceAdapter,
+            judge,
+            vectors,
+            jsonCase(text),
+            "same",
+          );
+          expect(disagreement, JSON.stringify(text)).toBeUndefined();
+          if (referenceAdapter.jsonIsWithinProfile?.(text) === true) accepted++;
+          else rejected++;
+        }),
+        { numRuns: RUNS },
+      );
+      // Both answers must be exercised for the comparison to mean anything.
+      expect(accepted).toBeGreaterThan(RUNS / 10);
+      expect(rejected).toBeGreaterThan(RUNS / 10);
+    },
+    TIMEOUT,
+  );
+});
+
 describe.skipIf(unavailable !== undefined && !required)("differential: record cases", () => {
   let judge: PythonJudge;
 
@@ -153,12 +314,12 @@ describe.skipIf(unavailable !== undefined && !required)("differential: record ca
     let compared = 0;
     for (const section of SECTIONS) {
       for (const vectorCase of vectors[section]) {
-        if (vectorCase.kind !== "record") continue;
+        if (vectorCase.kind !== "record" && vectorCase.kind !== "json") continue;
         expect(await compareVerdicts(referenceAdapter, judge, vectors, vectorCase)).toBeUndefined();
         compared++;
       }
     }
-    expect(compared).toBe(2);
+    expect(compared).toBe(2 + 12);
   });
 
   it(

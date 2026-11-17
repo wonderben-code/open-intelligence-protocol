@@ -4,11 +4,10 @@ An OEP proposes a change to the Open Intelligence Protocol: to a record format, 
 
 ## Index
 
-| OEP                          | Title            | Type | Status |
-| ---------------------------- | ---------------- | ---- | ------ |
-| [0000](oep-0000-template.md) | The OEP template |      |        |
-
-No proposal has been submitted yet.
+| OEP                                     | Title                                                                 | Type | Status |
+| --------------------------------------- | --------------------------------------------------------------------- | ---- | ------ |
+| [0000](oep-0000-template.md)            | The OEP template                                                      |      |        |
+| [0001](oep-0001-core-clarifications.md) | Core clarifications found while building the reference implementation | Core | Review |
 
 ## Do you need an OEP?
 

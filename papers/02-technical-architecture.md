@@ -202,6 +202,7 @@ OIP records are UTF-8 JSON objects with a restricted value space:
 - **Values** are objects, arrays, strings, booleans, `null` and integers between −(2⁵³−1) and 2⁵³−1. **Floating-point numbers are not allowed.** Decimal quantities such as prices are written as strings (`"120.50"`) and compared with exact decimal arithmetic. Only strings that match the decimal pattern count as numbers: `"1,000"`, `"1e2"` and `"-Infinity"` do not, so they can never slip past a numeric limit. Amounts of money are never negative.
 - **Timestamps** are RFC 3339 strings in UTC with a `Z` suffix, such as `"2026-10-30T10:00:00Z"`, compared as instants, never as strings. Durations use ISO 8601 (`"P30D"`).
 - **Field names** use camelCase. Unknown fields are preserved, never stripped, because they are part of what was signed.
+- **Limits.** A record's canonical form is at most 1 MiB, and its arrays and objects nest at most 64 deep, so no record can exhaust the program that reads it. A number is judged by its value, not its spelling: `1.0` is the integer 1.
 
 **Canonical form** is the JSON Canonicalization Scheme, RFC 8785 (JCS): keys sorted by UTF-16 code units, no insignificant whitespace, deterministic string escaping. The restriction to integers removes the one part of JCS that is hard to implement consistently across languages, its number formatting.
 
@@ -265,7 +266,7 @@ A record reference has two parts with two jobs: the content ID makes the link im
 | Field | Meaning |
 |---|---|
 | `oip` | Major protocol version. Always `"1"` in this revision. |
-| `type` | The record type, such as `Genesis`, `Location`, `Packet` or `Commitment` (Appendix B lists them all). |
+| `type` | The record type, such as `Genesis`, `Location`, `Packet` or `Commitment` (Appendix B lists them all). A record of a type that an extension defines lists that extension in `critical`. |
 | `author` | The mind making the statement. Packets use `from`; identity events use `mind`. |
 | `created` | When the author says the record was made. This is a claim, never evidence: every rule about time uses evidence of when a signature existed (Section 5.3). |
 | `expires` | Optional. After this time the record is closed. |

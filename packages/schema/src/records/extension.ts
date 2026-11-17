@@ -7,12 +7,15 @@ import { type Static, Type } from "typebox";
 
 import { ProofSet } from "../common.ts";
 import { meta } from "../naming.ts";
-import { Critical, Ext, Timestamp } from "../primitives.ts";
+import { Ext, Timestamp } from "../primitives.ts";
 
 /**
  * The members every record shares, for a record whose `type` an extension
  * defines. Nothing says whether such a record is signed or is a container, so
  * `created` and `proof` are optional here and checked when present.
+ *
+ * Such a record lists the extension that defines its type in `critical`
+ * (core 7), so `critical` is required and names at least one namespace.
  */
 export const ExtensionRecord = Type.Object(
   {
@@ -21,12 +24,12 @@ export const ExtensionRecord = Type.Object(
     created: Type.Optional(Timestamp),
     expires: Type.Optional(Timestamp),
     ext: Type.Optional(Ext),
-    critical: Type.Optional(Critical),
+    critical: Type.Array(Type.String(), { minItems: 1 }),
     proof: Type.Optional(ProofSet),
   },
   meta(
     "ExtensionRecord",
-    "A record of a type this revision does not define, as an extension may define one (core Section 7). Only the members every record shares are checked.",
+    "A record of a type this revision does not define, as an extension may define one (core Section 7). Only the members every record shares are checked. It lists the extension that defines its type in `critical`.",
   ),
 );
 export type ExtensionRecord = Static<typeof ExtensionRecord>;

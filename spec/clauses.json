@@ -35,7 +35,7 @@
         "MUST": 2,
         "MUST NOT": 1
       },
-      "digest": "d2a8edee0ee439f935f763170f9245e898f333e5fbc08fa024d2ef00f6f360a6"
+      "digest": "e972e6b7b2f86aa78942cd02c2744126bafdb6bf7f38434d0e0562af3a1c4110"
     },
     {
       "id": "core 1.4",
@@ -46,7 +46,7 @@
       "keywords": {
         "MUST": 1
       },
-      "digest": "dfb2d2ec98c983b5f45c84d6cf34da6fd9a49c95d0bf5ef70edf1699dadb5b99"
+      "digest": "0ba6105160f7c801ed07ca3422a3ae900a47368f90b98c6d5eefd313ccd8f552"
     },
     {
       "id": "core 1.5",
@@ -63,14 +63,14 @@
       "id": "core 1.6",
       "document": "core",
       "section": "Records",
-      "summary": "Size. The canonical form (Section 2) of a record MUST NOT exceed 1 MiB. Implementations MAY app…",
+      "summary": "Size. The canonical form (Section 2) of a record, with its `proof` member, MUST NOT exceed 1 Mi…",
       "level": "MUST",
       "keywords": {
         "MUST NOT": 1,
         "MAY": 2,
         "MUST": 1
       },
-      "digest": "77a6effe27ddc39a1dc1d6d0eca5f7b726aa237ae0d9c3ddf0f3343d20289f48"
+      "digest": "dc5e728cfb730b97230509cf271585aea72fcbdb66a26ffa5bc27860459d3b1e"
     },
     {
       "id": "core 1.7",
@@ -91,6 +91,18 @@
       "level": "none",
       "keywords": {},
       "digest": "4b234322d7d0c51ede3830f798c0e480aa258b3f0a78db0f2a8fcecc1b3991a6"
+    },
+    {
+      "id": "core 1.9",
+      "document": "core",
+      "section": "Records",
+      "summary": "Depth. The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1,
+        "MUST": 1
+      },
+      "digest": "60ce2e364116d5d8f8b7690ff9be86bb9d45960f35d2b4ef6e5341c5e05a44a7"
     },
     {
       "id": "core 2.1",
@@ -144,9 +156,11 @@
       "document": "core",
       "section": "Content identifiers",
       "summary": "The key hash of a Multikey string `k`, used for pre-rotation commitments, is `\"b\" + base32lower…",
-      "level": "none",
-      "keywords": {},
-      "digest": "49d4531762465dbf97666eb817ce13f532b0fd97465c452e95794362dc1e471b"
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "65612e579c8b24c08d84ae03552ed5b0e14d716dd1dea95cf79aa85862dd8a0b"
     },
     {
       "id": "core 4.1",
@@ -195,10 +209,10 @@
       "summary": "A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 p…",
       "level": "MUST",
       "keywords": {
-        "MUST": 1,
+        "MUST": 2,
         "MUST NOT": 1
       },
-      "digest": "64ac806857246e80625c8f043ca0c3e44b7b7c2d8281f842b68aebe0f7e4dba5"
+      "digest": "ab7b58221d5ad2f76b2d7ed5a4f80a6e0c59a1f90e8f8e20459dc5e691bf6d15"
     },
     {
       "id": "core 5.2",
@@ -270,7 +284,7 @@
       "summary": "References use DID syntax (W3C DID Core) and are defined by this grammar (ABNF, RFC 5234): ```…",
       "level": "none",
       "keywords": {},
-      "digest": "d8b4272e8558db4b715aa7081c335fe8e4a6238c91705318dfd58fc4a75f0f3f"
+      "digest": "476c3a57142376f1dade0f9b0242a62bc389ae06d5a49d07335bb4844efe9ac5"
     },
     {
       "id": "core 6.2",
@@ -314,10 +328,10 @@
       "level": "MUST",
       "keywords": {
         "REQUIRED": 3,
-        "MUST": 1,
+        "MUST": 2,
         "OPTIONAL": 3
       },
-      "digest": "f8c4fdb624660f926168198a075be2b2419b57af35aab32e091f57758b74c9e5"
+      "digest": "1bfe7cc09dbe9d5da5c54813223318d103f2b14dde379ea039b1595698c1a3f2"
     },
     {
       "id": "core 8.1",
@@ -326,7 +340,7 @@
       "summary": "`ext` is an object whose member names are namespaces and whose values are objects. A namespace…",
       "level": "none",
       "keywords": {},
-      "digest": "c76e556d1bd41feee90a00fc690436f2dd8e2927f1fa82283d95d8c504066509"
+      "digest": "db5f80b87d00b4f5e349e94f86fdc70b61feffc60ef7b2f2f118b72f15dbd15c"
     },
     {
       "id": "core 8.2",
@@ -343,14 +357,14 @@
       "id": "core 8.3",
       "document": "core",
       "section": "Extensions and forward compatibility",
-      "summary": "`critical` is an array of namespaces, each of which MUST also appear in `ext`. An implementatio…",
+      "summary": "`critical` is an array of namespaces, each of which MUST also appear in `ext`. Naming a namespa…",
       "level": "MUST",
       "keywords": {
         "MUST": 1,
         "MAY": 1,
         "MUST NOT": 1
       },
-      "digest": "4165d260cb2fce843fa9d03836c0ec05841de9dd340b1a1bee964d8421d8e5f6"
+      "digest": "c71396bdbb7dcd88c48bd4c860f9502c76662a421c82f28542ba20b9dd08dac7"
     },
     {
       "id": "core 8.4",
@@ -771,7 +785,7 @@
         "MUST": 1,
         "MUST NOT": 1
       },
-      "digest": "ff44539210512945964f788f81546aa471df6dc1eb21465c4bcbb6a5f98740f6"
+      "digest": "85ddf8e94db0d57482aa4ddeda48b74e2ba0d9c58e2414ba798e47e8593fa99e"
     },
     {
       "id": "L1 3.7",
@@ -1632,7 +1646,7 @@
       "summary": "Limits (table)",
       "level": "none",
       "keywords": {},
-      "digest": "9ed03088c2a8c7932f692f7bc8655484f05ec228c5c963c0a8fe7f870c7057df"
+      "digest": "16fc209eff3cf78295e76d742ba42c17dcbdf2300d234ca605627ed1188d2a06"
     },
     {
       "id": "L2 1.1",

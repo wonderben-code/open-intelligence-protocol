@@ -34,13 +34,11 @@ Requires only the `cryptography` package. Licensed Apache-2.0.
 STATUS: DRAFT. Tracks the spec revision in REVISION and may change.
 """
 import base64
-import calendar
 import copy
 import hashlib
 import json
 import re
 import sys
-from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -59,8 +57,16 @@ MAX_PROOFS = 256                # proofs per record
 MAX_CHAIN = 8                   # delegations per chain
 MAX_AUTHORITY = 8               # entries in a proof's `authority`
 MAX_NESTING = 4                 # greatest collective height
+MAX_DEPTH = 64                  # nesting of arrays and objects (core 1.9)
 
 IDENTITY_TYPES = ("Genesis", "Update", "Fork", "Merge", "Retire")
+# Every record type this revision defines (core 11). `Merge` is reserved.
+RECORD_TYPES = IDENTITY_TYPES + (
+    "Delegation", "Revocation", "Lineage", "Collective", "Intent", "Offer",
+    "Commitment", "Receipt", "Packet", "Entry", "Checkpoint", "Ack",
+    "QueryResult", "Forwarded", "Location", "Participant", "Hello",
+    "Session", "Resume", "Branch", "Bundle", "LogPage", "FeedPage",
+    "DuplicityEvidence", "Sealed")
 CURRENT_STATE_TYPES = ("Location", "Participant", "Hello")
 DELEGABLE_TYPES = ("Intent", "Offer", "Commitment", "Receipt")
 OIP_COMMANDS = ("/oip/send",) + tuple("/oip/sign/" + t
@@ -291,17 +297,37 @@ def ed_has_order_l(b) -> bool:
 # ---------------------------------------------------------------- values
 
 
+def _days_from_civil(y: int, m: int, d: int) -> int:
+    """Days from 1970-01-01 in the proleptic Gregorian calendar, which is
+    the calendar of RFC 3339. Year 0000 exists in it and is a leap year."""
+    y -= m <= 2
+    era = y // 400
+    yoe = y - era * 400
+    doy = (153 * (m - 3 if m > 2 else m + 9) + 2) // 5 + d - 1
+    doe = yoe * 365 + yoe // 4 - yoe // 100 + doy
+    return era * 146097 + doe - 719468
+
+
+def _days_in_month(y: int, m: int) -> int:
+    if m == 2:
+        return 29 if y % 4 == 0 and (y % 100 != 0 or y % 400 == 0) else 28
+    return 30 if m in (4, 6, 9, 11) else 31
+
+
 def ts(s) -> int:
     """RFC 3339 UTC timestamp -> integer nanoseconds since the epoch.
-    Timestamps are compared as instants, never as strings."""
+    Timestamps are compared as instants, never as strings. The date and
+    time must be real: no month 13, no 30 February, no second 60."""
     m = TS_RE.fullmatch(s) if isinstance(s, str) else None
     if not m:
         raise ValueError(f"bad timestamp {s!r}")
     y, mo, d, h, mi, se = (int(g) for g in m.groups()[:6])
-    datetime(y, mo, d, h, mi, se)           # range check
+    if not (1 <= mo <= 12 and 1 <= d <= _days_in_month(y, mo) and
+            h <= 23 and mi <= 59 and se <= 59):
+        raise ValueError(f"not a real date and time: {s!r}")
     frac = (m.group(7) or "").ljust(9, "0")
-    return calendar.timegm((y, mo, d, h, mi, se, 0, 0, 0)) * 10**9 + \
-        int(frac)
+    seconds = ((_days_from_civil(y, mo, d) * 24 + h) * 60 + mi) * 60 + se
+    return seconds * 10**9 + int(frac)
 
 
 def as_decimal(v):
@@ -318,6 +344,104 @@ def as_decimal(v):
 def is_amount(v) -> bool:
     """A non-negative decimal string of at most 64 characters."""
     return fullmatch(NONNEG_DECIMAL_RE, v) and len(v) <= 64
+
+# ---------------------------------------------------------------- JSON profile
+
+
+def values_ok(value) -> bool:
+    """What core Section 1 requires of every value in a record, whatever
+    the record is: numbers are integers within +/-(2^53-1) (1.2), strings
+    and member names are valid Unicode (1.1), and arrays and objects nest
+    at most MAX_DEPTH deep (1.9). It does not recurse."""
+    pending = [(value, 1)]
+    while pending:
+        v, depth = pending.pop()
+        if v is None or isinstance(v, bool):
+            continue
+        if isinstance(v, int):
+            if abs(v) > MAX_SAFE_INT:
+                return False
+        elif isinstance(v, float):
+            return False                    # read_json() never returns one
+        elif isinstance(v, str):
+            if any(0xD800 <= ord(ch) <= 0xDFFF for ch in v):
+                return False                # an unpaired surrogate
+        elif isinstance(v, (list, dict)):
+            if depth > MAX_DEPTH:
+                return False
+            if isinstance(v, dict):
+                if not all(isinstance(k, str) and values_ok(k) for k in v):
+                    return False
+                v = v.values()
+            pending.extend((item, depth + 1) for item in v)
+        else:
+            return False
+    return True
+
+
+_NUMBER_RE = re.compile(r"(-?)([0-9]+)(?:\.([0-9]+))?(?:[eE]([-+]?[0-9]+))?")
+
+
+def _integer(text: str) -> int:
+    """The value of a JSON number if it is an integer within the safe
+    range (core 1.2). Validity depends on the value, not on how it is
+    written: `1.0` and `1e2` are 1 and 100. Exact: no float is involved."""
+    m = _NUMBER_RE.fullmatch(text)
+    if not m:
+        raise ValueError(f"not a JSON number: {text[:40]!r}")
+    sign, whole, frac, exp = m.groups()
+    digits = int(whole + (frac or ""))
+    if digits == 0:
+        return 0                            # -0 is 0 (core 2.2)
+    shift = int(exp or "0") - len(frac or "")
+    if shift >= 0:
+        if shift > 16:
+            raise ValueError("number outside the safe range")
+        value = digits * 10**shift
+    else:
+        if -shift >= len(whole + (frac or "")):
+            raise ValueError("number with a fractional part")
+        value, rest = divmod(digits, 10**-shift)
+        if rest:
+            raise ValueError("number with a fractional part")
+    if value > MAX_SAFE_INT:
+        raise ValueError("number outside the safe range")
+    return -value if sign else value
+
+
+def _no_duplicates(pairs):
+    out = {}
+    for name, value in pairs:
+        if name in out:
+            raise ValueError(f"duplicate member name {name[:40]!r}")
+        out[name] = value
+    return out
+
+
+def _no_constant(name):
+    raise ValueError(f"{name} is not JSON")
+
+
+def read_json(text: str):
+    """Parse JSON text under the profile of core Section 1: RFC 8259, no
+    duplicate member names, valid Unicode, integers within the safe range
+    judged by value, and nesting of at most MAX_DEPTH. Raises ValueError
+    (or RecursionError, for very deep nesting) on anything else."""
+    value = json.loads(text, object_pairs_hook=_no_duplicates,
+                       parse_int=_integer, parse_float=_integer,
+                       parse_constant=_no_constant)
+    if not values_ok(value):
+        raise ValueError("outside the JSON profile of core Section 1")
+    return value
+
+
+def json_ok(text) -> bool:
+    """Whether a text is JSON within the profile of core Section 1."""
+    try:
+        read_json(text)
+        return isinstance(text, str)
+    except (ValueError, RecursionError, TypeError):
+        return False
 
 # ---------------------------------------------------------------- keys
 
@@ -931,9 +1055,18 @@ def record_ok(r) -> bool:
     try:
         if not isinstance(r, dict) or r.get("oip") != OIP_VERSION:
             return False
+        if not values_ok(r):
+            return False                    # core 1.1, 1.2 and 1.9
         t = r.get("type")
         if not isinstance(t, str):
             return False
+        critical = r.get("critical", [])
+        if not isinstance(critical, list) or not all(
+                isinstance(n, str) and isinstance(r.get("ext"), dict) and
+                n in r["ext"] for n in critical):
+            return False                    # core 8.3
+        if t not in RECORD_TYPES and not critical:
+            return False                    # core 7: a critical extension
         if t not in ("Bundle", "LogPage", "FeedPage", "DuplicityEvidence",
                      "Sealed"):
             ts(r["created"])
@@ -2943,6 +3076,60 @@ def build():
             "version after the divergence, does not count.",
             intent, amina, branches=[[a_gen, a_upd_alt]], seen=tie)
 
+    # The JSON profile (core Section 1), on texts: what a parser must read
+    # and what it must refuse. Duplicate member names are not among them,
+    # because core 1.1 says receivers SHOULD reject those, not MUST.
+    def json_case(section, name, reason, text):
+        section.append({"name": name, "reason": reason, "kind": "json",
+                        "text": text})
+
+    deep = lambda n: "[" * n + "]" * n      # noqa: E731
+    json_case(V["valid"], "json-integers-however-written",
+              "Validity depends on a number's value, not on how it is "
+              "written (core 1.2): these are the integers 1, 100, 1, 0 and "
+              "2^53-1, and canonical form writes them 1, 100, 1, 0 and "
+              "9007199254740991.",
+              '{"a":1.0,"b":1e2,"c":100e-2,"d":-0,"e":9007199254740991.0}')
+    json_case(V["valid"], "json-escapes-are-spellings",
+              "An escape is another spelling of the same character: the "
+              "member names are `oip` and `name`, and the value is one "
+              "character outside the basic plane, written as a surrogate "
+              "pair.",
+              '{"\\u006fip":"1","na\\u006de":"\\ud83d\\ude00"}')
+    json_case(V["valid"], "json-same-name-in-different-objects",
+              "Member names must be distinct within one object, not across "
+              "objects.",
+              '{"a":{"a":1},"b":[{"a":1},{"a":2}]}')
+    json_case(V["valid"], "json-nested-64-deep",
+              "Arrays and objects may nest 64 deep (core 1.9).",
+              deep(MAX_DEPTH))
+    json_case(neg, "json-number-with-fraction",
+              "A number whose value has a fractional part is rejected; "
+              "decimal quantities travel as strings (core 1.2, 1.3).",
+              '{"amount":1.5}')
+    json_case(neg, "json-number-with-negative-exponent",
+              "1e-1 is one tenth, which is not an integer.",
+              '{"n":1e-1}')
+    json_case(neg, "json-integer-beyond-safe-range",
+              "2^53 is outside the range -(2^53-1) to 2^53-1 (core 1.2).",
+              '{"n":9007199254740992}')
+    json_case(neg, "json-exponent-beyond-safe-range",
+              "1e16 is an integer, and outside the range.",
+              '{"n":1e16}')
+    json_case(neg, "json-unpaired-surrogate",
+              "Every string is valid Unicode (core 1.1): an escape that "
+              "writes half of a surrogate pair is not.",
+              '{"s":"\\ud800"}')
+    json_case(neg, "json-nested-65-deep",
+              "Arrays and objects nest at most 64 deep (core 1.9).",
+              deep(MAX_DEPTH + 1))
+    json_case(neg, "json-trailing-comma",
+              "A record is JSON (RFC 8259), which has no trailing commas.",
+              '{"a":1,}')
+    json_case(neg, "json-not-a-number",
+              "NaN is not JSON.",
+              '{"n":NaN}')
+
     # Controls: each negative case above, changed only in the respect its
     # reason names, must be accepted, so it fails for that reason alone.
     by_name = {case["name"]: case for case in neg}
@@ -3198,9 +3385,12 @@ def _case_verifier(c, case):
 def _holds(c, case) -> bool:
     """Whether a case's claim holds: the log verifies, the record counts
     for (or was sent for) the mind, the status or assurance is `expect`,
-    or the record is well formed."""
-    V = _case_verifier(c, case)
+    the record is well formed, or the text is JSON within the profile of
+    core Section 1."""
     kind = case["kind"]
+    if kind == "json":
+        return json_ok(case["text"])
+    V = _case_verifier(c, case)
     if kind == "log":
         try:
             verify_log(case["log"], V)

@@ -2,11 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:oip:schema:ExtensionRecord",
   "title": "ExtensionRecord",
-  "description": "A record of a type this revision does not define, as an extension may define one (core Section 7). Only the members every record shares are checked.",
+  "description": "A record of a type this revision does not define, as an extension may define one (core Section 7). Only the members every record shares are checked. It lists the extension that defines its type in `critical`.",
   "type": "object",
   "required": [
     "oip",
-    "type"
+    "type",
+    "critical"
   ],
   "properties": {
     "oip": {
@@ -29,7 +30,8 @@
       "type": "array",
       "items": {
         "type": "string"
-      }
+      },
+      "minItems": 1
     },
     "proof": {
       "$ref": "urn:oip:schema:def:proofSet"

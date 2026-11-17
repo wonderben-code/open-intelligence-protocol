@@ -134,6 +134,9 @@ export function operationalProofTime(
       log.duplicitous ? "L1 7.3" : "L1 6.1",
     );
   }
+  if (pinned.entry.state.retired) {
+    return no("the proof is pinned to the version that retired the mind", "L1 3.10");
+  }
   if (!pinned.entry.state.keys.includes(proof.key)) {
     return no("the key is not an operational key of the mind at the version named", "L1 6.1");
   }

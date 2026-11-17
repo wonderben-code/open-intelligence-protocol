@@ -125,6 +125,9 @@ function memberProof(
   if (pinned === undefined) {
     return no("the proof is pinned to a version that is not in the member's log", "L1 6.4");
   }
+  if (pinned.entry.state.retired) {
+    return no("the proof is pinned to the version that retired the member", "L1 3.10");
+  }
   if (!pinned.entry.state.invocation.includes(proof.key)) {
     return no("the key is not an invocation key of the member at the version named", "L1 6.4");
   }

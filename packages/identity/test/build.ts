@@ -152,9 +152,15 @@ export abstract class Mind {
   /** A record signed by one of this mind's operational keys, pinned to a version of its log. */
   sign<T extends object>(
     record: T,
-    options: { key?: number; position?: number; created?: string } = {},
+    options: {
+      key?: number;
+      position?: number;
+      created?: string;
+      by?: SyncSigner;
+      more?: { challenge?: string; domain?: string; authority?: string[] };
+    } = {},
   ): T & { proof: Proof[] } {
-    const by = this.operational(options.key);
+    const by = options.by ?? this.operational(options.key);
     const proof = createProofSync(
       record,
       {
@@ -164,6 +170,7 @@ export abstract class Mind {
           by.publicKey,
         ),
         created: options.created ?? (record as { created: string }).created,
+        ...options.more,
       },
       by,
     );
@@ -351,3 +358,34 @@ export function bookOf(minds: readonly Mind[], records: readonly object[] = []):
   for (const mind of minds) book.hold(mind.events, LATER);
   return book;
 }
+
+/** A small Intent by a mind, not yet signed. */
+export const intentBy = (author: Mind, seconds: number, more: JsonObject = {}) => ({
+  oip: "1",
+  type: "Intent",
+  author: author.address,
+  created: T(seconds),
+  want: "Translate a lease.",
+  ...more,
+});
+
+/** A small Location by a mind, not yet signed. It describes the present (Layer 1, 6.1). */
+export const locationBy = (author: Mind, seconds: number) => ({
+  oip: "1",
+  type: "Location",
+  author: author.address,
+  seq: 1,
+  created: T(seconds),
+  ttl: 900,
+  status: "active",
+  endpoints: [{ binding: "https", url: "https://mind.example/oip", priority: 10 }],
+});
+
+/** A Lineage record by a parent, not yet signed (Layer 1, 8.3). */
+export const lineageBy = (author: Mind, child: string, seconds: number) => ({
+  oip: "1",
+  type: "Lineage",
+  author: author.address,
+  child,
+  created: T(seconds),
+});

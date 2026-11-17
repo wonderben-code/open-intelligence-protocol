@@ -647,6 +647,24 @@ describe("members that have a syntax", () => {
     ["Commitment", "deadline", (v) => ({ terms: { deadline: v } }), T0],
     [
       "Commitment",
+      "a price's amount",
+      (v) => ({ terms: { price: { amount: v, currency: "USD", payer: debtor, payee: creditor } } }),
+      "400.00",
+    ],
+    [
+      "Offer",
+      "a price's amount",
+      (v) => ({ terms: { summary: "", price: { amount: v, currency: "USD" } } }),
+      "400.00",
+    ],
+    [
+      "Intent",
+      "a budget's maximum",
+      (v) => ({ constraints: { budget: { max: v, currency: "USD" } } }),
+      "400.00",
+    ],
+    [
+      "Commitment",
       "payer",
       (v) => ({ terms: { price: { amount: "1", currency: "USD", payer: v, payee: creditor } } }),
       debtor,
@@ -696,6 +714,48 @@ describe("members that have a syntax", () => {
       if (JSON.stringify(build(bad)) === wellFormed) continue;
       expect(accepts(sample(type, build(bad))), JSON.stringify(bad)).toMatch(/^rejected/);
     }
+  });
+});
+
+describe("members that depend on another", () => {
+  it.each(["Intent", "Offer", "Commitment", "Receipt", "Collective"] as const)(
+    `${clause("L2 2")} %s: status appears only in a superseding record`,
+    (type) => {
+      const plain = without(without(samples[type], "status"), "supersedes");
+      expect(accepts(plain)).toBe("accepted");
+      expect(accepts({ ...plain, supersedes: REF })).toBe("accepted");
+      expect(accepts({ ...plain, supersedes: REF, status: "withdrawn" })).toBe("accepted");
+      expect(accepts({ ...plain, status: "withdrawn" })).toMatch(/^rejected/);
+    },
+  );
+
+  it(`${clause("L2 5.1")} a Commitment's price names its payer and its payee`, () => {
+    const [debtor, creditor] = (samples.Commitment["parties"] as { mind: string }[]).map(
+      (entry) => entry.mind,
+    );
+    const price = { amount: "1", currency: "USD", payer: debtor, payee: creditor };
+    expect(accepts(sample("Commitment", { terms: { price } }))).toBe("accepted");
+    for (const member of ["amount", "currency", "payer", "payee"] as const) {
+      const { [member]: _removed, ...partial } = price;
+      expect(accepts(sample("Commitment", { terms: { price: partial } })), member).toMatch(
+        /^rejected/,
+      );
+    }
+  });
+
+  it(`${clause("L2 4.2")} an Offer's price has an amount and a currency, and its terms a summary`, () => {
+    expect(
+      accepts(sample("Offer", { terms: { summary: "", price: { amount: "1", currency: "USD" } } })),
+    ).toBe("accepted");
+    expect(
+      accepts(sample("Offer", { terms: { summary: "", price: { currency: "USD" } } })),
+    ).toMatch(/^rejected/);
+    expect(accepts(sample("Offer", { terms: { summary: "", price: { amount: "1" } } }))).toMatch(
+      /^rejected/,
+    );
+    expect(
+      accepts(sample("Offer", { terms: { price: { amount: "1", currency: "USD" } } })),
+    ).toMatch(/^rejected/);
   });
 });
 

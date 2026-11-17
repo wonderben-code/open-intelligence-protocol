@@ -274,6 +274,16 @@ describe("issues", () => {
     expect(issue.message).toMatch(/duplicate/);
   });
 
+  it("leave out the bare complaint that no shape matched, when they say which fault it was", () => {
+    const controller = { keys: [], next: [] };
+    const result = validateRecord(sample("Genesis", { controller }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.length).toBeGreaterThan(0);
+      for (const issue of result.issues) expect(issue.message).not.toMatch(/anyOf/);
+    }
+  });
+
   it("never quote more than a short piece of the input", () => {
     const long = "x".repeat(100_000);
     const cases = [

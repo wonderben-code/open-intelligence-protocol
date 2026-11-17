@@ -245,12 +245,12 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L2 1.1 | MUST | M3 | 0 | pending M3 | The meaning of a Layer 2 record is fixed by its signed content. Implementations MUST NOT infer… |
 | L2 1.2 |  | M3 | 0 | pending M3 | Records are immutable. A change of state is expressed by a new record that links to the old one. |
 | L2 1.3 |  | M3 | 0 | pending M3 | The status of a record is computed by the functions in Section 8 from the set of records a veri… |
-| L2 2 | MUST | M3 | 1 | tested in part (due M3) | Every Layer 2 record has the core common members (core, Section 7) and MAY have: \| Member \| Val… |
+| L2 2 | MUST | M3 | 6 | tested in part (due M3) | Every Layer 2 record has the core common members (core, Section 7) and MAY have: \| Member \| Val… |
 | L2 3 |  |  | 0 | informative | The Participant record is defined in Layer 1, Section 16. |
 | L2 4.1 |  | M3 | 5 | tested in part (due M3) | `Intent`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `want` \| yes \| Plain-language statement… |
-| L2 4.2 | MUST | M3 | 7 | tested in part (due M3) | `Offer`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `provides` \| yes \| Plain-language statem… |
+| L2 4.2 | MUST | M3 | 8 | tested in part (due M3) | `Offer`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `provides` \| yes \| Plain-language statem… |
 | L2 4.3 |  | M3 | 0 | pending M3 | Withdrawals and edits. A withdrawal is a superseding record (Section 2) with `status` `withdraw… |
-| L2 5.1 | MUST | M3 | 5 | tested in part (due M3) | `Commitment`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `parties` \| yes \| 2–64 objects `{ "… |
+| L2 5.1 | MUST | M3 | 6 | tested in part (due M3) | `Commitment`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `parties` \| yes \| 2–64 objects `{ "… |
 | L2 5.2 | MUST | M3 | 0 | pending M3 | The `author` of a Commitment MUST be one of its parties, or a mind whose proof on it counts for… |
 | L2 5.3 | SHOULD | M3 | 0 | pending M3 | Additional signatures are added by appending proofs. Adding proofs does not change the content… |
 | L2 5.4 | SHOULD | M3 | 0 | pending M3 | Parties bound through a delegate. A party whose proof on a Commitment counts only through a del… |

@@ -1,0 +1,32 @@
+{
+  "comment": "Which milestone of BUILD.md owes each clause of the specifications and each kind of test-vector case. `completed` lists the milestones that are done. `pnpm spec:coverage` fails if a MUST-level clause owed by a completed milestone has no passing test that cites it, or if a vector case owed by one is still pending. A clause is matched by its own ID, then by its section, then by its document.",
+  "completed": ["M0"],
+  "clauses": {
+    "core": "M1",
+    "core 9": "M2",
+    "core 11": "M0",
+    "L1": "M2",
+    "L1 10": "M4",
+    "L1 11": "M3",
+    "L1 12": "M4",
+    "L1 13": "M5",
+    "L1 14": "M4",
+    "L1 15": "M4",
+    "L1 16": "M4",
+    "L1 17": "M5",
+    "L1 18": "M5",
+    "L1 19": "M4",
+    "L2": "M3",
+    "L0": "M9",
+    "L0 2.2": "M8",
+    "L0 4": "M6"
+  },
+  "vectors": {
+    "record": "M0",
+    "log": "M2",
+    "countsFor": "M3",
+    "sentFor": "M3",
+    "status": "M3",
+    "assurance": "M9"
+  }
+}

@@ -5,7 +5,7 @@ JSON Schemas, TypeScript types and compiled validators for every record of the [
 It answers one question: **is this value a well-formed record?** That is the first step of "validate, verify, then use". It checks no signature, no identity log and no time. A validated record is not yet a verified one.
 
 - A schema for every record type in [core Section 11](../../spec/core.md#11-record-types): 29 record types, plus `Proof` and `Policy`.
-- The same schemas as JSON Schema 2020-12 documents in [`spec/schemas/`](../../spec/schemas/), for implementations in any language.
+- The same schemas as JSON Schema 2020-12 documents in [`spec/schemas/`](../../spec/schemas/README.md), for implementations in any language.
 - Validators compiled ahead of time. The package builds no code at run time, so it works under a strict Content Security Policy and in edge runtimes.
 - Pure: no I/O, no clock, one dependency (`typebox`). It runs in Node.js, browsers, Deno and Bun.
 

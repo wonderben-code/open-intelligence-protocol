@@ -38,7 +38,7 @@ pnpm bench                           # performance budgets (BUILD.md 3.8)
 pnpm run docs                        # API reference (`pnpm docs` is pnpm's own command)
 ```
 
-Before pushing, run what CI runs: `pnpm lint && pnpm typecheck && pnpm generated:check && pnpm api:check && pnpm spec:coverage && pnpm test:coverage`.
+Before pushing, run `pnpm run ci`: everything CI runs, in the same order.
 
 Also:
 

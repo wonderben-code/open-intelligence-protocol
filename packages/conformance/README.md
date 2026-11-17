@@ -4,7 +4,7 @@ The conformance suite of the [Open Intelligence Protocol](../../README.md): the 
 
 The specification says what a conforming implementation must do with the vectors ([spec/README.md](../../spec/README.md)): reproduce every value, accept every must-accept case and every control, and reject every negative case. This package checks exactly that.
 
-- A typed loader for [`spec/test-vectors/vectors.json`](../../spec/test-vectors/).
+- A typed loader for [`spec/test-vectors/vectors.json`](../../spec/test-vectors/README.md).
 - A runner for each kind of case: `log`, `countsFor`, `sentFor`, `status`, `assurance` and `record`.
 - Differential testing against the independent Python checker, [`oip_vectors.py`](../../spec/test-vectors/oip_vectors.py).
 

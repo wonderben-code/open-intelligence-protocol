@@ -27,7 +27,8 @@
     "api:check": "pnpm build && pnpm -r --if-present run api:check",
     "bench": "vitest bench --run --reporter=verbose",
     "docs": "typedoc",
-    "changeset": "changeset"
+    "changeset": "changeset",
+    "ci": "pnpm lint && pnpm typecheck && pnpm generated:check && pnpm api:check && pnpm spec:coverage && pnpm test:coverage && pnpm test:vectors && pnpm run docs && pnpm bench"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^1.0.1",

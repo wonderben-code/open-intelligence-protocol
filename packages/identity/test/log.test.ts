@@ -951,6 +951,92 @@ describe(`${clause("L1 6.4", "L1 9.2", "L1 9.3")} the members' proofs on a colle
   });
 });
 
+describe(`${clause("L1 4.8")} every event is a well-formed record`, () => {
+  it("refuses a log with an event that breaks a limit of Section 3, whoever signed it", () => {
+    const origins = (count: number) =>
+      Array.from({ length: count }, (_, n) => `https://home${n}.example`);
+    const aliases = (count: number) =>
+      Array.from({ length: count }, (_, n) => `dns:name${n}.example`);
+    const accepted: JsonObject[] = [
+      { homes: origins(8) },
+      { alsoKnownAs: aliases(16) },
+      { expires: "2027-01-01T00:00:00Z" },
+      { note: "a member no reader of this revision knows" },
+    ];
+    const broken: [JsonObject, string][] = [
+      [{ homes: origins(9) }, "/homes"],
+      [{ alsoKnownAs: aliases(17) }, "/alsoKnownAs"],
+      [{ expires: "2026-13-01T00:00:00Z" }, "/expires"],
+      [{ ext: { "not a namespace": {} } }, "/ext"],
+      [{ parents: [{ mind: "did:oip:nobody", at: "0-x" }] }, "/parents/0/mind"],
+      [{ inherits: "everything" }, "/inherits"],
+    ];
+    for (const members of accepted) {
+      // In the genesis, and in a later event.
+      expect(verifyEvents([rawGenesis("ada", members)]).ok, JSON.stringify(members)).toBe(true);
+    }
+    for (const [members, path] of broken) {
+      expect(refusal(verifyEvents([rawGenesis("ada", members)])).path).toBe(`/0${path}`);
+    }
+    for (const [members, path] of broken.slice(0, 4)) {
+      const ada = new KeyMind("ada").raw(10, "Update", members);
+      expect(refused(ada).path, path).toBe(`/1${path}`);
+    }
+  });
+
+  it("applies the rules of core to each event: the JSON profile, the size, the proof set", () => {
+    const ada = new KeyMind("ada").update(10);
+    const context = { evidence: witness([ada.events]), asOf: LATER };
+    const second = ada.events[1] as unknown as JsonObject;
+    for (const [event, clauseId] of [
+      [{ ...second, ext: { "com.example": { n: 1.5 } } }, "core 1.2"],
+      [{ ...second, proof: [] }, "core 5.1"],
+      [{ ...second, proof: "signed" }, "core 5.1"],
+      [{ ...second, oip: "2" }, "core 7"],
+    ] as const) {
+      expect(refusal(verifyLog([ada.events[0], event], context)).clause).toBe(clauseId);
+    }
+  });
+});
+
+describe(`${clause("L1 3.13")} HTTPS origins`, () => {
+  it("is https://, a host and an optional port, in ASCII letters, digits and . - : [ ]", () => {
+    for (const home of [
+      "https://example.com",
+      "https://EXAMPLE.com",
+      "https://example.com:8443",
+      "https://example.com:443",
+      "https://xn--bcher-kva.example",
+      "https://127.0.0.1",
+      "https://[2001:db8::1]:8443",
+      "https://localhost",
+    ]) {
+      expect(verifyEvents([rawGenesis("ada", { homes: [home] })]).ok, home).toBe(true);
+    }
+    for (const home of [
+      "http://example.com",
+      "https://",
+      "https://example.com/",
+      "https://example.com/path",
+      "https://example.com?q=1",
+      "https://example.com#f",
+      "https://user@example.com",
+      "https://example.com ",
+      " https://example.com",
+      "https://bücher.example",
+      "https://exa_mple.com",
+      "https://example.com\n",
+      "HTTPS://example.com",
+      "example.com",
+      "",
+      5,
+    ]) {
+      const result = verifyEvents([rawGenesis("ada", { homes: [home] })]);
+      expect(refusal(result).path, String(home)).toBe("/0/homes/0");
+    }
+  });
+});
+
 describe("a log is judged, never trusted", () => {
   it("answers and does not throw, whatever it is given", () => {
     const hostile = new Proxy([], {

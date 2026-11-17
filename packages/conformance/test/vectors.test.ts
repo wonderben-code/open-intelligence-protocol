@@ -68,9 +68,9 @@ describe("the vectors file", () => {
   });
 
   it("has the cases its README counts", () => {
-    expect(vectors.valid).toHaveLength(17);
-    expect(vectors.negative).toHaveLength(80);
-    expect(vectors.controls).toHaveLength(30);
+    expect(vectors.valid).toHaveLength(20);
+    expect(vectors.negative).toHaveLength(86);
+    expect(vectors.controls).toHaveLength(36);
   });
 
   it("holds nothing a strict reader of JSON refuses, apart from its depth", () => {

@@ -273,6 +273,26 @@
     "mixed-order-control-1": {
       "seed_hex": "328e1f93d44d0bde216be997724ec74e92862e71152c0fc74ac267152ce07a5c",
       "multikey": "z6Mkq9EFaM916M76ssiBxmSrLbEZgfFRs89YJdsGAh3rQPcn"
+    },
+    "oep2-control-0": {
+      "seed_hex": "b9706cdafe2d4c455c6f61f2be3d2b22b50132656e99323f69bcae83433d8387",
+      "multikey": "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+    },
+    "oep2-control-1": {
+      "seed_hex": "9e08a8d7dd9993184dabdb80132a0607b71f13c6d3a00d82cee90915246711fc",
+      "multikey": "z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5"
+    },
+    "oep2-op": {
+      "seed_hex": "9374ff4335f3783ae12cb694c207f4de1ca186fb007c4a76c848ed144469b3d4",
+      "multikey": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f"
+    },
+    "oep2-op-2": {
+      "seed_hex": "b5166964a8223f6219ed0f6c8686ac99840c37e77664c512cf41335363773904",
+      "multikey": "z6MkuHSrFQfUP6WV2SRqPY3irtU2yNGMEKABeb9NLK6WHvat"
+    },
+    "oep2-invocation": {
+      "seed_hex": "d6bffaf8c02593d68da42911a9196bd937617e065abbff77186c1a269480537b",
+      "multikey": "z6MknMS1F25KcthRV98W7w6X1DBAu6fhNcm95Xqu1vcBAuBT"
     }
   },
   "cases": {
@@ -3855,6 +3875,193 @@
             }
           ]
         ]
+      }
+    },
+    {
+      "name": "key-added-by-a-fork",
+      "reason": "A Fork may carry `keys`, with the meaning they have in an Update (Layer 1, 3.8 and 4.5). The key this Fork adds signs for the mind from then on.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli",
+        "created": "2026-10-30T11:00:00Z",
+        "want": "A second opinion.",
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli?versionId=1-bciqoorarecvzwjz6i6i7vn5adoi3v7evugcrsw6xazmqcgphln3c7dq#z6MkuHSrFQfUP6WV2SRqPY3irtU2yNGMEKABeb9NLK6WHvat",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T11:00:00Z",
+            "proofValue": "z2ezYpqdnDyS5Kpv3BHvdHh3TCMg1QgqGtptW1VvFVDxhFzjZ9p5AjED2E5f15Ak8ieQnjPmGjgt2LX6UvGNxo8PC"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "service",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+              ],
+              "next": [
+                "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+                "label": "oep2-op"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z4WBhnsijSkrWEu6n57gYd1cGibeQDzX2ufZiYU2fRLhJaTH8HDmvGFDwyZm7YFFVuq7y6kjYRbqMh7FYUqJ7GeEJ"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Fork",
+            "mind": "did:oip:bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli",
+            "seq": 1,
+            "prev": "bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli",
+            "created": "2026-10-30T09:30:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5"
+              ],
+              "next": []
+            },
+            "child": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "keys": [
+              {
+                "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+                "label": "oep2-op"
+              },
+              {
+                "key": "z6MkuHSrFQfUP6WV2SRqPY3irtU2yNGMEKABeb9NLK6WHvat",
+                "label": "oep2-op-2"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5#z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:30:00Z",
+                "proofValue": "z3PdUVgm5cY5QjoMe4P3m2pyZdSoMNXQaPrNepkqhU538bT4yv6R6wWX6nkyfY1cdcDQxxeBKBiu2TQV1bGEqL3XX"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "name": "recovery-inside-another-member",
+      "reason": "`recovery` is reserved as a member of an event itself (Layer 1, 3.12). Inside `inherits`, which is a claim in the author's own words, it is a word like any other.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "service",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+            ],
+            "next": [
+              "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+              "label": "oep2-op"
+            }
+          ],
+          "inherits": {
+            "recovery": "three months of archives"
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z5PNBJSuUvPjnN9iHLamT3we4G5XGdvgy7FJwWKvetAGtP6AQFYY7NJmNhiQVx56ptmHD4m2VDkfPvBP3LXkAEbN3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "container-with-created",
+      "reason": "A container has no `created` (core 7). A reader ignores one there, as it ignores any member it does not recognise (core 1.7).",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "LogPage",
+        "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "events": [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          }
+        ],
+        "created": "2026-10-30T09:00:00Z"
       }
     }
   ],
@@ -9815,6 +10022,353 @@
           }
         }
       }
+    },
+    {
+      "name": "genesis-with-nine-homes",
+      "reason": "An event is a well-formed record of its type, whoever signed it (Layer 1, 4.8): a Genesis holds at most 8 homes. The signature is good. An address is the content ID of a genesis, so verifiers must agree on which geneses are well formed.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "service",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+            ],
+            "next": [
+              "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+              "label": "oep2-op"
+            }
+          ],
+          "homes": [
+            "https://home0.example",
+            "https://home1.example",
+            "https://home2.example",
+            "https://home3.example",
+            "https://home4.example",
+            "https://home5.example",
+            "https://home6.example",
+            "https://home7.example",
+            "https://home8.example"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z2GJQid2Em8nLQNu4gD2M1LXqFCFj8Gd2mKVzHisPv297BQAap1Y7nKqeWFN2BpwURwaLnR2XqU56Wm11ir6g9Zut"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "event-with-malformed-expires",
+      "reason": "An event is a well-formed record (Layer 1, 4.8), so its `expires`, if it has one, is a timestamp (core 1.4, core 7). There is no thirteenth month.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "service",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+            ],
+            "next": [
+              "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+              "label": "oep2-op"
+            }
+          ],
+          "expires": "2026-13-01T00:00:00Z",
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z337JYMnrRuQ1jWK6Hu21xG583GzvgnrxpseoKUnL3xrEZMjpnTWsu1NoKhGwUjV9YncmcEkDoRWUoMG2K6RHY8TF"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "home-with-a-path",
+      "reason": "A home is an HTTPS origin (Layer 1, 3.13): a host and an optional port, with no path.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "service",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+            ],
+            "next": [
+              "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+              "label": "oep2-op"
+            }
+          ],
+          "homes": [
+            "https://lexis.example/records"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z2auDRiraUehue1NxihEzuiPVNzBJ8f92NsShN5hZCtq65i6a5vdvLPNo9c8yfss1W9upr2k4B71Y9PNwJmxZdkC3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "controller-with-an-unknown-member",
+      "reason": "A controller has no other members (Layer 1, 3.4). What decides who may extend a log is not open to members that one verifier reads and another ignores.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "service",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+            ],
+            "next": [
+              "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+            ],
+            "nextThreshold": 1,
+            "recoveryKeys": [
+              "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+            ]
+          },
+          "keys": [
+            {
+              "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+              "label": "oep2-op"
+            }
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z4vCebWiTJgJHMQ7mhUnKAndVEB8BU8C82XTkJDiP4LFbvNfvWaGZoH1uGdG6rGhbnu3yJ5ZYD8xNBzcLUtbfUL29"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "proof-pinned-to-a-retire",
+      "reason": "After a Retire a mind's keys sign nothing (Layer 1, 3.10). The Retire leaves the key in its set and no later event removes it, so the proof pins the Retire itself: Layer 1, 6.1 item 2 refuses that version.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli",
+        "created": "2026-10-30T11:00:00Z",
+        "want": "A second opinion.",
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli?versionId=1-bciqbhjwtosrtqqhfndryy4mbmo5y4bhcsaxshcnknqz5ingthlefk4a#z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T11:00:00Z",
+            "proofValue": "z4CXjVYuwTEN1s6rcc3rxDrrAQ5dgXtNXTsoeqVfrnSjH8q75pqACLtVbFN1CKutBSbExZKVDLjW9JaJvRHhJHMtN"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "service",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+              ],
+              "next": [
+                "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+                "label": "oep2-op"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z4WBhnsijSkrWEu6n57gYd1cGibeQDzX2ufZiYU2fRLhJaTH8HDmvGFDwyZm7YFFVuq7y6kjYRbqMh7FYUqJ7GeEJ"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Retire",
+            "mind": "did:oip:bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli",
+            "seq": 1,
+            "prev": "bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli",
+            "created": "2026-10-30T10:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5"
+              ],
+              "next": []
+            },
+            "reason": "Wound up.",
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5#z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T10:00:00Z",
+                "proofValue": "z4gyMW1uwowGY4U52KtyhYzYgcjLiJM9TShdu7o59nQGAak8wL3ufvRBnvJ672qE7hu4F3R1wvM2X4qRZF6LcDuGX"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "name": "retired-member-signs-for-a-collective",
+      "reason": "A retired mind's invocation keys sign nothing either. The founder's proof pins its own Retire, which Layer 1, 6.4 item 2 refuses, so the collective has no founder that signed.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "collective",
+          "created": "2026-10-30T11:00:00Z",
+          "controller": {
+            "members": [
+              "did:oip:bciqmsoarwlu4vzudjoyd6snrfu3eihc7m3av6q2lnf54cbpa5haugki"
+            ],
+            "threshold": 1
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqmsoarwlu4vzudjoyd6snrfu3eihc7m3av6q2lnf54cbpa5haugki?versionId=1-bciqef3h62tj7mqa3awr3lwjhu6vbxezqld3rsd24cctlzoh5obeekqy#z6MknMS1F25KcthRV98W7w6X1DBAu6fhNcm95Xqu1vcBAuBT",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T11:00:00Z",
+              "proofValue": "z3mH72pgiFs97aRXbsdYnDvZ5W6EFnUC9PG4WfXg3oycEH1yDGyzPTqro64qUBp4GQLYcmEM4sV4bChV9o1Myi4An"
+            }
+          ]
+        }
+      ],
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:01:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+              ],
+              "next": [
+                "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+                "label": "oep2-op"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6MknMS1F25KcthRV98W7w6X1DBAu6fhNcm95Xqu1vcBAuBT",
+                "label": "oep2-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:01:00Z",
+                "proofValue": "ztHAoJLZkBgkNGfKWPepu5rAw4F3Z5toH8m89CGfytydixtVggeR9MVQ72UXc6v4ZqRBvQzYVRaEVLuCTGjxYQGd"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Retire",
+            "mind": "did:oip:bciqmsoarwlu4vzudjoyd6snrfu3eihc7m3av6q2lnf54cbpa5haugki",
+            "seq": 1,
+            "prev": "bciqmsoarwlu4vzudjoyd6snrfu3eihc7m3av6q2lnf54cbpa5haugki",
+            "created": "2026-10-30T10:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5"
+              ],
+              "next": []
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5#z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T10:00:00Z",
+                "proofValue": "z467Ve52BpFyHC36XEnaf4QzZZBNgtna4ajVuLoJ4qcCs2KV7iB6FHbCxLwsmtdMoWAefTkpjvyUWnrdoXravvDuV"
+              }
+            ]
+          }
+        ]
+      ]
     }
   ],
   "controls": [
@@ -12896,6 +13450,342 @@
           }
         ]
       }
+    },
+    {
+      "name": "genesis-with-nine-homes",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "service",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+            ],
+            "next": [
+              "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+              "label": "oep2-op"
+            }
+          ],
+          "homes": [
+            "https://home0.example",
+            "https://home1.example",
+            "https://home2.example",
+            "https://home3.example",
+            "https://home4.example",
+            "https://home5.example",
+            "https://home6.example",
+            "https://home7.example"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z5uxHoUwe15uKpWgWeWQonNrQSZD6U6k1bzNnYTVSJQDKVuNWktYKXWhw8qtsD7Zus7utQZFQPDmkutUNLGv1SJ6z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "event-with-malformed-expires",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "service",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+            ],
+            "next": [
+              "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+              "label": "oep2-op"
+            }
+          ],
+          "expires": "2026-12-01T00:00:00Z",
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z2QcbAVuWDSwEoNXG5RrfQoWZmzbABPKzUn1y49AJ9Pmc828wsuqyaFGVyng1De1qyJotmeQNNsYD1PorJbVrM8du"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "home-with-a-path",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "service",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+            ],
+            "next": [
+              "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+              "label": "oep2-op"
+            }
+          ],
+          "homes": [
+            "https://lexis.example"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z3m8QxXBRT6RD8qQovQwEPvgxrBgHHRYjQ3PruRAHSyeqK1ZpCbvJejCsJN9niwim5BDAddGrAjRH8h6xQhrPV8Ad"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "controller-with-an-unknown-member",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "service",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+            ],
+            "next": [
+              "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+              "label": "oep2-op"
+            }
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z4WBhnsijSkrWEu6n57gYd1cGibeQDzX2ufZiYU2fRLhJaTH8HDmvGFDwyZm7YFFVuq7y6kjYRbqMh7FYUqJ7GeEJ"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "proof-pinned-to-a-retire",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli",
+        "created": "2026-10-30T11:00:00Z",
+        "want": "A second opinion.",
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli?versionId=1-bciqigtpmvpg3lhrqvqpdklitwngddspqbvhr3wq7iyvhbxqiseabzmi#z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T11:00:00Z",
+            "proofValue": "z487HN1wSsiphZKuXat9sn38sjxn4KYu3HUKw2qeDdGSu9XyftnaZ74zQNi5u2R6xpqFoHzLxEi8VZ6b4f1Qr8eFX"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "service",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+              ],
+              "next": [
+                "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+                "label": "oep2-op"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z4WBhnsijSkrWEu6n57gYd1cGibeQDzX2ufZiYU2fRLhJaTH8HDmvGFDwyZm7YFFVuq7y6kjYRbqMh7FYUqJ7GeEJ"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli",
+            "seq": 1,
+            "prev": "bciqnbkg26ui7xdwrv4szijrp6ywz2vuxctcz64mtxvhd7ognxqi7rli",
+            "created": "2026-10-30T10:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5"
+              ],
+              "next": []
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5#z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T10:00:00Z",
+                "proofValue": "zaduhTr7U3LfSGqqLWPzv1SB3NgGyZR17cGRYBVWqqHDBFVh3XW4CFaDUrrgjkYbCj85w1QogQoNHkbiCeiRf9YN"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "name": "retired-member-signs-for-a-collective",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "collective",
+          "created": "2026-10-30T11:00:00Z",
+          "controller": {
+            "members": [
+              "did:oip:bciqmsoarwlu4vzudjoyd6snrfu3eihc7m3av6q2lnf54cbpa5haugki"
+            ],
+            "threshold": 1
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqmsoarwlu4vzudjoyd6snrfu3eihc7m3av6q2lnf54cbpa5haugki?versionId=1-bciqdfj5b7d6og7xm2li6etnip7rw4aokkp6uxpreddlddshbeaiawdy#z6MknMS1F25KcthRV98W7w6X1DBAu6fhNcm95Xqu1vcBAuBT",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T11:00:00Z",
+              "proofValue": "z5r5AygKYSyMhUNqMHyniWLYYBRAotYi9pwEh67qvemf2yvz99CUmzPLYYLoMm4vc25yNgu1jWGgECc5fPhBCLdqs"
+            }
+          ]
+        }
+      ],
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:01:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
+              ],
+              "next": [
+                "bciqd6hoobxss7ipyzaezn5bhlt3vx2htcscm4bgrezkbrqcjveqqssa"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkkoBNoGvjmrgruZ8yUQGgiimU6btYNhAwEfZMugu9Mg9f",
+                "label": "oep2-op"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6MknMS1F25KcthRV98W7w6X1DBAu6fhNcm95Xqu1vcBAuBT",
+                "label": "oep2-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp#z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:01:00Z",
+                "proofValue": "ztHAoJLZkBgkNGfKWPepu5rAw4F3Z5toH8m89CGfytydixtVggeR9MVQ72UXc6v4ZqRBvQzYVRaEVLuCTGjxYQGd"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmsoarwlu4vzudjoyd6snrfu3eihc7m3av6q2lnf54cbpa5haugki",
+            "seq": 1,
+            "prev": "bciqmsoarwlu4vzudjoyd6snrfu3eihc7m3av6q2lnf54cbpa5haugki",
+            "created": "2026-10-30T10:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5"
+              ],
+              "next": []
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5#z6Mkjj59SGpzPkamEihTpFbvaaWcm8LtmjedfKoAQc7kzux5",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T10:00:00Z",
+                "proofValue": "z5kfARkCHeR5s5vByNYN15ZayMFpjJmEji3zX4Wf5DdZ6E4cBtcMBqZVcYsUC7a3PEgcdnQ34W5SZKpc7ftxwfrS5"
+              }
+            ]
+          }
+        ]
+      ]
     }
   ]
 }

@@ -43,9 +43,9 @@ A **member controller** is an object:
 | `members` | array of mind addresses | 1–256 distinct addresses, not including the mind itself |
 | `threshold` | integer | 1 ≤ `threshold` ≤ length of `members`, and 2 × `threshold` > length of `members` |
 
-Thresholds are majorities so that any two valid events at the same position share at least one signer: duplicity (Section 7) is then always attributable to a key or member that signed twice. Lower thresholds for routine work belong in a collective's charter (Layer 2, Section 6.2), not in its identity log.
+A controller has no other members. Thresholds are majorities so that any two valid events at the same position share at least one signer: duplicity (Section 7) is then always attributable to a key or member that signed twice. Lower thresholds for routine work belong in a collective's charter (Layer 2, Section 6.2), not in its identity log.
 
-3.5. **Key entries.** Three key sets appear at the top level of events, each as an array of objects `{ "key": <Multikey>, "label": <string, optional, at most 64 characters> }` with distinct keys:
+3.5. **Key entries.** Three key sets appear at the top level of events, each as an array of objects `{ "key": <Multikey>, "label": <string, optional, at most 64 characters> }` with distinct keys and no other members:
 - `keys`: **operational keys** (Ed25519, at most 64), which sign the mind's everyday records;
 - `invocation`: **invocation keys** (Ed25519, at most 16), used only when the mind, as a member, signs another mind's identity events (Section 9). Because they are used rarely, they can be kept more securely than operational keys. Operational keys never sign any identity event, so stealing one never changes any mind's identity;
 - `agreement`: **agreement keys** (X25519, at most 16), for encryption.
@@ -62,7 +62,7 @@ A key MUST NOT be both an operational and an invocation key.
 | `keys` | no | Operational keys (3.5) |
 | `invocation` | no | Invocation keys (3.5); a mind that may join a collective SHOULD include one |
 | `agreement` | no | Encryption keys (3.5) |
-| `homes` | no | 0–8 HTTPS origins that serve the mind's records |
+| `homes` | no | 0–8 HTTPS origins (3.13) that serve the mind's records |
 | `alsoKnownAs` | no | 0–16 URIs (Section 5.3) |
 | `parents` | no | 0–16 objects `{ "mind": <address>, "at": <version-id> }` (Section 8) |
 | `inherits` | no | An object describing what a fork started with; a claim only |
@@ -73,15 +73,17 @@ If `kind` is `collective`, the controller MUST be a member controller. A key-con
 
 3.7. **`Update`.** In addition to the common fields of 3.2: `controller` (REQUIRED for key-controlled minds, revealing the keys committed by the previous event and committing new ones; OPTIONAL for member-controlled minds, present only when membership or threshold changes); and any of `keys`, `invocation`, `agreement`, `homes`, `alsoKnownAs`, which replace the previous values when present; and `revoked`, an array of `{ "key": <Ed25519 Multikey>, "compromisedSince": <timestamp, optional> }` naming operational or invocation keys. Leaving a key out of its set removes it: it can sign nothing after this event takes effect (Section 6). Listing it in `revoked` also means it can never be added again, and `compromisedSince` withdraws what it signed from that time on. Agreement keys are not revoked; they are replaced.
 
-3.8. **`Fork`.** In addition to the common fields: `child` (REQUIRED, the address of the child mind), `controller` (as in 3.7) and `terms` (OPTIONAL object describing what the child received). A `Fork` records lineage in the identity log itself; a `Lineage` record (Section 8.3) acknowledges a child without using the control keys.
+3.8. **`Fork`.** In addition to the common fields: `child` (REQUIRED, the address of the child mind), `controller` (as in 3.7), `terms` (OPTIONAL object describing what the child received), and any of `keys`, `invocation`, `agreement`, `homes`, `alsoKnownAs` and `revoked`, with the meaning they have in an `Update` (3.7). A `Fork` records lineage in the identity log itself; a `Lineage` record (Section 8.3) acknowledges a child without using the control keys.
 
 3.9. **`Merge`** is reserved. A verifier of this revision MUST reject a log that contains a `Merge` event. A later revision will define it; that will be a change to the verification rules, not only to the format.
 
-3.10. **`Retire`.** In addition to the common fields: `controller` (as in 3.7, with `next` empty for key-controlled minds), `successor` (OPTIONAL address) and `reason` (OPTIONAL string). No event may follow a `Retire`, whether the mind is key-controlled or member-controlled. After a `Retire`, the mind's keys can sign nothing (Section 6).
+3.10. **`Retire`.** In addition to the common fields: `controller` (as in 3.7, with `next` empty for key-controlled minds), `successor` (OPTIONAL address), `reason` (OPTIONAL string), and any of `keys`, `invocation`, `agreement`, `homes`, `alsoKnownAs` and `revoked`, with the meaning they have in an `Update` (3.7). No event may follow a `Retire`, whether the mind is key-controlled or member-controlled. After a `Retire`, the mind's keys can sign nothing (Section 6).
 
 3.11. Identity events are signed with `proofPurpose` `capabilityInvocation`. Proofs by control keys use `control-key-ref` verification methods; proofs by members use `key-ref`s to the members' invocation keys (Section 6.4). Controllers MUST destroy the private part of a control key once the event it signs is published (Section 7.4).
 
-3.12. **Reserved names.** The member name `recovery` is reserved in identity events for key recovery in a later revision. A verifier of this revision MUST reject an event that contains it.
+3.12. **Reserved names.** The member name `recovery` is reserved in identity events for key recovery in a later revision. A verifier of this revision MUST reject an event that has a member of that name. The name is reserved as a member of the event itself; inside another member, such as `inherits` or an extension block, it has no meaning and is not an error.
+
+3.13. **HTTPS origins.** An HTTPS origin is the string `https://` followed by a host and an optional port, written with one or more of the ASCII letters and digits and the characters `.`, `-`, `:`, `[` and `]`, and with nothing else: no user information, path, query or fragment, and no character outside ASCII. A name in another script is written in its A-label form (`xn--…`). The grammar bounds the characters, so that every implementation accepts the same strings; it does not show that the host exists.
 
 ## 4. Verifying an identity log
 
@@ -101,6 +103,8 @@ A verifier MUST reject a log unless all of the following hold.
 
 4.7. **Nesting and work.** Verifying a member's proof requires verifying that member's own log. The **height** of a key-controlled mind is 0. A collective's height is fixed by its genesis: the genesis's `height` if present, otherwise one more than the greatest height among its founding members. It MUST be at least one more than every founding member's height and at most 4, and every member whose proof a later event relies on, including any member the event adds, MUST have a height less than the collective's. Because heights never change, a member's later events can never invalidate a collective it belongs to, verifying a collective never needs more than four levels of member logs, and no collective can be a member of itself, directly or indirectly. Verifiers MAY refuse logs longer, or records with more proofs, than they are configured to process, but MUST accept logs of at least 1,000 events and records with up to 256 proofs.
 
+4.8. **Well-formed events.** Every event is a well-formed record of its type: it satisfies core, Sections 1, 5.1 and 7, and Section 3 of this document, with every limit Section 3 sets. A log that contains an event that is not is rejected, whoever signed the event. A mind's address is the content ID of its genesis, so two verifiers that disagreed about which events are well formed would disagree about which minds exist.
+
 ## 5. Identity state and the DID document
 
 5.1. Replaying a log produces the **identity state**: address, kind, controller state (`next` and `nextThreshold`, or `members` and `threshold`), operational keys, invocation keys, agreement keys, homes, aliases, parents, acknowledged children, revocations with their compromise times, the latest version identifier, and whether the mind is retired.
@@ -119,7 +123,7 @@ A verifier MUST reject a log unless all of the following hold.
 
 6.1. A proof `p` on a record of type `T`, whose verification method is `did:oip:X?versionId=V#K`, is by a **valid operational key** of `X` if, and only if, all of these hold:
 1. `X`'s log verifies and `V` identifies an event in it;
-2. `K` is in the operational keys of the state at `V`;
+2. `K` is in the operational keys of the state at `V`, and the event `V` identifies is not a `Retire`;
 3. if a later event in the log removes `K` from the operational keys, or retires the mind, `t(p)` is earlier than that event's evaluation time (core 9.5);
 4. no revocation of `K` in the log has a `compromisedSince` at or before `t(p)`;
 5. `p.proofPurpose` is the purpose core 5.6 requires for `T`;
@@ -134,7 +138,7 @@ A verifier MUST reject a log unless all of the following hold.
 
 6.4. **Member proofs on identity events.** A proof `p` by member `M` on another mind's identity event `e` counts if, and only if, all of these hold:
 1. its verification method is `did:oip:M?versionId=V#K`, `M`'s log verifies, and `V` identifies an event in it;
-2. `K` is an invocation key of `M` at `V`;
+2. `K` is an invocation key of `M` at `V`, and the event `V` identifies is not a `Retire`;
 3. if a later event in `M`'s log removes `K` from the invocation keys, or retires `M`, the evaluation time of `e` (core 9.5) is earlier than that event's evaluation time;
 4. `p.proofPurpose` is `capabilityInvocation`;
 5. the signature verifies (core 5.4).
@@ -362,7 +366,7 @@ Hosts MAY serve A2A Agent Cards (Layer 0, Section 3.2) and domain aliases at `/.
 | `status` | yes | `active`, `paused` or `migrating` |
 | `resumeAfter` | no | Timestamp |
 | `endpoints` | yes | 0–32 objects `{ "binding": <binding>, "url": <URL>, "instance": <string, optional>, "priority": <integer, lower first> }` |
-| `homes` | no | HTTPS origins |
+| `homes` | no | HTTPS origins (Section 3.13) |
 | `participant` | no | Content ID of the current Participant profile |
 | `feed` | no | `{ "seq": <n>, "head": <content ID of the latest Entry> }` |
 | `proof` | yes | By the author's own authority: a valid operational key under the current-state rule (Section 6.1, item 6), or, for a collective, its threshold under its latest membership (Section 9.5) |

@@ -30,6 +30,18 @@ Changes adopted while the reference implementation is built. They stay under thi
 
 **The Python checker** gained a parser for the profile, and applies core 1.1, 1.2, 1.6 and 1.9 to every record it judges, container by container, and core 1.1, 1.2 and 1.9 to every identity event. It checks the length and form of a packet's retention period (core 1.5). It reads a number of any length as text: before, Python's own limit of 4,300 digits made it reject an integer written at length. It compares a proof's `@context` with the record's in canonical form: before, it took `true` for `1` and a missing member for `null`. It rejects a `proof` entry that is not an object and an `ext` member whose name is not a namespace, as the specification requires.
 
+**Identity clarifications ([OEP-0002](../oeps/oep-0002-identity-clarifications.md), found while building `@oip/identity`).** No address, content ID or proof in the test vectors changes.
+
+- **A proof pinned to a `Retire` counts for nothing (Layer 1, 6.1, 6.4).** A `Retire` leaves a mind's keys in their sets, and the rule looked only at later events for a removal or a retirement. A proof that pinned the `Retire` itself was therefore by a valid key, and a retired mind's keys could go on signing. The Python checker accepted such a proof; it now rejects it.
+- **Every event is a well-formed record (Layer 1, 4.8, new).** A log with an event that breaks Section 3, or core Sections 1, 5.1 and 7, does not verify, whoever signed the event. The Python checker verified a signed genesis with nine homes; it now applies the shape of Section 3 to every event.
+- **HTTPS origins (Layer 1, 3.13, new).** `https://` and then a host and an optional port, written with ASCII letters, digits and `.`, `-`, `:`, `[`, `]` only. Section 3.6 and the `homes` of a `Location` refer to it. The schemas allowed any character but `/`, `?`, `#`, `@` and white space, which is not one set in every implementation.
+- **Controllers and key entries have no other members (Layer 1, 3.4, 3.5).** Both implementations already required it.
+- **`Fork` and `Retire` may carry the key sets (Layer 1, 3.8, 3.10)**, with the meaning they have in an `Update`. Section 4.5 already applied them to every event.
+- **`recovery` is reserved as a member of the event itself (Layer 1, 3.12)**, and not inside another member.
+- **A container or a `Sealed` record has no `created` (core 7).** A reader ignores one there, as it ignores any member it does not recognise.
+
+**Test vectors.** Six negative cases, six controls and three must-accept cases are added for the items above (OEP-0002 lists them).
+
 ## Revision 2026-11-17 (Draft)
 
 Security and consistency fixes from two independent reviews of revision 2026-10-30, one of the technical paper and one of the specifications, and from a third independent check of those fixes before publication ([reviews/](../reviews/)). Record formats change little; most changes are clearer rules about who may sign what, and when. Every mind address in the test vectors is unchanged.

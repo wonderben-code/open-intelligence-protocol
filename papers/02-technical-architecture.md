@@ -371,7 +371,8 @@ Its content ID, and therefore Amina's address, is `did:oip:bciqmwrzo6zt2xnoga2rk
 2. Each later event names the same `mind`, has `seq` one greater than its predecessor, `prev` equal to its predecessor's content ID, and a `created` no earlier than its predecessor's.
 3. Each later event reveals at least `nextThreshold` *distinct* control keys; every revealed key hashes to an entry in its predecessor's `next`; and every revealed key has signed the event with the purpose `capabilityInvocation`.
 4. Fields present in an event (`keys`, `invocation`, `agreement`, `homes`, `alsoKnownAs`) replace the previous values. Revoked keys are removed and can never return.
-5. Only `Update`, `Fork` and `Retire` may follow the genesis, and nothing follows a `Retire`. A log containing a `Merge`, or an event containing the reserved member `recovery`, is rejected.
+5. Only `Update`, `Fork` and `Retire` may follow the genesis, and nothing follows a `Retire`. A log containing a `Merge`, or an event with the reserved member `recovery`, is rejected.
+6. Every event is a well-formed record of its type, whoever signed it. An address is the hash of a genesis, so verifiers that disagreed about which events are well formed would disagree about which minds exist.
 
 The reference checker performs exactly these steps. Its negative test vectors include a rotation signed correctly by a key whose hash was never committed, which pre-rotation alone rejects, and a 2-of-3 rotation that lists one key twice, which the distinct-keys rule rejects.
 
@@ -387,7 +388,7 @@ t(p) = max( p.created, τ(p) )
 
 where `τ(p)` is the earliest time for which the verifier holds *evidence* that the signature existed: its own record of receiving it, the first-seen record of a witness it trusts (its resolver or indexer), an anchored checkpoint whose feed entry commits to that exact signature, or a recipient's signed acknowledgement. For anything received live, the evaluation time is simply the time of receipt, so writing an earlier date achieves nothing. Evidence belongs to one signature: adding a co-signature does not change a record's ID, so evidence that a record existed says nothing about a signature added to it later, and one signature is never evidence for another. Implementations therefore key evidence by the digest of the signature itself.
 
-**Removing a key.** An `Update` that leaves an operational key out of the mind's keys stops it signing anything new. The removal itself takes effect at the update's own evaluation time, so a mind cannot backdate a removal to withdraw records it has already made. After a `Retire`, none of the mind's keys can sign anything.
+**Removing a key.** An `Update` that leaves an operational key out of the mind's keys stops it signing anything new. The removal itself takes effect at the update's own evaluation time, so a mind cannot backdate a removal to withdraw records it has already made. After a `Retire`, none of the mind's keys can sign anything: a signature that pins the `Retire` itself counts for nothing, although the event leaves the keys in their sets.
 
 **Both times need evidence.** Deciding whether a signature came before or after a key's removal compares two times, and the comparison means something only if both come from evidence. A verifier that receives a signature before it has fetched the signer's latest log would otherwise compare "when I saw the signature" with "when I later saw the removal", and the former holder of a removed key, a departed employee or an abandoned host, would win the race. So before counting a signature a verifier must hold the signer's log as a witness it trusts served it after the signature first appeared, and must date the log's events by that witness's first-seen times or by anchors, never by its own later sight of them.
 
@@ -1153,7 +1154,8 @@ eventTime(e):                              # identity events take effect at thei
 ```
 verifyLog(events):
     g = events[0]
-    require g.type == "Genesis" and g has no mind, seq or prev, and no event contains "recovery"
+    require every event is a well-formed record of its type
+    require g.type == "Genesis" and g has no mind, seq or prev, and no event has a member "recovery"
     if g.controller has keys:                                    # key-controlled
         require keys distinct (1–16); next distinct (0–16); 1 ≤ nextThreshold ≤ |next|
                 and 2·nextThreshold > |next| (or nextThreshold absent when next is empty)
@@ -1193,7 +1195,7 @@ verifyLog(events):
 validKey(r, p, X):                           # p is by an operational key of mind X
     (X', V, K) = parse(p.verificationMethod); require X' == X and V present
     require p.proofPurpose == purposeFor(r.type)
-    S = state of X at version V;  require K ∈ S.keys
+    S = state of X at version V;  require K ∈ S.keys and V is not a Retire
     t = t(r, p);  require t is not none
     if a later event E removes K or retires X: require t < eventTime(E)
     if K was revoked with compromisedSince c: require t < c
@@ -1203,7 +1205,8 @@ validKey(r, p, X):                           # p is by an operational key of min
 
 memberSigns(e, p, M):                        # member proofs on another mind's identity event
     (M', V, K) = parse(p.verificationMethod); require M' == M
-    require K ∈ (state of M at version V).invocation and p.proofPurpose == capabilityInvocation
+    require K ∈ (state of M at version V).invocation and V is not a Retire
+    require p.proofPurpose == capabilityInvocation
     if a later event E of M removes K from its invocation keys or retires M:
         require eventTime(e) < eventTime(E)  # a removed key can append nothing
     return verifyProof(e, p, K)              # compromise claims do not reach other minds' logs

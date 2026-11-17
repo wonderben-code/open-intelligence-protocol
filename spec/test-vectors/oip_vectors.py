@@ -3576,6 +3576,121 @@ def build():
                 "members that hold its records: here a member of the "
                 "page's own nests 65 deep.", page_with_own(62))
 
+    # --- OEP-0002: identity clarifications ------------------------------
+    o_c0, o_c1, o_op = k("oep2-control-0"), k("oep2-control-1"), k("oep2-op")
+    o_op2, o_inv = k("oep2-op-2"), k("oep2-invocation")
+
+    def homes_genesis(homes):
+        return key_controlled_genesis("service", o_c0, o_c1, [o_op],
+                                      homes=homes)
+
+    nine = [f"https://home{n}.example" for n in range(9)]
+    bad_log("genesis-with-nine-homes",
+            "An event is a well-formed record of its type, whoever signed "
+            "it (Layer 1, 4.8): a Genesis holds at most 8 homes. The "
+            "signature is good. An address is the content ID of a genesis, "
+            "so verifiers must agree on which geneses are well formed.",
+            [homes_genesis(nine)])
+
+    def expiring_genesis(expires):
+        return key_controlled_genesis("service", o_c0, o_c1, [o_op],
+                                      extra={"expires": expires})
+
+    bad_log("event-with-malformed-expires",
+            "An event is a well-formed record (Layer 1, 4.8), so its "
+            "`expires`, if it has one, is a timestamp (core 1.4, core 7). "
+            "There is no thirteenth month.",
+            [expiring_genesis("2026-13-01T00:00:00Z")])
+    bad_log("home-with-a-path",
+            "A home is an HTTPS origin (Layer 1, 3.13): a host and an "
+            "optional port, with no path.",
+            [homes_genesis(["https://lexis.example/records"])])
+
+    def controller_genesis(**more):
+        return key_controlled_genesis(
+            "service", o_c0, o_c1, [o_op],
+            extra={"controller": {"keys": [o_c0.mk],
+                                  "next": [key_hash(o_c1.mk)],
+                                  "nextThreshold": 1, **more}})
+
+    bad_log("controller-with-an-unknown-member",
+            "A controller has no other members (Layer 1, 3.4). What "
+            "decides who may extend a log is not open to members that one "
+            "verifier reads and another ignores.",
+            [controller_genesis(recoveryKeys=[key_hash(o_c1.mk)])])
+
+    # A Fork may carry the key sets, as an Update does (Layer 1, 3.8).
+    o_gen = key_controlled_genesis("service", o_c0, o_c1, [o_op],
+                                   created="2026-10-30T09:00:00Z")
+    oep2 = did(content_id(o_gen))
+    o_fork = control_event(
+        "Fork", oep2, o_gen, "2026-10-30T09:30:00Z", [o_c1], [],
+        fields={"child": amina,
+                "keys": [{"key": o_op.mk, "label": o_op.label},
+                         {"key": o_op2.mk, "label": o_op2.label}]})
+
+    def oep2_intent(at_event, key, created="2026-10-30T11:00:00Z"):
+        return signed({"oip": OIP_VERSION, "type": "Intent", "author": oep2,
+                       "created": created, "want": "A second opinion."},
+                      key, op_vm(oep2, at_event, key.mk))
+
+    V["valid"].append({
+        "name": "key-added-by-a-fork",
+        "reason": "A Fork may carry `keys`, with the meaning they have in "
+                  "an Update (Layer 1, 3.8 and 4.5). The key this Fork "
+                  "adds signs for the mind from then on.",
+        "kind": "countsFor", "record": oep2_intent(o_fork, o_op2),
+        "mind": oep2, "extraLogs": [[o_gen, o_fork]]})
+    V["valid"].append({
+        "name": "recovery-inside-another-member",
+        "reason": "`recovery` is reserved as a member of an event itself "
+                  "(Layer 1, 3.12). Inside `inherits`, which is a claim "
+                  "in the author's own words, it is a word like any other.",
+        "kind": "log",
+        "log": [key_controlled_genesis(
+            "service", o_c0, o_c1, [o_op],
+            extra={"inherits": {"recovery": "three months of archives"}})]})
+
+    # A Retire leaves the keys in their sets, and nothing follows it.
+    o_retire = control_event("Retire", oep2, o_gen, "2026-10-30T10:00:00Z",
+                             [o_c1], [], fields={"reason": "Wound up."})
+    o_update = control_event("Update", oep2, o_gen, "2026-10-30T10:00:00Z",
+                             [o_c1], [])
+    bad_sig("proof-pinned-to-a-retire",
+            "After a Retire a mind's keys sign nothing (Layer 1, 3.10). "
+            "The Retire leaves the key in its set and no later event "
+            "removes it, so the proof pins the Retire itself: Layer 1, "
+            "6.1 item 2 refuses that version.",
+            oep2_intent(o_retire, o_op), oep2,
+            extra_logs=[[o_gen, o_retire]])
+
+    # The same for a member's proof on a collective's identity event.
+    m_gen = key_controlled_genesis(
+        "human", o_c0, o_c1, [o_op], created="2026-10-30T09:01:00Z",
+        extra={"invocation": [{"key": o_inv.mk, "label": o_inv.label}]})
+    member = did(content_id(m_gen))
+    m_retire = control_event("Retire", member, m_gen,
+                             "2026-10-30T10:00:00Z", [o_c1], [])
+    m_update = control_event("Update", member, m_gen,
+                             "2026-10-30T10:00:00Z", [o_c1], [])
+
+    def founded_by(at_event):
+        return coll_genesis(1, [(o_inv, op_vm(member, at_event, o_inv.mk))],
+                            members=(member,),
+                            created="2026-10-30T11:00:00Z")
+
+    bad_log("retired-member-signs-for-a-collective",
+            "A retired mind's invocation keys sign nothing either. The "
+            "founder's proof pins its own Retire, which Layer 1, 6.4 item "
+            "2 refuses, so the collective has no founder that signed.",
+            [founded_by(m_retire)], extra_logs=[[m_gen, m_retire]])
+
+    record_case(V["valid"], "container-with-created",
+                "A container has no `created` (core 7). A reader ignores "
+                "one there, as it ignores any member it does not recognise "
+                "(core 1.7).",
+                {**page(a_gen), "created": "2026-10-30T09:00:00Z"})
+
     # Controls: each negative case above, changed only in the respect its
     # reason names, must be accepted, so it fails for that reason alone.
     by_name = {case["name"]: case for case in neg}
@@ -3644,6 +3759,17 @@ def build():
             record=resigned(ext={"com.example.deep": {"down": nest(61)}}))
     control("container-carries-a-record-nested-65-deep",
             record=page(padded_event(61)))
+    control("genesis-with-nine-homes", log=[homes_genesis(nine[:8])])
+    control("event-with-malformed-expires",
+            log=[expiring_genesis("2026-12-01T00:00:00Z")])
+    control("home-with-a-path",
+            log=[homes_genesis(["https://lexis.example"])])
+    control("controller-with-an-unknown-member", log=[controller_genesis()])
+    # The same record pinned to an Update in the Retire's place counts.
+    control("proof-pinned-to-a-retire", record=oep2_intent(o_update, o_op),
+            extraLogs=[[o_gen, o_update]])
+    control("retired-member-signs-for-a-collective",
+            log=[founded_by(m_update)], extraLogs=[[m_gen, m_update]])
     return V
 
 

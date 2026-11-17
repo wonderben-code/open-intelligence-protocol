@@ -120,7 +120,8 @@ function live(name: string, steps: readonly Step[], start = 100): KeyMind {
     seconds += gap;
     const fields = fieldsFor(mind, change, seconds);
     if (kind === "update") mind.update(seconds, fields);
-    else if (kind === "fork") mind.fork(seconds, { ...fields, child: new KeyMind("child").address });
+    else if (kind === "fork")
+      mind.fork(seconds, { ...fields, child: new KeyMind("child").address });
     else mind.retire(seconds, fields);
   }
   return mind;
@@ -148,7 +149,12 @@ const RAW_CHANGES: readonly JsonObject[] = [
   { kind: "collective" },
   { kind: "x".repeat(65) },
   { controller: undefined },
-  { controller: { members: ["did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"], threshold: 1 } },
+  {
+    controller: {
+      members: ["did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"],
+      threshold: 1,
+    },
+  },
   { controller: { keys: [], next: [] } },
   { homes: Array.from({ length: 9 }, (_, n) => `https://home${n}.example`) },
   { homes: Array.from({ length: 8 }, (_, n) => `https://home${n}.example`) },
@@ -227,7 +233,9 @@ const twist: fc.Arbitrary<Twist> = fc.oneof(
   },
   {
     weight: 2,
-    arbitrary: fc.constantFrom(...RAW_CHANGES).map((member): Twist => ({ kind: "unsigned", member })),
+    arbitrary: fc
+      .constantFrom(...RAW_CHANGES)
+      .map((member): Twist => ({ kind: "unsigned", member })),
   },
   {
     weight: 8,
@@ -247,13 +255,13 @@ function twisted(mind: KeyMind, change: Twist, pick: number): Events {
   const events = mind.events as unknown as Events;
   const i = pick % events.length;
   const j = (i + 1) % events.length;
-  const event = events[i] as JsonObject;
+  const event = events[i]!;
   const replaced = (replacement: JsonObject) => events.map((e, n) => (n === i ? replacement : e));
   switch (change.kind) {
     case "none":
       return events;
     case "swap":
-      return events.map((e, n) => (n === i ? (events[j] as JsonObject) : n === j ? event : e));
+      return events.map((e, n) => (n === i ? events[j]! : n === j ? event : e));
     case "drop":
       return events.length === 1 ? events : events.filter((_, n) => n !== i);
     case "repeat":
@@ -265,7 +273,9 @@ function twisted(mind: KeyMind, change: Twist, pick: number): Events {
     case "no proofs":
       return replaced(withMembers(event, { proof: undefined }));
     case "purpose":
-      return replaced(rawSign(event, [{ control: mind.control(i) }], { purpose: "assertionMethod" }));
+      return replaced(
+        rawSign(event, [{ control: mind.control(i) }], { purpose: "assertionMethod" }),
+      );
     case "unsigned":
       return replaced(withMembers(event, change.member));
     case "raw":
@@ -276,14 +286,19 @@ function twisted(mind: KeyMind, change: Twist, pick: number): Events {
 /** Evidence for some events at other times than their own: `[event, seconds from its date]`. */
 const DELTAS = [-301, -300, -1, 1, 299, 100_000] as const;
 
-function seenFor(events: Events, picks: readonly (readonly [number, number])[]): Record<string, string> {
+function seenFor(
+  events: Events,
+  picks: readonly (readonly [number, number])[],
+): Record<string, string> {
   const seen: Record<string, string> = {};
   for (const [pick, delta] of picks) {
-    const event = events[pick % events.length] as JsonObject;
+    const event = events[pick % events.length]!;
     const created = Date.parse(String(event["created"]));
     if (Number.isNaN(created)) continue;
     try {
-      seen[contentId(event)] = formatTimestamp(BigInt(created) * 1_000_000n + BigInt(delta) * 1_000_000_000n);
+      seen[contentId(event)] = formatTimestamp(
+        BigInt(created) * 1_000_000n + BigInt(delta) * 1_000_000_000n,
+      );
     } catch {
       // An event with no content ID has no evidence.
     }
@@ -304,7 +319,7 @@ const keyLogCase: fc.Arbitrary<VectorCase> = fc
   })
   .map(({ name, steps, change, pick, seen }) => {
     const log = twisted(live(name, steps), change, pick);
-    return { kind: "log", name: "generated", log, seen: seenFor(log, seen) } as VectorCase;
+    return { kind: "log", name: "generated", log, seen: seenFor(log, seen) };
   });
 
 /**
@@ -334,7 +349,7 @@ const collectiveLogCase: fc.Arbitrary<VectorCase> = fc
   .map((plan) => {
     const people = ["ada", "bea", "cy", "dee"].map((name) => new KeyMind(name, 0));
     const members = people.slice(0, plan.size);
-    const outsider = people[3] as KeyMind;
+    const outsider = people[3]!;
     const threshold = Math.min(plan.threshold, plan.size);
     const fields = plan.height === undefined ? {} : { height: plan.height };
     let club: Collective;
@@ -368,7 +383,7 @@ const collectiveLogCase: fc.Arbitrary<VectorCase> = fc
       ) as never;
     }
     // The first member's own log goes on while the collective lives.
-    const first = members[0] as KeyMind;
+    const first = members[0]!;
     let seconds = plan.memberStart;
     for (const { kind, gap, change } of plan.memberSteps) {
       seconds += gap + 1;
@@ -398,7 +413,11 @@ const collectiveLogCase: fc.Arbitrary<VectorCase> = fc
             },
           });
         } else {
-          club.update(when, signers, update.change === "homes" ? { homes: ["https://club.example"] } : {});
+          club.update(
+            when,
+            signers,
+            update.change === "homes" ? { homes: ["https://club.example"] } : {},
+          );
         }
       } catch {
         // An event nobody signs is not written.
@@ -411,8 +430,11 @@ const collectiveLogCase: fc.Arbitrary<VectorCase> = fc
       name: "generated",
       log,
       extraLogs,
-      seen: { ...seenFor(first.events as unknown as Events, plan.memberSeen), ...seenFor(log, plan.seen) },
-    } as VectorCase;
+      seen: {
+        ...seenFor(first.events, plan.memberSeen),
+        ...seenFor(log, plan.seen),
+      },
+    };
   });
 
 /**
@@ -435,23 +457,24 @@ const ownKeyCase: fc.Arbitrary<VectorCase> = fc
   .map((plan) => {
     const mind = live(plan.name, plan.steps);
     const position = plan.position % mind.events.length;
-    const base = plan.type === "Intent" ? intentBy(mind, plan.created) : locationBy(mind, plan.created);
+    const base =
+      plan.type === "Intent" ? intentBy(mind, plan.created) : locationBy(mind, plan.created);
     const unsigned =
       plan.expires === undefined ? base : { ...base, expires: T(plan.created + plan.expires) };
     const record = mind.sign(unsigned, { key: plan.key, position });
     const proof = record.proof[0];
-    const seen: Record<string, string> = seenFor(mind.events as unknown as Events, plan.logSeen);
+    const seen: Record<string, string> = seenFor(mind.events, plan.logSeen);
     if (plan.seenAfter !== undefined && proof !== undefined) {
       seen[proofDigest(proof)] = formatTimestamp(at(plan.created + plan.seenAfter));
     }
     return {
       kind: "countsFor",
       name: "generated",
-      record: record as unknown as JsonObject,
+      record: record,
       mind: mind.address,
-      extraLogs: [mind.events as unknown as Events],
+      extraLogs: [mind.events],
       seen,
-    } as VectorCase;
+    };
   });
 
 describe.skipIf(unavailable !== undefined && !required)("differential: identity logs", () => {
@@ -467,7 +490,13 @@ describe.skipIf(unavailable !== undefined && !required)("differential: identity 
   });
 
   async function compare(vectorCase: VectorCase): Promise<void> {
-    const disagreement = await compareVerdicts(referenceAdapter, judge, vectors, vectorCase, "same");
+    const disagreement = await compareVerdicts(
+      referenceAdapter,
+      judge,
+      vectors,
+      vectorCase,
+      "same",
+    );
     // Shown small: a case holds whole logs.
     expect(
       disagreement === undefined
@@ -526,7 +555,9 @@ describe.skipIf(unavailable !== undefined && !required)("differential: identity 
   it(
     `agrees with it on ${Math.ceil(RUNS / 2)} generated logs of collectives`,
     async () => {
-      await fc.assert(fc.asyncProperty(collectiveLogCase, compare), { numRuns: Math.ceil(RUNS / 2) });
+      await fc.assert(fc.asyncProperty(collectiveLogCase, compare), {
+        numRuns: Math.ceil(RUNS / 2),
+      });
     },
     TIMEOUT,
   );

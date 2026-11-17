@@ -157,7 +157,7 @@ describe("the exported JSON Schemas", () => {
     ]);
     for (const entry of negative) expect(wellFormed(entry["record"]), entry.name).toBe(false);
     const accepted = [...ofKind("valid"), ...ofKind("controls")];
-    expect(accepted).toHaveLength(18);
+    expect(accepted).toHaveLength(19);
     for (const entry of accepted) expect(wellFormed(entry["record"]), entry.name).toBe(true);
     // What a schema alone can see: a short nonce, an entry of proof that is no object, a
     // name in ext that is no namespace, a duration that is too long. A delegation to

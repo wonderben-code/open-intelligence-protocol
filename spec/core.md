@@ -149,7 +149,7 @@ record-ref       = mind-address "/" content-id
 | `oip` | REQUIRED in every record. The string `"1"`. Records with any other value MUST be rejected. |
 | `type` | REQUIRED in every record. A record type defined by this specification or by a critical extension: a record whose `type` this specification does not define MUST list in `critical` the namespace of the extension that defines it, and a reader that does not understand that extension treats the record as Section 8.3 says. |
 | `author` | The mind making a statement. Identity events use `mind` and packets use `from` instead. |
-| `created` | REQUIRED in every record except the containers and `Sealed` (Section 11). The author's claimed creation time: a claim, never evidence of when the record existed (Section 9). |
+| `created` | REQUIRED in every record except the containers and `Sealed` (Section 11), which have no such member: a reader ignores one there, as it ignores any member it does not recognise (Section 1.7). The author's claimed creation time: a claim, never evidence of when the record existed (Section 9). |
 | `expires` | OPTIONAL. After this instant the record is closed for any purpose that depends on it being open. |
 | `ext` | OPTIONAL. Extension blocks (Section 8). |
 | `critical` | OPTIONAL. Extension namespaces the reader must understand (Section 8). |

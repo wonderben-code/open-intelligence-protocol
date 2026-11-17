@@ -332,7 +332,7 @@
         "MUST": 2,
         "OPTIONAL": 3
       },
-      "digest": "1bfe7cc09dbe9d5da5c54813223318d103f2b14dde379ea039b1595698c1a3f2"
+      "digest": "79f10777be00ddf8f4b48fc8b0f2c1493c826419f72d2a587afffa474bf25d05"
     },
     {
       "id": "core 8.1",
@@ -762,7 +762,7 @@
         "MUST": 2,
         "OPTIONAL": 1
       },
-      "digest": "69db7d2cc81a4db9e3b17b5bb121cec8050f13143db0ac17d804823adb263ef7"
+      "digest": "de80326b34d5044c0abec7272fc5eb195ef84b8d3749ef16cd17ab2255b4389f"
     },
     {
       "id": "L1 3.5",
@@ -773,7 +773,7 @@
       "keywords": {
         "MUST NOT": 1
       },
-      "digest": "dc409d28b15b1bf9e30a9a6e40af011c607953f432bbdd5fcc6d2ceaf25fad7e"
+      "digest": "9eedb91c0d0199c05505473df0114f36972c05adc5124fb4c3964733f508d626"
     },
     {
       "id": "L1 3.6",
@@ -786,7 +786,7 @@
         "MUST": 1,
         "MUST NOT": 1
       },
-      "digest": "85ddf8e94db0d57482aa4ddeda48b74e2ba0d9c58e2414ba798e47e8593fa99e"
+      "digest": "bf3648705ad8d852b3dd858558d6ad3d83cb52feb84134fd3379c0e0483596f6"
     },
     {
       "id": "L1 3.7",
@@ -810,7 +810,7 @@
         "REQUIRED": 1,
         "OPTIONAL": 1
       },
-      "digest": "18a1b0102776052569a4d9d5c4530332c5e06851f634b77189c4b8278804cde2"
+      "digest": "386e947f5c03a65a60fae312246254108361ee129d924a1eba10cf6717b59e04"
     },
     {
       "id": "L1 3.9",
@@ -832,7 +832,7 @@
       "keywords": {
         "OPTIONAL": 2
       },
-      "digest": "9db85ed5aec582359bc57b2fd9262781786c1a98fe4118c4a1bfe3e6a03da80b"
+      "digest": "8e2514bca5aa26cc199fad1b9dac5a6e03318153c218c49541bff1963a631d2a"
     },
     {
       "id": "L1 3.11",
@@ -854,7 +854,16 @@
       "keywords": {
         "MUST": 1
       },
-      "digest": "f69868901201c92ab81c3da7892f13c7a8414bc1431120dd217345346abbc2c8"
+      "digest": "fa1e6b8d7217339b0efaff4a3d70811ae49397af0b80155cd41efc04d8fa1bc0"
+    },
+    {
+      "id": "L1 3.13",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "HTTPS origins. An HTTPS origin is the string `https://` followed by a host and an optional port…",
+      "level": "none",
+      "keywords": {},
+      "digest": "9cc80ed22266e0012d82b91bbbaece1f6a3839a838399390776f65aeac7aac21"
     },
     {
       "id": "L1 4",
@@ -936,6 +945,15 @@
       "digest": "bb9693e3d7a1e601c30dfde6898bde986942b7bae72ee573516c4d9ce5aaa16f"
     },
     {
+      "id": "L1 4.8",
+      "document": "L1",
+      "section": "Verifying an identity log",
+      "summary": "Well-formed events. Every event is a well-formed record of its type: it satisfies core, Section…",
+      "level": "none",
+      "keywords": {},
+      "digest": "4ff34462afd03013feccf20b9d01fb08f38bb9afc2f7ac5e811f172e6cc2156d"
+    },
+    {
       "id": "L1 5.1",
       "document": "L1",
       "section": "Identity state and the DID document",
@@ -972,7 +990,7 @@
       "summary": "A proof `p` on a record of type `T`, whose verification method is `did:oip:X?versionId=V#K`, is…",
       "level": "none",
       "keywords": {},
-      "digest": "4ddde4d78ab1ddf31d02a03b33d0f808ed146a281fc95bd4270f6c5ffb950969"
+      "digest": "717ecd634bc151608472f66ee615cee0d288871143231c783e4b4d94acc92bba"
     },
     {
       "id": "L1 6.2",
@@ -1002,7 +1020,7 @@
       "summary": "Member proofs on identity events. A proof `p` by member `M` on another mind's identity event `e…",
       "level": "none",
       "keywords": {},
-      "digest": "0aad195cfbb9cea4077ed91c0fe6c40bec5cbd612ea0705c4752d0cbff870dda"
+      "digest": "eeab8160a17ba106ab709a25933d90e40cf1b5b895a87ca30c1a15aaab3dbd26"
     },
     {
       "id": "L1 7.1",
@@ -1474,7 +1492,7 @@
       "keywords": {
         "MUST": 1
       },
-      "digest": "4c29f1cd2f6dee7e4296c541376847fa1dd34fa85e0c53c4349b91941c33a572"
+      "digest": "1b954e861371d9455f442872985bd584defa47d4bc9b9a74fd2596b89b8ebbc3"
     },
     {
       "id": "L1 15.2",

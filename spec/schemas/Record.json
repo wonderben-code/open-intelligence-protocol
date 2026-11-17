@@ -1,0 +1,399 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Record",
+  "title": "Record",
+  "description": "Any record this revision defines (core Section 11). Merge is reserved and matches nothing.",
+  "type": "object",
+  "properties": {
+    "oip": {
+      "const": "1"
+    },
+    "type": {
+      "enum": [
+        "Genesis",
+        "Update",
+        "Fork",
+        "Retire",
+        "Delegation",
+        "Revocation",
+        "Lineage",
+        "Collective",
+        "Intent",
+        "Offer",
+        "Commitment",
+        "Receipt",
+        "Packet",
+        "Entry",
+        "Checkpoint",
+        "Ack",
+        "QueryResult",
+        "Forwarded",
+        "Location",
+        "Participant",
+        "Hello",
+        "Session",
+        "Resume",
+        "Branch",
+        "Bundle",
+        "LogPage",
+        "FeedPage",
+        "DuplicityEvidence",
+        "Sealed"
+      ]
+    }
+  },
+  "required": [
+    "oip",
+    "type"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Genesis"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Genesis"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Update"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Update"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Fork"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Fork"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Retire"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Retire"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Delegation"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Delegation"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Revocation"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Revocation"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Lineage"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Lineage"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Collective"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Collective"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Intent"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Intent"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Offer"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Offer"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Commitment"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Commitment"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Receipt"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Receipt"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Packet"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Packet"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Entry"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Entry"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Checkpoint"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Checkpoint"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Ack"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Ack"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "QueryResult"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:QueryResult"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Forwarded"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Forwarded"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Location"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Location"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Participant"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Participant"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Hello"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Hello"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Session"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Session"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Resume"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Resume"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Branch"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Branch"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Bundle"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Bundle"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "LogPage"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:LogPage"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "FeedPage"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:FeedPage"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "DuplicityEvidence"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:DuplicityEvidence"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "Sealed"
+          }
+        }
+      },
+      "then": {
+        "$ref": "urn:oip:schema:Sealed"
+      }
+    }
+  ]
+}

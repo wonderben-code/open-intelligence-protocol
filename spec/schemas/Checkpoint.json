@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Checkpoint",
+  "title": "Checkpoint",
+  "description": "The Merkle root over the first `size` entries of a feed (Layer 1, 10.5).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "type",
+    "author",
+    "size",
+    "head",
+    "root"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "type": {
+      "type": "string",
+      "const": "Checkpoint"
+    },
+    "author": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "head": {
+      "$ref": "urn:oip:schema:def:contentId"
+    },
+    "root": {
+      "$ref": "urn:oip:schema:def:contentId"
+    }
+  }
+}

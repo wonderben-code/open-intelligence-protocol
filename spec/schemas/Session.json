@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Session",
+  "title": "Session",
+  "description": "Names a session by its participants and a nonce. Unsigned; its content ID is the session ID (Layer 1, 14.1).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "type",
+    "participants",
+    "nonce"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "not": {}
+    },
+    "type": {
+      "type": "string",
+      "const": "Session"
+    },
+    "participants": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:oip:schema:def:mindAddress"
+      },
+      "minItems": 2,
+      "maxItems": 256,
+      "uniqueItems": true
+    },
+    "nonce": {
+      "$ref": "urn:oip:schema:def:nonce"
+    }
+  }
+}

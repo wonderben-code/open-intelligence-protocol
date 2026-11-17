@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Hello",
+  "title": "Hello",
+  "description": "Authenticates a mind to a server, with a proof over the server's challenge (Layer 1, 13.3).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "type",
+    "author"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "type": {
+      "type": "string",
+      "const": "Hello"
+    },
+    "author": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:FeedPage",
+  "title": "FeedPage",
+  "description": "One page of a mind's public feed (Layer 1, 13.1).",
+  "type": "object",
+  "required": [
+    "oip",
+    "type",
+    "mind",
+    "entries"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "proof": {
+      "not": {}
+    },
+    "type": {
+      "type": "string",
+      "const": "FeedPage"
+    },
+    "mind": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:oip:schema:Entry"
+      }
+    },
+    "next": {
+      "$ref": "urn:oip:schema:def:count"
+    }
+  }
+}

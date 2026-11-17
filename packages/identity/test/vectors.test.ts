@@ -13,7 +13,18 @@ import {
   ownSignedTime,
   verifyLog,
 } from "../src/index.ts";
-import { ALWAYS, cases, controls, log, mind, named, negative, valid, worldFor } from "./world.ts";
+import {
+  ALWAYS,
+  type CaseExtras,
+  cases,
+  controls,
+  log,
+  mind,
+  named,
+  negative,
+  valid,
+  worldFor,
+} from "./world.ts";
 
 const MINDS = [
   "amina",
@@ -30,7 +41,7 @@ const MINDS = [
 ];
 
 function logVerifies(vectorCase: VectorCase): boolean {
-  const world = worldFor(vectorCase);
+  const world = worldFor(vectorCase as CaseExtras);
   return verifyLog(vectorCase["log"], {
     evidence: world.book.evidence,
     asOf: ALWAYS,
@@ -40,9 +51,11 @@ function logVerifies(vectorCase: VectorCase): boolean {
 
 /** Whether a record counts for a mind by the mind's own authority. Records with `authority` are for M3. */
 function countsFor(vectorCase: VectorCase): boolean {
-  const world = worldFor(vectorCase);
+  const world = worldFor(vectorCase as CaseExtras);
   const judged = judgeRecord(vectorCase["record"]);
-  return judged.ok && ownSignedTime(judged.value, vectorCase["mind"] as string, world.book) !== undefined;
+  return (
+    judged.ok && ownSignedTime(judged.value, vectorCase["mind"] as string, world.book) !== undefined
+  );
 }
 
 const usesAuthority = (vectorCase: VectorCase): boolean =>

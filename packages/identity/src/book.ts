@@ -60,32 +60,30 @@ function resolveBranches(
       heads.set(state.head, [...(heads.get(state.head) ?? []), log]);
     }
     // Every branch left has ended here, so they are one log.
-    if (heads.size === 0) return candidates[0] as VerifiedLog;
+    if (heads.size === 0) return candidates[0]!;
     if (heads.size > 1) {
       // A branch that verified has evidence for each of its events.
-      const seen = new Map(
-        [...heads.keys()].map((head) => [head, evidence.eventSeen(head) as Instant]),
-      );
+      const seen = new Map([...heads.keys()].map((head) => [head, evidence.eventSeen(head)!]));
       const first = [...seen.values()].reduce((a, b) => (b < a ? b : a));
       const winners = [...seen].filter(([, time]) => time === first).map(([head]) => head);
       if (winners.length > 1) return duplicitous(candidates, position);
-      candidates = heads.get(winners[0] as string) as VerifiedLog[];
+      candidates = heads.get(winners[0]!)!;
       continue;
     }
     // One event at this position. A branch that has ended is a prefix, not a fork.
-    candidates = [...heads.values()][0] as VerifiedLog[];
+    candidates = [...heads.values()][0]!;
   }
 }
 
 function duplicitous(candidates: readonly VerifiedLog[], position: number): VerifiedLog {
-  const base = candidates[0] as VerifiedLog;
+  const base = candidates[0]!;
   const branchTails: BranchTail[] = [];
   for (const log of candidates) {
     for (let i = position; i < log.events.length; i++) {
       branchTails.push({
-        time: log.times[i] as Instant,
-        state: log.states[i] as VerifiedLog["states"][number],
-        event: log.events[i] as VerifiedLog["events"][number],
+        time: log.times[i]!,
+        state: log.states[i]!,
+        event: log.events[i]!,
       });
     }
   }
@@ -198,7 +196,7 @@ export class LogBook implements IdentityView {
     const [first, ...rest] = results.flatMap((result) => (result.ok ? [result.value] : []));
     // A branch that does not verify is no event at all. With no branch that
     // verifies, the reasons of the first are given.
-    if (first === undefined) return results[0] as Validation<VerifiedLog>;
+    if (first === undefined) return results[0]!;
     return ok(resolveBranches([first, ...rest], this.evidence));
   }
 }

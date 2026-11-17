@@ -1,0 +1,941 @@
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+// SPDX-License-Identifier: Apache-2.0
+
+import { contentId, formatVersionId, keyHash, parseTimestamp } from "@oip/core";
+import type { Issue, Validation } from "@oip/schema";
+import { clause, copy, type JsonObject } from "@oip/testkit";
+import { describe, expect, it } from "vitest";
+
+import {
+  draftGenesis,
+  draftUpdate,
+  FirstSeen,
+  latestState,
+  LogBook,
+  MAX_LOG_EVENTS,
+  MIN_ACCEPTED_LOG_EVENTS,
+  signEventSync,
+  type VerifiedLog,
+  verifyLog,
+} from "../src/index.ts";
+import {
+  agreementKey,
+  bookOf,
+  Collective,
+  KeyMind,
+  LATER,
+  type Mind,
+  rawGenesis,
+  rawSign,
+  signer,
+  T,
+  witness,
+} from "./build.ts";
+
+function verified(mind: Mind, others: readonly Mind[] = []): VerifiedLog {
+  const result = bookOf([mind, ...others]).log(mind.address);
+  if (!result.ok) throw new Error(JSON.stringify(result.issues));
+  return result.value;
+}
+
+function refusal(result: Validation<unknown>): Issue {
+  if (result.ok) throw new Error("the log verified");
+  return result.issues[0];
+}
+
+/** Why a mind's log does not verify. */
+const refused = (mind: Mind, others: readonly Mind[] = []): Issue =>
+  refusal(bookOf([mind, ...others]).log(mind.address));
+
+/** Verifies bare events, with a witness that saw each when it was made. */
+const verifyEvents = (events: readonly unknown[]): Validation<VerifiedLog> =>
+  verifyLog(events, { evidence: witness([events as JsonObject[]]), asOf: LATER });
+
+describe(`${clause("L1 2.1", "L1 2.2")} mind addresses`, () => {
+  it("is did:oip: and the content ID of the genesis", () => {
+    const ada = new KeyMind("ada").update(10);
+    const log = verified(ada);
+    expect(log.mind).toBe(`did:oip:${contentId(ada.events[0])}`);
+    expect(log.mind).toMatch(/^did:oip:bciq[a-z2-7]{52}$/);
+    expect(log.states.map((state) => state.mind)).toEqual([log.mind, log.mind]);
+  });
+
+  it("changes with any member of the genesis, so no two minds share one", () => {
+    expect(new KeyMind("ada").address).not.toBe(new KeyMind("ada", 1).address);
+    expect(new KeyMind("ada").address).not.toBe(new KeyMind("ada", 0, { kind: "human" }).address);
+  });
+});
+
+describe(`${clause("L1 2.3")} the operations of the DID method`, () => {
+  it("creates with a Genesis, updates with an Update or a Fork, and deactivates with a Retire", () => {
+    const ada = new KeyMind("ada");
+    expect(verified(ada).events.map((event) => event.type)).toEqual(["Genesis"]);
+    ada.update(10).fork(20, { child: new KeyMind("child").address });
+    expect(latestState(verified(ada)).retired).toBe(false);
+    ada.retire(30);
+    const log = verified(ada);
+    expect(log.events.map((event) => event.type)).toEqual(["Genesis", "Update", "Fork", "Retire"]);
+    expect(latestState(log).retired).toBe(true);
+  });
+});
+
+describe(`${clause("L1 3.1")} an identity log is an ordered array of events`, () => {
+  it("is not empty, and is an array of objects", () => {
+    for (const notLog of [[], {}, null, "log", 1, undefined]) {
+      const result = verifyLog(notLog, { evidence: new FirstSeen(), asOf: LATER });
+      expect(refusal(result).clause).toBe("L1 3.1");
+    }
+    const ada = new KeyMind("ada");
+    for (const notEvent of [null, "event", 1, [ada.events[0]]]) {
+      const issue = refusal(
+        verifyLog([ada.events[0], notEvent], { evidence: witness([ada.events]), asOf: LATER }),
+      );
+      expect(issue).toMatchObject({ clause: "L1 3.1", path: "/1" });
+    }
+  });
+
+  it(`${clause("L1 4.1", "L1 4.6")} starts with a Genesis, and has no other`, () => {
+    const ada = new KeyMind("ada").update(10);
+    expect(refusal(verifyEvents(ada.events.slice(1)))).toMatchObject({
+      clause: "L1 4.1",
+      path: "/0/type",
+    });
+    const twice = [ada.events[0], new KeyMind("ada", 5).events[0]];
+    expect(refusal(verifyEvents(twice))).toMatchObject({ clause: "L1 4.6", path: "/1/type" });
+  });
+
+  it("keeps its order: events moved, dropped from the middle or repeated are refused", () => {
+    const ada = new KeyMind("ada").update(10).update(20).update(30);
+    const [genesis, first, second, third] = ada.events;
+    expect(verifyEvents(ada.events).ok).toBe(true);
+    for (const changed of [
+      [genesis, second, first, third],
+      [genesis, second, third],
+      [genesis, first, first, second, third],
+      [genesis, first, third],
+    ]) {
+      expect(refusal(verifyEvents(changed)).clause).toBe("L1 4.2");
+    }
+  });
+
+  it("verifies as far as it goes: the first events of a log are a log", () => {
+    const ada = new KeyMind("ada").update(10).update(20);
+    for (let length = 1; length <= 3; length++) {
+      const log = verifyEvents(ada.events.slice(0, length));
+      expect(log.ok && log.value.states).toHaveLength(length);
+    }
+  });
+});
+
+describe(`${clause("L1 3.2", "L1 4.2")} the members that chain an event to the one before`, () => {
+  const other = new KeyMind("other");
+
+  it("requires mind, seq and prev to follow from the log", () => {
+    const wrong: [JsonObject, string][] = [
+      [{ mind: other.address }, "/1/mind"],
+      [{ seq: 2 }, "/1/seq"],
+      [{ seq: 0 }, "/1/seq"],
+      [{ prev: contentId(other.events[0]) }, "/1/prev"],
+    ];
+    for (const [members, path] of wrong) {
+      const ada = new KeyMind("ada").raw(10, "Update", members);
+      // seq 0 is refused by the schema, which knows a later event starts at 1.
+      expect(refused(ada), path).toMatchObject({ path });
+    }
+    const ada = new KeyMind("ada").raw(10, "Update", { seq: 2 });
+    expect(refused(ada).clause).toBe("L1 4.2");
+  });
+
+  it("requires each of them in a later event, and none of them in a genesis", () => {
+    for (const missing of ["mind", "seq", "prev"]) {
+      const ada = new KeyMind("ada").raw(10, "Update", { [missing]: undefined });
+      expect(refused(ada).path, missing).toBe("/1");
+    }
+    const ada = new KeyMind("ada");
+    for (const extra of [
+      { mind: other.address },
+      { seq: 0 },
+      { prev: contentId(other.events[0]) },
+    ]) {
+      const genesis = rawSign({ ...ada.events[0], ...extra }, [{ control: ada.control(0) }]);
+      expect(refusal(verifyEvents([genesis])).path).toBe("/0");
+    }
+  });
+
+  it("refuses a created earlier than the event before, and accepts the same instant", () => {
+    expect(refused(new KeyMind("ada", 10).update(9.999999999))).toMatchObject({
+      clause: "L1 4.2",
+      path: "/1/created",
+    });
+    expect(verified(new KeyMind("ada", 10).update(10)).states).toHaveLength(2);
+  });
+});
+
+describe(`${clause("L1 3.3")} version identifiers`, () => {
+  it("is the position and the content ID of the event, 0 for the genesis", () => {
+    const ada = new KeyMind("ada").update(10).update(20);
+    expect(verified(ada).states.map((state) => state.versionId)).toEqual(
+      ada.events.map((event, position) => formatVersionId(position, contentId(event))),
+    );
+    expect(verified(ada).states.map((state) => [state.seq, state.head])).toEqual(
+      ada.events.map((event, position) => [position, contentId(event)]),
+    );
+  });
+});
+
+describe(`${clause("L1 3.4")} controllers`, () => {
+  it("fixes the kind of controller at genesis", () => {
+    const ada = new KeyMind("ada");
+    const bob = new KeyMind("bob");
+    ada.raw(10, "Update", { controller: { members: [bob.address], threshold: 1 } });
+    expect(refused(ada, [bob])).toMatchObject({ clause: "L1 3.4", path: "/1/controller" });
+
+    const club = new Collective("club", [bob], 1);
+    const turned = rawSign(
+      { ...draftUpdate(latestState(verified(club, [bob])), T(10)), controller: bob.controller(1) },
+      [bob.asMember()],
+    );
+    club.events.push(turned);
+    expect(refused(club, [bob])).toMatchObject({ clause: "L1 3.4", path: "/1/controller" });
+  });
+
+  it("requires a key-controlled mind's later event to carry a controller", () => {
+    const ada = new KeyMind("ada").raw(10, "Update", { controller: undefined });
+    expect(refused(ada)).toMatchObject({ clause: "L1 3.7", path: "/1/controller" });
+  });
+
+  it("takes nextThreshold as 1 when it is absent, and as 0 when nothing is committed", () => {
+    const ada = new KeyMind("ada");
+    expect(latestState(verified(ada)).controller).toEqual({
+      kind: "key",
+      next: [keyHash(ada.control(1).publicKey)],
+      nextThreshold: 1,
+    });
+    const last = new KeyMind("last", 0, { controller: new KeyMind("last").controller(0, true) });
+    expect(latestState(verified(last)).controller).toEqual({
+      kind: "key",
+      next: [],
+      nextThreshold: 0,
+    });
+  });
+
+  it("refuses a threshold that is not a majority, of keys or of members", () => {
+    const keys = [1, 2, 3].map((n) => keyHash(signer(`ada/control/${n}`).publicKey));
+    for (const [nextThreshold, accepted] of [
+      [1, false],
+      [2, true],
+      [3, true],
+      [4, false],
+    ] as const) {
+      const controller = { keys: new KeyMind("ada").controller(0).keys, next: keys, nextThreshold };
+      const result = verifyEvents([rawGenesis("ada", { controller })]);
+      expect(result.ok, `${nextThreshold} of 3`).toBe(accepted);
+      if (!result.ok) expect(result.issues[0].clause).toBe("L1 3.4");
+    }
+    const members = ["a", "b", "c", "d"].map((name) => new KeyMind(name));
+    for (const [threshold, accepted] of [
+      [2, false],
+      [3, true],
+      [4, true],
+    ] as const) {
+      const club = new Collective("club", members, 3);
+      const genesis = rawSign(
+        { ...club.events[0], controller: { members: members.map((m) => m.address), threshold } },
+        members.map((member) => member.asMember()),
+      );
+      const book = bookOf(members);
+      const result = verifyLog([genesis], {
+        evidence: witness([[genesis], ...members.map((member) => member.events)]),
+        asOf: LATER,
+        memberLog: (member) => book.log(member),
+      });
+      expect(result.ok, `${threshold} of 4`).toBe(accepted);
+      if (!result.ok) expect(result.issues[0].clause).toBe("L1 3.4");
+    }
+  });
+
+  it("refuses nextThreshold where nothing is committed", () => {
+    const controller = { keys: new KeyMind("ada").controller(0).keys, next: [], nextThreshold: 1 };
+    expect(refusal(verifyEvents([rawGenesis("ada", { controller })]))).toMatchObject({
+      clause: "L1 3.4",
+      path: "/0/controller/nextThreshold",
+    });
+  });
+
+  it("refuses a mind as a member of itself", () => {
+    const bob = new KeyMind("bob");
+    const club = new Collective("club", [bob], 1);
+    const state = latestState(verified(club, [bob]));
+    const event = rawSign(
+      {
+        ...draftUpdate(state, T(10)),
+        controller: { members: [bob.address, club.address], threshold: 2 },
+      },
+      [bob.asMember()],
+    );
+    club.events.push(event);
+    expect(refused(club, [bob])).toMatchObject({
+      clause: "L1 3.4",
+      path: "/1/controller/members/1",
+    });
+  });
+
+  it("refuses repeated keys, repeated members and unknown members of a controller", () => {
+    const base = new KeyMind("ada");
+    const key = base.control(0).publicKey;
+    for (const controller of [
+      { keys: [key, key], next: [] },
+      { keys: [key], next: [keyHash(key), keyHash(key)], nextThreshold: 2 },
+      { keys: [key], next: [], other: 1 },
+    ]) {
+      const genesis = rawSign({ ...base.events[0], controller }, [{ control: base.control(0) }]);
+      expect(refusal(verifyEvents([genesis])).path).toMatch(/^\/0\/controller/);
+    }
+    const bob = new KeyMind("bob");
+    const twice = new Collective("club", [bob], 1).events[0] as JsonObject;
+    const genesis = rawSign(
+      { ...twice, controller: { members: [bob.address, bob.address], threshold: 2 } },
+      [bob.asMember()],
+    );
+    const book = bookOf([bob]);
+    expect(
+      refusal(
+        verifyLog([genesis], {
+          evidence: witness([[genesis as JsonObject], bob.events]),
+          asOf: LATER,
+          memberLog: (member) => book.log(member),
+        }),
+      ).path,
+    ).toMatch(/^\/0\/controller/);
+  });
+});
+
+describe(`${clause("L1 3.5")} key entries`, () => {
+  it("keeps the three sets apart: no key is both operational and invocation", () => {
+    const ada = new KeyMind("ada");
+    const shared = ada.operational().publicKey;
+    const within = rawGenesis("ada", { invocation: [{ key: shared }] });
+    expect(refusal(verifyEvents([within]))).toMatchObject({ clause: "L1 3.5" });
+    // Across events: the invocation set of the genesis still stands.
+    ada.update(10, { keys: [{ key: ada.invocation().publicKey }] });
+    expect(refused(ada)).toMatchObject({ clause: "L1 3.5", path: "/1" });
+  });
+
+  it("refuses a key twice in a set, a label over 64 characters and an unknown member", () => {
+    const ada = new KeyMind("ada");
+    const key = ada.operational().publicKey;
+    for (const keys of [
+      [{ key }, { key }],
+      [{ key, label: "x".repeat(65) }],
+      [{ key, colour: "red" }],
+      [{ label: "no key" }],
+    ]) {
+      const genesis = rawSign({ ...ada.events[0], keys }, [{ control: ada.control(0) }]);
+      expect(refusal(verifyEvents([genesis])).path).toMatch(/^\/0\/keys/);
+    }
+    const labelled = new KeyMind("ada", 0, { keys: [{ key, label: "x".repeat(64) }] });
+    expect(latestState(verified(labelled)).keys).toEqual([key]);
+  });
+
+  it("holds at most 64 operational, 16 invocation and 16 agreement keys", () => {
+    const many = (count: number, kind: string) =>
+      Array.from({ length: count }, (_, n) => ({
+        key: kind === "agreement" ? agreementKey(`k${n}`) : signer(`${kind}${n}`).publicKey,
+      }));
+    for (const [set, most] of [
+      ["keys", 64],
+      ["invocation", 16],
+      ["agreement", 16],
+    ] as const) {
+      const within = new KeyMind("ada", 0, { [set]: many(most, set) });
+      expect(latestState(verified(within))[set], set).toHaveLength(most);
+      const base = new KeyMind("ada");
+      const over = rawSign({ ...base.events[0], [set]: many(most + 1, set) }, [
+        { control: base.control(0) },
+      ]);
+      expect(refusal(verifyEvents([over])).path, set).toBe(`/0/${set}`);
+    }
+  });
+
+  it(`${clause("core 4.4")} refuses a key that is not a point of order L, wherever it is listed`, () => {
+    // The identity point, as a Multikey: a well-formed string and no key.
+    const identity = "z6MkeTG3bFFSLYVU7VqhgZxqr6YzpaGrQtFMh1uvqGy1vDnP";
+    for (const set of ["keys", "invocation"] as const) {
+      const base = new KeyMind("ada");
+      const genesis = rawSign({ ...base.events[0], [set]: [{ key: identity }] }, [
+        { control: base.control(0) },
+      ]);
+      const issue = refusal(verifyEvents([genesis]));
+      expect(issue, set).toMatchObject({ clause: "core 4.4", path: `/0/${set}/0/key` });
+    }
+  });
+});
+
+describe(`${clause("L1 3.6")} Genesis`, () => {
+  it("names a kind: one of the five, or any other string of 1 to 64 characters", () => {
+    for (const kind of ["human", "agent", "institution", "service", "robot", "x".repeat(64)]) {
+      expect(latestState(verified(new KeyMind("ada", 0, { kind }))).kind).toBe(kind);
+    }
+    const base = new KeyMind("ada");
+    for (const kind of ["", "x".repeat(65), 1, null]) {
+      const genesis = rawSign({ ...base.events[0], kind }, [{ control: base.control(0) }]);
+      expect(refusal(verifyEvents([genesis])).path).toBe("/0/kind");
+    }
+  });
+
+  it("requires a collective to be member-controlled", () => {
+    const base = new KeyMind("ada");
+    const genesis = rawSign({ ...base.events[0], kind: "collective" }, [
+      { control: base.control(0) },
+    ]);
+    expect(verifyEvents([genesis]).ok).toBe(false);
+    const bob = new KeyMind("bob");
+    // A member-controlled mind need not call itself a collective.
+    const circle = new Collective("circle", [bob], 1, 0, { kind: "institution" });
+    expect(latestState(verified(circle, [bob])).kind).toBe("institution");
+  });
+
+  it("allows height only in the genesis of a member-controlled mind", () => {
+    const base = new KeyMind("ada");
+    const genesis = rawSign({ ...base.events[0], height: 1 }, [{ control: base.control(0) }]);
+    expect(verifyEvents([genesis]).ok).toBe(false);
+    expect(refused(new KeyMind("ada").raw(10, "Update", { height: 1 })).path).toBe("/1");
+  });
+
+  it("starts the state from the genesis", () => {
+    const parent = new KeyMind("parent");
+    const ada = new KeyMind("ada", 0, {
+      homes: ["https://ada.example", "https://backup.example:8443"],
+      alsoKnownAs: ["dns:ada.example"],
+      parents: [{ mind: parent.address, at: parent.versionId() }],
+    });
+    expect(latestState(verified(ada))).toMatchObject({
+      kind: "agent",
+      keys: [ada.operational().publicKey],
+      invocation: [ada.invocation().publicKey],
+      agreement: [agreementKey("ada/agreement/0")],
+      homes: ["https://ada.example", "https://backup.example:8443"],
+      alsoKnownAs: ["dns:ada.example"],
+      parents: [{ mind: parent.address, at: parent.versionId() }],
+      children: [],
+      retired: false,
+      seq: 0,
+    });
+  });
+});
+
+describe(`${clause("L1 3.7", "L1 4.5")} Update`, () => {
+  it("replaces each set it states and leaves the others as they were", () => {
+    const ada = new KeyMind("ada", 0, { homes: ["https://one.example"] });
+    const before = latestState(verified(ada));
+    ada.update(10, { keys: [{ key: ada.operational(1).publicKey }] });
+    expect(latestState(verified(ada))).toMatchObject({
+      keys: [ada.operational(1).publicKey],
+      invocation: before.invocation,
+      agreement: before.agreement,
+      homes: before.homes,
+    });
+    ada.update(20, {
+      invocation: [],
+      agreement: [{ key: agreementKey("ada/agreement/1") }],
+      homes: [],
+      alsoKnownAs: ["dns:ada.example"],
+    });
+    expect(latestState(verified(ada))).toMatchObject({
+      keys: [ada.operational(1).publicKey],
+      invocation: [],
+      agreement: [agreementKey("ada/agreement/1")],
+      homes: [],
+      alsoKnownAs: ["dns:ada.example"],
+    });
+  });
+
+  it("removes a revoked key from the sets the event leaves out, and never lets it back", () => {
+    const ada = new KeyMind("ada");
+    const operational = ada.operational().publicKey;
+    const invocation = ada.invocation().publicKey;
+    ada.update(10, { revoked: [{ key: operational }, { key: invocation }] });
+    const state = latestState(verified(ada));
+    expect(state.keys).toEqual([]);
+    expect(state.invocation).toEqual([]);
+    expect([...state.revoked.keys()]).toEqual([operational, invocation]);
+    for (const set of ["keys", "invocation"] as const) {
+      for (const key of [operational, invocation]) {
+        const again = new KeyMind("ada")
+          .update(10, { revoked: [{ key: operational }, { key: invocation }] })
+          .update(20, { [set]: [{ key }] });
+        expect(refused(again), set).toMatchObject({ clause: "L1 4.5", path: "/2" });
+      }
+    }
+  });
+
+  it("refuses an event that revokes a key and keeps it", () => {
+    const ada = new KeyMind("ada");
+    const key = ada.operational().publicKey;
+    ada.raw(10, "Update", { keys: [{ key }], revoked: [{ key }] });
+    expect(refused(ada)).toMatchObject({ clause: "L1 4.5" });
+  });
+
+  it("keeps the earliest compromisedSince when a key is revoked more than once", () => {
+    const ada = new KeyMind("ada");
+    const key = ada.operational().publicKey;
+    ada
+      .update(10, { revoked: [{ key, compromisedSince: T(5) }] })
+      .update(20, { revoked: [{ key, compromisedSince: T(3) }] })
+      .update(30, { revoked: [{ key, compromisedSince: T(4) }] })
+      .update(40, { revoked: [{ key }] });
+    const log = verified(ada);
+    expect(log.states.map((state) => state.revoked.get(key))).toEqual([
+      undefined,
+      parse(T(5)),
+      parse(T(3)),
+      parse(T(3)),
+      parse(T(3)),
+    ]);
+    const plain = new KeyMind("bea");
+    plain.update(10, { revoked: [{ key: plain.operational().publicKey }] });
+    const state = latestState(verified(plain));
+    expect(state.revoked.has(plain.operational().publicKey)).toBe(true);
+    expect(state.revoked.get(plain.operational().publicKey)).toBeUndefined();
+  });
+
+  it("ignores revoked in a genesis, where there is nothing to revoke", () => {
+    const base = new KeyMind("ada");
+    const genesis = rawSign(
+      { ...base.events[0], revoked: [{ key: base.operational().publicKey }] },
+      [{ control: base.control(0) }],
+    );
+    const log = verifyEvents([genesis]);
+    expect(log.ok && latestState(log.value).keys).toEqual([base.operational().publicKey]);
+  });
+});
+
+describe(`${clause("L1 3.8")} Fork`, () => {
+  it("records the child in the parent's own log", () => {
+    const one = new KeyMind("one").address;
+    const two = new KeyMind("two").address;
+    const ada = new KeyMind("ada").fork(10, { child: one }).update(20).fork(30, { child: two });
+    expect(verified(ada).states.map((state) => state.children)).toEqual([
+      [],
+      [one],
+      [one],
+      [one, two],
+    ]);
+  });
+
+  it("requires a child, and changes the sets an Update may change", () => {
+    const ada = new KeyMind("ada").raw(10, "Fork", {});
+    expect(refused(ada).path).toBe("/1");
+    const bea = new KeyMind("bea");
+    bea.fork(10, { child: ada.address, homes: ["https://bea.example"], terms: { funds: "half" } });
+    expect(latestState(verified(bea)).homes).toEqual(["https://bea.example"]);
+  });
+});
+
+describe(`${clause("L1 3.9")} Merge is reserved`, () => {
+  it("refuses a log that contains a Merge", () => {
+    const ada = new KeyMind("ada").raw(10, "Merge", { from: new KeyMind("other").address });
+    expect(refused(ada)).toMatchObject({ clause: "L1 3.9", path: "/1/type" });
+  });
+});
+
+describe(`${clause("L1 3.10", "L1 4.6")} Retire, and the types of events`, () => {
+  it("ends the log: no event follows a Retire", () => {
+    const ada = new KeyMind("ada").retire(10, {
+      reason: "done",
+      successor: new KeyMind("next").address,
+    });
+    expect(latestState(verified(ada)).retired).toBe(true);
+    for (const type of ["Update", "Fork", "Retire"]) {
+      const after = new KeyMind("ada").retire(10);
+      after.raw(20, type, { child: after.address, controller: after.controller(2, true) });
+      expect(refused(after), type).toMatchObject({ clause: "L1 4.6", path: "/2" });
+    }
+  });
+
+  it("commits a key-controlled mind to no further keys", () => {
+    const ada = new KeyMind("ada");
+    ada.raw(10, "Retire", { controller: ada.controller(1) });
+    expect(refused(ada).path).toMatch(/^\/1/);
+  });
+
+  it("retires a member-controlled mind by its threshold", () => {
+    const members = [new KeyMind("a"), new KeyMind("b"), new KeyMind("c")];
+    const club = new Collective("club", members, 2).retire(10, members.slice(0, 2));
+    expect(latestState(verified(club, members)).retired).toBe(true);
+    club.update(20, members);
+    expect(refused(club, members)).toMatchObject({ clause: "L1 4.6" });
+  });
+
+  it("refuses an event of any other type", () => {
+    for (const type of ["Rename", "genesis", "Intent", "", 1, null, undefined]) {
+      const ada = new KeyMind("ada").raw(10, type as string);
+      expect(refused(ada), String(type)).toMatchObject({ clause: "L1 4.6", path: "/1/type" });
+    }
+  });
+});
+
+describe(`${clause("L1 3.12")} recovery is reserved`, () => {
+  it("refuses an event that contains it, whatever its value", () => {
+    for (const recovery of [null, true, {}, "later"]) {
+      const ada = new KeyMind("ada").raw(10, "Update", { recovery });
+      expect(refused(ada)).toMatchObject({ clause: "L1 3.12", path: "/1/recovery" });
+      const base = new KeyMind("bea");
+      const genesis = rawSign({ ...base.events[0], recovery }, [{ control: base.control(0) }]);
+      expect(refusal(verifyEvents([genesis]))).toMatchObject({ clause: "L1 3.12" });
+    }
+  });
+
+  it("is reserved at the top of an event only", () => {
+    const ada = new KeyMind("ada", 0, { inherits: { recovery: "a word like any other" } });
+    expect(verified(ada).states).toHaveLength(1);
+  });
+});
+
+describe(`${clause("L1 4", "L1 4.1")} the genesis is signed by everyone it names`, () => {
+  it("requires a proof by every control key, each with its own control-key-ref", () => {
+    const base = new KeyMind("ada");
+    const second = signer("ada/second");
+    const controller = { keys: [base.control(0).publicKey, second.publicKey], next: [] };
+    const draft = draftGenesis(T(0), { kind: "agent", controller });
+    const both = signEventSync(draft, [{ control: base.control(0) }, { control: second }]);
+    expect(verifyEvents([both]).ok).toBe(true);
+    for (const by of [base.control(0), second]) {
+      const one = signEventSync(draft, [{ control: by }]);
+      expect(refusal(verifyEvents([one]))).toMatchObject({ clause: "L1 4.1", path: "/0/proof" });
+    }
+  });
+
+  it(`${clause("core 6.2")} does not take a key-ref, or another purpose, for a control key's proof`, () => {
+    const ada = new KeyMind("ada");
+    const genesis = ada.events[0] as JsonObject;
+    const asMember = rawSign(genesis, [
+      { member: ada.address, versionId: ada.versionId(), invocation: ada.control(0) },
+    ]);
+    expect(refusal(verifyEvents([asMember])).clause).toBe("L1 4.1");
+    const asserted = rawSign(genesis, [{ control: ada.control(0) }], {
+      purpose: "assertionMethod",
+    });
+    expect(refusal(verifyEvents([asserted])).clause).toBe("L1 4.1");
+  });
+
+  it("does not verify once any member of the genesis is changed", () => {
+    const ada = new KeyMind("ada", 0, { homes: ["https://ada.example"] });
+    for (const change of [{ kind: "human" }, { homes: [] }, { created: T(1) }]) {
+      const changed = { ...copy(ada.events[0]), ...change };
+      expect(refusal(verifyEvents([changed])).clause).toBe("L1 4.1");
+    }
+  });
+
+  it("requires a proof by every founding member, with one of its invocation keys", () => {
+    const members = [new KeyMind("a"), new KeyMind("b"), new KeyMind("c")];
+    const club = new Collective("club", members, 2);
+    expect(verified(club, members).states).toHaveLength(1);
+    // The threshold is for later events. A founder cannot be named without its consent.
+    const genesis = club.events[0] as JsonObject;
+    const two = rawSign(
+      genesis,
+      members.slice(0, 2).map((member) => member.asMember()),
+    );
+    const book = bookOf(members);
+    const context = {
+      evidence: witness([[two], ...members.map((member) => member.events)]),
+      asOf: LATER,
+      memberLog: (member: string) => book.log(member),
+    };
+    expect(refusal(verifyLog([two], context))).toMatchObject({
+      clause: "L1 4.1",
+      path: "/0/proof",
+    });
+    // Without the members' logs nothing can be judged.
+    const { memberLog: _, ...alone } = context;
+    expect(refusal(verifyLog([genesis], alone)).clause).toBe("L1 6.3");
+  });
+});
+
+describe(`${clause("L1 4.3")} a key-controlled mind's events are signed by the keys committed before`, () => {
+  it("refuses a key that was not committed to, however well it signs", () => {
+    const ada = new KeyMind("ada");
+    const intruder = signer("intruder");
+    const forged = draftUpdate(latestState(verified(ada)), T(10), {
+      controller: { keys: [intruder.publicKey], next: [] },
+      keys: [{ key: intruder.publicKey }],
+    });
+    ada.events.push(signEventSync(forged, [{ control: intruder }]));
+    expect(refused(ada)).toMatchObject({ clause: "L1 4.3", path: "/1/controller/keys/0" });
+  });
+
+  it("refuses a committed key that did not sign", () => {
+    const ada = new KeyMind("ada");
+    const event = draftUpdate(latestState(verified(ada)), T(10), { controller: ada.controller(1) });
+    ada.events.push(signEventSync(event, [{ control: ada.control(0) }]));
+    expect(refused(ada)).toMatchObject({ clause: "L1 4.3", path: "/1/proof" });
+  });
+
+  it("refuses to extend a log whose last event committed to nothing", () => {
+    const base = new KeyMind("ada");
+    const ada = new KeyMind("ada", 0, { controller: base.controller(0, true) });
+    ada.raw(10, "Update", { controller: { keys: [ada.control(1).publicKey], next: [] } });
+    expect(refused(ada)).toMatchObject({ clause: "L1 4.3", path: "/1" });
+  });
+
+  it("counts distinct keys against the threshold: 2 of 3, in any order", () => {
+    const keys = [1, 2, 3].map((n) => signer(`ada/next/${n}`));
+    const base = new KeyMind("ada");
+    const ada = new KeyMind("ada", 0, {
+      controller: {
+        keys: base.controller(0).keys,
+        next: keys.map((key) => keyHash(key.publicKey)),
+        nextThreshold: 2,
+      },
+    });
+    const state = latestState(verified(ada));
+    const update = (revealed: typeof keys, signers = revealed) =>
+      verifyEvents([
+        ada.events[0],
+        rawSign(
+          draftUpdate(state, T(10), {
+            controller: { keys: revealed.map((key) => key.publicKey), next: [] },
+          }),
+          signers.map((control) => ({ control })),
+        ),
+      ]);
+    const [one, two, three] = keys as [(typeof keys)[0], (typeof keys)[0], (typeof keys)[0]];
+    expect(update([one, two]).ok).toBe(true);
+    expect(update([three, one]).ok).toBe(true);
+    expect(update([one, two, three]).ok).toBe(true);
+    expect(refusal(update([two]))).toMatchObject({ clause: "L1 4.3", path: "/1/controller/keys" });
+    // Revealed and not signing: every revealed key signs.
+    expect(refusal(update([one, two], [one]))).toMatchObject({
+      clause: "L1 4.3",
+      path: "/1/proof",
+    });
+    // One key listed twice is one key. The schema refuses the list.
+    expect(update([one, one]).ok).toBe(false);
+  });
+
+  it("takes the next commitment from each event in turn", () => {
+    const ada = new KeyMind("ada").update(10).update(20);
+    expect(verified(ada).states.map((state) => state.controller)).toEqual(
+      [1, 2, 3].map((n) => ({
+        kind: "key",
+        next: [keyHash(ada.control(n).publicKey)],
+        nextThreshold: 1,
+      })),
+    );
+    // A control key signs one event: the one after next refuses it.
+    const stale = new KeyMind("bea").update(10);
+    stale.raw(20, "Update", { controller: stale.controller(1) });
+    expect(refused(stale).clause).toBe("L1 4.3");
+  });
+});
+
+describe(`${clause("L1 4.4")} a member-controlled mind's events are signed by its members`, () => {
+  const [a, b, c, d] = ["a", "b", "c", "d"].map((name) => new KeyMind(name)) as [
+    KeyMind,
+    KeyMind,
+    KeyMind,
+    KeyMind,
+  ];
+  const everyone = [a, b, c, d];
+
+  it("requires the threshold of the current members", () => {
+    const club = () => new Collective("club", [a, b, c], 2);
+    expect(verified(club().update(10, [a, b]), everyone).states).toHaveLength(2);
+    expect(verified(club().update(10, [c, a, b]), everyone).states).toHaveLength(2);
+    expect(refused(club().update(10, [a]), everyone)).toMatchObject({
+      clause: "L1 4.4",
+      path: "/1/proof",
+    });
+    // An outsider's proof is not a member's, and one member signing twice is one member.
+    expect(refused(club().update(10, [a, d]), everyone).clause).toBe("L1 4.4");
+    expect(refused(club().update(10, [a, a]), everyone).clause).toBe("L1 4.4");
+  });
+
+  it("requires every added member to sign, and no member that leaves", () => {
+    const controller = { members: [a.address, b.address, d.address], threshold: 2 };
+    const club = () => new Collective("club", [a, b, c], 2);
+    const joined = club().update(10, [a, b, d], { controller });
+    expect(latestState(verified(joined, everyone)).controller).toEqual({
+      kind: "member",
+      ...controller,
+    });
+    expect(refused(club().update(10, [a, b], { controller }), everyone)).toMatchObject({
+      clause: "L1 4.4",
+      path: "/1/proof",
+    });
+    // The added member's proof does not count towards the threshold of the members before it.
+    expect(refused(club().update(10, [a, d], { controller }), everyone).clause).toBe("L1 4.4");
+    // From the next event on, the new membership signs.
+    expect(verified(joined.update(20, [b, d]), everyone).states).toHaveLength(3);
+    const gone = club().update(10, [a, b, d], { controller }).update(20, [a, c]);
+    expect(refused(gone, everyone)).toMatchObject({ clause: "L1 4.4", path: "/2/proof" });
+  });
+
+  it("keeps the members when an event carries no controller", () => {
+    const club = new Collective("club", [a, b, c], 2).update(10, [a, b], {
+      homes: ["https://club.example"],
+    });
+    const log = verified(club, everyone);
+    expect(log.states[1]?.controller).toEqual(log.states[0]?.controller);
+    expect(latestState(log).homes).toEqual(["https://club.example"]);
+  });
+});
+
+describe(`${clause("L1 4.7")} nesting and work`, () => {
+  const people = ["a", "b", "c"].map((name) => new KeyMind(name));
+
+  it("gives a key-controlled mind height 0 and a collective one more than its tallest founder", () => {
+    const [a, b] = people as [KeyMind, KeyMind, KeyMind];
+    expect(verified(a).height).toBe(0);
+    const club = new Collective("club", [a, b], 2);
+    expect(verified(club, people).height).toBe(1);
+    const league = new Collective("league", [club, a], 2);
+    expect(verified(league, [club, ...people]).height).toBe(2);
+  });
+
+  it("lets a genesis declare a greater height, up to 4, and never a lesser one", () => {
+    const [a, b] = people as [KeyMind, KeyMind, KeyMind];
+    for (const height of [1, 2, 3, 4]) {
+      const club = new Collective("club", [a, b], 2, 0, { height });
+      expect(verified(club, people).height).toBe(height);
+    }
+    const club = new Collective("club", [a, b], 2);
+    const low = new Collective("league", [club, a], 2, 0, { height: 1 });
+    expect(refused(low, [club, ...people])).toMatchObject({ clause: "L1 4.7", path: "/0/height" });
+    for (const height of [0, 5]) {
+      const genesis = rawSign({ ...club.events[0], height }, [a.asMember(), b.asMember()]);
+      const book = bookOf(people);
+      const result = verifyLog([genesis], {
+        evidence: witness([[genesis], a.events, b.events]),
+        asOf: LATER,
+        memberLog: (member) => book.log(member),
+      });
+      expect(refusal(result).path, `${height}`).toBe("/0/height");
+    }
+  });
+
+  it("refuses a later event that relies on a member as tall as the collective", () => {
+    const [a, b, c] = people as [KeyMind, KeyMind, KeyMind];
+    const inner = new Collective("inner", [c], 1);
+    const outer = () => new Collective("outer", [a, b], 2);
+    const controller = { members: [a.address, b.address, inner.address], threshold: 2 };
+    const all = [inner, ...people];
+    // inner has height 1, and so has outer: inner cannot join it.
+    expect(refused(outer().update(10, [a, b, inner], { controller }), all)).toMatchObject({
+      clause: "L1 4.7",
+      path: "/1/proof",
+    });
+    const roomy = new Collective("outer", [a, b], 2, 0, { height: 2 });
+    expect(verified(roomy.update(10, [a, b, inner], { controller }), all).height).toBe(2);
+  });
+
+  it("verifies four levels of member logs, and no collective that contains itself", () => {
+    const [a] = people as [KeyMind, KeyMind, KeyMind];
+    const levels: Mind[] = [a];
+    for (let height = 1; height <= 4; height++) {
+      levels.push(new Collective(`level ${height}`, [levels[height - 1]!], 1));
+    }
+    expect(verified(levels[4]!, levels).height).toBe(4);
+    // A fifth level would need height 5.
+    const fifth = new Collective("level 5", [levels[4]!], 1);
+    expect(refused(fifth, levels)).toMatchObject({ clause: "L1 4.7" });
+
+    // Two collectives that each admit the other: neither can be verified.
+    const [b, c] = [people[1]!, people[2]!];
+    const left = new Collective("left", [b], 1, 0, { height: 3 });
+    const right = new Collective("right", [c], 1, 0, { height: 2 });
+    left.update(10, [b, right], {
+      controller: { members: [b.address, right.address], threshold: 2 },
+    });
+    right.update(20, [c, left], {
+      controller: { members: [c.address, left.address], threshold: 2 },
+    });
+    const all = [left, right, b, c];
+    expect(refused(right, all).clause).toBe("L1 4.7");
+    expect(refused(left, all).clause).toBe("L1 4.7");
+    // Asked in the other order, the answers are the same.
+    const book = bookOf(all);
+    expect(refusal(book.log(left.address)).clause).toBe("L1 4.7");
+    expect(refusal(book.log(right.address)).clause).toBe("L1 4.7");
+  });
+
+  it("reads logs of 1,000 events at least, and as many as it is set to", () => {
+    expect(MIN_ACCEPTED_LOG_EVENTS).toBe(1000);
+    expect(MAX_LOG_EVENTS).toBeGreaterThanOrEqual(MIN_ACCEPTED_LOG_EVENTS);
+    const ada = new KeyMind("ada");
+    // Only the count is judged here: the events after the first are never read.
+    const long = (length: number) => Array.from({ length }, () => ada.events[0]);
+    const context = { evidence: witness([ada.events]), asOf: LATER };
+    const limit = (events: unknown[], maxEvents?: number) =>
+      refusal(verifyLog(events, maxEvents === undefined ? context : { ...context, maxEvents }));
+    expect(limit(long(MAX_LOG_EVENTS + 1)).clause).toBe("implementation limit");
+    expect(limit(long(MAX_LOG_EVENTS)).clause).toBe("L1 4.6");
+    expect(limit(long(1001), 1000).clause).toBe("implementation limit");
+    // A verifier may not be set to refuse a log of 1,000 events.
+    expect(limit(long(1000), 10).clause).toBe("L1 4.6");
+    expect(limit(long(1001), 10).clause).toBe("implementation limit");
+    for (const notCount of [-1, 1.5, Number.NaN, "5"]) {
+      expect(limit(long(MAX_LOG_EVENTS + 1), notCount as number).clause).toBe(
+        "implementation limit",
+      );
+      expect(limit(long(MAX_LOG_EVENTS), notCount as number).clause).toBe("L1 4.6");
+    }
+    const book = new LogBook(witness([ada.events]), { maxEvents: 1000 });
+    book.hold(long(1001), LATER);
+    expect(refusal(book.log(ada.address)).clause).toBe("implementation limit");
+  });
+});
+
+describe("a log is judged, never trusted", () => {
+  it("answers and does not throw, whatever it is given", () => {
+    const hostile = new Proxy([], {
+      get() {
+        throw new Error("boom");
+      },
+    });
+    const evidence = new FirstSeen();
+    for (const events of [
+      hostile,
+      [hostile],
+      [
+        {
+          get type() {
+            throw new Error("boom");
+          },
+        },
+      ],
+    ]) {
+      expect(verifyLog(events, { evidence, asOf: LATER }).ok).toBe(false);
+    }
+    const book = new LogBook(evidence);
+    expect(book.hold(hostile, LATER).ok).toBe(false);
+    expect(book.holdBranch([{ a: 0.5 }], LATER).ok).toBe(false);
+    expect(book.hold([], LATER).ok).toBe(false);
+  });
+
+  it("returns copies: changing the events given afterwards changes nothing verified", () => {
+    const ada = new KeyMind("ada").update(10);
+    const events = copy(ada.events) as unknown as JsonObject[];
+    const log = verifyEvents(events);
+    if (!log.ok) throw new Error("the log does not verify");
+    (events[1] as { created: string }).created = T(99);
+    expect(log.value.events[1]?.created).toBe(T(10));
+  });
+
+  it("refuses a log whose size or shape breaks the rules for any record", () => {
+    const ada = new KeyMind("ada");
+    ada.raw(10, "Update", { ext: { "com.example.padding": { blob: "x".repeat(1_100_000) } } });
+    expect(refused(ada)).toMatchObject({ clause: "core 1.6", path: "/1" });
+    // A number that is not an integer has no canonical form, so nothing signs it.
+    const bea = new KeyMind("bea").update(10);
+    const float = { ...bea.events[1], ext: { "com.example": { n: 0.5 } } };
+    const context = { evidence: witness([bea.events]), asOf: LATER };
+    expect(refusal(verifyLog([bea.events[0], float], context))).toMatchObject({
+      clause: "core 1.2",
+      path: "/1",
+    });
+  });
+});
+
+const parse = (timestamp: string) => parseTimestamp(timestamp);

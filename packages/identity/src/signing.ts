@@ -120,7 +120,7 @@ export function operationalProofTime(
   if (!evaluated.ok) return evaluated;
   const time = evaluated.value;
   // `seen` is defined, or the proof would have no evaluation time.
-  if (log.asOf < (seen as Instant)) {
+  if (log.asOf < seen!) {
     return no(
       "the signer's log was obtained before the evidence for this proof: it may lack a later event",
       "core 9.4",
@@ -135,7 +135,7 @@ export function operationalProofTime(
       log.duplicitous ? "L1 7.3" : "L1 6.1",
     );
   }
-  if (!(log.states[position] as IdentityState).keys.includes(proof.key)) {
+  if (!log.states[position]!.keys.includes(proof.key)) {
     return no("the key is not an operational key of the mind at the version named", "L1 6.1");
   }
   const removed = removalTime(log, position, proof.key, "keys");

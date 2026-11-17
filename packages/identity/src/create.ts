@@ -31,8 +31,11 @@ export type ForkFields = Omit<Fork, Shared | Chain>;
 /** What the author of a `Retire` chooses (Layer 1, 3.10). */
 export type RetireFields = Omit<Retire, Shared | Chain>;
 
+/** What the next event of a log is chained to: the mind, and the position and content ID of the latest event. */
+export type LogHead = Pick<IdentityState, "mind" | "seq" | "head">;
+
 /** Layer 1, 3.2: the members that chain an event to the one before it. */
-function chained(after: IdentityState, created: string) {
+function chained(after: LogHead, created: string) {
   return { oip: "1", mind: after.mind, seq: after.seq + 1, prev: after.head, created } as const;
 }
 
@@ -47,10 +50,10 @@ export function draftGenesis(created: string, fields: GenesisFields): Unsigned<G
 /**
  * An `Update` that follows the state `after`, not yet signed.
  *
- * @param after - The state after the latest event of the log.
+ * @param after - The state after the latest event of the log, or just its `mind`, `seq` and `head`.
  */
 export function draftUpdate(
-  after: IdentityState,
+  after: LogHead,
   created: string,
   fields: UpdateFields = {},
 ): Unsigned<Update> {
@@ -58,17 +61,13 @@ export function draftUpdate(
 }
 
 /** A `Fork` that follows the state `after`, not yet signed. It acknowledges `fields.child`. */
-export function draftFork(
-  after: IdentityState,
-  created: string,
-  fields: ForkFields,
-): Unsigned<Fork> {
+export function draftFork(after: LogHead, created: string, fields: ForkFields): Unsigned<Fork> {
   return { ...fields, ...chained(after, created), type: "Fork" };
 }
 
 /** A `Retire` that follows the state `after`, not yet signed. No event can follow it. */
 export function draftRetire(
-  after: IdentityState,
+  after: LogHead,
   created: string,
   fields: RetireFields = {},
 ): Unsigned<Retire> {
@@ -101,7 +100,8 @@ function methodOf<S extends Signer>(by: EventSigner<S>): [S, string] {
 }
 
 function atLeastOne(signers: readonly unknown[]): void {
-  if (signers.length === 0) throw new TypeError("an identity event is signed by at least one signer");
+  if (signers.length === 0)
+    throw new TypeError("an identity event is signed by at least one signer");
 }
 
 /**

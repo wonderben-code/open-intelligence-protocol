@@ -35,7 +35,7 @@ export function lineage(
   view: IdentityView,
   records: readonly JudgedRecord[] = [],
 ): Lineage[] {
-  const genesis = child.states[0] as IdentityState;
+  const genesis = child.states[0]!;
   return genesis.parents.map(({ mind, at }) => {
     const claimed: Lineage = { mind, at, status: "claimed" };
     const held = view.log(mind);

@@ -6,9 +6,7 @@
 import type { Issue, JsonValue, Validation } from "@oip/schema";
 
 /** Whether a JSON value is an object, and not an array or null. */
-export function isJsonObject(
-  value: JsonValue,
-): value is { readonly [name: string]: JsonValue } {
+export function isJsonObject(value: JsonValue): value is Readonly<Record<string, JsonValue>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 

@@ -106,7 +106,7 @@ export interface VerifiedLog {
 /** The state after the latest event. */
 export function latestState(log: VerifiedLog): IdentityState {
   // A verified log has at least its genesis.
-  return log.states[log.states.length - 1] as IdentityState;
+  return log.states[log.states.length - 1]!;
 }
 
 /** The position of the event a version identifier names, or `undefined` if the log has none. */
@@ -133,7 +133,7 @@ export function removalTime(
     if (earliest === undefined || time < earliest) earliest = time;
   };
   for (let i = position + 1; i < log.states.length; i++) {
-    consider(log.times[i] as Instant, log.states[i] as IdentityState);
+    consider(log.times[i]!, log.states[i]!);
   }
   for (const tail of log.branchTails) consider(tail.time, tail.state);
   return earliest;
@@ -159,7 +159,7 @@ export function compromisedSince(log: VerifiedLog, key: string): Instant | undef
 export function stateAt(log: VerifiedLog, time: Instant): IdentityState | undefined {
   let found: IdentityState | undefined;
   for (let i = 0; i < log.states.length; i++) {
-    if ((log.times[i] as Instant) > time) break;
+    if (log.times[i]! > time) break;
     found = log.states[i];
   }
   return found;

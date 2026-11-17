@@ -23,6 +23,7 @@ export {
   type EventSigner,
   type ForkFields,
   type GenesisFields,
+  type LogHead,
   type RetireFields,
   signEvent,
   signEventSync,

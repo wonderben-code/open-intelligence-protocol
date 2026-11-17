@@ -6,7 +6,13 @@
 import type { Validation } from "@oip/schema";
 
 import { no, ok } from "./result.ts";
-import { type IdentityState, latestState, type Parent, positionOf, type VerifiedLog } from "./state.ts";
+import {
+  type IdentityState,
+  latestState,
+  type Parent,
+  positionOf,
+  type VerifiedLog,
+} from "./state.ts";
 
 /** One key of a DID document (Layer 1, 5.2). */
 export interface DidVerificationMethod {
@@ -106,22 +112,22 @@ export function didDocument(
     if (position === undefined) {
       return no("versionId names no event of the mind's log", "L1 2.4");
     }
-    state = log.states[position] as IdentityState;
+    state = log.states[position]!;
   }
   const mind = state.mind;
   const id = (key: string): string =>
     versionId === undefined ? `${mind}#${key}` : `${mind}?versionId=${state.versionId}#${key}`;
   const service: DidService[] = [
-    ...state.homes.map(
-      (home, n): DidService => ({ id: `${mind}#home-${n}`, type: "OIPHome", serviceEndpoint: home }),
-    ),
-    ...(endpoints ?? []).map(
-      (url, n): DidService => ({
-        id: `${mind}#endpoint-${n}`,
-        type: "OIPEndpoint",
-        serviceEndpoint: url,
-      }),
-    ),
+    ...state.homes.map((home, n): DidService => ({
+      id: `${mind}#home-${n}`,
+      type: "OIPHome",
+      serviceEndpoint: home,
+    })),
+    ...(endpoints ?? []).map((url, n): DidService => ({
+      id: `${mind}#endpoint-${n}`,
+      type: "OIPEndpoint",
+      serviceEndpoint: url,
+    })),
   ];
   const aliases = state.alsoKnownAs.filter((alias) => verifiedAliases?.includes(alias) === true);
   return ok({

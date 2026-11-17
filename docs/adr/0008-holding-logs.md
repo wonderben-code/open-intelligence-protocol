@@ -44,6 +44,8 @@ A verdict of `undefined` carries no reason. `operationalProofTime` judges one pr
 
 A `VerifiedLog` holds its events as entries, each with the state after it and its evaluation time. It has at least its genesis, by its type. A version identifier is looked up with `entryAt`.
 
+A state is of bounded size, however long the log: every set in it has a limit in Layer 1, Section 3. The two things that grow with a log, the children it has acknowledged and the keys it has revoked, are held once, by the log, each with the position of its event; `childrenAt` and `revokedAt` give what a state had. A copy in each state would cost the square of the log's length to keep, which a hostile log of small events could turn into gigabytes.
+
 ### Nothing compares a `created`
 
 The lint rule ADR-0003 promised is in `eslint.config.js`: in the pure packages a comparison that involves a `created` is refused, except in the two formulas, in the rule that a log's dates do not run backwards (Layer 1, 4.2), and in the rule that a proof is not dated before its record (core 5.7).

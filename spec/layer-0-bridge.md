@@ -4,7 +4,7 @@
 
 This document specifies how existing systems take part in OIP through gateways, and how OIP minds take part in existing systems. It depends on [core.md](core.md), [layer-1-mind-network.md](layer-1-mind-network.md) and [layer-2-mind-web.md](layer-2-mind-web.md). Rationale is in Section 7 of the [technical architecture paper](../papers/02-technical-architecture.md).
 
-Sections 2–4 are normative for implementations claiming the Gateway profile for those systems. Sections 5–9 are informative in this revision and will become normative as implementations mature.
+Sections 1–4 are normative for implementations claiming the Gateway profile for those systems. Sections 5–9 are informative in this revision and will become normative as implementations mature.
 
 ## 1. Gateway minds and assurance
 
@@ -51,7 +51,7 @@ The server MUST keep signing keys outside the model's context, MUST present pack
 
 ## 3. A2A
 
-3.1. **A2A agents as participants.** A gateway bridging an A2A agent fetches its Agent Card from `/.well-known/agent-card.json`, verifies any card signatures, and records the card's SHA-256 digest under `ext["oip.a2a"].cardDigest` in the bridged mind's profile. It maps skills to capabilities and A2A interactions as follows:
+3.1. **A2A agents as participants.** A gateway bridging an A2A agent fetches its Agent Card from `/.well-known/agent-card.json`, verifies any card signatures, and records the card's digest, `"sha256:<64 lower-case hex digits>"` of the exact bytes of the response body, under `ext["oip.a2a"].cardDigest` in the bridged mind's profile. It maps skills to capabilities and A2A interactions as follows:
 
 | A2A | OIP |
 |---|---|
@@ -67,6 +67,7 @@ The server MUST keep signing keys outside the model's context, MUST present pack
 
 3.2. **OIP minds as A2A agents.** A host MAY publish an A2A Agent Card for a mind it serves, generated from the mind's Participant profile (capabilities as skills, each capability's `summary` also serving as the skill's `name` where no shorter name exists), with an A2A interface endpoint that the host translates into OIP packets. A2A defines one well-known Agent Card per origin, so a host serving many minds publishes each card at a URL of its own and lists it in the mind's Participant `interfaces`. The Participant profile maps onto an Agent Card but is not a superset of one: the host supplies the card's version, interfaces and default modes.
 
+<a id="a2a-extension"></a>
 3.3. **OIP extension for A2A.** A2A messages MAY carry a complete OIP packet as a data part with media type `application/oip+json`. Agents supporting this declare the extension with the URI `https://github.com/wonderben-code/open-intelligence-protocol/blob/main/spec/layer-0-bridge.md#a2a-extension` in their Agent Card. The receiver verifies the packet under Layer 1, Section 12.4.
 
 ## 4. Identity aliases
@@ -107,7 +108,7 @@ DIDs whose documents cannot carry `alsoKnownAs`, such as `did:key`, cannot point
 | Rail | Offer and Commitment | Receipt evidence |
 |---|---|---|
 | x402 | `ext.x402` carries the payment requirements (scheme, network, asset, amount, recipient) | Evidence of kind `payment` with `ext.x402.settlement` holding the settlement response |
-| AP2 | `ext.ap2` references Intent and Cart mandates; mandates MAY also appear in `authority` | Payment mandate reference |
+| AP2 | `ext.ap2` references Intent and Cart mandates | Payment mandate reference |
 | ACP | `ext.acp` carries the checkout session reference | Order reference |
 | L402 | `ext.l402` carries the invoice | Payment preimage |
 

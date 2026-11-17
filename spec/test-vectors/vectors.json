@@ -810,6 +810,77 @@
         }
       ]
     },
+    "intent_withdrawal": {
+      "oip": "1",
+      "type": "Intent",
+      "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "created": "2026-10-30T10:10:00Z",
+      "expires": "2026-10-31T10:00:00Z",
+      "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+      "constraints": {
+        "deadline": "2026-11-02T17:00:00Z",
+        "budget": {
+          "max": "150",
+          "currency": "USD"
+        }
+      },
+      "audience": {
+        "query": {
+          "tags": [
+            "lang:sw",
+            "lang:en",
+            "domain:legal/*"
+          ]
+        }
+      },
+      "supersedes": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+      "status": "withdrawn",
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T10:10:00Z",
+          "proofValue": "z24ULRGz8oiM9cKXgBBEiDmPKZng2xGZS1VWcn6ysKxPvsQfjoTJq9mHAFDecuNkspd9YWiAbmSk6X65QmSXrSdJn"
+        }
+      ]
+    },
+    "intent_edit": {
+      "oip": "1",
+      "type": "Intent",
+      "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "created": "2026-10-30T10:12:00Z",
+      "expires": "2026-10-31T10:00:00Z",
+      "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+      "constraints": {
+        "deadline": "2026-11-02T17:00:00Z",
+        "budget": {
+          "max": "200",
+          "currency": "USD"
+        }
+      },
+      "audience": {
+        "query": {
+          "tags": [
+            "lang:sw",
+            "lang:en",
+            "domain:legal/*"
+          ]
+        }
+      },
+      "supersedes": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T10:12:00Z",
+          "proofValue": "zT76KVcdTtJPP4pYQWeVUKQZANkXPeYULaX7BEGVSBvp7ZejpG8hfQeQ56153FQFB9gGsVXBGvToMoaif3wWHau7"
+        }
+      ]
+    },
     "offer": {
       "oip": "1",
       "type": "Offer",
@@ -1601,6 +1672,43 @@
         "records": [
           "intent",
           "commitment_proposed"
+        ],
+        "expect": "open"
+      },
+      {
+        "of": "intent",
+        "at": "2026-10-30T12:00:00Z",
+        "records": [
+          "intent",
+          "intent_withdrawal",
+          "commitment_accepted"
+        ],
+        "expect": "withdrawn"
+      },
+      {
+        "of": "intent_withdrawal",
+        "at": "2026-10-30T12:00:00Z",
+        "records": [
+          "intent",
+          "intent_withdrawal"
+        ],
+        "expect": "withdrawn"
+      },
+      {
+        "of": "intent",
+        "at": "2026-10-30T12:00:00Z",
+        "records": [
+          "intent",
+          "intent_edit"
+        ],
+        "expect": "superseded"
+      },
+      {
+        "of": "intent_edit",
+        "at": "2026-10-30T12:00:00Z",
+        "records": [
+          "intent",
+          "intent_edit"
         ],
         "expect": "open"
       },

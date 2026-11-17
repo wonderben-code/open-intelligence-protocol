@@ -1169,15 +1169,39 @@ def commitment_accepted(V, c) -> bool:
                for p in c["parties"] if p.get("required"))
 
 
+ALLOWED_STATUS = {"Intent": ("satisfied", "withdrawn"),
+                  "Offer": ("withdrawn",)}
+
+
+def _supersession(V, record, records):
+    """Layer 2, Section 8: a superseding record with `status` has that
+    status itself; otherwise the strongest valid superseding record by the
+    same author decides (satisfied, then withdrawn, then an edit)."""
+    allowed = ALLOWED_STATUS[record["type"]]
+    if record.get("supersedes") and record.get("status") in allowed:
+        return record["status"]
+    cid, found = content_id(record), set()
+    for r in records:
+        if r.get("type") == record["type"] and \
+           r.get("author") == record["author"] and \
+           ref_cid(r.get("supersedes")) == cid and \
+           V.signed_time(r, r["author"]) is not None:
+            status = r.get("status")
+            if status is None:
+                found.add("superseded")
+            elif status in allowed:
+                found.add(status)
+    for status in ("satisfied", "withdrawn", "superseded"):
+        if status in found:
+            return status
+    return None
+
+
 def intent_status(V, intent, records, at) -> str:
     icid = content_id(intent)
-    for r in records:
-        if r.get("type") == "Intent" and \
-           r.get("author") == intent["author"] and \
-           ref_cid(r.get("supersedes")) == icid and \
-           r.get("status") in ("withdrawn", "satisfied") and \
-           V.signed_time(r, r["author"]) is not None:
-            return r["status"]
+    status = _supersession(V, intent, records)
+    if status:
+        return status
     for c in records:
         if c.get("type") == "Commitment" and c.get("closesIntent") is True \
            and any(ref_cid(x) == icid for x in c.get("resolves", [])) and \
@@ -1191,12 +1215,9 @@ def intent_status(V, intent, records, at) -> str:
 
 def offer_status(V, offer, records, at) -> str:
     ocid = content_id(offer)
-    for r in records:
-        if r.get("type") == "Offer" and r.get("author") == offer["author"] \
-           and ref_cid(r.get("supersedes")) == ocid and \
-           r.get("status") == "withdrawn" and \
-           V.signed_time(r, r["author"]) is not None:
-            return "withdrawn"
+    status = _supersession(V, offer, records)
+    if status:
+        return status
     if "expires" in offer and at > ts(offer["expires"]):
         return "expired"
     quantity = offer.get("terms", {}).get("quantity")
@@ -1567,6 +1588,14 @@ def build():
                               "deliveryBy": "2026-11-01T18:00:00Z"}},
                    t_op, agent_vm)
     offer_ref = record_ref(lexis, offer)
+    withdrawal = signed(variant_of(intent, created="2026-10-30T10:10:00Z",
+                                   supersedes=intent_ref, status="withdrawn"),
+                        a_op2, amina_vm2)
+    edit = signed(variant_of(intent, created="2026-10-30T10:12:00Z",
+                             supersedes=intent_ref,
+                             constraints__budget={"max": "200",
+                                                  "currency": "USD"}),
+                  a_op2, amina_vm2)
 
     commit = {"oip": OIP_VERSION, "type": "Commitment", "author": lexis,
               "created": "2026-10-30T10:20:00Z",
@@ -1743,7 +1772,8 @@ def build():
 
     records = {"delegation": deleg, "delegation_sub": sub_deleg,
                "delegation_amina": amina_deleg,
-               "intent": intent, "offer": offer,
+               "intent": intent, "intent_withdrawal": withdrawal,
+               "intent_edit": edit, "offer": offer,
                "commitment_proposed": commit_proposed,
                "commitment_accepted": commit_accepted, "receipt": receipt,
                "commitment_agents": rush_accepted,
@@ -1771,6 +1801,16 @@ def build():
              "expect": "satisfied"},
             {"of": "intent", "at": "2026-10-30T12:00:00Z",
              "records": ["intent", "commitment_proposed"], "expect": "open"},
+            {"of": "intent", "at": "2026-10-30T12:00:00Z",
+             "records": ["intent", "intent_withdrawal",
+                         "commitment_accepted"], "expect": "withdrawn"},
+            {"of": "intent_withdrawal", "at": "2026-10-30T12:00:00Z",
+             "records": ["intent", "intent_withdrawal"],
+             "expect": "withdrawn"},
+            {"of": "intent", "at": "2026-10-30T12:00:00Z",
+             "records": ["intent", "intent_edit"], "expect": "superseded"},
+            {"of": "intent_edit", "at": "2026-10-30T12:00:00Z",
+             "records": ["intent", "intent_edit"], "expect": "open"},
             {"of": "offer", "at": "2026-10-30T12:00:00Z",
              "records": ["offer", "commitment_accepted"], "expect": "open"},
             {"of": "offer", "at": "2026-10-31T12:00:00Z",
@@ -2284,9 +2324,12 @@ def check(VEC) -> list:
     assert V.counts_for(c["commitment_by_steward"], c["collective"])
     done.append("collective signs by 2-of-3 threshold and by a charter role")
     names = {"intent": c["intent"], "offer": c["offer"],
+             "intent_withdrawal": c["intent_withdrawal"],
+             "intent_edit": c["intent_edit"],
              "commitment_proposed": prop, "commitment_accepted": acc,
              "commitment_agents": rush, "receipt": c["receipt"]}
     fn = {"intent": intent_status, "offer": offer_status,
+          "intent_withdrawal": intent_status, "intent_edit": intent_status,
           "commitment_proposed": commitment_status,
           "commitment_accepted": commitment_status,
           "commitment_agents": commitment_status}
@@ -2294,8 +2337,8 @@ def check(VEC) -> list:
         got = fn[s["of"]](V, names[s["of"]], [names[n] for n in s["records"]],
                           ts(s["at"]))
         assert got == s["expect"], (s, got)
-    done.append("Layer 2 status (satisfied, open, expired, proposed, "
-                "accepted, overdue, fulfilled)")
+    done.append("Layer 2 status (satisfied, withdrawn, superseded, open, "
+                "expired, proposed, accepted, overdue, fulfilled)")
     assert jcs(c["jcs_example"]["input"]).decode() == \
         c["jcs_example"]["output"]
     done.append("JCS example")

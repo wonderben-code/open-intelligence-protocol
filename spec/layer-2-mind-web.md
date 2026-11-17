@@ -22,7 +22,7 @@ Every Layer 2 record has the core common members (core, Section 7) and MAY have:
 | `status` | Only in a superseding record; the new status (Section 8) |
 | `links` | Array of `{ "rel": <string>, "ref": <record-ref or URL> }` |
 
-Every Layer 2 record MUST carry at least one proof that counts for its `author` (Section 7). A proof made through a delegation lists the delegations in its own `authority` (core 5.2; Layer 1, Section 11.6), not in the record.
+Every Layer 2 record MUST carry at least one proof that counts for its `author` (Section 7). A proof made through a delegation lists the delegations in its own `authority` (core 5.2; Layer 1, Section 11.6), and a proof made under a charter role names the charter there (Section 7.1), never in the record.
 
 ## 3. Participant
 
@@ -62,16 +62,16 @@ Amounts are non-negative decimal strings (core 1.3).
 |---|---|---|
 | `parties` | yes | 2–64 objects `{ "mind": <address>, "role": <string>, "required": <boolean, default false> }`. Roles: `debtor` (owes performance), `creditor` (is owed it), `witness`, or a namespaced role. Each mind appears at most once. At least one party MUST be a `debtor` and at least one a `creditor`, and every debtor and creditor MUST be `required`. |
 | `promise` | yes | Plain-language statement of who will do what for whom, at most 8192 characters |
-| `terms` | yes | Object; recognised members include `deadline`, `deliverables`, `price` (as in an Offer), `conditions` and `selfReport` (boolean, default false) |
+| `terms` | yes | Object; recognised members include `deadline`, `deliverables`, `price`, `conditions` and `selfReport` (boolean, default false). `price` is `{ "amount": <amount>, "currency": …, "payer": <address>, "payee": <address> }`, where `payer` and `payee` are both REQUIRED and are two different parties, so that a delegation's policy can check who pays whom |
 | `resolves` | no | `record-ref`s of Intents and Offers this Commitment settles |
 | `closesIntent` | no | Boolean, default false |
 | `onBehalfOf` | no | A collective's address, when the debtor acts for a collective. Informational only: the collective is bound only if it is itself a party |
 
-5.2. The `author` of a Commitment MUST be one of its parties or a delegate of one (Section 7).
+5.2. The `author` of a Commitment MUST be one of its parties, or a mind whose proof on it counts for a party through a delegation or a charter role (Section 7.1, items 2 and 4). A Commitment whose author is neither is never accepted.
 
 5.3. Additional signatures are added by appending proofs. Adding proofs does not change the content ID (core 3.1); every copy of a Commitment with the same content ID is the same Commitment, and a verifier SHOULD merge the proof sets of all copies it holds.
 
-5.4. **Parties bound through a delegate.** A party whose proof on a Commitment counts only through a delegation or a charter role (Section 7.1, items 2 and 4) is bound by the Commitment's structured `terms`. Where the plain-language `promise` states more than the `terms` (a higher price, an extra obligation), the `terms` prevail for that party, because the delegation's policy could check only them. Displays SHOULD show such a party's commitment together with the policy under which it was made.
+5.4. **Parties bound through a delegate.** A party whose proof on a Commitment counts only through a delegation or a charter role (Section 7.1, items 2 and 4) is bound by the Commitment's structured `terms`. Where the plain-language `promise` states more than the `terms` (a higher price, a different payer, an extra obligation), the `terms` prevail for that party, because the delegation's policy could check only them. Displays SHOULD show such a party's commitment together with the policy under which it was made.
 
 ## 6. Receipt and Collective
 
@@ -98,21 +98,23 @@ A Receipt with outcome `revoked` MUST supersede an earlier Receipt by the same a
 | `assignments` | no | Array of `{ "mind": <member address>, "role": <role name> }` |
 | `procedures` | no | Object; decision procedures defined by extensions |
 
-Membership and the base threshold are defined only by the collective's identity log (Layer 1, Section 9) and MUST NOT be inferred from a charter. A charter MUST be signed by the collective under the threshold rule (Layer 1, Section 9.5). The charter **in force** at time `t` is the charter whose threshold signature was completed most recently at or before `t`; if two were completed at the same time, the one with the lower content ID. Role powers use the commands and policies of Layer 1, Section 11; reserved commands grant nothing. An assignment is effective only while the assigned mind is a member.
+Membership and the base threshold are defined only by the collective's identity log (Layer 1, Section 9) and MUST NOT be inferred from a charter. A charter MUST be signed by the collective's own authority (Section 7.2): its member threshold (Layer 1, Section 9.5) or an operational key the collective has authorised. The charter **in force** at time `t` is the charter whose signature for the collective was completed most recently at or before `t`; if two were completed at the same time, the one with the lower content ID. Role powers use the commands and policies of Layer 1, Section 11; reserved commands grant nothing, and charters SHOULD exclude a role holder as a party to the records its role signs, as delegations do (Layer 1, Section 11.3). An assignment is effective only while the assigned mind is a member.
+
+A threshold of signatures can be completed at any time, so a member's signature on an abandoned charter or proposal remains usable. A charter MAY carry `expires`, which bounds when it can be signed (core 9.6), not how long it stays in force; members SHOULD sign charters, and other records that wait for a threshold, only when they carry an `expires`.
 
 ## 7. Signing for a party
 
 7.1. A record `r` **counts for** mind `P` (is signed by `P`) at the earliest evaluation time at which any of the following holds:
 1. **Own key.** `r` carries a proof by a valid operational key of `P` (Layer 1, Section 6).
-2. **Delegation.** `r`'s type is delegable (7.2), and `r` carries a proof `p` by a valid operational key of a mind `D` for which the delegations listed in `p.authority` form a chain from `P` to `D` valid for `r` and `p` under Layer 1, Section 11.4.
-3. **Collective threshold.** `P` is a collective and `r` is signed by it under Layer 1, Section 9.5, each member's proof being by that member's own valid operational key.
-4. **Collective role.** `r`'s type is delegable, `P` is a collective, and `r` carries a proof `p` by a valid operational key of a member `M` of `P`'s state at `t(p)`, where `M` is assigned to a role in the charter in force at `t(p)` that has a power whose `command` covers `/oip/sign/<r.type>` and whose `policy` holds for `r`.
+2. **Delegation.** `r`'s type is delegable (7.2), and `r` carries a proof `p` by a valid operational key of a mind `D`, whose `authority` lists exactly a chain from `P` to `D` that is valid for `r` and `p` under Layer 1, Sections 11.4 and 11.6.
+3. **Collective threshold.** `P` is a collective and `r` is signed by it under Layer 1, Section 9.5: by members' proofs without `authority`, each by that member's own valid operational key, meeting the threshold of `P`'s state at that time, or, for a record that describes `P`'s current state (`Location`, `Participant`), of `P`'s latest state.
+4. **Collective role.** `r`'s type is delegable, `P` is a collective, and `r` carries a proof `p` by a valid operational key of a member `M` of `P`'s state at `t(p)`, whose `authority` names exactly one charter of `P` (a `record-ref` or the inline `Collective` record) that is the charter in force at `t(p)`, in which `M` is assigned to a role that has a power whose `command` covers `/oip/sign/<r.type>` and whose `policy` holds for `r`.
 
-In every case, a proof whose evaluation time is more than 300 seconds after `r.expires` does not count (core 9.6).
+In every case, a proof whose evaluation time is more than 300 seconds after `r.expires` does not count (core 9.6). A proof thus counts for its signer's own mind and, through its `authority`, for at most one other mind, and acting for another mind is always a choice the proof states and signs. A delegate or role holder that is itself a party binds its principal to itself only if the policy it acts under allows that, so policies SHOULD exclude it (Layer 1, Section 11.3).
 
 7.2. **Delegable types** are `Intent`, `Offer`, `Commitment` and `Receipt`. Every other signed record (including `Delegation`, `Revocation`, `Collective`, `Lineage`, identity events and current-state records) counts for its author only through items 1 and 3, the author's **own authority**. A delegate can therefore never create, widen or revoke authority in its principal's name.
 
-7.3. A Commitment is **accepted** when it counts for its `author` and for every party with `required` true.
+7.3. A Commitment is **accepted** when it counts for its `author`, its author is a party or signs for one (5.2), and it counts for every party with `required` true.
 
 ## 8. Status
 

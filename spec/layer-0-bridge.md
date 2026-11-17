@@ -10,16 +10,16 @@ Sections 1–4 are normative for implementations claiming the Gateway profile fo
 
 1.1. A **gateway** is a key-controlled mind that represents an external system on the OIP network.
 
-1.2. For each external system it represents, a gateway creates a **bridged mind**: a key-controlled mind of kind `service` (or `human`, for people reached through a human gateway, Section 6) whose control and operational keys are held by the gateway. The bridged mind's `Genesis` and its Participant profile MUST both include an extension block:
+1.2. For each external system it represents, a gateway creates a **bridged mind**: a key-controlled mind of kind `service` (or `human`, for people reached through a human gateway, Section 6) whose control and operational keys are held by the gateway. The bridged mind's `Genesis` MUST include an extension block naming the gateway:
 
 ```json
 "ext": { "oip.bridge": { "protocol": "mcp", "endpoint": "https://tools.example/mcp",
                          "gateway": "did:oip:<gateway>", "assurance": "bridged" } }
 ```
 
-and the `Genesis` MUST carry, in addition to its control-key proofs, a proof by a valid operational key of the gateway (`proofPurpose` `assertionMethod`). The gateway SHOULD also list each mind it bridges in its own feed.
+The gateway **attests** the mind with an `Entry` in its own feed (Layer 1, Section 10) whose `object` is the content ID of the bridged mind's `Genesis` and whose `objectType` is `Genesis`, signed with one of the gateway's operational keys like any other entry. The bridged mind's Participant profile MUST carry the same block with one more member, `attestation`, the `record-ref` of that entry. The attestation is a separate record because a proof on the `Genesis` itself could not be checked: identity events are signed only with control or invocation keys (core 5.6; Layer 1, Section 3.5).
 
-1.3. **Assurance levels.** `native`: no gateway has declared the mind bridged (the default). `bridged`: a gateway acts for the external system and attests what it observed; a verifier treats a mind as bridged by a gateway only if the gateway's proof on the bridged mind's `Genesis` is valid. `claimed`: an assertion nobody has verified, including an `oip.bridge` block without a valid gateway proof. A gateway MUST declare `bridged` for every mind it bridges. Verifiers cannot detect undeclared bridging from records alone, so `native` means only that no gateway has declared otherwise; a gateway that omits the declaration misrepresents its minds and is accountable for doing so.
+1.3. **Assurance levels.** `native`: no gateway has declared the mind bridged (the default). `bridged`: a gateway acts for the external system and attests what it observed; a verifier treats a mind as bridged by a gateway only if the mind's `Genesis` and its profile name that gateway, and the entry the profile names is by that gateway, is for that `Genesis` and counts for the gateway (Layer 2, Section 7.1). `claimed`: an assertion nobody has verified, including an `oip.bridge` block without such an attestation. A gateway MUST declare `bridged` for every mind it bridges. The test vectors include a bridged mind and a self-attested one. Verifiers cannot detect undeclared bridging from records alone, so `native` means only that no gateway has declared otherwise; a gateway that omits the declaration misrepresents its minds and is accountable for doing so.
 
 1.4. Records signed by a bridged mind are statements by the gateway about the external system. Receipts produced by a gateway MUST describe what the gateway observed (for example, "the MCP server returned this result") and MUST NOT claim more.
 

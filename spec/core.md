@@ -16,7 +16,7 @@ This document defines what every OIP record has in common, at every layer. See [
 
 1.5. **Durations** MUST be ISO 8601 durations matching `^P(?!$)([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?([0-9]+S)?)?$`, for example `P30D` or `PT15M`.
 
-1.6. **Size.** The canonical form (Section 2) of a record MUST NOT exceed 1 MiB. Implementations MAY apply lower limits to particular record types but MUST accept records of at least 256 KiB. Larger content is carried by reference (Layer 1, Section 12). `Bundle`, `FeedPage` and `DuplicityEvidence` are containers: the limit applies to each record they contain, not to the container. A `Sealed` record MAY exceed the limit by its encoding overhead.
+1.6. **Size.** The canonical form (Section 2) of a record MUST NOT exceed 1 MiB. Implementations MAY apply lower limits to particular record types but MUST accept records of at least 256 KiB. Larger content is carried by reference (Layer 1, Section 12). `Bundle`, `LogPage`, `FeedPage` and `DuplicityEvidence` are containers: the limit applies to each record they contain, not to the container. A `Sealed` record MAY exceed the limit by its encoding overhead.
 
 1.7. **Field names** use camelCase. Implementations MUST preserve fields they do not recognise when storing or forwarding a record, because those fields are covered by its proofs, and MUST otherwise ignore them (Section 8).
 
@@ -59,7 +59,13 @@ An OIP content ID is a multibase-encoded multihash. It is not an IPFS CID: stori
 
 4.3. This revision requires Ed25519 for signatures and X25519 for encryption. Other key types are reserved for later revisions; adding one is a change to the verification rules, not only to the format, because verifiers of this revision reject proofs by keys of other types.
 
-4.4. **Ed25519 verification.** Every implementation MUST apply the same rule, so that all verifiers agree on which signatures are valid. A signature is valid only if `S` is less than the group order L; `A` (the public key) and `R` are canonical encodings (the encoded y-coordinate is less than 2²⁵⁵ − 19) of points in the prime-order subgroup; and [S]B = R + [k]A, with k as in RFC 8032 Section 5.1.7. Because points with a torsion component are excluded, the cofactored and cofactorless forms of the equation agree. Libraries whose defaults are more permissive (for example, ZIP 215 rules) MUST be configured or wrapped to apply this rule.
+4.4. **Ed25519 verification.** Every implementation MUST apply the same rule, so that all verifiers agree on which signatures are valid. A signature (`R`, `S`) by public key `A` is valid only if all of these hold:
+1. `S` is less than the group order L;
+2. `A` and `R` are canonical encodings of curve points, decoded as in RFC 8032, Section 5.1.3 (in particular, the encoded y-coordinate is less than 2²⁵⁵ − 19);
+3. `A` and `R` each have order exactly L: [L]P is the identity and P is not the identity. This excludes the identity point, for which anyone can sign anything, and every point with a small-order component;
+4. [S]B = R + [k]A, with k as in RFC 8032, Section 5.1.7.
+
+Because no point with a torsion component is accepted, the cofactored and cofactorless forms of the equation agree. An Ed25519 public key that does not have order exactly L MUST be rejected wherever it appears, including in identity logs. Libraries whose defaults are more permissive (OpenSSL accepts small-order and mixed-order points, and ZIP 215 rules also accept non-canonical encodings) MUST be configured or wrapped to apply this rule. The test vectors include keys and signatures on each side of it.
 
 ## 5. Proofs
 
@@ -76,7 +82,7 @@ An OIP content ID is a multibase-encoded multihash. It is not an IPFS CID: stori
 | `created` | yes | A timestamp |
 | `proofValue` | yes | `"z"` + base58btc of the 64-byte Ed25519 signature |
 | `challenge`, `domain` | no | Only in `authentication` proofs (Layer 1, Section 13.3) |
-| `authority` | no | The delegations this proof relies on to count for another mind: an array of 1–16 `record-ref`s or inline `Delegation` records (Layer 1, Section 11.6) |
+| `authority` | no | What this proof relies on to count for a mind other than its signer: exactly one delegation chain, as 1–8 `record-ref`s or inline `Delegation` records, root first (Layer 1, Section 11.6); or exactly one charter, as a `record-ref` or an inline `Collective` record (Layer 2, Section 7.1) |
 | `@context` | no | Present if and only if the record has `@context`, with the same value |
 
 A proof MUST NOT contain `id`, `previousProof` or any other member in this revision.
@@ -180,13 +186,15 @@ where `τ(p)` is the earliest time for which the verifier holds evidence (9.4) t
 3. an anchored checkpoint (Layer 1, Section 10) covering a feed entry that commits to the proof, where `t` is the anchor's time;
 4. an `Ack` (Layer 1, Section 13.2) covering a packet that carries the proof, signed by a recipient the verifier trusts for this purpose, where `t` is its `received` time.
 
-A proof's own `created` is never evidence, and neither is another proof on the same record (5.5).
+A proof's own `created` is never evidence, and neither is another proof on the same record (5.5). Evidence concerns one proof: adding a proof does not change a record's content ID (5.3), so evidence that a record existed with some proofs is not evidence for a proof added to it later. Implementations therefore key evidence by the proof's digest, `"sha256:" + hex(SHA-256(JCS(proof)))` (Layer 1, Section 10.1). For identity events, evidence concerns the event as a whole (9.5).
 
-9.5. **Identity events.** An identity event that removes a key, changes membership or retires a mind takes effect at its own evaluation time, `max(created, τ)`, so a backdated event cannot withdraw records already made. The one deliberately retroactive statement is `compromisedSince` (Layer 1, Section 6.2): it is public and attributable, and a Commitment that loses a party's signature this way shows as `disputed` (Layer 2, Section 8.3) rather than silently changing. Member proofs on another mind's identity events are judged at their position in the log rather than at a time (Layer 1, Section 6.4).
+**Holding the evidence.** Comparing two times means something only if both come from evidence. Before counting a proof `p` by a key of mind `X`, a verifier MUST hold `X`'s identity log as a witness it trusts (Layer 1, Section 17) served it at some time no earlier than `τ(p)`, together with that witness's first-seen times, unless the verifier has itself followed `X`'s log as a witness since before `τ(p)`. It MUST take the evaluation times of `X`'s events from the earliest evidence it holds (the witness's first-seen times, or anchors), never from its own later first sight of them. Otherwise the former holder of a removed key could sign after the removal and win the race against the verifier's own first sight of it.
+
+9.5. **Identity events.** The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where `τ(e)` is the earliest time for which the verifier holds evidence that `e` existed with proofs meeting Layer 1, Section 4: its own first-seen record, a trusted witness's first-seen record, or an anchored checkpoint covering a feed entry for `e`. It is never earlier than the evaluation time of the event before it in the same log, and an event whose `created` is more than 300 seconds after `τ(e)` is invalid. An event that removes a key, changes membership or retires a mind takes effect at its evaluation time, so a backdated event cannot withdraw records already made. Members' proofs on a collective's identity events are judged at the event's evaluation time (Layer 1, Section 6.4). The one deliberately retroactive statement is `compromisedSince` (Layer 1, Section 6.2), and it reaches back only over the mind's own records: it is public and attributable, and a Commitment that loses a party's signature this way shows as `disputed` (Layer 2, Section 8.3) rather than silently changing.
 
 9.6. **Expiry.** A proof whose evaluation time is more than 300 seconds after its record's `expires` does not count.
 
-9.7. **Consequence.** A verifier that first sees a record long after it was made can count its proofs only from that moment, unless evidence shows they existed earlier. To keep records verifiable after the keys that signed them are removed or a delegation expires, minds publish them in feeds whose checkpoints are anchored (Layer 1, Section 10).
+9.7. **Consequence.** A verifier that first sees a record long after it was made can count its proofs only from that moment, unless evidence shows they existed earlier. To keep records verifiable after the keys that signed them are removed or a delegation expires, minds publish them in feeds whose checkpoints are anchored (Layer 1, Section 10). The same holds for a collective's identity: once a member has removed the invocation key that signed one of its events, only evidence shows that the event came first (Layer 1, Section 9.6).
 
 ## 10. Media type and errors
 
@@ -212,17 +220,17 @@ A proof's own `created` is never evidence, and neither is another proof on the s
 
 | Record | Signed | Signed by | `proofPurpose` | Key rule (Layer 1) | Defined in |
 |---|---|---|---|---|---|
-| `Genesis`, `Update`, `Fork`, `Retire` | yes | Control keys (key-controlled); members' invocation keys (collectives) | `capabilityInvocation` | Pre-rotation (4.3); at position (6.4) | Layer 1, 3–4 |
+| `Genesis`, `Update`, `Fork`, `Retire` | yes | Control keys (key-controlled); members' invocation keys (collectives) | `capabilityInvocation` | Pre-rotation (4.3); members' keys at the event's evaluation time (6.4) | Layer 1, 3–4 |
 | `Merge` | reserved | | | | Layer 1, 3.9 |
 | `Delegation` | yes | Author's own authority | `capabilityDelegation` | 6.1 | Layer 1, 11 |
 | `Revocation`, `Lineage`, `Collective` | yes | Author's own authority | `assertionMethod` | 6.1 | Layer 1, 8 and 11; Layer 2, 6 |
 | `Intent`, `Offer`, `Commitment`, `Receipt` | yes | Author, or parties through delegation or roles | `assertionMethod` | 6.1 | Layer 2 |
 | `Packet` | yes | Sender | `assertionMethod` | 6.1 | Layer 1, 12 |
 | `Entry`, `Checkpoint`, `Ack`, `QueryResult`, `Forwarded` | yes | Author | `assertionMethod` | 6.1 | Layer 1, 10, 13, 18 |
-| `Location`, `Participant` | yes | Author | `assertionMethod` | 6.1 with the current-state rule | Layer 1, 15–16 |
-| `Hello` | yes | Author | `authentication` | 6.1 with the current-state rule | Layer 1, 13.3 |
+| `Location`, `Participant` | yes | Author's own authority | `assertionMethod` | 6.1 with the current-state rule; a collective's threshold under its latest membership | Layer 1, 15–16 |
+| `Hello` | yes | Author's own key | `authentication` | 6.1 with the current-state rule | Layer 1, 13.3 |
 | `Session`, `Resume`, `Branch` | no | | | | Layer 1, 14 |
-| `Bundle`, `FeedPage`, `DuplicityEvidence`, `Sealed` | no | | | Containers (1.6) | Layer 1, 7, 12–13, 17 |
+| `Bundle`, `LogPage`, `FeedPage`, `DuplicityEvidence`, `Sealed` | no | | | Containers (1.6) | Layer 1, 7, 12–13, 17 |
 
 "Own authority" means one of the author's valid operational keys or, for a collective, its member threshold (Layer 2, Section 7.2). Records marked unsigned MUST NOT carry `proof`; the containers carry no `created`.
 

@@ -66,9 +66,10 @@ A key MUST NOT be both an operational and an invocation key.
 | `alsoKnownAs` | no | 0–16 URIs (Section 5.3) |
 | `parents` | no | 0–16 objects `{ "mind": <address>, "at": <version-id> }` (Section 8) |
 | `inherits` | no | An object describing what a fork started with; a claim only |
+| `height` | no | Member-controlled minds only: an integer from 1 to 4, at least one more than the greatest height of the founding members; default exactly that (Section 4.7) |
 | `ext`, `critical` | no | core |
 
-If `kind` is `collective`, the controller MUST be a member controller.
+If `kind` is `collective`, the controller MUST be a member controller. A key-controlled `Genesis`, and every event after a genesis, MUST NOT contain `height`.
 
 3.7. **`Update`.** In addition to the common fields of 3.2: `controller` (REQUIRED for key-controlled minds, revealing the keys committed by the previous event and committing new ones; OPTIONAL for member-controlled minds, present only when membership or threshold changes); and any of `keys`, `invocation`, `agreement`, `homes`, `alsoKnownAs`, which replace the previous values when present; and `revoked`, an array of `{ "key": <Ed25519 Multikey>, "compromisedSince": <timestamp, optional> }` naming operational or invocation keys. Leaving a key out of its set removes it: it can sign nothing after this event takes effect (Section 6). Listing it in `revoked` also means it can never be added again, and `compromisedSince` withdraws what it signed from that time on. Agreement keys are not revoked; they are replaced.
 
@@ -86,19 +87,19 @@ If `kind` is `collective`, the controller MUST be a member controller.
 
 A verifier MUST reject a log unless all of the following hold.
 
-4.1. **Genesis.** The first event has `type` `Genesis` and no `mind`, `seq` or `prev`, and its controller satisfies Section 3.4. If key-controlled, every key in `controller.keys` has a valid proof on the genesis with its own `control-key-ref`. If member-controlled, every member in `controller.members` has a proof on the genesis by one of its own invocation keys (Section 6.4). The mind's address is `did:oip:` + `contentId(genesis)`.
+4.1. **Genesis.** The first event has `type` `Genesis` and no `mind`, `seq` or `prev`, and its controller satisfies Section 3.4. If key-controlled, every key in `controller.keys` has a valid proof on the genesis with its own `control-key-ref`. If member-controlled, every member in `controller.members` has a proof on the genesis by one of its own invocation keys, valid at the genesis's evaluation time (Section 6.4). The mind's address is `did:oip:` + `contentId(genesis)`.
 
 4.2. **Chain.** Every later event has `mind` equal to the address, `seq` equal to the previous `seq` plus one, `prev` equal to the content ID of the previous event, and a `created` not earlier than the previous event's.
 
 4.3. **Key-controlled authority.** For each later event `e` with predecessor state `S`: `e.controller` satisfies Section 3.4; `S.next` is non-empty; `e.controller.keys`, whose entries are distinct, has at least `S.nextThreshold` entries; the key hash of each is in `S.next`; and each has a valid proof on `e` with its own `control-key-ref` and `proofPurpose` `capabilityInvocation`. The new state takes `next` and `nextThreshold` from `e.controller`.
 
-4.4. **Member-controlled authority.** For each later event `e` with predecessor state `S`: at least `S.threshold` distinct members of `S.members` have proofs on `e` by their own invocation keys (Section 6.4); if `e.controller` is present it satisfies Section 3.4, and every member it adds has such a proof on `e`. If `e.controller` is present, the new state takes `members` and `threshold` from it.
+4.4. **Member-controlled authority.** For each later event `e` with predecessor state `S`: at least `S.threshold` distinct members of `S.members` have proofs on `e` by their own invocation keys, valid at `e`'s evaluation time (Section 6.4); if `e.controller` is present it satisfies Section 3.4, and every member it adds has such a proof on `e`. If `e.controller` is present, the new state takes `members` and `threshold` from it.
 
 4.5. **Fields.** `keys`, `invocation`, `agreement`, `homes` and `alsoKnownAs` replace the state's values when present. Keys listed in `revoked` MUST NOT appear in the resulting `keys` or `invocation`; where a set is absent from the event, the resulting set is the previous one minus the revoked keys. A key that has ever been listed in `revoked` MUST NOT appear in any later `keys` or `invocation`. The state records each revoked key's `compromisedSince`, keeping the earliest if a key is revoked more than once.
 
 4.6. **Types and termination.** Every event's `type` is checked: the first is `Genesis` and every later one is `Update`, `Fork` or `Retire`. A log containing any other type, including `Merge`, or an event containing `recovery`, is rejected. No event follows a `Retire`.
 
-4.7. **Nesting and work.** Verifying a member's proof requires verifying that member's own log. The **height** of a key-controlled mind is 0, and the height of a collective is one more than the greatest height among the members whose proofs its log relies on. A collective's height MUST NOT exceed 4, and an event that would make a collective, directly or indirectly, a member of itself is invalid. Verifiers MAY refuse logs longer, or records with more proofs, than they are configured to process, but MUST accept logs of at least 1,000 events and records with up to 256 proofs.
+4.7. **Nesting and work.** Verifying a member's proof requires verifying that member's own log. The **height** of a key-controlled mind is 0. A collective's height is fixed by its genesis: the genesis's `height` if present, otherwise one more than the greatest height among its founding members. It MUST be at least one more than every founding member's height and at most 4, and every member whose proof a later event relies on, including any member the event adds, MUST have a height less than the collective's. Because heights never change, a member's later events can never invalidate a collective it belongs to, verifying a collective never needs more than four levels of member logs, and no collective can be a member of itself, directly or indirectly. Verifiers MAY refuse logs longer, or records with more proofs, than they are configured to process, but MUST accept logs of at least 1,000 events and records with up to 256 proofs.
 
 ## 5. Identity state and the DID document
 
@@ -127,11 +128,18 @@ A verifier MUST reject a log unless all of the following hold.
 
 `t(p)` is the proof's evaluation time (core 9.3). Historical records (feed entries, checkpoints, acknowledgements, commitments) stay valid when keys rotate; only records that claim to describe the present need the current-state rule.
 
-6.2. Removing a key stops it signing anything new while leaving what it signed earlier valid, provided a verifier has evidence of when those proofs existed (core 9.7). Marking a key compromised (`compromisedSince`) also withdraws what it signed from the compromise time on; this is the one retroactive statement a mind can make about its own signatures, and it is public and attributable (core 9.5).
+6.2. Removing a key stops it signing anything new while leaving what it signed earlier valid, provided a verifier has evidence of when those proofs existed (core 9.7). Marking a key compromised (`compromisedSince`) also withdraws what it signed from the compromise time on; this is the one retroactive statement a mind can make about its own signatures, and it is public and attributable (core 9.5). It applies only to the mind's own records, not to its proofs on other minds' identity events (6.4).
 
-6.3. When a verifier encounters a `versionId` it does not have, it SHOULD fetch the missing events from the mind's homes (Section 13.1) or its resolver (Section 17) before deciding. A verifier that does not know about a later event cannot apply it, so verifiers SHOULD refresh a mind's log from their resolver before decisions whose value warrants it.
+6.3. When a verifier encounters a `versionId` it does not have, it SHOULD fetch the missing events from the mind's homes (Section 13.1) or its resolver (Section 17) before deciding. A verifier that does not know about a later event cannot apply it, and its own late sight of an event is not evidence of when the event happened, so before counting a proof a verifier MUST hold the signer's log, with first-seen times, as core 9.4 requires. Refreshing from a resolver supplies both.
 
-6.4. **Member proofs on identity events.** A proof by member `M` on another mind's identity event counts if, and only if, its verification method is `did:oip:M?versionId=V#K`, `M`'s log verifies, `V` identifies an event in it, `K` is an invocation key of `M` at `V`, its purpose is `capabilityInvocation` and the signature verifies. Such proofs are judged **at their position** in the log: later removals and compromise declarations in `M`'s log do not reach back into another mind's identity, so no member can unmake a collective by disowning its old keys. Witnesses (Section 17) judge each new event when they receive it, applying items 3 and 4 of 6.1 to invocation keys at that time, so a removed or compromised invocation key cannot append to any log that witnesses accept.
+6.4. **Member proofs on identity events.** A proof `p` by member `M` on another mind's identity event `e` counts if, and only if, all of these hold:
+1. its verification method is `did:oip:M?versionId=V#K`, `M`'s log verifies, and `V` identifies an event in it;
+2. `K` is an invocation key of `M` at `V`;
+3. if a later event in `M`'s log removes `K` from the invocation keys, or retires `M`, the evaluation time of `e` (core 9.5) is earlier than that event's evaluation time;
+4. `p.proofPurpose` is `capabilityInvocation`;
+5. the signature verifies (core 5.4).
+
+Compromise declarations in `M`'s log do not apply to such proofs: they reach back only over `M`'s own records, so no member can unmake another mind's identity by disowning its old keys. A removed invocation key can sign nothing new, and what it signed while it was valid stands for every verifier with evidence of when that was (Section 9.6).
 
 ## 7. Duplicity
 
@@ -139,7 +147,7 @@ A verifier MUST reject a log unless all of the following hold.
 
 7.2. Resolvers MUST retain the first valid event they saw at each position of each log, MUST record when they first saw it, and MUST publish any conflicting valid event as evidence (Section 17).
 
-7.3. **Resolution.** A verifier MUST NOT choose between conflicting branches by their length or by which is more recent. It resolves duplicity at the point of divergence by evidence (core 9.4): the branch whose event at that position has the earlier evidence wins. If its evidence cannot separate the branches, the mind is **duplicitous** for that verifier, which MUST NOT accept records from the mind that are pinned to versions after the point of divergence, or current-state records. Records pinned to versions before the divergence remain valid.
+7.3. **Resolution.** A verifier MUST NOT choose between conflicting branches by their length or by which is more recent. It resolves duplicity at the point of divergence by evidence (core 9.4): the branch whose event at that position has the earlier evidence wins. If its evidence cannot separate the branches, the mind is **duplicitous** for that verifier, which MUST NOT accept records from the mind that are pinned to versions after the point of divergence, or current-state records. Records pinned to versions before the divergence remain valid, and the key removals, retirements and compromise declarations of every conflicting branch apply to them, so duplicity never revives a key.
 
 7.4. **Protecting the log.** Implementations MUST destroy a control key's private part once the event it signs has been published, so that a used control key cannot sign an alternative event. Minds SHOULD publish each identity event to at least two independent resolvers, which act as witnesses, and MAY anchor their logs (Section 10.6). After a custody handover (Layer 0, Section 6) has been witnessed, the former custodian can only create duplicity, which this rule resolves against it.
 
@@ -166,13 +174,15 @@ A verifier MUST reject a log unless all of the following hold.
 
 9.1. A collective is a mind with a member controller.
 
-9.2. **Genesis consent.** Every founding member MUST sign the genesis with one of its own invocation keys (Section 6.4). Members MUST be distinct, a member MUST NOT be the collective itself, and the threshold MUST be a majority (Section 3.4).
+9.2. **Genesis consent.** Every founding member MUST sign the genesis with one of its own invocation keys, valid at the genesis's evaluation time (Section 6.4). Members MUST be distinct, a member MUST NOT be the collective itself, and the threshold MUST be a majority (Section 3.4). A collective that expects to admit other collectives as members later declares a `height` large enough for them (Section 4.7).
 
 9.3. **Changes.** Later identity events require the threshold of current members, plus every newly added member (Section 4.4).
 
 9.4. **Members sign with their own keys.** A member signs a collective's identity events with its own invocation keys (Section 6.4) and the collective's other records with its own valid operational keys (Section 6.1); a delegate of a member cannot sign for it here. A collective that is a member of another collective signs there with invocation and operational keys it has authorised through its own `invocation` and `keys`. Recursive threshold signing (a collective's members signing for it inside another collective) is reserved.
 
-9.5. **Acting as one.** The **state of a collective at time `T`** is its identity state after the last event whose evaluation time (core 9.5) is at or before `T`. A record is signed by a collective at the earliest time `T` at which the members of the collective's state at `T` that have proofs on the record with `t(p)` ≤ `T` number at least that state's threshold, the state not being retired. A member holding a role in the collective's charter also signs for it within the role's powers (Layer 2, Sections 6.2 and 7.1). A collective MAY also authorise operational keys of its own through `keys`, in which case proofs by those keys count as for any mind.
+9.5. **Acting as one.** The **state of a collective at time `T`** is its identity state after the last event whose evaluation time (core 9.5) is at or before `T`. A record is signed by a collective at the earliest time `T` at which the members of the collective's state at `T` that have proofs on the record without `authority`, with `t(p)` ≤ `T`, number at least that state's threshold, the state not being retired. A record that describes the collective's current state (`Location`, `Participant`) counts under the threshold only while its signers meet the threshold of the collective's latest state that the verifier knows, the collective not being retired or duplicitous: this is the current-state rule (6.1, item 6) for collectives. A member holding a role in the collective's charter also signs for it within the role's powers, with a proof that names the charter in `authority` (Layer 2, Sections 6.2 and 7.1). A collective MAY also authorise operational keys of its own through `keys`, in which case proofs by those keys count as for any mind.
+
+9.6. **Keeping a collective verifiable.** Unlike control keys, which sign once and are destroyed, members' invocation keys sign many events, so a collective's log cannot be protected by destroying them. Instead each member's proof is judged at its event's evaluation time (Section 6.4), and the order of an event in a member's log and an event in the collective's log is known only from evidence (core 9.4). A verifier therefore takes the evaluation times of a collective's identity events, and of its members' events, from a witness it trusts or from anchors (core 9.4), and resolvers MUST serve those times (Sections 13.1 and 17.2). Once a member has removed an invocation key, a verifier without such evidence cannot tell an old event signed with it from a forgery made later, so it rejects the event. Collectives SHOULD therefore anchor their identity events, by listing each in an anchored feed (Section 10), so that any verifier, including a resolver that sees the collective for the first time, can verify the log without relying on a particular witness. Members SHOULD remove an invocation key in the normal course only after the identity events it signed are witnessed or anchored.
 
 ## 10. Feeds and checkpoints
 
@@ -189,7 +199,7 @@ A verifier MUST reject a log unless all of the following hold.
 | `proofs` | no | Array of the digests `"sha256:" + hex(SHA-256(JCS(proof)))` of the proofs on the published record as it stood when the entry was made, so that a checkpoint covering the entry is evidence for those proofs (core 9.4) |
 | `proof` | yes | By a valid operational key of the author (Section 6.1) |
 
-10.2. A feed MAY list records authored by other minds, such as Commitments the mind is a party to. A host MUST serve every record listed in a feed it serves. When a record gains proofs (for example, a co-signature), the mind MAY publish a new entry for the same record with the new set of `proofs`.
+10.2. A feed MAY list records authored by other minds, such as Commitments the mind is a party to, the identity events of a collective it belongs to (Section 9.6), or the genesis of a mind it bridges (Layer 0, Section 1.2). A host MUST serve every record listed in a feed it serves. When a record gains proofs (for example, a co-signature), the mind MAY publish a new entry for the same record with the new set of `proofs`.
 
 10.3. A feed has a **single writer** at a time: a mind that runs several instances coordinates them so that only one appends to its feed (for example, by routing publication through its host). Two valid entries with different content IDs and the same `author` and `seq` constitute feed equivocation and are published and treated as evidence in the same way as duplicity.
 
@@ -206,7 +216,7 @@ A verifier MUST reject a log unless all of the following hold.
 | Member | Required | Value | UCAN 1.0 |
 |---|---|---|---|
 | `author` | yes | The grantor | `iss` |
-| `delegate` | yes | The grantee | `aud` |
+| `delegate` | yes | The grantee; MUST differ from `author` | `aud` |
 | `subject` | yes | The mind whose authority is delegated | `sub` |
 | `command` | yes | A command (11.2) | `cmd` |
 | `policy` | no | A policy (11.3); default `[]` | `pol` |
@@ -216,6 +226,8 @@ A verifier MUST reject a log unless all of the following hold.
 | `created`, `proof` | yes | Signed by the `author`'s own authority (Layer 2, Section 7.2) with `proofPurpose` `capabilityDelegation` | |
 
 The semantics follow UCAN 1.0 (a release candidate at the time of writing). As in UCAN, a delegation does not name its parents: the proof that relies on a chain lists every delegation in it (11.6), as a UCAN invocation lists its proofs in `prf`. A collective delegates by signing a `Delegation` under its member threshold.
+
+`notBefore` bounds when a delegated proof counts, not when it can be made: because a proof's evaluation time comes from the earliest evidence of it (core 9.3), a proof made before `notBefore` counts for any verifier that first sees it afterwards.
 
 11.2. **Commands** match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` **covers** a command `c` when `c` equals `g` or `c` begins with `g` followed by `/`. The commands under `/oip` are exactly:
 
@@ -227,15 +239,17 @@ The semantics follow UCAN 1.0 (a release candidate at the time of writing). As i
 Every other command beginning `/oip`, including `/oip` and `/oip/sign` themselves, is reserved: a delegation using one is invalid in this revision, so there are no blanket grants. Records of other types (`Delegation`, `Revocation`, `Collective`, `Lineage`, identity events and current-state records) cannot be signed under delegation. Extensions define further commands under their own first segment, such as `/x402/pay`.
 
 11.3. **Policies.** A policy is an array of at most 64 statements, all of which must hold for the record being authorised, taken without its `proof` member. Statements, following UCAN's policy language, are:
-- **Comparisons** `[op, selector, value]`, where `op` is one of `==`, `!=`, `<`, `<=`, `>`, `>=`. A missing path makes a comparison false. `<`, `<=`, `>` and `>=` hold only when both the selected value and `value` are integers or decimal strings (core 1.3), compared numerically; for any other values they are false. `==` and `!=` compare numerically when both values are integers or decimal strings, and otherwise compare canonical forms (core Section 2).
+- **Comparisons** `[op, selector, value]`, where `op` is one of `==`, `!=`, `<`, `<=`, `>`, `>=`. `<`, `<=`, `>` and `>=` compare numerically and are defined only when both the selected value and `value` are integers or decimal strings (core 1.3). `==` and `!=` compare numerically when both values are integers or decimal strings, and otherwise compare canonical forms (core Section 2).
 - **Connectives** `["not", statement]`, `["and", [statements]]` and `["or", [statements]]`, with 1–64 statements in a list.
-- **Quantifiers** `["all", selector, statement]` and `["any", selector, statement]`, which select an array and test the statement against each element (selectors inside it are relative to the element). They are false when the selected value is missing or not an array; `all` holds for an empty array and `any` does not.
+- **Quantifiers** `["all", selector, statement]` and `["any", selector, statement]`, which select an array and test the statement against each element (selectors inside it are relative to the element). `all` holds for an empty array and `any` does not.
 
 Statements nest at most 8 deep. A **selector** is `.` (the value itself) or a sequence of `.name` (`name` matching `[A-Za-z0-9_]+`), `[index]` (a non-negative integer without leading zeros) and `["name"]` (a JSON string, for names containing other characters).
 
-`like` is reserved. A policy constrains only what it selects, so delegators SHOULD constrain every term that matters: for a price, both `amount` and `currency`; for a deal, its counterparties, as in `["all", ".parties", ["or", [["==", ".mind", <principal>], ["==", ".mind", <counterparty>]]]]`.
+**Errors fail the policy.** A comparison whose selector does not resolve to a value, an ordering comparison whose operands are not both integers or decimal strings, and a quantifier whose selector does not resolve to an array are **errors**. Every statement is evaluated in full, and if any statement anywhere in a policy is an error, the policy does not hold. So `not` and `or` can never turn a missing or malformed value into a pass, and a policy that constrains a member that may be absent must require it.
 
-11.4. **Validity of a delegation chain** for a record `r` carrying a proof `p` by a valid operational key of mind `D`, on behalf of mind `P`, where the delegations are `d₁ … dₙ` (`n` ≤ 8, root first, the last being the one that names `D`), all listed in `p.authority`:
+`like` is reserved. A policy constrains only what it selects, so delegators SHOULD constrain every term that matters: for a price, its `amount`, its `currency` and who pays it (`payer` or `payee`, Layer 2, Section 5.1); for a deal, its counterparties, as in `["all", ".parties", ["or", [["==", ".mind", <principal>], ["==", ".mind", <counterparty>]]]]`. Delegators SHOULD also exclude the delegate itself as a party, as in `["all", ".parties", ["!=", ".mind", <delegate>]]`, unless the delegate is meant to deal with its own principal. A policy bounds each record separately: a price limit is a limit per record, not a total, and cumulative limits need an extension.
+
+11.4. **Validity of a delegation chain** for a record `r` carrying a proof `p` by a valid operational key of mind `D`, on behalf of mind `P`, where `p.authority` lists exactly the delegations `d₁ … dₙ` (`n` ≤ 8), in that order, root first, the last being the one that names `D`:
 1. Every `dᵢ` is a valid `Delegation` signed by its `author`'s own authority, and the evaluation time of that signature is not after `t(p)`.
 2. `d₁.author` = `d₁.subject` = `P`, and every `dᵢ.subject` = `P`.
 3. `dᵢ.delegate` = `dᵢ₊₁.author` for every `i` < `n`, and `dₙ.delegate` = `D`.
@@ -248,7 +262,7 @@ Because time rules use `t(p)` (core 9.3), a delegate cannot use an expired or re
 
 11.5. A **`Revocation`** record has `author` (the author of the revoked delegation), `revokes` (its `record-ref`), `created` and `proof`, and is signed by the author's own authority. It takes effect from its own evaluation time, so a backdated revocation cannot void records that evidence shows came before it. Authors SHOULD publish revocations in their feeds. Verifiers SHOULD check the issuer's feed for revocations when the value at stake warrants it. Expiry bounds how long a delegation can be used even when a revocation is missed, so delegations SHOULD be no longer than their purpose needs.
 
-11.6. **Use.** A proof that relies on delegation lists the delegations it relies on in its own `authority` member (core 5.2), as `record-ref`s or inline records, at most 16. A proof by `D` counts for `P` when some sequence of the delegations listed in that proof forms a valid chain from `P` to `D` (11.4). Because each delegated proof carries its own chain, and proofs do not change a record's content ID, parties signing through different delegates can sign the same record in any order. The proof's signature covers its `authority`, so a delegate's choice to act for a principal is itself signed. Packets SHOULD carry delegations inline.
+11.6. **Use.** A proof that relies on delegation lists, in its own `authority` member (core 5.2), exactly the delegations of one chain, `d₁` first and `dₙ` last, as `record-ref`s or inline records. A proof by `D` counts for `P` when that list, in the order given, is a valid chain from `P` to `D` (11.4). Verifiers check the list as given and MUST NOT search for another order or subset. A proof therefore acts, through its `authority`, for at most one mind besides its signer, and because the proof's signature covers its `authority`, a delegate's choice to act for a principal is itself signed. Because each delegated proof carries its own chain, and proofs do not change a record's content ID, parties signing through different delegates can sign the same record in any order. Packets SHOULD carry delegations inline.
 
 ## 12. Packets and sealing
 
@@ -282,7 +296,7 @@ A packet's identifier is its content ID. A packet sent on another mind's behalf 
 
 12.3. **Verbs** (advisory): `inform`, `request`, `query`, `propose`, `accept`, `decline`, `deliver`, `ack`, `error`, `open`, `resume`, `branch`, `close`, or a namespaced verb `<namespace>:<name>`. Verbs MUST NOT be treated as binding; binding statements are Layer 2 records carried in `content`.
 
-12.4. **Receiving.** A receiver MUST verify the packet's proof and, if `to` lists addresses, that it is one of them; if `to` is a query, MUST accept the packet only inside a `Forwarded` record from a broker (Section 18.5), and only from a broker listed in `brokers` when that member is present; MUST reject packets whose `created` is more than 300 seconds in the future, whose `expires` is more than 300 seconds in the past, or whose `expires` is more than 7 days after `created`; MUST reject a packet without `expires` (a session packet) whose `created` is older than the receiver's duplicate-detection window; and MUST discard duplicates by content ID. A receiver MUST record a content ID for duplicate detection only after the packet has verified, so that a corrupted copy cannot cause the genuine packet to be discarded. Receivers MAY discard their duplicate-detection state for a packet after its `expires`. Packets in a session are additionally deduplicated and checked under Section 14.
+12.4. **Receiving.** A receiver MUST verify the packet's proof and, if `to` lists addresses, that it is one of them; if `to` is a query, MUST accept the packet only inside a `Forwarded` record from a broker (Section 18.5), and only from a broker listed in `brokers` when that member is present; MUST reject packets whose `created` is more than 300 seconds in the future, whose `expires` is more than 300 seconds in the past, or whose `expires` is more than 7 days after `created`; MUST reject a packet without `expires` (a session packet) whose `created` is older than the receiver's duplicate-detection window, unless the receiver still holds the state of that packet's sending chain (Section 14.3), against which it deduplicates the packet (as for packets retransmitted after a `Resume`); and MUST discard duplicates by content ID. A receiver MUST record a content ID for duplicate detection only after the packet has verified, so that a corrupted copy cannot cause the genuine packet to be discarded. Receivers MAY discard their duplicate-detection state for a packet once 300 seconds have passed after its `expires`, when it can no longer be accepted. Packets in a session are additionally deduplicated and checked under Section 14.
 
 12.5. **Treat content as data.** Receivers MUST NOT treat the content of a packet as conferring authority. Authority comes only from identity logs, delegations and Layer 2 records. This stops a packet from granting authority; it does not stop a model that already holds authority from being persuaded to use it, which is why Layer 0, Section 2.2 keeps keys outside the model and asks for confirmation before binding acts.
 
@@ -302,8 +316,8 @@ The recipient decrypts, then verifies the inner packet as in 12.4. Intermediarie
 ## 13. Bindings
 
 13.1. **Well-known resources.** A host serving mind `M` (with content ID `m`) MUST serve:
-- `GET /.well-known/oip/mind/m` returning a `Bundle`: `{ "oip": "1", "type": "Bundle", "mind": M, "log": [events], "location": <Location, optional>, "participant": <Participant, optional>, "firstSeen": <object, optional> }`. `firstSeen`, served by resolvers (Section 17), maps the content IDs of the bundle's events and records to the times the resolver first saw them.
-- `GET /.well-known/oip/mind/m/log?after=<seq>&limit=<n>` returning `{ "oip": "1", "type": "LogPage", "mind": M, "events": [ … in seq order … ], "next": <seq, optional> }`, for logs too long to serve in one `Bundle` (whose `log` MAY then hold only the first page).
+- `GET /.well-known/oip/mind/m` returning a `Bundle`: `{ "oip": "1", "type": "Bundle", "mind": M, "log": [events], "location": <Location, optional>, "participant": <Participant, optional>, "firstSeen": <object, optional> }`. `firstSeen` maps the content ID of each identity event in the bundle to the time the server first saw that event valid, and the digest (Section 10.1) of each proof on the bundle's other records to the time it first saw that proof. Resolvers (Section 17) MUST include it.
+- `GET /.well-known/oip/mind/m/log?after=<seq>&limit=<n>` returning `{ "oip": "1", "type": "LogPage", "mind": M, "events": [ … in seq order … ], "next": <seq, optional>, "firstSeen": <object, optional, as in a Bundle> }`, for logs too long to serve in one `Bundle` (whose `log` MAY then hold only the first page).
 - `GET /.well-known/oip/mind/m/feed?after=<seq>&limit=<n>` returning `{ "oip": "1", "type": "FeedPage", "mind": M, "entries": [ … in seq order … ], "next": <seq, optional> }`.
 
 For both, `after` is exclusive and, when absent, the page starts at `seq` 0; `next`, when present, is the value to pass as `after` for the following page; `limit` defaults to 100 and MAY be capped by the host.
@@ -311,7 +325,7 @@ For both, `after` is exclusive and, when absent, the page starts at `seq` 0; `ne
 
 Hosts MAY serve A2A Agent Cards (Layer 0, Section 3.2) and domain aliases at `/.well-known/oip/did`.
 
-13.2. **Inbox and acknowledgement.** `POST {endpoint}/inbox` with a body of a `Packet` or `Sealed` record, media type `application/oip+json`. On success the endpoint returns `202` with an **`Ack`**: `{ "oip": "1", "type": "Ack", "author": <recipient>, "packet": <content ID>, "received": <timestamp>, "created": <timestamp>, "proof": [ … ] }`, signed by a valid operational key of the recipient. Delivery of a duplicate returns `202` with the same acknowledgement. For a `Sealed` body, `packet` is the content ID of the `Sealed` record. An endpoint that cannot sign for the recipient (a host that does not hold its keys) returns `202` with `{ "stored": true }` and no `Ack`; the recipient MAY acknowledge later in a packet. Errors use core Section 10. An `Ack` is evidence (core 9.4) that the packet, with the sender's proof, existed at its `received` time; senders SHOULD keep the acknowledgements of packets that carry binding records.
+13.2. **Inbox and acknowledgement.** `POST {endpoint}/inbox` with a body of a `Packet` or `Sealed` record, media type `application/oip+json`. On success the endpoint returns `202` with an **`Ack`**: `{ "oip": "1", "type": "Ack", "author": <recipient>, "packet": <content ID>, "received": <timestamp>, "created": <timestamp>, "proof": [ … ] }`, signed by a valid operational key of the recipient. Delivery of a duplicate returns `202` with the same acknowledgement. For a `Sealed` body, `packet` is the content ID of the packet inside it, and the `Ack` also carries `sealed`, the content ID of the `Sealed` record, so that the acknowledgement is evidence for the inner packet and the proofs it carries; a third party cannot link a `Sealed` record to its contents, because HPKE encryption is randomised. An endpoint that cannot sign for the recipient (a host that does not hold its keys) returns `202` with `{ "stored": true }` and no `Ack`; the recipient MAY acknowledge later in a packet. Errors use core Section 10. An `Ack` is evidence (core 9.4) that the packet, with the sender's proof, existed at its `received` time; senders SHOULD keep the acknowledgements of packets that carry binding records.
 
 13.3. **Authentication.**
 - A **`Hello`** record `{ "oip": "1", "type": "Hello", "author": <mind>, "created": <timestamp>, "proof": [ … ] }` carries a single proof with `proofPurpose` `authentication`, `challenge` set to a nonce issued by the server and `domain` set to the origin the client connected to. The client MUST set `domain` itself and MUST NOT copy it from anything the server sent, so that a relaying server cannot reuse the proof elsewhere. Servers MUST check that `domain` is their own origin and that the challenge was issued by them within the last 300 seconds and has not been used before. The proof's key is checked under Section 6.1, including the current-state rule.
@@ -327,7 +341,7 @@ Hosts MAY serve A2A Agent Cards (Layer 0, Section 3.2) and domain aliases at `/.
 
 14.1. A **`Session`** record is unsigned: `{ "oip": "1", "type": "Session", "participants": [addresses, sorted by code point, distinct, 2–256], "nonce": <string of 8–64 characters>, "created": <timestamp> }`. The session ID is its content ID.
 
-14.2. The first packet a participant sends in a session MUST include the `Session` record in its `content` (as a body or a part), unless the receiver has already been shown it. Any verb may open a session; `open` is available when the packet has no other purpose.
+14.2. The first packet each participant sends in a session MUST include the `Session` record in its `content` (as a body or a part), so that every receiver can check the session ID. Any verb may open a session; `open` is available when the packet has no other purpose.
 
 14.3. Each **sending chain** in a session is identified by the sender's address and its `instance` (absent counts as one instance). Each chain numbers its packets from `seq` 0; each packet after the first carries `prev`, the content ID of the previous packet in the same chain. A mind running several instances either gives each its own `instance` or lets only one instance send in a given session. A packet with `session` MUST have `from` among the session's `participants` and `to` listing every other participant, so that no participant misses a link in any chain. Receivers deduplicate session packets by (`session`, `from`, `instance`, `seq`); two valid packets with the same values and different content IDs are equivocation, treated as in Section 10.3. A receiver that detects a gap MUST NOT treat later packets of that chain as in order until the gap is filled, and SHOULD send a `Resume`.
 
@@ -351,7 +365,7 @@ Hosts MAY serve A2A Agent Cards (Layer 0, Section 3.2) and domain aliases at `/.
 | `homes` | no | HTTPS origins |
 | `participant` | no | Content ID of the current Participant profile |
 | `feed` | no | `{ "seq": <n>, "head": <content ID of the latest Entry> }` |
-| `proof` | yes | By a valid operational key under the current-state rule (Section 6.1, item 6) |
+| `proof` | yes | By the author's own authority: a valid operational key under the current-state rule (Section 6.1, item 6), or, for a collective, its threshold under its latest membership (Section 9.5) |
 
 **Bindings.** An endpoint's `binding` says what its `url` means:
 
@@ -362,7 +376,7 @@ Hosts MAY serve A2A Agent Cards (Layer 0, Section 3.2) and domain aliases at `/.
 | `mailbox` | The `{mailbox}` URL of 13.5 |
 | Others | Reserved for the bindings of 13.6; endpoints with unknown bindings MUST be ignored |
 
-15.2. Among the location records of a mind whose proofs are valid under the current-state rule (Section 6.1, item 6), the one with the highest `seq` is current; if two share the highest `seq`, the one with the lower content ID (in code-point order) is current. A record is stale after `created` + `ttl`, but MAY still be used as a hint.
+15.2. Among the location records of a mind whose proofs are valid under the current-state rule (Section 6.1, item 6, and for collectives Section 9.5), the one with the highest `seq` is current; if two share the highest `seq`, the one with the lower content ID (in code-point order) is current. A record is stale after `created` + `ttl`, but MAY still be used as a hint. Removing the key that signed a record, or, for a collective, the members (or their keys) whose signatures met its threshold, ends that record however high its `seq`, so a record with an excessive `seq` cannot lock a mind out. Minds SHOULD increase `seq` by one for each new record.
 
 15.3. Senders SHOULD try endpoints in priority order and SHOULD use `mailbox` endpoints when no other endpoint accepts the packet or when `status` is `paused`.
 
@@ -385,7 +399,7 @@ Hosts MAY serve A2A Agent Cards (Layer 0, Section 3.2) and domain aliases at `/.
 | `languages` | no | BCP 47 tags |
 | `attestations` | no | Record-refs or URLs of credentials about the mind |
 | `supersedes` | no | `record-ref` of the previous profile |
-| `ext`, `critical`, `proof` | | The proof is by a valid operational key under the current-state rule (Section 6.1, item 6) |
+| `ext`, `critical`, `proof` | | The proof is by the author's own authority, as for a location record (Section 15.1) |
 
 16.2. A **capability** object: `id` (REQUIRED, at most 128 characters, unique within the profile), `summary` (REQUIRED), `tags` (array of at most 64 strings, each `<namespace>:<value>`), `subject` (OPTIONAL, matching `^[a-z0-9_-]+(\.[a-z0-9_-]+)*$`), `inputs` and `outputs` (media types), `terms` (as in a Layer 2 Offer, Layer 2 Section 4.2), `evidence` (Layer 2 evidence items, Layer 2 Section 9) and `attestations`.
 
@@ -401,7 +415,7 @@ Hosts MAY serve A2A Agent Cards (Layer 0, Section 3.2) and domain aliases at `/.
 - `GET /oip/v1/stream?since=<cursor>`: a server-sent event stream whose events carry `{ "cursor": <string>, "mind": <address>, "record": <identity event or Location> }`.
 - `GET /oip/v1/duplicity/<mindId>`: returns `{ "oip": "1", "type": "DuplicityEvidence", "mind": <address>, "pairs": [ [<event>, <event>] ] }`.
 
-17.2. A resolver MUST verify every record before storing or serving it, evaluating proofs at the time it receives them (core 9.3), MUST keep the first valid event it saw at each log position and the time it first saw it (Section 7), and MUST NOT serve records it cannot verify. A resolver is a witness: verifiers that trust it MAY use its `firstSeen` times as evidence (core 9.4).
+17.2. A resolver MUST verify every record before storing or serving it, evaluating proofs at the time it receives them (core 9.3), MUST keep the first valid event it saw at each log position and the time it first saw it (Section 7), MUST record when it first saw each proof on the other records it serves, and MUST NOT serve records it cannot verify. A resolver is a witness: verifiers that trust it MAY use its `firstSeen` times as evidence (core 9.4). A resolver that receives an existing log for the first time takes the times of its events from witnesses it trusts or from anchors where it can; events for which it has no earlier evidence are evaluated at the time it receives them (core 9.5), so a collective's event signed with an invocation key that a member has since removed is rejected unless such evidence exists (Section 9.6).
 
 17.3. Resolvers MAY require authenticated publication (13.3) and MAY rate-limit.
 
@@ -425,9 +439,9 @@ Hosts MAY serve A2A Agent Cards (Layer 0, Section 3.2) and domain aliases at `/.
 |---|---|
 | Record size (canonical form) | 1 MiB (core 1.6) |
 | Proofs per record | 256 (core 5.1) |
-| Collective height | 4 (Section 4.7) |
+| Collective height | 4, fixed at genesis (Section 4.7) |
 | Delegation chain length | 8 |
-| Delegations listed in a proof's `authority` | 16 |
+| Entries in a proof's `authority` | 8: exactly one chain, or one charter (Section 11.6) |
 | Policy statements, and nesting depth | 64, and 8 |
 | Packet recipients | 64 |
 | Packet lifetime (`expires` − `created`) | 7 days |

@@ -1,0 +1,48 @@
+{
+  "name": "open-intelligence-protocol",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Open Intelligence Protocol: specifications, test vectors and the v1 reference implementation.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "pnpm@12.19.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "clean": "node scripts/clean.ts",
+    "typecheck": "pnpm -r --workspace-concurrency=1 exec tsc --noEmit && tsc -p scripts/tsconfig.json --noEmit",
+    "lint": "eslint . && prettier --check . && depcruise packages scripts --config .dependency-cruiser.cjs",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:vectors": "vitest run --project @oip/conformance --reporter=verbose test/vectors.test.ts",
+    "test:differential": "vitest run --project @oip/conformance test/differential.test.ts",
+    "spec:clauses": "node scripts/spec-clauses.ts",
+    "spec:coverage": "node scripts/spec-coverage.ts",
+    "schemas": "pnpm --filter @oip/schema run generate",
+    "generated:check": "node scripts/spec-clauses.ts --check && pnpm --filter @oip/schema run generate --check",
+    "api": "pnpm build && pnpm -r --if-present run api",
+    "api:check": "pnpm build && pnpm -r --if-present run api:check",
+    "bench": "vitest bench --run",
+    "docs": "typedoc",
+    "changeset": "changeset"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^3.0.3",
+    "@eslint/js": "^10.0.1",
+    "@microsoft/api-extractor": "^7.60.1",
+    "@types/node": "^24.19.2",
+    "@vitest/coverage-v8": "^5.1.0",
+    "dependency-cruiser": "^18.7.2",
+    "eslint": "^10.14.0",
+    "fast-check": "^4.10.2",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "typedoc": "^0.28.20",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^5.1.0"
+  }
+}

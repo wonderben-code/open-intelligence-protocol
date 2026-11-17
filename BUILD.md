@@ -484,6 +484,11 @@ Sizes are rough: **S** is about one focused session, **M** two or three, **L** f
 - **Decisions.** Any decision that is hard to reverse gets an ADR in `docs/adr/`.
 - **Issues.** Use GitHub issues for spec questions and deferred work, labelled by layer and milestone.
 - **Parallel work.** Subagents may run independent workstreams in parallel (documentation, fuzz targets, examples), but milestones land in order.
+- **Model and effort.**
+  - Use Fable (`/model fable`), the model Claude Code recommends for the hardest and longest-running tasks. If Fable is not available, or Eks chooses not to use it (on some plans it bills to usage credits), use Opus (`/model opus`).
+  - Set effort to `xhigh` (`/effort xhigh`) for everyday building. Opus 5.5 defaults to `medium`, which is too low for this code.
+  - Switch to `max` (`/effort max`, which applies to the session) for M1 to M3, where the cryptography, the time model and the policy language live, and for the M12 security reviews.
+  - Do not use `max` everywhere: it costs far more tokens and can overthink routine work.
 
 ## 8. Decisions and actions only Eks takes
 

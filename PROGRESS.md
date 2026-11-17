@@ -41,7 +41,7 @@ This file is the live status of the Open Intelligence Protocol project, so that 
 
 ## Next steps, in order
 
-1. **Build v1 in Claude Code**, from [BUILD.md](BUILD.md), milestone by milestone from M0. Use Opus, or the strongest model available, at high effort. To start, see "How to resume" below.
+1. **Build v1 in Claude Code**, from [BUILD.md](BUILD.md), milestone by milestone from M0, with the model and effort in BUILD.md Section 7. To start, see "How to resume" below.
 2. **Gates as they come up:**
    - npm organisation (G1);
    - domain (G2);

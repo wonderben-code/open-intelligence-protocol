@@ -1,0 +1,1927 @@
+{
+  "revision": "2026-11-17",
+  "clauses": [
+    {
+      "id": "core 1.1",
+      "document": "core",
+      "section": "Records",
+      "summary": "A record is a JSON object (RFC 8259), encoded as UTF-8, that is also an I-JSON message (RFC 749…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1,
+        "MUST": 1,
+        "SHOULD": 1
+      },
+      "digest": "226d24d6469c0ca55f7b6d54b760eae04fd938656bc77a799768caf2e6939d50"
+    },
+    {
+      "id": "core 1.2",
+      "document": "core",
+      "section": "Records",
+      "summary": "The values permitted anywhere in a record are objects, arrays, strings, `true`, `false`, `null`…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 2
+      },
+      "digest": "8e5f111b2b3c68d6408b734c12517ed8d915fc1612d04aad47afa55b0e1ab070"
+    },
+    {
+      "id": "core 1.3",
+      "document": "core",
+      "section": "Records",
+      "summary": "Decimal quantities (prices, amounts, scores) MUST be strings matching `^-?(0|[1-9][0-9]*)(\\.[0-…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 2,
+        "MUST NOT": 1
+      },
+      "digest": "d2a8edee0ee439f935f763170f9245e898f333e5fbc08fa024d2ef00f6f360a6"
+    },
+    {
+      "id": "core 1.4",
+      "document": "core",
+      "section": "Records",
+      "summary": "Timestamps MUST be RFC 3339 strings in UTC matching `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "dfb2d2ec98c983b5f45c84d6cf34da6fd9a49c95d0bf5ef70edf1699dadb5b99"
+    },
+    {
+      "id": "core 1.5",
+      "document": "core",
+      "section": "Records",
+      "summary": "Durations MUST be ISO 8601 durations matching `^P(?!$)([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "ef8207a43a6c8882318a8dec37bd01647654c7ca10f60deeb76dddf6e4e0851a"
+    },
+    {
+      "id": "core 1.6",
+      "document": "core",
+      "section": "Records",
+      "summary": "Size. The canonical form (Section 2) of a record MUST NOT exceed 1 MiB. Implementations MAY app…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1,
+        "MAY": 2,
+        "MUST": 1
+      },
+      "digest": "77a6effe27ddc39a1dc1d6d0eca5f7b726aa237ae0d9c3ddf0f3343d20289f48"
+    },
+    {
+      "id": "core 1.7",
+      "document": "core",
+      "section": "Records",
+      "summary": "Field names use camelCase. Implementations MUST preserve fields they do not recognise when stor…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 2
+      },
+      "digest": "e8585b8204265ee942292eedd1f3816bcebe9363b800024c41e5bd30ef4fabc9"
+    },
+    {
+      "id": "core 1.8",
+      "document": "core",
+      "section": "Records",
+      "summary": "String lengths (\"at most N characters\") are counted in Unicode code points.",
+      "level": "none",
+      "keywords": {},
+      "digest": "4b234322d7d0c51ede3830f798c0e480aa258b3f0a78db0f2a8fcecc1b3991a6"
+    },
+    {
+      "id": "core 2.1",
+      "document": "core",
+      "section": "Canonical form",
+      "summary": "The canonical form of a JSON value is its serialisation under the JSON Canonicalization Scheme,…",
+      "level": "none",
+      "keywords": {},
+      "digest": "c65695092e3499759760d3249c094051ada478888e50e4060aef3e898a5248cd"
+    },
+    {
+      "id": "core 2.2",
+      "document": "core",
+      "section": "Canonical form",
+      "summary": "Because Section 1.2 restricts numbers to safe integers, JCS number serialisation reduces to the…",
+      "level": "none",
+      "keywords": {},
+      "digest": "5d7586aec2399506ac8e48cbd69810f64c725df7db364715577ee2674d72d998"
+    },
+    {
+      "id": "core 3.1",
+      "document": "core",
+      "section": "Content identifiers",
+      "summary": "The content ID of a record `r` is: ``` contentId(r) = \"b\" + base32lower( 0x12 ‖ 0x20 ‖ SHA-256(…",
+      "level": "none",
+      "keywords": {},
+      "digest": "10d33db7a7f480c0cffdfa3c2b711c2c5d80636ba2953924fed38d2eb8ebb043"
+    },
+    {
+      "id": "core 3.2",
+      "document": "core",
+      "section": "Content identifiers",
+      "summary": "In this revision a content ID MUST match `^bciq[a-p][a-z2-7]{50}[aiqy]$` (56 characters, lower…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 2
+      },
+      "digest": "134308ac089d9def249577d15c17729b133662821136b6eb8408a9ea8ce0ae4b"
+    },
+    {
+      "id": "core 3.3",
+      "document": "core",
+      "section": "Content identifiers",
+      "summary": "The 32-byte digest inside a content ID equals the `transformedDocumentHash` of every `eddsa-jcs…",
+      "level": "none",
+      "keywords": {},
+      "digest": "246066341939b533a381777ba17ab16d16d4ccdb022c15a79bba31838d0547ce"
+    },
+    {
+      "id": "core 3.4",
+      "document": "core",
+      "section": "Content identifiers",
+      "summary": "The key hash of a Multikey string `k`, used for pre-rotation commitments, is `\"b\" + base32lower…",
+      "level": "none",
+      "keywords": {},
+      "digest": "49d4531762465dbf97666eb817ce13f532b0fd97465c452e95794362dc1e471b"
+    },
+    {
+      "id": "core 4.1",
+      "document": "core",
+      "section": "Keys",
+      "summary": "Public keys are written as Multikey strings: `\"z\"` followed by the base58btc encoding of a mult…",
+      "level": "none",
+      "keywords": {},
+      "digest": "119760ec4d9cfa453ff1a66c07aa2b014db684112be7516359e581c1414dba1b"
+    },
+    {
+      "id": "core 4.2",
+      "document": "core",
+      "section": "Keys",
+      "summary": "Implementations MUST check the prefix and length of every Multikey they use and reject any that…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "99b78a7736fff4b51a5ba7d6d5ab4a9c3c52a2a88347e866300f437938c74e87"
+    },
+    {
+      "id": "core 4.3",
+      "document": "core",
+      "section": "Keys",
+      "summary": "This revision requires Ed25519 for signatures and X25519 for encryption. Other key types are re…",
+      "level": "none",
+      "keywords": {},
+      "digest": "ab52a2f48fbb84b32e5c6bc4bcdad35d05355d003fbae0492328e79c11c53b53"
+    },
+    {
+      "id": "core 4.4",
+      "document": "core",
+      "section": "Keys",
+      "summary": "Ed25519 verification. Every implementation MUST apply the same rule, so that all verifiers agre…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 3
+      },
+      "digest": "16a61c84877ca2992c0b69982f43b727519168ac1f5c6e06ea1912d8f8578751"
+    },
+    {
+      "id": "core 5.1",
+      "document": "core",
+      "section": "Proofs",
+      "summary": "A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 p…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1,
+        "MUST NOT": 1
+      },
+      "digest": "64ac806857246e80625c8f043ca0c3e44b7b7c2d8281f842b68aebe0f7e4dba5"
+    },
+    {
+      "id": "core 5.2",
+      "document": "core",
+      "section": "Proofs",
+      "summary": "Each proof object MUST conform to W3C Data Integrity 1.0 with the `eddsa-jcs-2022` cryptosuite,…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 2,
+        "MUST NOT": 1
+      },
+      "digest": "310d469c102336a384976a9e694be781594689ec7afa1ae78013865b0445dd94"
+    },
+    {
+      "id": "core 5.3",
+      "document": "core",
+      "section": "Proofs",
+      "summary": "Creating a proof. Let `options` be the proof object without `proofValue`. Compute ``` hashData…",
+      "level": "none",
+      "keywords": {},
+      "digest": "b9677958cf7df3a726e24943d6b67040f76234e247e56ed4c885978d58d47ea4"
+    },
+    {
+      "id": "core 5.4",
+      "document": "core",
+      "section": "Proofs",
+      "summary": "Verifying a proof. Check that the proof has exactly the members 5.2 allows; remove `proofValue`…",
+      "level": "none",
+      "keywords": {},
+      "digest": "46296a778d92adf6aeb8b07197b9ba0231172cd4231f8ef6a21ee9ef79c53102"
+    },
+    {
+      "id": "core 5.5",
+      "document": "core",
+      "section": "Proofs",
+      "summary": "A record MAY carry proofs that are irrelevant to its validity. Each proof is evaluated independ…",
+      "level": "MAY",
+      "keywords": {
+        "MAY": 1
+      },
+      "digest": "41ad082a4eecb4e0fea4c2a0a1fe39df162dbb50d312f9dd0939d3090c325064"
+    },
+    {
+      "id": "core 5.6",
+      "document": "core",
+      "section": "Proofs",
+      "summary": "Proof purposes. | Records | `proofPurpose` | |---|---| | Identity-log events (`Genesis`, `Updat…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1
+      },
+      "digest": "5bad1d696ebbfafdc85c9468f666bbaa12e5b9d84184caa58b7e8e92703fd3e5"
+    },
+    {
+      "id": "core 5.7",
+      "document": "core",
+      "section": "Proofs",
+      "summary": "A proof's `created` SHOULD NOT be earlier than the record's `created`.",
+      "level": "SHOULD",
+      "keywords": {
+        "SHOULD NOT": 1
+      },
+      "digest": "cc0ee97282b3e8bc54ee8b01a6d64d15eb4dc9cafa9bae3c2c9c87739d2ef564"
+    },
+    {
+      "id": "core 6.1",
+      "document": "core",
+      "section": "References",
+      "summary": "References use DID syntax (W3C DID Core) and are defined by this grammar (ABNF, RFC 5234): ```…",
+      "level": "none",
+      "keywords": {},
+      "digest": "d8b4272e8558db4b715aa7081c335fe8e4a6238c91705318dfd58fc4a75f0f3f"
+    },
+    {
+      "id": "core 6.2",
+      "document": "core",
+      "section": "References",
+      "summary": "A proof by a mind's operational key MUST use a `key-ref`, which pins the version of the mind's…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 2
+      },
+      "digest": "d2dd33aff8e70e15247f7c5c2c58514b9eeeba89de4d994384af7a5a40e6bfcc"
+    },
+    {
+      "id": "core 6.3",
+      "document": "core",
+      "section": "References",
+      "summary": "A `record-ref` names a record by its content ID and says which mind's records to fetch it from.…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "39a38cab1faf3b581fccd7fe37ed6640d1ad65a42d2db918b22657fa5dd87fca"
+    },
+    {
+      "id": "core 6.4",
+      "document": "core",
+      "section": "References",
+      "summary": "User interfaces MAY abbreviate addresses for display. Abbreviated forms MUST NOT be used in rec…",
+      "level": "MUST",
+      "keywords": {
+        "MAY": 1,
+        "MUST NOT": 1
+      },
+      "digest": "6c0d574cbffd22f9fefa9e4fc408a06b4471739c4ac0b890a98f3f92ac1360b3"
+    },
+    {
+      "id": "core 7",
+      "document": "core",
+      "section": "Common fields",
+      "summary": "Common fields (table)",
+      "level": "MUST",
+      "keywords": {
+        "REQUIRED": 3,
+        "MUST": 1,
+        "OPTIONAL": 3
+      },
+      "digest": "f8c4fdb624660f926168198a075be2b2419b57af35aab32e091f57758b74c9e5"
+    },
+    {
+      "id": "core 8.1",
+      "document": "core",
+      "section": "Extensions and forward compatibility",
+      "summary": "`ext` is an object whose member names are namespaces and whose values are objects. A namespace…",
+      "level": "none",
+      "keywords": {},
+      "digest": "c76e556d1bd41feee90a00fc690436f2dd8e2927f1fa82283d95d8c504066509"
+    },
+    {
+      "id": "core 8.2",
+      "document": "core",
+      "section": "Extensions and forward compatibility",
+      "summary": "An extension block MAY contain a member `v` giving its own version.",
+      "level": "MAY",
+      "keywords": {
+        "MAY": 1
+      },
+      "digest": "42b25f834218f0bf4ea379ec828844bca19d79b78f2eeca4eb8ef916d9937b8a"
+    },
+    {
+      "id": "core 8.3",
+      "document": "core",
+      "section": "Extensions and forward compatibility",
+      "summary": "`critical` is an array of namespaces, each of which MUST also appear in `ext`. An implementatio…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1,
+        "MAY": 1,
+        "MUST NOT": 1
+      },
+      "digest": "4165d260cb2fce843fa9d03836c0ec05841de9dd340b1a1bee964d8421d8e5f6"
+    },
+    {
+      "id": "core 8.4",
+      "document": "core",
+      "section": "Extensions and forward compatibility",
+      "summary": "Extensions MUST NOT change the validity of a record under this specification unless they are li…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1
+      },
+      "digest": "5df1ce16e772c34228f84757473e25ef03d81b26207c89781ffe0fa20d4f59ee"
+    },
+    {
+      "id": "core 8.5",
+      "document": "core",
+      "section": "Extensions and forward compatibility",
+      "summary": "Within major version `\"1\"`, later revisions MAY add OPTIONAL members. A member whose being igno…",
+      "level": "MUST",
+      "keywords": {
+        "MAY": 1,
+        "OPTIONAL": 1,
+        "MUST": 1
+      },
+      "digest": "63e208722ae9a36aa05ee5973b9e4d7a83dbf2a651e9075811620fd4a33b54e0"
+    },
+    {
+      "id": "core 9.1",
+      "document": "core",
+      "section": "Time",
+      "summary": "Implementations MUST tolerate clock skew of up to 300 seconds when checking whether a record is…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "da2aa3c4c360d9a7346fe89b9db6ef6522db0f67f90c42d7379b8ca64fc1780e"
+    },
+    {
+      "id": "core 9.2",
+      "document": "core",
+      "section": "Time",
+      "summary": "`created`, in a record or in a proof, is asserted by the signer. A signer holding a stolen, rem…",
+      "level": "none",
+      "keywords": {},
+      "digest": "a9597723e6a23f4f1075e4ed0fc438075b6df181f93c15e051c5e00865aa285b"
+    },
+    {
+      "id": "core 9.3",
+      "document": "core",
+      "section": "Time",
+      "summary": "Evaluation time. Every rule that depends on when a proof was made (key removal and compromise,…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1
+      },
+      "digest": "ff53a979278cde2ad22f5f2352d932f926826197281fe5174a2480fa4bb2cbbc"
+    },
+    {
+      "id": "core 9.4",
+      "document": "core",
+      "section": "Time",
+      "summary": "Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 2
+      },
+      "digest": "e9928f5492f9aba9c5fd7ff88007594e00a4a4b17e059de406cfc5b3ab77a5c6"
+    },
+    {
+      "id": "core 9.5",
+      "document": "core",
+      "section": "Time",
+      "summary": "Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where…",
+      "level": "none",
+      "keywords": {},
+      "digest": "727d366d8688b746d5cbbc01039208d3c6cfdc97db7cb245df84303c92d81a21"
+    },
+    {
+      "id": "core 9.6",
+      "document": "core",
+      "section": "Time",
+      "summary": "Expiry. A proof whose evaluation time is more than 300 seconds after its record's `expires` doe…",
+      "level": "none",
+      "keywords": {},
+      "digest": "e222e47f577b831d1ecfe4a7a95f685035f8db4b6fc3be147147ad1632ec6ca4"
+    },
+    {
+      "id": "core 9.7",
+      "document": "core",
+      "section": "Time",
+      "summary": "Consequence. A verifier that first sees a record long after it was made can count its proofs on…",
+      "level": "none",
+      "keywords": {},
+      "digest": "ef5234e7d42985e918787cf2767ec16274a82561666581c9b17c41b96b278517"
+    },
+    {
+      "id": "core 10.1",
+      "document": "core",
+      "section": "Media type and errors",
+      "summary": "OIP records are exchanged as `application/oip+json`.",
+      "level": "none",
+      "keywords": {},
+      "digest": "f46c5decd57836cf71c023d2b678f241fffe04854edb5710604f69753366e78e"
+    },
+    {
+      "id": "core 10.2",
+      "document": "core",
+      "section": "Media type and errors",
+      "summary": "HTTP APIs report errors as RFC 9457 problem details with a `type` of the form `urn:oip:error:`:…",
+      "level": "none",
+      "keywords": {},
+      "digest": "9cd9d85669f58a868a91295d5d4add8b4777d8b19dd741bd5bd618dcfb2561c9"
+    },
+    {
+      "id": "core 11",
+      "document": "core",
+      "section": "Record types",
+      "summary": "Record types (table)",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1
+      },
+      "digest": "d8980d550880cdd42e9b7ed63fe9b53a63c765598ac7af126231a9983be27225"
+    },
+    {
+      "id": "core 12",
+      "document": "core",
+      "section": "Security considerations",
+      "summary": "The security analysis of the protocol is in Section 8 of the technical architecture paper. Thre…",
+      "level": "none",
+      "keywords": {},
+      "digest": "e948df43800eed334937bb80263d411f2caeb17befe03b54bdad765c6b8dbc95"
+    },
+    {
+      "id": "L0 1.1",
+      "document": "L0",
+      "section": "Gateway minds and assurance",
+      "summary": "A gateway is a key-controlled mind that represents an external system on the OIP network.",
+      "level": "none",
+      "keywords": {},
+      "digest": "ce434644b888876935ce5f16b2766ecef2019e65dd880d344c59c38c09c415e6"
+    },
+    {
+      "id": "L0 1.2",
+      "document": "L0",
+      "section": "Gateway minds and assurance",
+      "summary": "For each external system it represents, a gateway creates a bridged mind: a key-controlled mind…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 2
+      },
+      "digest": "9bb198bfb7073db472dea4956c1abbededb7ead9960a6c707877a7930e137b9b"
+    },
+    {
+      "id": "L0 1.3",
+      "document": "L0",
+      "section": "Gateway minds and assurance",
+      "summary": "Assurance levels. `native`: no gateway has declared the mind bridged (the default). `bridged`:…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "267799807b0ae78fd767c037c4beae06a98383015e1b973bd9b757b5530223c2"
+    },
+    {
+      "id": "L0 1.4",
+      "document": "L0",
+      "section": "Gateway minds and assurance",
+      "summary": "Records signed by a bridged mind are statements by the gateway about the external system. Recei…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1,
+        "MUST NOT": 1
+      },
+      "digest": "8586160889c16e12c2fb3233104a05a7b4dc6fa40fb941f7443afaa6e2d725ab"
+    },
+    {
+      "id": "L0 1.5",
+      "document": "L0",
+      "section": "Gateway minds and assurance",
+      "summary": "Several gateways MAY bridge the same external system. An external system that later creates a n…",
+      "level": "SHOULD",
+      "keywords": {
+        "MAY": 1,
+        "SHOULD": 1
+      },
+      "digest": "8fbc0f3444a52d284d3685ab539fbb5389ca2257f0da32d66ebf49a3188c3c98"
+    },
+    {
+      "id": "L0 2.1",
+      "document": "L0",
+      "section": "MCP",
+      "summary": "MCP servers as participants. A gateway bridging an MCP server: - maps each tool returned by `to…",
+      "level": "MUST",
+      "keywords": {
+        "MAY": 1,
+        "SHOULD": 1,
+        "MUST NOT": 1
+      },
+      "digest": "afe5832b7aca630600e5e09e37ecf0352c08495aca6970750f684c0a64948723"
+    },
+    {
+      "id": "L0 2.2",
+      "document": "L0",
+      "section": "MCP",
+      "summary": "OIP as an MCP server. An OIP MCP server gives an MCP host a mind. It MUST expose tools with the…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 3,
+        "MAY": 1,
+        "SHOULD": 1
+      },
+      "digest": "7b1121e0b2076c58162923a0826811b741fbf3364e8e44639f0520ea88716482"
+    },
+    {
+      "id": "L0 3.1",
+      "document": "L0",
+      "section": "A2A",
+      "summary": "A2A agents as participants. A gateway bridging an A2A agent fetches its Agent Card from `/.well…",
+      "level": "none",
+      "keywords": {},
+      "digest": "6e872cbe3504cdfb686588ad718fab5571feaacd22d427604c93dc1d9f7340d4"
+    },
+    {
+      "id": "L0 3.2",
+      "document": "L0",
+      "section": "A2A",
+      "summary": "OIP minds as A2A agents. A host MAY publish an A2A Agent Card for a mind it serves, generated f…",
+      "level": "MAY",
+      "keywords": {
+        "MAY": 1
+      },
+      "digest": "31288c99609da8e0a37647280ea0fe6aa606f6e8153b6901350f24ed9a36febb"
+    },
+    {
+      "id": "L0 3.3",
+      "document": "L0",
+      "section": "A2A",
+      "summary": "OIP extension for A2A. A2A messages MAY carry a complete OIP packet as a data part with media t…",
+      "level": "MAY",
+      "keywords": {
+        "MAY": 1
+      },
+      "digest": "857dcbd803891ac5089ab92406b449803893322dcb2c1375653d0fac0a4cf8f4"
+    },
+    {
+      "id": "L0 4.1",
+      "document": "L0",
+      "section": "Identity aliases",
+      "summary": "A mind proves an alias by listing it in `alsoKnownAs` and having the alias point back (Layer 1,…",
+      "level": "none",
+      "keywords": {},
+      "digest": "bea2a0d777ac086528d68940eb954e3ad2f5c7ed98fa9660299b73eeb257ad77"
+    },
+    {
+      "id": "L0 4.2",
+      "document": "L0",
+      "section": "Identity aliases",
+      "summary": "Gateways and clients MUST verify aliases before displaying them as belonging to a mind.",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "8af429b4ba50319fc7189c5adf08e489ee45bcf4587ccdc9f7c23d4cda718071"
+    },
+    {
+      "id": "L0 5",
+      "document": "L0",
+      "section": "HTTP APIs and the web (informative)",
+      "summary": "HTTP APIs and the web (informative) (list)",
+      "level": "none",
+      "keywords": {},
+      "digest": "c20008daa575f3eed4e4813aa26bd85d7c1d45c19318f0255cd596533a167baa"
+    },
+    {
+      "id": "L0 6",
+      "document": "L0",
+      "section": "People (informative)",
+      "summary": "People (informative) (list)",
+      "level": "none",
+      "keywords": {},
+      "digest": "57717391eccff03f36c8196aae340c0965560b05df6dfe4eb34f79a41bfc4d4e"
+    },
+    {
+      "id": "L0 7",
+      "document": "L0",
+      "section": "OAuth and credentials (informative)",
+      "summary": "OAuth and credentials (informative) (list)",
+      "level": "none",
+      "keywords": {},
+      "digest": "9e5e6ff89cb6ce5d84f193be0c1348f2121005213af015294b89311d78a9247d"
+    },
+    {
+      "id": "L0 8",
+      "document": "L0",
+      "section": "Payments (informative)",
+      "summary": "Payments (informative) (table)",
+      "level": "none",
+      "keywords": {},
+      "digest": "551478817be92889a09c110a731c10ea36b1051f7132505e7ccbabce2b5397d0"
+    },
+    {
+      "id": "L0 9",
+      "document": "L0",
+      "section": "ActivityStreams (informative)",
+      "summary": "ActivityStreams (informative) (table)",
+      "level": "none",
+      "keywords": {},
+      "digest": "78e7297bdff8c9bbf0ba89b8df68ebe8dc7f064469a5d1c1963ae8b0140ad55a"
+    },
+    {
+      "id": "L1 1",
+      "document": "L1",
+      "section": "Overview",
+      "summary": "Every mind has an identity log (who it is), a location record (where it is), a Participant prof…",
+      "level": "none",
+      "keywords": {},
+      "digest": "d901b9a525320070f9505192c06bc81b4a1f467b76a0434d7762e0520b67502f"
+    },
+    {
+      "id": "L1 2.1",
+      "document": "L1",
+      "section": "Mind addresses: the `did:oip` method",
+      "summary": "The DID method name is `oip`. The method-specific identifier is a content ID (core, Section 3).",
+      "level": "none",
+      "keywords": {},
+      "digest": "c53fd7fce1c9f12a251b25ee4132625e5b96666e0b0cc94114a7734793eda993"
+    },
+    {
+      "id": "L1 2.2",
+      "document": "L1",
+      "section": "Mind addresses: the `did:oip` method",
+      "summary": "A mind's address is `did:oip:` followed by the content ID of the mind's `Genesis` event.",
+      "level": "none",
+      "keywords": {},
+      "digest": "b30e16660f5ba6bd27b7f5c2a93cd4147814fc83f0e8517571b909f35c1cb66e"
+    },
+    {
+      "id": "L1 2.3",
+      "document": "L1",
+      "section": "Mind addresses: the `did:oip` method",
+      "summary": "Create is the creation of a `Genesis` event. Read is the replay of the identity log (Section 4)…",
+      "level": "none",
+      "keywords": {},
+      "digest": "9d5ca3d89feb80f2f276dcbd58f3fa05f4372c57bc5258f6b75364d02113cd22"
+    },
+    {
+      "id": "L1 2.4",
+      "document": "L1",
+      "section": "Mind addresses: the `did:oip` method",
+      "summary": "Resolution MUST support the DID parameter `versionId`, whose value is a `version-id` (core, Sec…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "590daa1fac16da65dee33c55c9312917847c306abbc532e47a0c3c2027a49932"
+    },
+    {
+      "id": "L1 3.1",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "An identity log is an ordered array of events. The first is a `Genesis`; each later event is an…",
+      "level": "none",
+      "keywords": {},
+      "digest": "93e145f3540fe42b848e7333eff95d984da8da14ba40035b151728e70f1f712d"
+    },
+    {
+      "id": "L1 3.2",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "Common fields of later events. Every event after the genesis MUST contain `mind` (the address),…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1,
+        "MUST NOT": 2
+      },
+      "digest": "3ad2db1d11f7753f26ba3f39dd91c5b3a5d7b492eff478cc91d2231082aa4be7"
+    },
+    {
+      "id": "L1 3.3",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "Version identifiers. The version identifier of an event is `-`, with `seq` = 0 for the genesis.",
+      "level": "none",
+      "keywords": {},
+      "digest": "641645e50626eee5051b8e6a1eefd846b21cdbd1960f26d34a0ca235d27ff460"
+    },
+    {
+      "id": "L1 3.4",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "Controllers. A mind is either key-controlled or member-controlled, fixed at genesis: every late…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 2,
+        "OPTIONAL": 1
+      },
+      "digest": "69db7d2cc81a4db9e3b17b5bb121cec8050f13143db0ac17d804823adb263ef7"
+    },
+    {
+      "id": "L1 3.5",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "Key entries. Three key sets appear at the top level of events, each as an array of objects `{ \"…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1
+      },
+      "digest": "dc409d28b15b1bf9e30a9a6e40af011c607953f432bbdd5fcc6d2ceaf25fad7e"
+    },
+    {
+      "id": "L1 3.6",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "`Genesis`. | Member | Required | Value | |---|---|---| | `oip`, `type`, `created`, `proof` | ye…",
+      "level": "MUST",
+      "keywords": {
+        "SHOULD": 1,
+        "MUST": 1,
+        "MUST NOT": 1
+      },
+      "digest": "ff44539210512945964f788f81546aa471df6dc1eb21465c4bcbb6a5f98740f6"
+    },
+    {
+      "id": "L1 3.7",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "`Update`. In addition to the common fields of 3.2: `controller` (REQUIRED for key-controlled mi…",
+      "level": "MUST",
+      "keywords": {
+        "REQUIRED": 1,
+        "OPTIONAL": 1
+      },
+      "digest": "dc509cd3908e03075dc00f4aa14a74e51cd4682665c693cebe9174634faffc38"
+    },
+    {
+      "id": "L1 3.8",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "`Fork`. In addition to the common fields: `child` (REQUIRED, the address of the child mind), `c…",
+      "level": "MUST",
+      "keywords": {
+        "REQUIRED": 1,
+        "OPTIONAL": 1
+      },
+      "digest": "18a1b0102776052569a4d9d5c4530332c5e06851f634b77189c4b8278804cde2"
+    },
+    {
+      "id": "L1 3.9",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "`Merge` is reserved. A verifier of this revision MUST reject a log that contains a `Merge` even…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "a09e8717a7d89c3a0c3dd3079989e7e231cdb8b3ff89856049e309e259b76a9a"
+    },
+    {
+      "id": "L1 3.10",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "`Retire`. In addition to the common fields: `controller` (as in 3.7, with `next` empty for key-…",
+      "level": "MAY",
+      "keywords": {
+        "OPTIONAL": 2
+      },
+      "digest": "9db85ed5aec582359bc57b2fd9262781786c1a98fe4118c4a1bfe3e6a03da80b"
+    },
+    {
+      "id": "L1 3.11",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "Identity events are signed with `proofPurpose` `capabilityInvocation`. Proofs by control keys u…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "c979b058845dfdef61906762c00d3bd1145c52594fc177c3e8e637ced6ef8eb5"
+    },
+    {
+      "id": "L1 3.12",
+      "document": "L1",
+      "section": "Identity-log events",
+      "summary": "Reserved names. The member name `recovery` is reserved in identity events for key recovery in a…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "f69868901201c92ab81c3da7892f13c7a8414bc1431120dd217345346abbc2c8"
+    },
+    {
+      "id": "L1 4",
+      "document": "L1",
+      "section": "Verifying an identity log",
+      "summary": "A verifier MUST reject a log unless all of the following hold.",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "f8b7f1260d501f3236f8b242618d22c51f5f346e3a3b1ace996fd25709e907f8"
+    },
+    {
+      "id": "L1 4.1",
+      "document": "L1",
+      "section": "Verifying an identity log",
+      "summary": "Genesis. The first event has `type` `Genesis` and no `mind`, `seq` or `prev`, and its controlle…",
+      "level": "none",
+      "keywords": {},
+      "digest": "530f8041ca13036ec5c6bc4d436b54a5abea0a0285269569c890685865dcf8ac"
+    },
+    {
+      "id": "L1 4.2",
+      "document": "L1",
+      "section": "Verifying an identity log",
+      "summary": "Chain. Every later event has `mind` equal to the address, `seq` equal to the previous `seq` plu…",
+      "level": "none",
+      "keywords": {},
+      "digest": "38ca9d145fcc1eadf3cc73e23ea14f8aa4849b5acb83cfef81e7bda4c4e11a60"
+    },
+    {
+      "id": "L1 4.3",
+      "document": "L1",
+      "section": "Verifying an identity log",
+      "summary": "Key-controlled authority. For each later event `e` with predecessor state `S`: `e.controller` s…",
+      "level": "none",
+      "keywords": {},
+      "digest": "fc0344c154769a1cd8881fe48fd8a5a42e64f34305ddfa3e353a21abac0a20cf"
+    },
+    {
+      "id": "L1 4.4",
+      "document": "L1",
+      "section": "Verifying an identity log",
+      "summary": "Member-controlled authority. For each later event `e` with predecessor state `S`: at least `S.t…",
+      "level": "none",
+      "keywords": {},
+      "digest": "79665df613870e02157f219bac029cf91f254371fe2546c6db1cdad9a59bf270"
+    },
+    {
+      "id": "L1 4.5",
+      "document": "L1",
+      "section": "Verifying an identity log",
+      "summary": "Fields. `keys`, `invocation`, `agreement`, `homes` and `alsoKnownAs` replace the state's values…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 2
+      },
+      "digest": "3c321ad712a96918878eabcbcf176a5d9457316d2048b71491f0a59efeadc459"
+    },
+    {
+      "id": "L1 4.6",
+      "document": "L1",
+      "section": "Verifying an identity log",
+      "summary": "Types and termination. Every event's `type` is checked: the first is `Genesis` and every later…",
+      "level": "none",
+      "keywords": {},
+      "digest": "9d6d2e6d496a93520e9db0f4c113100e8d1cb8a008bc1850974e6c7642ec68ea"
+    },
+    {
+      "id": "L1 4.7",
+      "document": "L1",
+      "section": "Verifying an identity log",
+      "summary": "Nesting and work. Verifying a member's proof requires verifying that member's own log. The heig…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 3,
+        "MAY": 1
+      },
+      "digest": "bb9693e3d7a1e601c30dfde6898bde986942b7bae72ee573516c4d9ce5aaa16f"
+    },
+    {
+      "id": "L1 5.1",
+      "document": "L1",
+      "section": "Identity state and the DID document",
+      "summary": "Replaying a log produces the identity state: address, kind, controller state (`next` and `nextT…",
+      "level": "none",
+      "keywords": {},
+      "digest": "ca76e7322d33fb8e8e50c6c3441a72c8eece2850563a9e0d96be20e5994d1929"
+    },
+    {
+      "id": "L1 5.2",
+      "document": "L1",
+      "section": "Identity state and the DID document",
+      "summary": "DID document. Resolving a `did:oip` address produces a DID Core document: - `id`: the address.…",
+      "level": "none",
+      "keywords": {},
+      "digest": "7bdfd4f2be4319b7887a91e9d5249f254710339c023bd9146c768aa638876626"
+    },
+    {
+      "id": "L1 5.3",
+      "document": "L1",
+      "section": "Identity state and the DID document",
+      "summary": "Aliases. An entry in `alsoKnownAs` is verified only when the alias points back to the mind: ano…",
+      "level": "MUST",
+      "keywords": {
+        "MAY": 1,
+        "MUST NOT": 1
+      },
+      "digest": "423a54ed18dd55af2781df9f11f0fc0af97987035e0d8a59a2825f592683b9db"
+    },
+    {
+      "id": "L1 6.1",
+      "document": "L1",
+      "section": "Key validity",
+      "summary": "A proof `p` on a record of type `T`, whose verification method is `did:oip:X?versionId=V#K`, is…",
+      "level": "none",
+      "keywords": {},
+      "digest": "4ddde4d78ab1ddf31d02a03b33d0f808ed146a281fc95bd4270f6c5ffb950969"
+    },
+    {
+      "id": "L1 6.2",
+      "document": "L1",
+      "section": "Key validity",
+      "summary": "Removing a key stops it signing anything new while leaving what it signed earlier valid, provid…",
+      "level": "none",
+      "keywords": {},
+      "digest": "4d4cce80ef70138aa5ff5df7b8b64194bfaefbcbc693655f0f320dff9b8a783c"
+    },
+    {
+      "id": "L1 6.3",
+      "document": "L1",
+      "section": "Key validity",
+      "summary": "When a verifier encounters a `versionId` it does not have, it SHOULD fetch the missing events f…",
+      "level": "MUST",
+      "keywords": {
+        "SHOULD": 1,
+        "MUST": 1
+      },
+      "digest": "7cf5e42804ba1d42c347fda1d52cea8bb8ac127e37c202e657145494f3341885"
+    },
+    {
+      "id": "L1 6.4",
+      "document": "L1",
+      "section": "Key validity",
+      "summary": "Member proofs on identity events. A proof `p` by member `M` on another mind's identity event `e…",
+      "level": "none",
+      "keywords": {},
+      "digest": "0aad195cfbb9cea4077ed91c0fe6c40bec5cbd612ea0705c4752d0cbff870dda"
+    },
+    {
+      "id": "L1 7.1",
+      "document": "L1",
+      "section": "Duplicity",
+      "summary": "Two events with different content IDs in logs with the same genesis, at the same `seq`, each va…",
+      "level": "none",
+      "keywords": {},
+      "digest": "00f1a3bca9246fbd35cc2b2e7a5632a020e018b26cc42c727ea1b1b78dbfa583"
+    },
+    {
+      "id": "L1 7.2",
+      "document": "L1",
+      "section": "Duplicity",
+      "summary": "Resolvers MUST retain the first valid event they saw at each position of each log, MUST record…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 3
+      },
+      "digest": "45f8fba66bf2de2ffbd1e93d364ee2ea1843c90b446077f7135bfb6439644a45"
+    },
+    {
+      "id": "L1 7.3",
+      "document": "L1",
+      "section": "Duplicity",
+      "summary": "Resolution. A verifier MUST NOT choose between conflicting branches by their length or by which…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 2
+      },
+      "digest": "3868ec52c7ae4108ca2dc0baba7a4bd0662040afc180ed48cb2cacae8365efba"
+    },
+    {
+      "id": "L1 7.4",
+      "document": "L1",
+      "section": "Duplicity",
+      "summary": "Protecting the log. Implementations MUST destroy a control key's private part once the event it…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1,
+        "SHOULD": 1,
+        "MAY": 1
+      },
+      "digest": "0b7f21b83d4815286f0c4684d9d716198eb2d264c617e2341827020f25a75e15"
+    },
+    {
+      "id": "L1 8.1",
+      "document": "L1",
+      "section": "Lineage",
+      "summary": "A fork is a new mind whose genesis lists a parent in `parents`, with `at` naming the version of…",
+      "level": "none",
+      "keywords": {},
+      "digest": "a2d898a37a1edc9f58e919d39eda98b6e9db8dbdfec38985111fd73ce59d07cf"
+    },
+    {
+      "id": "L1 8.2",
+      "document": "L1",
+      "section": "Lineage",
+      "summary": "Lineage is acknowledged when the child's `at` names a version of the parent and either the pare…",
+      "level": "none",
+      "keywords": {},
+      "digest": "b38e2d3e7e077c378ebfcb94450af579bedf55c08ca2fb9565a26a27d7ae97df"
+    },
+    {
+      "id": "L1 8.3",
+      "document": "L1",
+      "section": "Lineage",
+      "summary": "A `Lineage` record acknowledges a child without using the parent's control keys: | Member | Req…",
+      "level": "none",
+      "keywords": {},
+      "digest": "12f6d5ff62a913966334c69a1f73ef1f099719407ac123d6949af92419b71b66"
+    },
+    {
+      "id": "L1 8.4",
+      "document": "L1",
+      "section": "Lineage",
+      "summary": "A fork does not inherit its parent's operational keys, delegations, commitments or sessions.",
+      "level": "none",
+      "keywords": {},
+      "digest": "5de55e61c6160962e53dfad64aa92e444a60a2a6da1cfffbded838cb6336f833"
+    },
+    {
+      "id": "L1 8.5",
+      "document": "L1",
+      "section": "Lineage",
+      "summary": "Merges are reserved (Section 3.9).",
+      "level": "none",
+      "keywords": {},
+      "digest": "eeeaffba778759f1184f77750dbb6d7405adc663155094967752cb94a73bb998"
+    },
+    {
+      "id": "L1 9.1",
+      "document": "L1",
+      "section": "Collectives",
+      "summary": "A collective is a mind with a member controller.",
+      "level": "none",
+      "keywords": {},
+      "digest": "2f3895ff262fc740f1d69f465b7ed488fc62bd28057a382e8211b727c62f1c54"
+    },
+    {
+      "id": "L1 9.2",
+      "document": "L1",
+      "section": "Collectives",
+      "summary": "Genesis consent. Every founding member MUST sign the genesis with one of its own invocation key…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 3,
+        "MUST NOT": 1
+      },
+      "digest": "1869c0cb1a28ac4ce5c008f7cc844e709959695152134cacc11d8e5458018827"
+    },
+    {
+      "id": "L1 9.3",
+      "document": "L1",
+      "section": "Collectives",
+      "summary": "Changes. Later identity events require the threshold of current members, plus every newly added…",
+      "level": "none",
+      "keywords": {},
+      "digest": "626aed55eb59212ce2ad7bcb9e96023c7fabd5f397d0cbec7c4fbc8cc7772d6f"
+    },
+    {
+      "id": "L1 9.4",
+      "document": "L1",
+      "section": "Collectives",
+      "summary": "Members sign with their own keys. A member signs a collective's identity events with its own in…",
+      "level": "none",
+      "keywords": {},
+      "digest": "3d1ea3ac137ebc1ae5317319d8126531c0de0ae3926a06bd1ee23432511089cf"
+    },
+    {
+      "id": "L1 9.5",
+      "document": "L1",
+      "section": "Collectives",
+      "summary": "Acting as one. The state of a collective at time `T` is its identity state after the last event…",
+      "level": "MAY",
+      "keywords": {
+        "MAY": 1
+      },
+      "digest": "6c1944be9e4e614a5aef23eb25b601095544ec8a828ec5bfa952258deb64aa8d"
+    },
+    {
+      "id": "L1 9.6",
+      "document": "L1",
+      "section": "Collectives",
+      "summary": "Keeping a collective verifiable. Unlike control keys, which sign once and are destroyed, member…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1,
+        "SHOULD": 2
+      },
+      "digest": "bacff6b2a590af1c7d0d7387c7ec036c05cde7e4e81a7df2b8166abd01b29f7b"
+    },
+    {
+      "id": "L1 10.1",
+      "document": "L1",
+      "section": "Feeds and checkpoints",
+      "summary": "A mind's public feed is a sequence of `Entry` records: | Member | Required | Value | |---|---|-…",
+      "level": "none",
+      "keywords": {},
+      "digest": "96aa19d03ccdcb6278da1d4bd1e6ff0c8e5c8bc7ec452b816281552629fb6088"
+    },
+    {
+      "id": "L1 10.2",
+      "document": "L1",
+      "section": "Feeds and checkpoints",
+      "summary": "A feed MAY list records authored by other minds, such as Commitments the mind is a party to, th…",
+      "level": "MUST",
+      "keywords": {
+        "MAY": 2,
+        "MUST": 1
+      },
+      "digest": "5cdebce7a563716f2249d80511c384cddc03f03eddbdd669bf4af9cb9516245a"
+    },
+    {
+      "id": "L1 10.3",
+      "document": "L1",
+      "section": "Feeds and checkpoints",
+      "summary": "A feed has a single writer at a time: a mind that runs several instances coordinates them so th…",
+      "level": "none",
+      "keywords": {},
+      "digest": "72cd74b89963b979b58cfed71def4cb6b6a9fa315d9a9939879e63b95235623b"
+    },
+    {
+      "id": "L1 10.4",
+      "document": "L1",
+      "section": "Feeds and checkpoints",
+      "summary": "After an operational key is revoked with a compromise time, entries it signed whose evaluation…",
+      "level": "none",
+      "keywords": {},
+      "digest": "a9711f8625b30fd08a070d3d5aadb1475be2b62d3cf7b98f1ecc60b37af57a88"
+    },
+    {
+      "id": "L1 10.5",
+      "document": "L1",
+      "section": "Feeds and checkpoints",
+      "summary": "A `Checkpoint` has `author`, `created`, `size` (the number of entries covered, from `seq` 0), `…",
+      "level": "none",
+      "keywords": {},
+      "digest": "5e5d7741aa15f697927fac4103ff78d357bf82fdcab2b93aac5d7c6587c0dd25"
+    },
+    {
+      "id": "L1 10.6",
+      "document": "L1",
+      "section": "Feeds and checkpoints",
+      "summary": "A checkpoint MAY be anchored in a public append-only log or in the Bitcoin blockchain through O…",
+      "level": "MAY",
+      "keywords": {
+        "MAY": 1
+      },
+      "digest": "8ccd2b5bf814c6ec4f09a7e8623b53717c352b374b27169f4de566968299a1f5"
+    },
+    {
+      "id": "L1 11.1",
+      "document": "L1",
+      "section": "Delegation and revocation",
+      "summary": "A `Delegation` record: | Member | Required | Value | UCAN 1.0 | |---|---|---|---| | `author` |…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "1cd9780b419313aa983a02365aaf6fb4f13969299c20694512ff2a34985b0e63"
+    },
+    {
+      "id": "L1 11.2",
+      "document": "L1",
+      "section": "Delegation and revocation",
+      "summary": "Commands match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` covers a command `c` when…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1
+      },
+      "digest": "b80da0fd0e24e34b8f2dfa8bb443d9a8a8445dd67c342433e135d46b47ea5f8f"
+    },
+    {
+      "id": "L1 11.3",
+      "document": "L1",
+      "section": "Delegation and revocation",
+      "summary": "Policies. A policy is an array of at most 64 statements, all of which must hold for the record…",
+      "level": "SHOULD",
+      "keywords": {
+        "SHOULD": 2
+      },
+      "digest": "5d0df494615d355d577533652c60c58be640778859c1e1d17f01cfda367f2c73"
+    },
+    {
+      "id": "L1 11.4",
+      "document": "L1",
+      "section": "Delegation and revocation",
+      "summary": "Validity of a delegation chain for a record `r` carrying a proof `p` by a valid operational key…",
+      "level": "none",
+      "keywords": {},
+      "digest": "e862a1b7809172129654b74ebb88f1dcc90337e42cb5fa82905e3421fc50a65a"
+    },
+    {
+      "id": "L1 11.5",
+      "document": "L1",
+      "section": "Delegation and revocation",
+      "summary": "A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco…",
+      "level": "SHOULD",
+      "keywords": {
+        "SHOULD": 3
+      },
+      "digest": "e5b1f36335c7a8d1d2d20a9f69dee750cfbdd6424814863b1fc0bf63405270fe"
+    },
+    {
+      "id": "L1 11.6",
+      "document": "L1",
+      "section": "Delegation and revocation",
+      "summary": "Use. A proof that relies on delegation lists, in its own `authority` member (core 5.2), exactly…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1,
+        "SHOULD": 1
+      },
+      "digest": "6555951429d489d77247e775eebe25abb704e327b1b59e1639c7a58e93a77206"
+    },
+    {
+      "id": "L1 12.1",
+      "document": "L1",
+      "section": "Packets and sealing",
+      "summary": "A `Packet`: | Member | Required | Value | |---|---|---| | `from` | yes | Sender's address; the…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "abf18b81912939d98e500bdf0bb9de0ae74862253146009a40b6c5135958c794"
+    },
+    {
+      "id": "L1 12.2",
+      "document": "L1",
+      "section": "Packets and sealing",
+      "summary": "Content. Exactly one of: - `{ \"mediaType\": , \"body\": }`. With `application/oip+json`, `body` is…",
+      "level": "MUST",
+      "keywords": {
+        "REQUIRED": 1
+      },
+      "digest": "77739eaabd94624aef89c4d1c92cbf434f328cbe1ed43384c497caabcb7666e5"
+    },
+    {
+      "id": "L1 12.3",
+      "document": "L1",
+      "section": "Packets and sealing",
+      "summary": "Verbs (advisory): `inform`, `request`, `query`, `propose`, `accept`, `decline`, `deliver`, `ack…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1
+      },
+      "digest": "c59c9b07eba593cd0edd836c135ffee5c892e08d4ded3d3832ac44f2938ad771"
+    },
+    {
+      "id": "L1 12.4",
+      "document": "L1",
+      "section": "Packets and sealing",
+      "summary": "Receiving. A receiver MUST verify the packet's proof and, if `to` lists addresses, that it is o…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 6,
+        "MAY": 1
+      },
+      "digest": "03810918b77c8ece8988f0df6039a4af7c2a14b15b0c1417d307dbff0ff99cc4"
+    },
+    {
+      "id": "L1 12.5",
+      "document": "L1",
+      "section": "Packets and sealing",
+      "summary": "Treat content as data. Receivers MUST NOT treat the content of a packet as conferring authority…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1
+      },
+      "digest": "54026b175a8e0225852f56659d4d154197cbe72b08915d8ba9183db549426449"
+    },
+    {
+      "id": "L1 12.6",
+      "document": "L1",
+      "section": "Packets and sealing",
+      "summary": "`Sealed`. To send a packet privately, the sender encrypts it to one of the recipient's agreemen…",
+      "level": "SHOULD",
+      "keywords": {
+        "SHOULD": 2
+      },
+      "digest": "deff633b80c095b0b51a8da3d4ee7f7758c1dcfe12c3ba89c614a0240008f38d"
+    },
+    {
+      "id": "L1 13.1",
+      "document": "L1",
+      "section": "Bindings",
+      "summary": "Well-known resources. A host serving mind `M` (with content ID `m`) MUST serve: - `GET /.well-k…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 2,
+        "MAY": 3
+      },
+      "digest": "d3be1fa63fe19f9dbb094f41114ad947789a02178229a216f40fc96f77bce9fd"
+    },
+    {
+      "id": "L1 13.2",
+      "document": "L1",
+      "section": "Bindings",
+      "summary": "Inbox and acknowledgement. `POST {endpoint}/inbox` with a body of a `Packet` or `Sealed` record…",
+      "level": "SHOULD",
+      "keywords": {
+        "MAY": 1,
+        "SHOULD": 1
+      },
+      "digest": "d9e7626f068f4b034522f815e09c36bbb1b45ec211c94c58e18cb627fab18a8c"
+    },
+    {
+      "id": "L1 13.3",
+      "document": "L1",
+      "section": "Bindings",
+      "summary": "Authentication. - A `Hello` record `{ \"oip\": \"1\", \"type\": \"Hello\", \"author\": , \"created\": , \"pr…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 4,
+        "MUST NOT": 1
+      },
+      "digest": "e36b542648a0a386d0b191ab5424001610f485035fa5037f8dafb42482f2d81f"
+    },
+    {
+      "id": "L1 13.4",
+      "document": "L1",
+      "section": "Bindings",
+      "summary": "WebSocket. A client opens the WebSocket URL given by the mind's location record (Section 15.1)…",
+      "level": "none",
+      "keywords": {},
+      "digest": "867a4b52ea6d24ca4674a8ed55cba9bb04167dcebdac147c142185aa727eafcc"
+    },
+    {
+      "id": "L1 13.5",
+      "document": "L1",
+      "section": "Bindings",
+      "summary": "Mailbox. A mailbox endpoint accepts `POST {mailbox}` with a `Sealed` or `Packet` record and ret…",
+      "level": "SHOULD",
+      "keywords": {
+        "SHOULD": 1
+      },
+      "digest": "c65cde3b714b5c65ddf6cb151e836727999f5b79b22aaa7ef04dbfca91380910"
+    },
+    {
+      "id": "L1 13.6",
+      "document": "L1",
+      "section": "Bindings",
+      "summary": "Further bindings (DIDComm, libp2p, iroh, NATS, MQTT) are reserved for later revisions. Every bi…",
+      "level": "none",
+      "keywords": {},
+      "digest": "dfc7b39d58054f0b62cc1d5888c1f92d22c6053a3ef33b968a02eddcc49611a1"
+    },
+    {
+      "id": "L1 14.1",
+      "document": "L1",
+      "section": "Sessions",
+      "summary": "A `Session` record is unsigned: `{ \"oip\": \"1\", \"type\": \"Session\", \"participants\": [addresses, s…",
+      "level": "none",
+      "keywords": {},
+      "digest": "7da1b641d58664082e89511a81f07d9af7671f128f4a3b59f34ebd6debb3f14d"
+    },
+    {
+      "id": "L1 14.2",
+      "document": "L1",
+      "section": "Sessions",
+      "summary": "The first packet each participant sends in a session MUST include the `Session` record in its `…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "1e41dabb9246b69564d225433ffa64b5f66a83226e941b68b029392c9f7e831b"
+    },
+    {
+      "id": "L1 14.3",
+      "document": "L1",
+      "section": "Sessions",
+      "summary": "Each sending chain in a session is identified by the sender's address and its `instance` (absen…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1,
+        "MUST NOT": 1,
+        "SHOULD": 1
+      },
+      "digest": "f1fea8fdb57791ab9b02b64a24f5babf72946252ca6475c42bc079de2ed1c785"
+    },
+    {
+      "id": "L1 14.4",
+      "document": "L1",
+      "section": "Sessions",
+      "summary": "`Resume` (the content of a packet with verb `resume`): `{ \"oip\": \"1\", \"type\": \"Resume\", \"sessio…",
+      "level": "none",
+      "keywords": {},
+      "digest": "8e952edcaf58ae58d23e7106c92251938c4efda62ac5b6f6ca171c27afa4f4e9"
+    },
+    {
+      "id": "L1 14.5",
+      "document": "L1",
+      "section": "Sessions",
+      "summary": "`Branch` (the content of a packet with verb `branch`): `{ \"oip\": \"1\", \"type\": \"Branch\", \"parent…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1,
+        "MAY": 1
+      },
+      "digest": "a5d00f3b110c6a0f5728a5734ad65ec00cc49851b88351e62d57d611232290e2"
+    },
+    {
+      "id": "L1 15.1",
+      "document": "L1",
+      "section": "Location records",
+      "summary": "A `Location` record: | Member | Required | Value | |---|---|---| | `author` | yes | The mind |…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "4c29f1cd2f6dee7e4296c541376847fa1dd34fa85e0c53c4349b91941c33a572"
+    },
+    {
+      "id": "L1 15.2",
+      "document": "L1",
+      "section": "Location records",
+      "summary": "Among the location records of a mind whose proofs are valid under the current-state rule (Secti…",
+      "level": "SHOULD",
+      "keywords": {
+        "MAY": 1,
+        "SHOULD": 1
+      },
+      "digest": "411b5c61e1aa43d04444f18e66d6cc7245d29f4037197e2ff149e98cfcbf49f3"
+    },
+    {
+      "id": "L1 15.3",
+      "document": "L1",
+      "section": "Location records",
+      "summary": "Senders SHOULD try endpoints in priority order and SHOULD use `mailbox` endpoints when no other…",
+      "level": "SHOULD",
+      "keywords": {
+        "SHOULD": 2
+      },
+      "digest": "83be3e9515daa2711219e4063da3d77a2be44c2c77bad599b2de76f1b56229d8"
+    },
+    {
+      "id": "L1 15.4",
+      "document": "L1",
+      "section": "Location records",
+      "summary": "Changing hosts. Anyone holding one of the mind's operational keys can publish location records…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1,
+        "SHOULD": 1
+      },
+      "digest": "8faacf648f9b7b0b568caa99dd376e0ce0f8ebc6aa5e7e3b7f2bcfe87a8ba6f5"
+    },
+    {
+      "id": "L1 16.1",
+      "document": "L1",
+      "section": "Participant profiles",
+      "summary": "A `Participant` record: | Member | Required | Value | |---|---|---| | `author` | yes | The mind…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "1dd1390bf5cc5c67486b475f622d0cd9a9414d61f42c4a24a585595a5bcb80da"
+    },
+    {
+      "id": "L1 16.2",
+      "document": "L1",
+      "section": "Participant profiles",
+      "summary": "A capability object: `id` (REQUIRED, at most 128 characters, unique within the profile), `summa…",
+      "level": "MUST",
+      "keywords": {
+        "REQUIRED": 2,
+        "OPTIONAL": 1
+      },
+      "digest": "f3d214d642713e1d665b948e10d69f98f9ea44c13978cee9574becb2db821217"
+    },
+    {
+      "id": "L1 16.3",
+      "document": "L1",
+      "section": "Participant profiles",
+      "summary": "Tag namespaces include `oasf` (the OASF skills and domains taxonomy), `domain`, `lang` (BCP 47)…",
+      "level": "none",
+      "keywords": {},
+      "digest": "c7677bed77e1c4b93c6c3d9d3be72be2792bc47543d0fe4dbc8f8a69204ee558"
+    },
+    {
+      "id": "L1 16.4",
+      "document": "L1",
+      "section": "Participant profiles",
+      "summary": "The current profile is the one referenced by the current location record; failing that, the mos…",
+      "level": "none",
+      "keywords": {},
+      "digest": "4b8de4d9c2562e8791273d090e84c9cc4174e8e7de6d2481f7f7962751190a35"
+    },
+    {
+      "id": "L1 17.1",
+      "document": "L1",
+      "section": "Resolvers",
+      "summary": "A resolver MUST implement: - `GET /oip/v1/resolve/`: returns a `Bundle` (13.1) with the log it…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "f1ad0caeee30dbb0b8a006ea527f6fdf5285a060da9acb131d8abda9dd1201cf"
+    },
+    {
+      "id": "L1 17.2",
+      "document": "L1",
+      "section": "Resolvers",
+      "summary": "A resolver MUST verify every record before storing or serving it, evaluating proofs at the time…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 3,
+        "MUST NOT": 1,
+        "MAY": 1
+      },
+      "digest": "d9873a360ef64554eef832cba9572f981993efd77e0bb58dec5b743eaa9d4a22"
+    },
+    {
+      "id": "L1 17.3",
+      "document": "L1",
+      "section": "Resolvers",
+      "summary": "Resolvers MAY require authenticated publication (13.3) and MAY rate-limit.",
+      "level": "MAY",
+      "keywords": {
+        "MAY": 2
+      },
+      "digest": "86a07beddbcdf741df9100f605f2a2b3a2353c3be610bbfb4e0d0865f9a71812"
+    },
+    {
+      "id": "L1 18.1",
+      "document": "L1",
+      "section": "Indexers and capability routing",
+      "summary": "An indexer MUST implement: - `POST /oip/v1/submit` with body `{ \"records\": [ … ] }` containing…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1,
+        "MAY": 1
+      },
+      "digest": "5dc347e328fc104082fd717401df055c573e89694a65bdf64088bbcb8b270caf"
+    },
+    {
+      "id": "L1 18.2",
+      "document": "L1",
+      "section": "Indexers and capability routing",
+      "summary": "A capability query is an object whose members are all optional: `want` (free text, at most 1024…",
+      "level": "none",
+      "keywords": {},
+      "digest": "bb3fce2abd96f153759456aa63201f6a1d8a5687c7d1c9dfecbb80057a813a54"
+    },
+    {
+      "id": "L1 18.3",
+      "document": "L1",
+      "section": "Indexers and capability routing",
+      "summary": "A `QueryResult`: `{ \"oip\": \"1\", \"type\": \"QueryResult\", \"author\": , \"created\": , \"query\": , \"res…",
+      "level": "none",
+      "keywords": {},
+      "digest": "befc67f5e9bf061620bbe891e54fa2dfcac567cb93023cd09dd143cf211355ea"
+    },
+    {
+      "id": "L1 18.4",
+      "document": "L1",
+      "section": "Indexers and capability routing",
+      "summary": "Clients MUST fetch and verify the records named in results before acting on them. Ranking is th…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "26b70e34a9f461b46f8c3ad8068f08651b153b0717bed852dcbbc206a54eb4e6"
+    },
+    {
+      "id": "L1 18.5",
+      "document": "L1",
+      "section": "Indexers and capability routing",
+      "summary": "Brokered delivery. An indexer MAY accept `POST {endpoint}/inbox` packets whose `to` is a capabi…",
+      "level": "MUST",
+      "keywords": {
+        "MAY": 1,
+        "MUST": 2
+      },
+      "digest": "544da3610b343ba76d690c431c1ce0a947eb3f960503b424b2c02b174c334458"
+    },
+    {
+      "id": "L1 19",
+      "document": "L1",
+      "section": "Limits",
+      "summary": "Limits (table)",
+      "level": "none",
+      "keywords": {},
+      "digest": "9ed03088c2a8c7932f692f7bc8655484f05ec228c5c963c0a8fe7f870c7057df"
+    },
+    {
+      "id": "L2 1.1",
+      "document": "L2",
+      "section": "Principles",
+      "summary": "The meaning of a Layer 2 record is fixed by its signed content. Implementations MUST NOT infer…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1
+      },
+      "digest": "4e912ff1e7015ec46fb67300f101a79b5d5f267c90319c5864eae25d54a86824"
+    },
+    {
+      "id": "L2 1.2",
+      "document": "L2",
+      "section": "Principles",
+      "summary": "Records are immutable. A change of state is expressed by a new record that links to the old one.",
+      "level": "none",
+      "keywords": {},
+      "digest": "3c24cc1d398be54293a322fe96ecc0de8af62b33ee69e6a06a97ac7edec77208"
+    },
+    {
+      "id": "L2 1.3",
+      "document": "L2",
+      "section": "Principles",
+      "summary": "The status of a record is computed by the functions in Section 8 from the set of records a veri…",
+      "level": "none",
+      "keywords": {},
+      "digest": "bbe84bb70d739753d66fd0d9c883286013de14e0eea8750f13e0949400387806"
+    },
+    {
+      "id": "L2 2",
+      "document": "L2",
+      "section": "Common members",
+      "summary": "Every Layer 2 record has the core common members (core, Section 7) and MAY have: | Member | Val…",
+      "level": "MUST",
+      "keywords": {
+        "MAY": 1,
+        "MUST": 1
+      },
+      "digest": "006f28f391c31ca2d7c073a4283c434bac80f81a5e29e21b0392da7229392b66"
+    },
+    {
+      "id": "L2 3",
+      "document": "L2",
+      "section": "Participant",
+      "summary": "The Participant record is defined in Layer 1, Section 16.",
+      "level": "none",
+      "keywords": {},
+      "digest": "dc755f981294d3196eb936853cacb5f3d0524b4d750b91a4cc50f048a3ac0318"
+    },
+    {
+      "id": "L2 4.1",
+      "document": "L2",
+      "section": "Intent and Offer",
+      "summary": "`Intent`: | Member | Required | Value | |---|---|---| | `want` | yes | Plain-language statement…",
+      "level": "none",
+      "keywords": {},
+      "digest": "c0013a9925a0be8f5eedfad0c34e93a3374e5936e60a9e434c01f374db3d8960"
+    },
+    {
+      "id": "L2 4.2",
+      "document": "L2",
+      "section": "Intent and Offer",
+      "summary": "`Offer`: | Member | Required | Value | |---|---|---| | `provides` | yes | Plain-language statem…",
+      "level": "MUST",
+      "keywords": {
+        "REQUIRED": 1
+      },
+      "digest": "cf04f0acdbb67854e2b896023b5d648c051e426b1b9575ca3f0f4c12210c9696"
+    },
+    {
+      "id": "L2 4.3",
+      "document": "L2",
+      "section": "Intent and Offer",
+      "summary": "Withdrawals and edits. A withdrawal is a superseding record (Section 2) with `status` `withdraw…",
+      "level": "none",
+      "keywords": {},
+      "digest": "234afe51c1815877bc4298fe118fd0d4fda8729ee0384d4d7174435aaed8773b"
+    },
+    {
+      "id": "L2 5.1",
+      "document": "L2",
+      "section": "Commitment",
+      "summary": "`Commitment`: | Member | Required | Value | |---|---|---| | `parties` | yes | 2–64 objects `{ \"…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 2,
+        "REQUIRED": 1
+      },
+      "digest": "878585e3ef07b7d294ac1b63777476b79b438fdf85d6e164a48015e7a30d3222"
+    },
+    {
+      "id": "L2 5.2",
+      "document": "L2",
+      "section": "Commitment",
+      "summary": "The `author` of a Commitment MUST be one of its parties, or a mind whose proof on it counts for…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "653c80417069f13d7e423ba8eb7b2add1635b984c437380f0e3b8e1fd4d7dc06"
+    },
+    {
+      "id": "L2 5.3",
+      "document": "L2",
+      "section": "Commitment",
+      "summary": "Additional signatures are added by appending proofs. Adding proofs does not change the content…",
+      "level": "SHOULD",
+      "keywords": {
+        "SHOULD": 1
+      },
+      "digest": "e34b3b27d7c3e1e1d61af2b72c9032130befacfd35c189274320cf6f7f3598d7"
+    },
+    {
+      "id": "L2 5.4",
+      "document": "L2",
+      "section": "Commitment",
+      "summary": "Parties bound through a delegate. A party whose proof on a Commitment counts only through a del…",
+      "level": "SHOULD",
+      "keywords": {
+        "SHOULD": 1
+      },
+      "digest": "7e04ee760ec5b26e0a5ec26ca6b309fac10b7edb9890a4613c5b22a4431f0228"
+    },
+    {
+      "id": "L2 6.1",
+      "document": "L2",
+      "section": "Receipt and Collective",
+      "summary": "`Receipt`: | Member | Required | Value | |---|---|---| | `about` | yes | `record-ref` of the re…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "2544e66123076f3b231b3b3e5eed581ab63897182b17880c6e8d277cc93b722c"
+    },
+    {
+      "id": "L2 6.2",
+      "document": "L2",
+      "section": "Receipt and Collective",
+      "summary": "`Collective` (a charter): | Member | Required | Value | |---|---|---| | `author` | yes | The co…",
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1,
+        "MUST": 1,
+        "SHOULD": 2,
+        "MAY": 1
+      },
+      "digest": "8bce8a1ebf599ba2e7541e0ddd3bb297d7a72dd729a0c6e291d165d7e3d0b0aa"
+    },
+    {
+      "id": "L2 7.1",
+      "document": "L2",
+      "section": "Signing for a party",
+      "summary": "A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an…",
+      "level": "SHOULD",
+      "keywords": {
+        "SHOULD": 1
+      },
+      "digest": "95e552e1ed1e0dcf81216cb39f7b413868dab8927e3dc3ce69985069203762e4"
+    },
+    {
+      "id": "L2 7.2",
+      "document": "L2",
+      "section": "Signing for a party",
+      "summary": "Delegable types are `Intent`, `Offer`, `Commitment` and `Receipt`. Every other signed record (i…",
+      "level": "none",
+      "keywords": {},
+      "digest": "048136123c8a67fd34552bc6e4c26e15b46682b17aecfd05957fbeaa37d30a84"
+    },
+    {
+      "id": "L2 7.3",
+      "document": "L2",
+      "section": "Signing for a party",
+      "summary": "A Commitment is accepted when it counts for its `author`, its author is a party or signs for on…",
+      "level": "none",
+      "keywords": {},
+      "digest": "cb7b19d1c65950343e65ffc85e9906a0cc5818ee41bb874976b3ce615e95b0b3"
+    },
+    {
+      "id": "L2 8",
+      "document": "L2",
+      "section": "Status",
+      "summary": "Status is computed from the records known to the verifier and the time of computation, and so c…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "4b9c653cd56ff25eb6e1c3be771fb808eabec541f47a4c810fb61fadedf96d4d"
+    },
+    {
+      "id": "L2 8.1",
+      "document": "L2",
+      "section": "Status",
+      "summary": "Intent. `withdrawn` or `satisfied` if a valid superseding Intent by the same author has that `s…",
+      "level": "none",
+      "keywords": {},
+      "digest": "0a0009e1cfda84a98016235b4291b75110120016d94a53821884826631bce206"
+    },
+    {
+      "id": "L2 8.2",
+      "document": "L2",
+      "section": "Status",
+      "summary": "Offer. `withdrawn` if a valid superseding Offer by the same author has that status; otherwise `…",
+      "level": "none",
+      "keywords": {},
+      "digest": "890de1ae93749f6ced127870c84c7ce4d1c2fdb823d15fd30fd15ed383296383"
+    },
+    {
+      "id": "L2 8.3",
+      "document": "L2",
+      "section": "Status",
+      "summary": "Commitment. Let `R` be the set of Receipts about the Commitment whose `author` is a party and t…",
+      "level": "SHOULD",
+      "keywords": {
+        "SHOULD": 1
+      },
+      "digest": "90a408589e10ee2e5f89a4604ecf7c478e3db3929852276570140d07e9c0d0d4"
+    },
+    {
+      "id": "L2 8.4",
+      "document": "L2",
+      "section": "Status",
+      "summary": "Collective charter. `dissolved` if the collective's identity log is retired; otherwise `active`.",
+      "level": "none",
+      "keywords": {},
+      "digest": "490d7b8bfe211a986a7282c89a00ff0483ab787e9092c47ea827086efae632fd"
+    },
+    {
+      "id": "L2 9",
+      "document": "L2",
+      "section": "Evidence",
+      "summary": "An evidence item is an object: | Member | Required | Value | |---|---|---| | `kind` | yes | `oi…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 1
+      },
+      "digest": "598f3d8a2f3c693e185f87ffb801a02ef3cf17b59f565e5bfbe29354e5b123ba"
+    },
+    {
+      "id": "L2 10.1",
+      "document": "L2",
+      "section": "Publication",
+      "summary": "Records MAY be published in feeds (Layer 1, Section 10), exchanged privately in packets, or bot…",
+      "level": "MAY",
+      "keywords": {
+        "MAY": 1
+      },
+      "digest": "cde70cc294dbe1ed21ef863dee2668ad499770aa8ace217cbd91fe0bfbaf1249"
+    },
+    {
+      "id": "L2 10.2",
+      "document": "L2",
+      "section": "Publication",
+      "summary": "A party to a Commitment SHOULD list it in its own feed once it has signed, with the entry commi…",
+      "level": "SHOULD",
+      "keywords": {
+        "SHOULD": 2
+      },
+      "digest": "66c78dc18b24d825df75e6bc9f956abaab25c8d1d8c2edf0a88c2430c0a114fe"
+    },
+    {
+      "id": "L2 10.3",
+      "document": "L2",
+      "section": "Publication",
+      "summary": "Backlinks (for example, which Offers answer an Intent) are computed by indexers and clients. Th…",
+      "level": "none",
+      "keywords": {},
+      "digest": "86f08bbef8c4da246ee4b578a0087d581ed5a88a4e73154bf8fdef5f1638d726"
+    },
+    {
+      "id": "L2 11.1",
+      "document": "L2",
+      "section": "Extensions",
+      "summary": "Payment terms appear in `ext` blocks under the payment rail's namespace (`x402`, `ap2`, `acp`,…",
+      "level": "none",
+      "keywords": {},
+      "digest": "47282eb65ac95e8356dd87654619d11ad9d548741c932205ca5c8d6b3b129e85"
+    },
+    {
+      "id": "L2 11.2",
+      "document": "L2",
+      "section": "Extensions",
+      "summary": "New outcomes, roles, evidence kinds and decision procedures MUST be namespaced. Records whose c…",
+      "level": "MUST",
+      "keywords": {
+        "MUST": 2
+      },
+      "digest": "ffeb86815806776318e7533149a7c1d6e667b959328a22159a36c15047ca010d"
+    }
+  ]
+}

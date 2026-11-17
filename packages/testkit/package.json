@@ -1,0 +1,14 @@
+{
+  "name": "@oip/testkit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Test helpers for the OIP reference implementation: clause citations and the specification's clause list.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

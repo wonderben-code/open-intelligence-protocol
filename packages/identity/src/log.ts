@@ -32,10 +32,12 @@ import { type Evaluation, type EvidenceView, eventTime } from "./evidence.ts";
 import { isJsonObject, no, ok, under } from "./result.ts";
 import {
   type ControllerState,
+  type AcknowledgedChild,
   entryAt,
   type IdentityState,
   type LogEntry,
   removalTime,
+  type Revocation,
   type VerifiedLog,
 } from "./state.ts";
 
@@ -207,10 +209,15 @@ function badKey(event: IdentityEvent, path: string): Validation<never> | undefin
   return undefined;
 }
 
-/** The state as an event's own members change it (Layer 1, 4.5). */
+/**
+ * The state as an event's own members change it (Layer 1, 4.5).
+ *
+ * @param revoked - Every key the log has revoked before this event.
+ */
 function applyFields(
   state: IdentityState,
   event: IdentityEvent,
+  revoked: ReadonlySet<string>,
   path: string,
 ): Validation<IdentityState> {
   const bad = badKey(event, path);
@@ -221,37 +228,31 @@ function applyFields(
   if (both !== undefined) {
     return no(`key ${both} would be both an operational and an invocation key`, "L1 3.5", path);
   }
-  const returned = [...keys, ...invocation].find((key) => state.revoked.has(key));
+  const returned = [...keys, ...invocation].find((key) => revoked.has(key));
   if (returned !== undefined) {
     return no(`key ${returned} was revoked and can never be added again`, "L1 4.5", path);
   }
-  const revoked = new Map(state.revoked);
-  let left = { keys, invocation };
-  if (event.type !== "Genesis" && event.revoked !== undefined) {
-    // A key the event both revokes and keeps was refused with the event (Layer 1, 4.5).
-    for (const entry of event.revoked) {
-      left = {
-        keys: left.keys.filter((key) => key !== entry.key),
-        invocation: left.invocation.filter((key) => key !== entry.key),
-      };
-      const since =
-        entry.compromisedSince === undefined ? undefined : parseTimestamp(entry.compromisedSince);
-      const held = revoked.get(entry.key);
-      // The earliest declaration stands if a key is revoked more than once.
-      revoked.set(
-        entry.key,
-        since === undefined ? held : held === undefined || since < held ? since : held,
-      );
-    }
-  }
+  // A key the event both revokes and keeps was refused with the event (Layer 1, 4.5).
+  const gone = new Set(revocationsOf(event, 0).map((revocation) => revocation.key));
   return ok({
     ...state,
-    ...left,
+    keys: gone.size === 0 ? keys : keys.filter((key) => !gone.has(key)),
+    invocation: gone.size === 0 ? invocation : invocation.filter((key) => !gone.has(key)),
     agreement: event.agreement === undefined ? state.agreement : keysOf(event.agreement),
     homes: event.homes ?? state.homes,
     alsoKnownAs: event.alsoKnownAs ?? state.alsoKnownAs,
-    revoked,
   });
+}
+
+/** What an event revokes. A genesis revokes nothing: there is nothing yet to revoke. */
+function revocationsOf(event: IdentityEvent, position: number): Revocation[] {
+  if (event.type === "Genesis" || event.revoked === undefined) return [];
+  return event.revoked.map((entry) => ({
+    position,
+    key: entry.key,
+    compromisedSince:
+      entry.compromisedSince === undefined ? undefined : parseTimestamp(entry.compromisedSince),
+  }));
 }
 
 function controllerState(controller: Controller): ControllerState {
@@ -320,8 +321,6 @@ function found(
     homes: [],
     alsoKnownAs: [],
     parents: event.parents ?? [],
-    children: [],
-    revoked: new Map(),
     seq: 0,
     head: id,
     versionId: formatVersionId(0, id),
@@ -454,7 +453,6 @@ function extend(
     state: {
       ...state,
       controller,
-      children: event.type === "Fork" ? [...state.children, event.child] : state.children,
       seq: event.seq,
       head: id,
       versionId: formatVersionId(event.seq, id),
@@ -487,6 +485,9 @@ function readEvent(raw: unknown, path: string): Validation<IdentityEvent> {
 
 function replay(events: readonly unknown[], context: LogContext): Validation<VerifiedLog> {
   const entries: LogEntry[] = [];
+  const children: AcknowledgedChild[] = [];
+  const revocations: Revocation[] = [];
+  const revoked = new Set<string>();
   let step: Step | undefined;
   for (let i = 0; i < events.length; i++) {
     const path = `/${i}`;
@@ -507,9 +508,14 @@ function replay(events: readonly unknown[], context: LogContext): Validation<Ver
         ? found(event, id, created, proofs, when, context)
         : extend(step, event, i, id, created, proofs, when, context);
     if (!next.ok) return next;
-    const applied = applyFields(next.value.state, event, path);
+    const applied = applyFields(next.value.state, event, revoked, path);
     if (!applied.ok) return applied;
     step = { state: applied.value, height: next.value.height };
+    if (event.type === "Fork") children.push({ position: i, child: event.child });
+    for (const revocation of revocationsOf(event, i)) {
+      revocations.push(revocation);
+      revoked.add(revocation.key);
+    }
     entries.push({ event, state: step.state, time: when.time });
   }
   const [genesis, ...later] = entries;
@@ -519,6 +525,8 @@ function replay(events: readonly unknown[], context: LogContext): Validation<Ver
   return ok({
     mind: genesis.state.mind,
     entries: [genesis, ...later],
+    children,
+    revocations,
     height: step.height,
     asOf: context.asOf,
     duplicitous: false,

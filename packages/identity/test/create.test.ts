@@ -65,12 +65,9 @@ describe(`${clause("L1 3.6", "L1 3.7", "L1 3.8", "L1 3.10")} writing the four ev
       ),
     );
     const state = head();
-    expect(state).toMatchObject({
-      seq: 3,
-      retired: true,
-      children: [child],
-      homes: ["https://service.example"],
-    });
+    expect(state).toMatchObject({ seq: 3, retired: true, homes: ["https://service.example"] });
+    const log = verifyLog(events, { evidence: witness([events as never]), asOf: LATER });
+    expect(log.ok && log.value.children).toEqual([{ position: 2, child }]);
     expect(events.map((event) => (event as { type: string }).type)).toEqual([
       "Genesis",
       "Update",

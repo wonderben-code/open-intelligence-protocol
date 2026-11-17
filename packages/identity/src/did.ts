@@ -7,6 +7,7 @@ import type { Validation } from "@oip/schema";
 
 import { no, ok } from "./result.ts";
 import {
+  childrenAt,
   entryAt,
   type IdentityState,
   latestState,
@@ -103,12 +104,12 @@ export interface DidDocumentOptions {
   readonly verifiedAliases?: readonly string[];
 }
 
-function metadata(state: IdentityState): DidDocumentMetadata {
+function metadata(state: IdentityState, children: readonly string[]): DidDocumentMetadata {
   const base = {
     versionId: state.versionId,
     deactivated: state.retired,
     parents: state.parents,
-    children: state.children,
+    children,
   };
   const controller = state.controller;
   if (controller.kind === "member") {
@@ -172,6 +173,6 @@ export function didDocument(
       ...(service.length === 0 ? {} : { service }),
       ...(aliases.length === 0 ? {} : { alsoKnownAs: aliases }),
     },
-    didDocumentMetadata: metadata(state),
+    didDocumentMetadata: metadata(state, childrenAt(log, state.seq)),
   });
 }

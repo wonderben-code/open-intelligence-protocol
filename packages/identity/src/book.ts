@@ -122,6 +122,12 @@ function duplicitous(candidates: Logs, position: number): VerifiedLog {
   return {
     ...base,
     entries: [genesis, ...later.slice(0, position - 1)],
+    children: base.children.filter((entry) => entry.position < position),
+    // What the branches share, once, and then what each declares after they part.
+    revocations: [
+      ...base.revocations.filter((entry) => entry.position < position),
+      ...candidates.flatMap((log) => log.revocations.filter((entry) => entry.position >= position)),
+    ],
     duplicitous: true,
     branchTails: candidates.flatMap((log): LogEntry[] => log.entries.slice(position)),
   };

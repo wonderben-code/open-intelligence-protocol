@@ -51,13 +51,6 @@ export interface IdentityState {
   readonly alsoKnownAs: readonly string[];
   /** The parents the genesis names (Layer 1, 8.1). */
   readonly parents: readonly Parent[];
-  /** Children acknowledged by `Fork` events. */
-  readonly children: readonly string[];
-  /**
-   * Every key ever revoked, with the earliest time it was declared compromised
-   * from, or `undefined` if no revocation gave one. A revoked key never returns.
-   */
-  readonly revoked: ReadonlyMap<string, Instant | undefined>;
   /** The position of the latest event; 0 for the genesis. */
   readonly seq: number;
   /** The content ID of the latest event. */
@@ -68,6 +61,22 @@ export interface IdentityState {
   readonly created: Instant;
   /** Whether a `Retire` has closed the log. A retired mind's keys sign nothing. */
   readonly retired: boolean;
+}
+
+/** A child that a `Fork` event acknowledges (Layer 1, 3.8), and the position of that event. */
+export interface AcknowledgedChild {
+  readonly position: number;
+  /** The child's address. */
+  readonly child: string;
+}
+
+/** One entry of an event's `revoked` (Layer 1, 3.7), and the position of that event. */
+export interface Revocation {
+  readonly position: number;
+  /** The key, which can never be added again. */
+  readonly key: string;
+  /** From when the key is declared compromised, if the entry says. */
+  readonly compromisedSince: Instant | undefined;
 }
 
 /** One event of a verified log, with the state after it and its evaluation time (core 9.5). */
@@ -91,6 +100,17 @@ export interface VerifiedLog {
   readonly mind: string;
   /** The events in order, the genesis first. */
   readonly entries: readonly [LogEntry, ...LogEntry[]];
+  /**
+   * The children the log acknowledges, in the order of their `Fork` events.
+   * They are kept here and not in each state: a state is of bounded size,
+   * however long the log.
+   */
+  readonly children: readonly AcknowledgedChild[];
+  /**
+   * Every revocation the log declares, in order. For a duplicitous mind, the
+   * revocations of every conflicting branch as well: they all apply (Layer 1, 7.3).
+   */
+  readonly revocations: readonly Revocation[];
   /** Layer 1, 4.7: 0 for a key-controlled mind; fixed by the genesis for a collective. */
   readonly height: number;
   /**
@@ -153,11 +173,32 @@ export function removalTime(
  */
 export function compromisedSince(log: VerifiedLog, key: string): Instant | undefined {
   let earliest: Instant | undefined;
-  for (const state of [latestState(log), ...log.branchTails.map((tail) => tail.state)]) {
-    const since = state.revoked.get(key);
-    if (since !== undefined && (earliest === undefined || since < earliest)) earliest = since;
+  for (const revocation of log.revocations) {
+    const since = revocation.compromisedSince;
+    if (revocation.key !== key || since === undefined) continue;
+    if (earliest === undefined || since < earliest) earliest = since;
   }
   return earliest;
+}
+
+/** Layer 1, 5.1: the children the log had acknowledged by the event at `position`. */
+export function childrenAt(log: VerifiedLog, position: number): string[] {
+  return log.children.filter((entry) => entry.position <= position).map((entry) => entry.child);
+}
+
+/**
+ * Layer 1, 5.1: the keys the log had revoked by the event at `position`,
+ * each with the earliest time it was declared compromised from, or
+ * `undefined` if no revocation gave one. A revoked key never returns.
+ */
+export function revokedAt(log: VerifiedLog, position: number): Map<string, Instant | undefined> {
+  const revoked = new Map<string, Instant | undefined>();
+  for (const { key, compromisedSince: since, position: at } of log.revocations) {
+    if (at > position) continue;
+    const held = revoked.get(key);
+    revoked.set(key, since === undefined || (held !== undefined && held <= since) ? held : since);
+  }
+  return revoked;
 }
 
 /**

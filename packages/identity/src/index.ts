@@ -72,6 +72,8 @@ export {
   ownSignedTime,
 } from "./signing.ts";
 export {
+  type AcknowledgedChild,
+  childrenAt,
   compromisedSince,
   type ControllerState,
   entryAt,
@@ -80,6 +82,8 @@ export {
   type LogEntry,
   type Parent,
   removalTime,
+  type Revocation,
+  revokedAt,
   stateAt,
   type VerifiedLog,
 } from "./state.ts";

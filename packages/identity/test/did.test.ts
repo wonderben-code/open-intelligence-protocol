@@ -5,7 +5,14 @@ import { keyHash, parseKeyRef } from "@oip/core";
 import { clause } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
-import { didDocument, type DidResolution, latestState, type VerifiedLog } from "../src/index.ts";
+import {
+  childrenAt,
+  didDocument,
+  type DidResolution,
+  latestState,
+  revokedAt,
+  type VerifiedLog,
+} from "../src/index.ts";
 import { agreementKey, bookOf, Collective, intentBy, KeyMind, type Mind } from "@oip/testkit/minds";
 
 function logOf(mind: Mind, others: readonly Mind[] = []): VerifiedLog {
@@ -35,7 +42,13 @@ describe(`${clause("L1 5.1")} identity state`, () => {
       .fork(10, { child })
       .update(20, { revoked: [{ key: revoked }] })
       .retire(30);
-    const state = latestState(logOf(ada));
+    const log = logOf(ada);
+    const state = latestState(log);
+    // What grows with the log is kept with the log, and asked for by position.
+    expect(childrenAt(log, 3)).toEqual([child]);
+    expect(childrenAt(log, 0)).toEqual([]);
+    expect(revokedAt(log, 3)).toEqual(new Map([[revoked, undefined]]));
+    expect(revokedAt(log, 1)).toEqual(new Map());
     expect(state).toEqual({
       mind: ada.address,
       kind: "human",
@@ -46,8 +59,6 @@ describe(`${clause("L1 5.1")} identity state`, () => {
       homes: ["https://ada.example"],
       alsoKnownAs: ["dns:ada.example"],
       parents: [{ mind: parent.address, at: parent.versionId() }],
-      children: [child],
-      revoked: new Map([[revoked, undefined]]),
       seq: 3,
       head: ada.versionId().slice(2),
       versionId: ada.versionId(),

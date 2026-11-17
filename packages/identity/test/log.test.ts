@@ -7,6 +7,8 @@ import { clause, copy, type JsonObject, withStackSpent } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import {
+  childrenAt,
+  compromisedSince,
   draftGenesis,
   draftUpdate,
   FirstSeen,
@@ -14,6 +16,7 @@ import {
   LogBook,
   MAX_LOG_EVENTS,
   MIN_ACCEPTED_LOG_EVENTS,
+  revokedAt,
   signEventSync,
   type VerifiedLog,
   verifyLog,
@@ -420,7 +423,6 @@ describe(`${clause("L1 3.6")} Genesis`, () => {
       homes: ["https://ada.example", "https://backup.example:8443"],
       alsoKnownAs: ["dns:ada.example"],
       parents: [{ mind: parent.address, at: parent.versionId() }],
-      children: [],
       retired: false,
       seq: 0,
     });
@@ -458,10 +460,16 @@ describe(`${clause("L1 3.7", "L1 4.5")} Update`, () => {
     const operational = ada.operational().publicKey;
     const invocation = ada.invocation().publicKey;
     ada.update(10, { revoked: [{ key: operational }, { key: invocation }] });
-    const state = latestState(verified(ada));
+    const log = verified(ada);
+    const state = latestState(log);
     expect(state.keys).toEqual([]);
     expect(state.invocation).toEqual([]);
-    expect([...state.revoked.keys()]).toEqual([operational, invocation]);
+    expect([...revokedAt(log, 1).keys()]).toEqual([operational, invocation]);
+    expect(revokedAt(log, 0).size).toBe(0);
+    expect(log.revocations).toEqual([
+      { position: 1, key: operational, compromisedSince: undefined },
+      { position: 1, key: invocation, compromisedSince: undefined },
+    ]);
     for (const set of ["keys", "invocation"] as const) {
       for (const key of [operational, invocation]) {
         const again = new KeyMind("ada")
@@ -488,18 +496,30 @@ describe(`${clause("L1 3.7", "L1 4.5")} Update`, () => {
       .update(30, { revoked: [{ key, compromisedSince: T(4) }] })
       .update(40, { revoked: [{ key }] });
     const log = verified(ada);
-    expect(states(log).map((state) => state.revoked.get(key))).toEqual([
+    expect([0, 1, 2, 3, 4].map((position) => revokedAt(log, position).get(key))).toEqual([
       undefined,
       parse(T(5)),
       parse(T(3)),
       parse(T(3)),
       parse(T(3)),
     ]);
+    expect(compromisedSince(log, key)).toBe(parse(T(3)));
+    expect(compromisedSince(log, ada.invocation().publicKey)).toBeUndefined();
     const plain = new KeyMind("bea");
-    plain.update(10, { revoked: [{ key: plain.operational().publicKey }] });
-    const state = latestState(verified(plain));
-    expect(state.revoked.has(plain.operational().publicKey)).toBe(true);
-    expect(state.revoked.get(plain.operational().publicKey)).toBeUndefined();
+    const other = plain.operational().publicKey;
+    plain.update(10, { revoked: [{ key: other }] }).update(20, { revoked: [{ key: other }] });
+    const revoked = revokedAt(verified(plain), 2);
+    expect(revoked.has(other)).toBe(true);
+    expect(revoked.get(other)).toBeUndefined();
+    expect(compromisedSince(verified(plain), other)).toBeUndefined();
+    // A time given once stands, whether the entry without one comes before or after.
+    const late = new KeyMind("cy");
+    const third = late.operational().publicKey;
+    late
+      .update(10, { revoked: [{ key: third }] })
+      .update(20, { revoked: [{ key: third, compromisedSince: T(7) }] });
+    expect(revokedAt(verified(late), 1).get(third)).toBeUndefined();
+    expect(revokedAt(verified(late), 2).get(third)).toBe(parse(T(7)));
   });
 
   it("ignores revoked in a genesis, where there is nothing to revoke", () => {
@@ -518,7 +538,12 @@ describe(`${clause("L1 3.8")} Fork`, () => {
     const one = new KeyMind("one").address;
     const two = new KeyMind("two").address;
     const ada = new KeyMind("ada").fork(10, { child: one }).update(20).fork(30, { child: two });
-    expect(states(verified(ada)).map((state) => state.children)).toEqual([
+    const log = verified(ada);
+    expect(log.children).toEqual([
+      { position: 1, child: one },
+      { position: 3, child: two },
+    ]);
+    expect([0, 1, 2, 3].map((position) => childrenAt(log, position))).toEqual([
       [],
       [one],
       [one],
@@ -1034,6 +1059,32 @@ describe(`${clause("L1 3.13")} HTTPS origins`, () => {
       const result = verifyEvents([rawGenesis("ada", { homes: [home] })]);
       expect(refusal(result).path, String(home)).toBe("/0/homes/0");
     }
+  });
+});
+
+describe("what a long log costs", () => {
+  it("keeps each state of bounded size: what grows with the log is held once, by the log", () => {
+    const ada = new KeyMind("ada");
+    const child = new KeyMind("child").address;
+    for (let n = 1; n <= 60; n++) {
+      const revoked = [{ key: signer(`ada/old/${n}`).publicKey }];
+      if (n % 2 === 0) ada.fork(n, { child, revoked });
+      else ada.update(n, { revoked });
+    }
+    const log = verified(ada);
+    expect(log.children).toHaveLength(30);
+    expect(log.revocations).toHaveLength(60);
+    expect(revokedAt(log, 60).size).toBe(60);
+    // The last state is no larger than the first: no state carries the history.
+    const size = (state: object) =>
+      JSON.stringify(state, (_, value: unknown) => (typeof value === "bigint" ? `${value}` : value))
+        .length;
+    const sizes = states(log).map(size);
+    expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThan(8);
+    expect(Object.keys(latestState(log)).sort()).toEqual(Object.keys(states(log)[0] ?? {}).sort());
+    // Sets that an event does not state are the same arrays as before, not copies.
+    expect(states(log)[60]?.agreement).toBe(states(log)[0]?.agreement);
+    expect(states(log)[60]?.parents).toBe(states(log)[0]?.parents);
   });
 });
 

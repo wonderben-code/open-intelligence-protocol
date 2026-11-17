@@ -5,7 +5,7 @@ import { clause } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import { type JudgedRecord, judgeRecord, lineage, ownSignedTime } from "../src/index.ts";
-import { bookOf, Collective, intentBy, KeyMind, lineageBy, type Mind } from "./build.ts";
+import { bookOf, Collective, intentBy, KeyMind, lineageBy, type Mind } from "@oip/testkit/minds";
 
 function judged(record: unknown): JudgedRecord {
   const result = judgeRecord(record);

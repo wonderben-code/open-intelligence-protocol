@@ -6,7 +6,7 @@ import { clause } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import { didDocument, type DidResolution, latestState, type VerifiedLog } from "../src/index.ts";
-import { agreementKey, bookOf, Collective, intentBy, KeyMind, type Mind } from "./build.ts";
+import { agreementKey, bookOf, Collective, intentBy, KeyMind, type Mind } from "@oip/testkit/minds";
 
 function logOf(mind: Mind, others: readonly Mind[] = []): VerifiedLog {
   const log = bookOf([mind, ...others]).log(mind.address);

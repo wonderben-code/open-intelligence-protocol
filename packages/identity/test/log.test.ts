@@ -30,7 +30,7 @@ import {
   signer,
   T,
   witness,
-} from "./build.ts";
+} from "@oip/testkit/minds";
 
 function verified(mind: Mind, others: readonly Mind[] = []): VerifiedLog {
   const result = bookOf([mind, ...others]).log(mind.address);

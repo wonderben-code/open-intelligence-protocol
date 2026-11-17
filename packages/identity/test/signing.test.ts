@@ -30,7 +30,7 @@ import {
   rawSign,
   T,
   witness,
-} from "./build.ts";
+} from "@oip/testkit/minds";
 
 type Signed = object & { proof: Proof[] };
 

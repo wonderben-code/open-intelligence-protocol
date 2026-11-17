@@ -15,7 +15,7 @@ import {
   signEventSync,
   verifyLog,
 } from "../src/index.ts";
-import { bookOf, KeyMind, LATER, signer, T, witness } from "./build.ts";
+import { bookOf, KeyMind, LATER, signer, T, witness } from "@oip/testkit/minds";
 
 const control = [signer("c0"), signer("c1"), signer("c2"), signer("c3")] as const;
 const commit = (n: number) => [keyHash((control[n] ?? control[0]).publicKey)];

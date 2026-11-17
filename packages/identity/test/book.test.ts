@@ -17,7 +17,7 @@ import {
   ownSignedTime,
   signEventSync,
 } from "../src/index.ts";
-import { at, intentBy, KeyMind, LATER, locationBy, signer, T, witness } from "./build.ts";
+import { at, intentBy, KeyMind, LATER, locationBy, signer, T, witness } from "@oip/testkit/minds";
 
 type Events = KeyMind["events"];
 

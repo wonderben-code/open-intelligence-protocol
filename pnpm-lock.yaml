@@ -288,7 +288,17 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
 
-  packages/testkit: {}
+  packages/testkit:
+    dependencies:
+      '@oip/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oip/identity':
+        specifier: workspace:*
+        version: link:../identity
+      '@oip/schema':
+        specifier: workspace:*
+        version: link:../schema
 
 packages:
 

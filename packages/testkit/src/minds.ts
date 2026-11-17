@@ -1,7 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-/** Minds for tests: logs written and signed with keys that are derived from names. */
+/**
+ * Minds for tests: logs written and signed with keys that are derived from
+ * names. Imported as `@oip/testkit/minds`, by the tests of `@oip/identity`
+ * and of the packages above it.
+ */
 
 import { createHash } from "node:crypto";
 
@@ -24,7 +28,7 @@ import {
   withProofs,
 } from "@oip/core";
 import type { IdentityEvent, Proof } from "@oip/schema";
-import type { JsonObject } from "@oip/testkit";
+import type { JsonObject } from "./vectors.ts";
 
 import {
   draftFork,
@@ -39,7 +43,7 @@ import {
   type RetireFields,
   signEventSync,
   type UpdateFields,
-} from "../src/index.ts";
+} from "@oip/identity";
 
 const seed = (name: string): Uint8Array => createHash("sha256").update(name).digest();
 
@@ -49,7 +53,14 @@ export const signer = (name: string): SyncSigner => signerFromPrivateKey(seed(na
 /** An X25519 Multikey derived from a name. Any 32 bytes are a public key. */
 export const agreementKey = (name: string): string => encodeX25519Multikey(seed(name));
 
-const START = parseTimestamp("2026-01-01T00:00:00Z")!;
+/** The instant a timestamp names. */
+export function instant(timestamp: unknown): Instant {
+  const parsed = parseTimestamp(timestamp);
+  if (parsed === undefined) throw new Error(`${String(timestamp)} is not a timestamp`);
+  return parsed;
+}
+
+const START = instant("2026-01-01T00:00:00Z");
 
 /** The instant `seconds` after the start of the tests' time. */
 export const at = (seconds: number): Instant => START + BigInt(Math.round(seconds * 1e9));
@@ -68,7 +79,7 @@ function base58(bytes: Uint8Array): string {
   let number = 0n;
   for (const byte of bytes) number = number * 256n + BigInt(byte);
   let text = "";
-  for (; number > 0n; number /= 58n) text = ALPHABET[Number(number % 58n)]! + text;
+  for (; number > 0n; number /= 58n) text = ALPHABET.charAt(Number(number % 58n)) + text;
   for (const byte of bytes) {
     if (byte !== 0) break;
     text = `1${text}`;
@@ -259,7 +270,7 @@ export class KeyMind extends Mind {
     };
     // A member given as `undefined` is left out.
     const cleaned = Object.fromEntries(
-      Object.entries(event).filter(([, value]) => value !== undefined),
+      Object.entries(event as JsonObject).filter(([, value]) => value !== undefined),
     );
     this.events.push(rawSign(cleaned, [{ control: this.control(n) }]) as unknown as Event);
     return this;
@@ -336,12 +347,12 @@ export function witness(
   const seen = new FirstSeen();
   for (const events of logs) {
     for (const event of events as readonly JsonObject[]) {
-      seen.sawEvent(contentId(event), parseTimestamp(event["created"])!);
+      seen.sawEvent(contentId(event), instant(event["created"]));
     }
   }
   for (const record of records) {
     for (const proof of (record as { proof?: Proof[] }).proof ?? []) {
-      seen.sawProof(proofDigest(proof), parseTimestamp(proof.created)!);
+      seen.sawProof(proofDigest(proof), instant(proof.created));
     }
   }
   return seen;

@@ -15,7 +15,7 @@ import {
   proofTime,
   verifyLog,
 } from "../src/index.ts";
-import { at, KeyMind, LATER, witness } from "./build.ts";
+import { at, KeyMind, LATER, witness } from "@oip/testkit/minds";
 
 const instants = fc.bigInt({ min: 0n, max: 4_000_000_000_000_000_000n });
 

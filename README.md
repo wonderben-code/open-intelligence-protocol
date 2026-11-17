@@ -13,7 +13,7 @@ Created by **Ekram Alam**, 30 October 2026.
 | Layer | Name | Role |
 |---|---|---|
 | 0 | **Bridge** | Makes everything that already exists — websites, APIs, email, payments, MCP servers, A2A agents — a first-class participant. A superset, not a replacement. |
-| 1 | **Mind Network** | Permanent `did:oip` addresses, identity logs with pre-rotation, fork and merge lineage, collectives, delegation, capability routing, context packets and continuity across moves. |
+| 1 | **Mind Network** | Permanent `did:oip` addresses, identity logs with pre-rotation, lineage between minds, collectives, delegation, capability routing, context packets and continuity across moves. |
 | 2 | **Mind Web** | Linked, signed primitives: Participant, Intent, Offer, Commitment, Receipt, Collective. |
 
 ## Read
@@ -21,7 +21,8 @@ Created by **Ekram Alam**, 30 October 2026.
 - [Founding paper](papers/01-founding-paper.md) — the vision, the stack and the principles
 - [Technical architecture paper](papers/02-technical-architecture.md) — how it works, and why
 - [Specifications](spec/) — the normative rules for each layer
-- [Test vectors](spec/test-vectors/) — deterministic golden values with an independent checker
+- [Test vectors](spec/test-vectors/) — deterministic golden values, including attack cases every implementation must reject, with a checker
+- [Reviews](reviews/) — two independent reviews of the first revision, and how each finding was fixed
 - [Research notes](research/) — the survey of existing protocols and standards behind the design
 - [Philosophy](PHILOSOPHY.md)
 
@@ -31,6 +32,7 @@ Created by **Ekram Alam**, 30 October 2026.
 papers/      founding and technical papers
 spec/        normative specifications and test vectors
 research/    research notes behind the design
+reviews/     independent reviews and the fixes they led to
 BUILD.md     brief for the v1 reference implementation
 packages/    reference implementation (in progress)
 site/        the public website (coming)

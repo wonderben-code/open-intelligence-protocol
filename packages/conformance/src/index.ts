@@ -10,8 +10,11 @@
  */
 
 export {
+  type Answer,
   type ConformanceAdapter,
+  type LineageStatus,
   METHOD_FOR_KIND,
+  NOT_JUDGED,
   type ProofRequest,
   type VerifierView,
 } from "./adapter.ts";

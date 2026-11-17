@@ -22,6 +22,7 @@ export default {
   vitest: { configFile: "vitest.config.ts", related: false },
   mutate: [
     "packages/core/src/**/*.ts",
+    "packages/identity/src/**/*.ts",
     "packages/schema/src/**/*.ts",
     // Generated from the schemas, and tested through them.
     "!packages/schema/src/generated/**",

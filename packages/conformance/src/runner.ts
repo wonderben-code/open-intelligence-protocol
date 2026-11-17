@@ -8,6 +8,7 @@ import { patterns } from "@oip/schema";
 import {
   type ConformanceAdapter,
   METHOD_FOR_KIND,
+  NOT_JUDGED,
   type ProofRequest,
   type VerifierView,
 } from "./adapter.ts";
@@ -54,7 +55,8 @@ export function viewFor(vectors: Vectors, vectorCase: VectorCase): VerifierView 
  * Whether a case's claim holds for the implementation: the log verifies, the
  * record counts for (or was sent for) the mind, the status or assurance is
  * the one expected, the record is well formed, or the text is JSON within
- * the profile. `undefined` when the adapter lacks the method the case needs.
+ * the profile. `undefined` when the adapter lacks the method the case needs,
+ * or says that it does not judge the case yet.
  *
  * It lets an exception from the adapter through. A verifier judges hostile
  * input and answers; one that throws has not answered, and must never pass a
@@ -70,8 +72,10 @@ export function claimHolds(
   switch (vectorCase.kind) {
     case "log":
       return verdict(adapter.logVerifies?.(vectorCase.log, view));
-    case "countsFor":
-      return verdict(adapter.countsFor?.(vectorCase.record, vectorCase.mind, view));
+    case "countsFor": {
+      const answer = adapter.countsFor?.(vectorCase.record, vectorCase.mind, view);
+      return answer === NOT_JUDGED ? undefined : verdict(answer);
+    }
     case "sentFor":
       return verdict(adapter.sentFor?.(vectorCase.record, vectorCase.mind, view));
     case "status":
@@ -181,6 +185,48 @@ const CONTENT_ID_SOURCES: Readonly<Record<string, (vectors: Vectors) => JsonObje
   checkpoint: recordOf("checkpoint"),
   bridged_genesis: eventOf("bridged_log", 0),
 };
+
+/** The records of the positive part that are signed by their authors' own keys, and by whom. */
+const SIGNED_BY_THEIR_AUTHORS: readonly (readonly [record: string, author: string])[] = [
+  ["intent", "amina"],
+  ["offer", "lexis_agent"],
+  ["offer_glossary", "lexis_ltd"],
+  ["receipt", "amina"],
+  ["packet", "lexis_agent"],
+  ["ack", "amina"],
+  ["hello", "lexis_agent"],
+  ["delegation", "lexis_ltd"],
+  ["delegation_sub", "lexis_agent"],
+  ["delegation_amina", "amina"],
+  ["delegation_send", "amina"],
+  ["participant", "lexis_agent"],
+  ["location", "lexis_agent"],
+  ["feed_entry", "lexis_agent"],
+  ["feed_entry_1", "lexis_agent"],
+  ["checkpoint", "lexis_agent"],
+  ["lineage", "lexis_agent"],
+  ["gateway_entry", "gateway"],
+  ["bridged_participant", "bridged"],
+];
+
+/** The verifier's view with nothing added: the baseline of the vectors. */
+function baselineView(vectors: Vectors): VerifierView {
+  return {
+    logs: vectors.baseline.logs.map((name) => namedLog(vectors, name)),
+    extraLogs: [],
+    branches: [],
+    records: vectors.baseline.records.map((name) => namedRecord(vectors, name)),
+    extraRecords: [],
+    seen: undefined,
+  };
+}
+
+/** The address of a mind the positive part names. */
+function addressOf(vectors: Vectors, name: string): string {
+  const address = vectors.cases[name];
+  if (typeof address !== "string") throw new Error(`the vectors name no mind ${name}`);
+  return address;
+}
 
 /** The negative cases whose record carries a proof that must not verify, whoever it is for. */
 const BAD_PROOF_CASES = ["signature-s-not-reduced", "signature-r-identity", "wrong-proof-purpose"];
@@ -395,11 +441,108 @@ export const POSITIVE_CHECKS: readonly PositiveCheck[] = [
       return mismatches;
     },
   },
-  later("identity logs verify; addresses derive from genesis", "M2"),
-  later("2-of-3 pre-rotation with distinct keys", "M2"),
-  later("lineage acknowledged by a Fork event and by a Lineage record", "M2"),
-  later("signatures count for their authors (purpose and key checks)", "M2"),
-  later("DID documents, current and versioned", "M2"),
+  {
+    name: "identity logs verify; addresses derive from genesis",
+    milestone: "M2",
+    run(adapter, vectors) {
+      const logVerifies = adapter.logVerifies?.bind(adapter);
+      const contentId = adapter.contentId?.bind(adapter);
+      if (logVerifies === undefined || contentId === undefined) return undefined;
+      const view = baselineView(vectors);
+      const mismatches: string[] = [];
+      for (const [name, log] of logsOf(vectors)) {
+        const address = vectors.cases[name.slice(0, -"_log".length)];
+        if (`did:oip:${contentId(log[0] ?? {})}` !== address) {
+          mismatches.push(`${name}: the address is not derived from the genesis`);
+        }
+        if (!verdict(logVerifies(log, view))) mismatches.push(`${name} did not verify`);
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "2-of-3 pre-rotation with distinct keys",
+    milestone: "M2",
+    run(adapter, vectors) {
+      const didDocument = adapter.didDocument?.bind(adapter);
+      if (didDocument === undefined) return undefined;
+      // The genesis commits to three keys, two of which must sign. The update
+      // reveals two of them, and commits to one.
+      const [genesis, update] = namedLog(vectors, "multi_log");
+      const revealed = controllerOf(update)?.["keys"];
+      const mismatches: string[] = [];
+      if (controllerOf(genesis)?.["nextThreshold"] !== 2 || !Array.isArray(revealed)) {
+        mismatches.push("multi_log is not the log this check was written for");
+      } else if (new Set(revealed).size < 2) {
+        mismatches.push("the update does not reveal two distinct keys");
+      }
+      const resolved = didDocument(addressOf(vectors, "multi"), undefined, baselineView(vectors));
+      const metadata = (resolved as { didDocumentMetadata?: JsonObject } | null)
+        ?.didDocumentMetadata;
+      if (metadata?.["nextThreshold"] !== 1) {
+        mismatches.push("after the update, the next threshold should be 1");
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "lineage acknowledged by a Fork event and by a Lineage record",
+    milestone: "M2",
+    run(adapter, vectors) {
+      const lineage = adapter.lineage?.bind(adapter);
+      if (lineage === undefined) return undefined;
+      const parent = addressOf(vectors, "lexis_agent");
+      const mismatches: string[] = [];
+      for (const child of ["lexis_fork", "lexis_fork2"]) {
+        const got = lineage(addressOf(vectors, child), baselineView(vectors));
+        if (!sameMembers(got, { [parent]: "acknowledged" })) {
+          mismatches.push(`${child}: its parent should acknowledge it, got ${JSON.stringify(got)}`);
+        }
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "signatures count for their authors (purpose and key checks)",
+    milestone: "M2",
+    run(adapter, vectors) {
+      const countsFor = adapter.countsFor?.bind(adapter);
+      if (countsFor === undefined) return undefined;
+      const view = baselineView(vectors);
+      const mismatches: string[] = [];
+      for (const [record, author] of SIGNED_BY_THEIR_AUTHORS) {
+        const answer = countsFor(namedRecord(vectors, record), addressOf(vectors, author), view);
+        if (answer === NOT_JUDGED) return undefined;
+        if (!verdict(answer)) mismatches.push(`${record} does not count for ${author}`);
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "DID documents, current and versioned",
+    milestone: "M2",
+    run(adapter, vectors) {
+      const didDocument = adapter.didDocument?.bind(adapter);
+      const contentId = adapter.contentId?.bind(adapter);
+      if (didDocument === undefined || contentId === undefined) return undefined;
+      const view = baselineView(vectors);
+      const genesis = `0-${contentId(namedLog(vectors, "amina_log")[0] ?? {})}`;
+      const documents: [name: string, mind: string, versionId: string | undefined][] = [
+        ["did_document_amina", "amina", undefined],
+        ["did_document_amina_at_genesis", "amina", genesis],
+        ["did_document_collective", "collective", undefined],
+      ];
+      return documents
+        .filter(
+          ([name, mind, versionId]) =>
+            !sameMembers(
+              didDocument(addressOf(vectors, mind), versionId, view),
+              vectors.cases[name],
+            ),
+        )
+        .map(([name]) => `${name} was not reproduced`);
+    },
+  },
   later("packet sent on Amina's behalf under a /oip/send delegation", "M3"),
   later("co-signing keeps the content ID; delegated party proof", "M3"),
   later("two agents sign for their principals, in either order", "M3"),

@@ -32,6 +32,20 @@ export interface VerifierView {
 }
 
 /**
+ * What a method answers for a case it does not judge yet. The case is then
+ * reported as pending. It is never a pass, and it is not a way to fail
+ * quietly: an implementation says it of a whole class of cases it has not
+ * built, such as records signed through a delegation.
+ */
+export const NOT_JUDGED: unique symbol = Symbol("not judged");
+
+/** An answer to a case: a verdict, or the statement that the implementation does not judge it yet. */
+export type Answer = boolean | typeof NOT_JUDGED;
+
+/** Whether a parent acknowledges a child that names it (Layer 1, 8.2). */
+export type LineageStatus = "acknowledged" | "claimed";
+
+/**
  * An implementation under test. Every member is optional: a case whose kind
  * the adapter does not implement is reported as `pending`, never as passed.
  *
@@ -59,7 +73,21 @@ export interface ConformanceAdapter {
   logVerifies?(log: Log, view: VerifierView): boolean;
 
   /** `countsFor` cases: whether the record counts for the mind (Layer 2, 7.1). */
-  countsFor?(record: JsonObject, mind: string, view: VerifierView): boolean;
+  countsFor?(record: JsonObject, mind: string, view: VerifierView): Answer;
+
+  /**
+   * The lineage of a mind (Layer 1, 8.2): for each parent its genesis names,
+   * by the parent's address, whether the parent acknowledges it.
+   */
+  lineage?(child: string, view: VerifierView): Readonly<Record<string, LineageStatus>>;
+
+  /**
+   * The result of resolving an address (Layer 1, 5.2): `didDocument` and
+   * `didDocumentMetadata`, from the mind's log alone, with no location record
+   * and no verified alias. With `versionId`, the document as of that event
+   * (Layer 1, 2.4).
+   */
+  didDocument?(mind: string, versionId: string | undefined, view: VerifierView): unknown;
 
   /** `sentFor` cases: whether the packet counts as sent on the mind's behalf (Layer 1, 11.2). */
   sentFor?(packet: JsonObject, mind: string, view: VerifierView): boolean;

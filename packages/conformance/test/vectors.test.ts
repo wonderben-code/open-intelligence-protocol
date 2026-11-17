@@ -17,7 +17,6 @@ import { describe, expect, it } from "vitest";
 import {
   CASE_KINDS,
   loadVectors,
-  METHOD_FOR_KIND,
   POSITIVE_CHECKS,
   referenceAdapter,
   runCase,
@@ -47,12 +46,14 @@ for (const section of SECTIONS) {
     if (cases.length === 0) continue;
     describe(`vectors: ${section}: ${kind}`, () => {
       for (const vectorCase of cases) {
-        if (referenceAdapter[METHOD_FOR_KIND[kind]] === undefined) {
+        // Pending: the adapter has no method for this kind of case, or says
+        // that it does not judge this one yet.
+        const result = runCase(referenceAdapter, vectors, section, vectorCase);
+        if (result.outcome === "pending") {
           it.todo(vectorCase.name);
           continue;
         }
         it(vectorCase.name, () => {
-          const result = runCase(referenceAdapter, vectors, section, vectorCase);
           expect(result.detail).toBeUndefined();
           expect(result.outcome).toBe("pass");
         });

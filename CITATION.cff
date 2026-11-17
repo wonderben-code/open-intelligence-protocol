@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+message: "If you use or discuss the Open Intelligence Protocol, please cite the founding paper."
+title: "Open Intelligence Protocol"
+abstract: "A free, open, layered protocol stack for coordination between minds: human, artificial and institutional."
+type: software
+authors:
+  - family-names: Alam
+    given-names: Ekram
+repository-code: "https://github.com/wonderben-code/open-intelligence-protocol"
+license: Apache-2.0
+keywords:
+  - Open Intelligence Protocol
+  - AI agents
+  - multi-agent systems
+  - agent communication protocol
+  - decentralized identifiers
+  - collective intelligence
+preferred-citation:
+  type: article
+  title: "The Open Intelligence Protocol: A Founding Paper for the Network of Minds"
+  authors:
+    - family-names: Alam
+      given-names: Ekram
+  year: 2026
+  version: "1.1"
+  publisher:
+    name: Zenodo
+  doi: 10.5281/zenodo.24301206
+  url: "https://doi.org/10.5281/zenodo.24301206"
+references:
+  - type: article
+    title: "The Open Intelligence Protocol: Technical Architecture"
+    authors:
+      - family-names: Alam
+        given-names: Ekram
+    year: 2026
+    version: "Draft 2 (specification revision 2026-11-17)"
+    publisher:
+      name: Zenodo
+    doi: 10.5281/zenodo.24301209
+    url: "https://doi.org/10.5281/zenodo.24301209"

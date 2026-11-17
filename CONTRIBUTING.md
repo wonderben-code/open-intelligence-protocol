@@ -59,7 +59,13 @@ pnpm spec:coverage    # show which specification clauses have tests
 python3 spec/test-vectors/oip_vectors.py --check   # check the vectors with the independent Python implementation
 ```
 
-Run all of them before you open a pull request. CI runs the same checks, and a pull request is merged only when CI is green.
+Before you open a pull request, run the whole gate:
+
+```
+pnpm run ci           # every check CI runs, in order, from a clean build
+```
+
+It is the script the CI job runs (`scripts/ci.ts`), so what passes here is what CI checks. A pull request is merged only when CI is green. Stage a regenerated file before you run it: the script checks that the staged file is the one it produces.
 
 Some files are generated, and CI fails if they are out of date. Regenerate them and commit the result:
 

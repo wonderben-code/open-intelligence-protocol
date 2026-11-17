@@ -64,9 +64,15 @@ interface Mutation {
 
 function apply(record: JsonObject, mutation: Mutation): JsonObject {
   const copy = structuredClone(record) as Record<string, unknown>;
+  // Own members only. After an earlier mutation a path may run through an
+  // array or a string, where a key such as "keys" would otherwise find a
+  // method of the prototype.
   const read = (path: (string | number)[]): unknown =>
     path.reduce<unknown>(
-      (at, key) => (at as Record<string | number, unknown> | undefined)?.[key],
+      (at, key) =>
+        typeof at === "object" && at !== null && Object.hasOwn(at, key)
+          ? (at as Record<string | number, unknown>)[key]
+          : undefined,
       copy,
     );
   const parent = read(mutation.path.slice(0, -1)) as Record<string | number, unknown> | undefined;

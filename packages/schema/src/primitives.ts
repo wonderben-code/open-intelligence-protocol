@@ -179,10 +179,7 @@ export const Sha256Digest = define("sha256Digest", Type.String({ pattern: patter
 export const Nonce = define("nonce", Type.String({ minLength: 8, maxLength: 64 }));
 
 /** An HTTPS origin. */
-export const HttpsOrigin = define(
-  "httpsOrigin",
-  Type.String({ pattern: patterns.httpsOrigin, maxLength: 2048 }),
-);
+export const HttpsOrigin = define("httpsOrigin", Type.String({ pattern: patterns.httpsOrigin }));
 
 /** Any JSON object. Its members are preserved and otherwise ignored (core 1.7). */
 export const JsonObject = Type.Unsafe<Readonly<Record<string, unknown>>>({ type: "object" });

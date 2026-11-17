@@ -98,6 +98,33 @@ describe("the exported JSON Schemas", () => {
     }
   });
 
+  it("state on their own the bounds that the code rules would also catch", () => {
+    // A threshold of zero is rejected by the majority rule in code as well, so
+    // only a validator that has the schemas alone shows that they say it too.
+    const independent = independentValidator();
+    const genesis = samples.Genesis;
+    const key = (genesis["controller"] as { keys: string[] }).keys[0];
+    const next = ["bciqa" + "a".repeat(50) + "a"];
+    const member = "did:oip:bciqa" + "b".repeat(50) + "a";
+    expect(independent({ ...genesis, controller: { keys: [key], next, nextThreshold: 1 } })).toBe(
+      true,
+    );
+    for (const nextThreshold of [0, -1, 17, 1.5, "1"]) {
+      expect(independent({ ...genesis, controller: { keys: [key], next, nextThreshold } })).toBe(
+        false,
+      );
+    }
+    const collective = (threshold: unknown) => ({
+      ...genesis,
+      kind: "collective",
+      controller: { members: [member], threshold },
+    });
+    expect(independent(collective(1))).toBe(true);
+    for (const threshold of [0, -1, 257, 1.5, "1"]) {
+      expect(independent(collective(threshold))).toBe(false);
+    }
+  });
+
   it("reject the two malformed records of the negative vectors' `record` cases as far as a schema can", () => {
     const independent = independentValidator();
     const cases = readVectors().negative.filter((entry) => entry.kind === "record");

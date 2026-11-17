@@ -5,7 +5,7 @@ import { clause } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { patterns } from "../src/index.ts";
+import { OIP_COMMANDS, patterns, PROOF_PURPOSES, SHORT_NAMESPACES } from "../src/index.ts";
 
 // Ajv compiles patterns with the `u` flag, so the tests do too.
 const re = Object.fromEntries(
@@ -237,5 +237,155 @@ describe("identifiers and references", () => {
     expect(re.oipCommandSpace.test("/oip")).toBe(true);
     expect(re.oipCommandSpace.test("/oip/anything")).toBe(true);
     expect(re.oipCommandSpace.test("/oipx")).toBe(false);
+  });
+});
+
+describe("the lists the specification fixes", () => {
+  it(`${clause("core 8.1")} recognises exactly the six short namespaces`, () => {
+    expect([...SHORT_NAMESPACES]).toEqual(["x402", "ap2", "acp", "l402", "vc", "as2"]);
+  });
+
+  it(`${clause("L1 11.2")} has exactly the five commands under /oip`, () => {
+    expect([...OIP_COMMANDS].sort()).toEqual([
+      "/oip/send",
+      "/oip/sign/Commitment",
+      "/oip/sign/Intent",
+      "/oip/sign/Offer",
+      "/oip/sign/Receipt",
+    ]);
+  });
+
+  it(`${clause("core 5.6")} has exactly the four proof purposes`, () => {
+    expect([...PROOF_PURPOSES].sort()).toEqual([
+      "assertionMethod",
+      "authentication",
+      "capabilityDelegation",
+      "capabilityInvocation",
+    ]);
+  });
+
+  it(`${clause("core 8.1")} takes a name as a namespace only in one of the three forms`, () => {
+    const namespace = (name: string) =>
+      re.reverseDnsNamespace.test(name) ||
+      (SHORT_NAMESPACES as readonly string[]).includes(name) ||
+      re.oipNamespace.test(name);
+    for (const name of ["com.example.escrow", "a-b.c-d", "x402", "as2", "oip.bridge", "oip.a2a"]) {
+      expect(namespace(name), name).toBe(true);
+    }
+    for (const name of [
+      "oip",
+      "oipx",
+      "oipbridge",
+      "x403",
+      "vcs",
+      "escrow",
+      "Com.Example",
+      "com..example",
+      ".com",
+      "com.",
+      "com.example ",
+      "com_example.x",
+    ]) {
+      expect(namespace(name), name).toBe(false);
+    }
+  });
+});
+
+describe("other syntaxes", () => {
+  it("an HTTPS origin is a scheme, a host and an optional port, and nothing else", () => {
+    for (const value of [
+      "https://example.com",
+      "https://example.com:8443",
+      "https://xn--bcher-kva.example",
+      "https://[2001:db8::1]:443",
+    ]) {
+      expect(re.httpsOrigin.test(value), value).toBe(true);
+    }
+    for (const value of [
+      "http://example.com",
+      "https://",
+      "https://example.com/",
+      "https://example.com/path",
+      "https://example.com?q=1",
+      "https://example.com#f",
+      "https://user@example.com",
+      "https://user:pass@example.com",
+      "https://example.com ",
+      "HTTPS://example.com",
+      "//example.com",
+      "example.com",
+    ]) {
+      expect(re.httpsOrigin.test(value), value).toBe(false);
+    }
+  });
+
+  it("a SHA-256 digest is sha256: and 64 lower-case hex digits", () => {
+    const hex = "0123456789abcdef".repeat(4);
+    expect(re.sha256Digest.test(`sha256:${hex}`)).toBe(true);
+    for (const value of [
+      `sha256:${hex.toUpperCase()}`,
+      `SHA256:${hex}`,
+      `sha256:${hex.slice(1)}`,
+      `sha256:${hex}0`,
+      `sha512:${hex}`,
+      hex,
+      `sha256:${"g".repeat(64)}`,
+    ]) {
+      expect(re.sha256Digest.test(value), value).toBe(false);
+    }
+  });
+
+  it(`${clause("core 6.1")} a key-ref ends in "#" and a Multikey of at least one character after z`, () => {
+    const CID = "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna";
+    const stem = `did:oip:${CID}?versionId=0-${CID}`;
+    expect(re.keyRef.test(`${stem}#z6Mk`)).toBe(true);
+    for (const value of [
+      `${stem}#z`,
+      `${stem}#`,
+      stem,
+      `${stem}#6Mk`,
+      `${stem}#z6Mk#z6Mk`,
+      `${stem}#zO0Il`,
+    ]) {
+      expect(re.keyRef.test(value), value).toBe(false);
+    }
+    expect(re.controlKeyRef.test("did:key:z6Mk#z6Mk")).toBe(true);
+    for (const value of [
+      "did:key:z#z",
+      "did:key:z6Mk#z",
+      "did:key:z#z6Mk",
+      "did:key:z6Mk",
+      "did:key:#z6Mk",
+    ]) {
+      expect(re.controlKeyRef.test(value), value).toBe(false);
+    }
+  });
+
+  it("base64url has no padding and no characters of the standard alphabet", () => {
+    expect(re.base64url.test("AAEC_-az09")).toBe(true);
+    for (const value of ["", "AA==", "AA+/", "AA EC", "AA\n"])
+      expect(re.base64url.test(value), JSON.stringify(value)).toBe(false);
+  });
+
+  it(`${clause("L1 16.2")} a capability subject is dot-separated lower-case words`, () => {
+    for (const value of ["legal", "legal.translation", "a_b-c.d0"])
+      expect(re.capabilitySubject.test(value), value).toBe(true);
+    for (const value of [
+      "",
+      "Legal",
+      "legal.",
+      ".legal",
+      "legal..x",
+      "legal translation",
+      "legal/x",
+    ])
+      expect(re.capabilitySubject.test(value), value).toBe(false);
+  });
+
+  it("a namespaced name has a namespace, a colon and a name", () => {
+    for (const value of ["lang:ar", "com.example:arbiter", "a:b:c"])
+      expect(re.namespaced.test(value), value).toBe(true);
+    for (const value of ["", "lang", ":ar", "lang:"])
+      expect(re.namespaced.test(value), value).toBe(false);
   });
 });

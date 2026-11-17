@@ -62,7 +62,7 @@ Review B was right, and the milestone was not merged until every item below was 
 | B14 | Low | The differential generator never reached 11 record types and mutated at most four levels deep. | **Fixed.** It starts from a sample of all 29 types and goes six levels deep. |
 | B15 | Low | `@oip/schema` exported a path that did not exist, and shipped API Extractor's working file. | **Fixed.** |
 | B16 | Low | Documentation claims that were false or unverified. | **Fixed** where the claim was the project's to keep: ADR-0004's "never throws" is now true, `pnpm run ci` is what CI runs, workflows start from `contents: read`, the README no longer claims runtimes CI does not test, ADR-0001 names every development dependency. The DCO claim is **for Eks** (E3). |
-| B17 | Note | CodeQL, dependency review, Scorecard and the nightly job had never run. Same-repository pull requests skipped every CI job. The timestamp workflows use unpinned actions. The REUSE action built from a floating image tag. | **Fixed**: pull requests run CI in their own right, and REUSE is installed by hash. The first three run on the pull request and on `main`. The timestamp workflows are **for Eks** (E9): BUILD.md says to leave them as they are. |
+| B17 | Note | CodeQL, dependency review, Scorecard and the nightly job had never run. Same-repository pull requests skipped every CI job. The timestamp workflows use unpinned actions. The REUSE action built from a floating image tag. | **Fixed**: pull requests run CI in their own right, and REUSE is installed by hash. CodeQL then ran on the pull request and passed for TypeScript, Python and the workflows. Dependency review ran and failed for one reason: the repository's dependency graph is switched off, which is **for Eks** (E11). Scorecard runs on `main`. The timestamp workflows are **for Eks** (E9): BUILD.md says to leave them as they are. |
 | B18 | Note | Fixtures and workflows had no SPDX header. `validateExtensionRecord` accepts any type name. A `Merge` event in a container was reported as a controller fault. | **Fixed**: headers added, and containers dispatch on `type`, so a `Merge` event is reported as that. Naming rules for extension types are **queued** (Q7). |
 
 ## What the reviews checked and found sound
@@ -88,4 +88,4 @@ Review B was right, and the milestone was not merged until every item below was 
 
 Every check in `pnpm run ci` passes from a clean build: 587 tests, branch coverage 95.8%, 6 layering fixtures and 24 purity probes rejected by the guards, 36 generated files current, and the Python checker regenerates the vectors unchanged.
 
-The questions for the specification (Q1 to Q24) and the items for Eks (E1 to E10) are in [PROGRESS.md](../../PROGRESS.md).
+The questions for the specification (Q1 to Q24) and the items for Eks (E1 to E11) are in [PROGRESS.md](../../PROGRESS.md).

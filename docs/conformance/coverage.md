@@ -88,14 +88,14 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 5.3 |  | M1 | 0 | pending M1 | Creating a proof. Let `options` be the proof object without `proofValue`. Compute ``` hashData… |
 | core 5.4 |  | M1 | 0 | pending M1 | Verifying a proof. Check that the proof has exactly the members 5.2 allows; remove `proofValue`… |
 | core 5.5 | MAY | M1 | 1 | tested in part (due M1) | A record MAY carry proofs that are irrelevant to its validity. Each proof is evaluated independ… |
-| core 5.6 | MUST | M1 | 2 | tested in part (due M1) | Proof purposes. \| Records \| `proofPurpose` \| \|---\|---\| \| Identity-log events (`Genesis`, `Updat… |
+| core 5.6 | MUST | M1 | 3 | tested in part (due M1) | Proof purposes. \| Records \| `proofPurpose` \| \|---\|---\| \| Identity-log events (`Genesis`, `Updat… |
 | core 5.7 | SHOULD | M1 | 0 | pending M1 | A proof's `created` SHOULD NOT be earlier than the record's `created`. |
-| core 6.1 |  | M1 | 3 | tested in part (due M1) | References use DID syntax (W3C DID Core) and are defined by this grammar (ABNF, RFC 5234): ```… |
+| core 6.1 |  | M1 | 4 | tested in part (due M1) | References use DID syntax (W3C DID Core) and are defined by this grammar (ABNF, RFC 5234): ```… |
 | core 6.2 | MUST | M1 | 1 | tested in part (due M1) | A proof by a mind's operational key MUST use a `key-ref`, which pins the version of the mind's… |
 | core 6.3 | MUST | M1 | 0 | pending M1 | A `record-ref` names a record by its content ID and says which mind's records to fetch it from.… |
 | core 6.4 | MUST | M1 | 0 | pending M1 | User interfaces MAY abbreviate addresses for display. Abbreviated forms MUST NOT be used in rec… |
 | core 7 | MUST | M1 | 6 | tested in part (due M1) | Common fields (table) |
-| core 8.1 |  | M1 | 2 | tested in part (due M1) | `ext` is an object whose member names are namespaces and whose values are objects. A namespace… |
+| core 8.1 |  | M1 | 4 | tested in part (due M1) | `ext` is an object whose member names are namespaces and whose values are objects. A namespace… |
 | core 8.2 | MAY | M1 | 0 | pending M1 | An extension block MAY contain a member `v` giving its own version. |
 | core 8.3 | MUST | M1 | 3 | tested in part (due M1) | `critical` is an array of namespaces, each of which MUST also appear in `ext`. An implementatio… |
 | core 8.4 | MUST | M1 | 0 | pending M1 | Extensions MUST NOT change the validity of a record under this specification unless they are li… |
@@ -196,7 +196,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 10.5 |  | M4 | 2 | tested in part (due M4) | A `Checkpoint` has `author`, `created`, `size` (the number of entries covered, from `seq` 0), `… |
 | L1 10.6 | MAY | M4 | 0 | pending M4 | A checkpoint MAY be anchored in a public append-only log or in the Bitcoin blockchain through O… |
 | L1 11.1 | MUST | M3 | 5 | tested in part (due M3) | A `Delegation` record: \| Member \| Required \| Value \| UCAN 1.0 \| \|---\|---\|---\|---\| \| `author` \|… |
-| L1 11.2 | MUST | M3 | 7 | tested in part (due M3) | Commands match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` covers a command `c` when… |
+| L1 11.2 | MUST | M3 | 8 | tested in part (due M3) | Commands match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` covers a command `c` when… |
 | L1 11.3 | SHOULD | M3 | 19 | tested in part (due M3) | Policies. A policy is an array of at most 64 statements, all of which must hold for the record… |
 | L1 11.4 |  | M3 | 0 | pending M3 | Validity of a delegation chain for a record `r` carrying a proof `p` by a valid operational key… |
 | L1 11.5 | SHOULD | M3 | 0 | pending M3 | A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco… |
@@ -223,7 +223,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 15.3 | SHOULD | M4 | 0 | pending M4 | Senders SHOULD try endpoints in priority order and SHOULD use `mailbox` endpoints when no other… |
 | L1 15.4 | MUST | M6 | 0 | pending M6 | Changing hosts. Anyone holding one of the mind's operational keys can publish location records… |
 | L1 16.1 | MUST | M4 | 5 | tested in part (due M4) | A `Participant` record: \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The mind… |
-| L1 16.2 | MUST | M4 | 5 | tested in part (due M4) | A capability object: `id` (REQUIRED, at most 128 characters, unique within the profile), `summa… |
+| L1 16.2 | MUST | M4 | 6 | tested in part (due M4) | A capability object: `id` (REQUIRED, at most 128 characters, unique within the profile), `summa… |
 | L1 16.3 |  | M4 | 0 | pending M4 | Tag namespaces include `oasf` (the OASF skills and domains taxonomy), `domain`, `lang` (BCP 47)… |
 | L1 16.4 |  | M4 | 0 | pending M4 | The current profile is the one referenced by the current location record; failing that, the mos… |
 | L1 17.1 | MUST | M5 | 0 | pending M5 | A resolver MUST implement: - `GET /oip/v1/resolve/<mindId>`: returns a `Bundle` (13.1) with the… |

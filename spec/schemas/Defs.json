@@ -94,8 +94,7 @@
     "httpsOrigin": {
       "$id": "urn:oip:schema:def:httpsOrigin",
       "type": "string",
-      "pattern": "^https://[^/?#@\\s]+$",
-      "maxLength": 2048
+      "pattern": "^https://[^/?#@\\s]+$"
     },
     "namespaced": {
       "$id": "urn:oip:schema:def:namespaced",

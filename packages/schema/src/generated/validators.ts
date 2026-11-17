@@ -888,7 +888,7 @@ return errors === 0;
 }
 validate76.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
-const schema32 = {"$id":"urn:oip:schema:def:httpsOrigin","type":"string","pattern":"^https://[^/?#@\\s]+$","maxLength":2048};
+const schema32 = {"$id":"urn:oip:schema:def:httpsOrigin","type":"string","pattern":"^https://[^/?#@\\s]+$"};
 const pattern10 = new RegExp("^https://[^/?#@\\s]+$", "u");
 
 function validate80(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
@@ -904,15 +904,9 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func1(data) > 2048){
-validate80.errors = [{instancePath,schemaPath:"#/maxLength",keyword:"maxLength",params:{limit: 2048},message:"must NOT have more than 2048 characters"}];
-return false;
-}
-else {
 if(!pattern10.test(data)){
 validate80.errors = [{instancePath,schemaPath:"#/pattern",keyword:"pattern",params:{pattern: "^https://[^/?#@\\s]+$"},message:"must match pattern \""+"^https://[^/?#@\\s]+$"+"\""}];
 return false;
-}
 }
 }
 else {
@@ -16201,7 +16195,7 @@ validate385.evaluated = {"props":{"oip":true,"expires":true,"ext":true,"critical
 
 
 const schema79 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:oip:schema:Proof","title":"Proof","description":"One proof of a record's proof set (core 5.2).","type":"object","required":["type","cryptosuite","verificationMethod","proofPurpose","created","proofValue"],"properties":{"type":{"type":"string","const":"DataIntegrityProof"},"cryptosuite":{"type":"string","const":"eddsa-jcs-2022"},"verificationMethod":{"anyOf":[{"type":"string","pattern":"^did:oip:bciq[a-p][a-z2-7]{50}[aiqy]\\?versionId=(?:0|[1-9][0-9]*)-bciq[a-p][a-z2-7]{50}[aiqy]#z[1-9A-HJ-NP-Za-km-z]+$"},{"type":"string","pattern":"^did:key:z[1-9A-HJ-NP-Za-km-z]+#z[1-9A-HJ-NP-Za-km-z]+$"}]},"proofPurpose":{"enum":["capabilityInvocation","capabilityDelegation","authentication","assertionMethod"]},"created":{"$ref":"urn:oip:schema:def:timestamp"},"proofValue":{"type":"string","pattern":"^z[1-9A-HJ-NP-Za-km-z]{64,88}$"},"challenge":{"type":"string"},"domain":{"type":"string"},"authority":{"description":"Exactly one delegation chain, root first (Layer 1, 11.6), or exactly one charter (Layer 2, 7.1). Entries are record-refs or inline records; their content is judged when the chain or charter is evaluated.","type":"array","minItems":1,"maxItems":8,"items":{"type":["string","object"]}},"@context":{}},"additionalProperties":false,"dependentSchemas":{"challenge":{"properties":{"proofPurpose":{"const":"authentication"}}},"domain":{"properties":{"proofPurpose":{"const":"authentication"}}}}};
-const func39 = Object.prototype.hasOwnProperty;
+const func38 = Object.prototype.hasOwnProperty;
 const pattern33 = new RegExp("^did:oip:bciq[a-p][a-z2-7]{50}[aiqy]\\?versionId=(?:0|[1-9][0-9]*)-bciq[a-p][a-z2-7]{50}[aiqy]#z[1-9A-HJ-NP-Za-km-z]+$", "u");
 const pattern34 = new RegExp("^did:key:z[1-9A-HJ-NP-Za-km-z]+#z[1-9A-HJ-NP-Za-km-z]+$", "u");
 const pattern35 = new RegExp("^z[1-9A-HJ-NP-Za-km-z]{64,88}$", "u");
@@ -16227,7 +16221,7 @@ return false;
 else {
 const _errs1 = errors;
 for(const key0 in data){
-if(!(func39.call(schema79.properties, key0))){
+if(!(func38.call(schema79.properties, key0))){
 validate390.errors = [{instancePath,schemaPath:"#/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
 return false;
 break;

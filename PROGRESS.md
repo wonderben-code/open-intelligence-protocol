@@ -8,7 +8,7 @@ This file is the live status of the Open Intelligence Protocol project, so that 
 
 | Milestone | Status |
 |---|---|
-| **M0. Foundations** | **Done**, pending merge of its pull request. Two independent reviews; every finding fixed, queued or handed to Eks ([reviews/build/M0-foundations.md](reviews/build/M0-foundations.md)) |
+| **M0. Foundations** | **Done**, pending merge of [its pull request](https://github.com/wonderben-code/open-intelligence-protocol/pull/1), which waits on one repository setting (E11 below). Two independent reviews; every finding fixed, queued or handed to Eks ([reviews/build/M0-foundations.md](reviews/build/M0-foundations.md)) |
 | **M1. Core** | **Next.** Start here |
 | M2 to M14 | Not started |
 
@@ -120,6 +120,8 @@ Gaps and ambiguities that the build has found. Each is fixed in the milestone na
 
 ## Open decisions for Eks
 
+**Two clicks block the merge of M0** ([pull request 1](https://github.com/wonderben-code/open-intelligence-protocol/pull/1)): E11 and, on the same settings page, E1. Everything else on that pull request is green.
+
 **Small things only you can do or decide.** Each is ready to the last click.
 
 | # | What | Why | Exactly what to do |
@@ -134,6 +136,7 @@ Gaps and ambiguities that the build has found. Each is fixed in the milestone na
 | E8 | Labels and issues | BUILD.md asks for issues labelled by layer and milestone. The labels `spec` and `oep`, which the issue forms use, do not exist yet. Issues I open would appear under your name | Say whether I should file Q1 to Q24 as issues. Create the labels `spec`, `oep`, `core`, `layer-0`, `layer-1`, `layer-2` and `M1` to `M14` (Issues → Labels), or say that I may |
 | E9 | The two Bitcoin timestamp workflows | They use `actions/checkout@v4` and an unpinned `pip install`. BUILD.md says to leave them as they are, and OpenSSF Scorecard will mark them down | Say whether I may pin them by commit SHA, changing nothing else |
 | E10 | Branch protection for `main` | Nothing yet stops a merge with CI red | **Settings → Branches → Add rule** for `main`: require the checks "Every check (pnpm run ci)", "Test (Node 24)" and "Test (Node latest)". Do not require linear history: `main` takes merge commits |
+| **E11** | **Switch on the dependency graph** | The dependency-review check fails on every pull request until it is on: "Dependency review is not supported on this repository". It is the only red check on the M0 pull request | Repository **Settings → Code security → Dependency graph → Enable**. Then re-run the "Dependency review" check on the pull request, or tell me and I will |
 
 **The gates of BUILD.md, Section 8, as before:**
 

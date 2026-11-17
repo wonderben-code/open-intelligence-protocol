@@ -484,6 +484,13 @@ describe("members that have a syntax", () => {
     build: (value: unknown) => JsonObject,
     good: unknown,
   ][] = [
+    ["Session", "created", (v) => ({ created: v }), T0],
+    ["Resume", "created", (v) => ({ created: v }), T0],
+    ["Branch", "created", (v) => ({ created: v }), T0],
+    ["Intent", "created", (v) => ({ created: v }), T0],
+    ["Genesis", "created", (v) => ({ created: v }), T0],
+    ["Sealed", "expires", (v) => ({ expires: v }), T0],
+    ["Bundle", "expires", (v) => ({ expires: v }), T0],
     ["Ack", "received", (v) => ({ received: v }), T0],
     ["Ack", "packet", (v) => ({ packet: v }), CID],
     ["Ack", "sealed", (v) => ({ sealed: v }), CID],

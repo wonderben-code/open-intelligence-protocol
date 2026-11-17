@@ -12,7 +12,7 @@ import type { Validation } from "@oip/schema";
 import type { EvidenceView } from "./evidence.ts";
 import { type LogContext, MAX_HEIGHT, verifyLog } from "./log.ts";
 import { no, ok } from "./result.ts";
-import type { BranchTail, VerifiedLog } from "./state.ts";
+import type { LogEntry, VerifiedLog } from "./state.ts";
 
 /** The verified logs a verifier holds, and its evidence of time. */
 export interface IdentityView {
@@ -38,6 +38,8 @@ export interface LogBookOptions {
   readonly maxEvents?: number;
 }
 
+type Logs = readonly [VerifiedLog, ...VerifiedLog[]];
+
 /**
  * Layer 1, 7.3: one log from the branches held for a mind. Never by length
  * or by recency: where two branches part, the event with strictly the
@@ -47,53 +49,55 @@ export interface LogBookOptions {
  *
  * @param branches - The branches that verified. At least one.
  */
-function resolveBranches(
-  branches: readonly [VerifiedLog, ...VerifiedLog[]],
-  evidence: EvidenceView,
-): VerifiedLog {
-  let candidates: readonly VerifiedLog[] = branches;
+function resolveBranches(branches: Logs, evidence: EvidenceView): VerifiedLog {
+  let candidates: Logs = branches;
   for (let position = 0; ; position++) {
-    const heads = new Map<string, VerifiedLog[]>();
+    // The branches that go on, by the event each has at this position.
+    const heads = new Map<string, [VerifiedLog, ...VerifiedLog[]]>();
     for (const log of candidates) {
-      const state = log.states[position];
-      if (state === undefined) continue;
-      heads.set(state.head, [...(heads.get(state.head) ?? []), log]);
+      const head = log.entries[position]?.state.head;
+      if (head === undefined) continue;
+      const same = heads.get(head);
+      if (same === undefined) heads.set(head, [log]);
+      else same.push(log);
     }
+    const [first, ...others] = heads.values();
     // Every branch left has ended here, so they are one log.
-    if (heads.size === 0) return candidates[0]!;
-    if (heads.size > 1) {
-      // A branch that verified has evidence for each of its events.
-      const seen = new Map([...heads.keys()].map((head) => [head, evidence.eventSeen(head)!]));
-      const first = [...seen.values()].reduce((a, b) => (b < a ? b : a));
-      const winners = [...seen].filter(([, time]) => time === first).map(([head]) => head);
-      if (winners.length > 1) return duplicitous(candidates, position);
-      candidates = heads.get(winners[0]!)!;
+    if (first === undefined) return candidates[0];
+    if (others.length === 0) {
+      // One event at this position. A branch that has ended is a prefix, not a fork.
+      candidates = first;
       continue;
     }
-    // One event at this position. A branch that has ended is a prefix, not a fork.
-    candidates = [...heads.values()][0]!;
+    let earliest: { readonly seen: Instant; readonly logs: Logs } | undefined;
+    let tied = false;
+    for (const [head, logs] of heads) {
+      const seen = evidence.eventSeen(head);
+      // A branch that verified had evidence for its events. One whose evidence is gone cannot win.
+      if (seen === undefined) continue;
+      if (earliest === undefined || seen < earliest.seen) {
+        earliest = { seen, logs };
+        tied = false;
+      } else if (seen === earliest.seen) {
+        tied = true;
+      }
+    }
+    if (earliest === undefined || tied) return duplicitous(candidates, position);
+    candidates = earliest.logs;
   }
 }
 
-function duplicitous(candidates: readonly VerifiedLog[], position: number): VerifiedLog {
-  const base = candidates[0]!;
-  const branchTails: BranchTail[] = [];
-  for (const log of candidates) {
-    for (let i = position; i < log.events.length; i++) {
-      branchTails.push({
-        time: log.times[i]!,
-        state: log.states[i]!,
-        event: log.events[i]!,
-      });
-    }
-  }
+/**
+ * @param position - Where the branches part. Never 0: logs with two geneses are two minds.
+ */
+function duplicitous(candidates: Logs, position: number): VerifiedLog {
+  const [base] = candidates;
+  const [genesis, ...later] = base.entries;
   return {
     ...base,
-    events: base.events.slice(0, position),
-    states: base.states.slice(0, position),
-    times: base.times.slice(0, position),
+    entries: [genesis, ...later.slice(0, position - 1)],
     duplicitous: true,
-    branchTails,
+    branchTails: candidates.flatMap((log): LogEntry[] => log.entries.slice(position)),
   };
 }
 
@@ -194,10 +198,10 @@ export class LogBook implements IdentityView {
     };
     const results = held.branches.map((branch) => verifyLog(branch, context));
     const [first, ...rest] = results.flatMap((result) => (result.ok ? [result.value] : []));
+    if (first !== undefined) return ok(resolveBranches([first, ...rest], this.evidence));
     // A branch that does not verify is no event at all. With no branch that
     // verifies, the reasons of the first are given.
-    if (first === undefined) return results[0]!;
-    return ok(resolveBranches([first, ...rest], this.evidence));
+    return results[0] ?? no("no identity log is held", "L1 6.3");
   }
 }
 

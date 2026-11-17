@@ -64,28 +64,27 @@ export interface IdentityState {
   readonly retired: boolean;
 }
 
-/** An event after the point where a duplicitous log diverges, with its state and time. */
-export interface BranchTail {
-  readonly time: Instant;
-  readonly state: IdentityState;
+/** One event of a verified log, with the state after it and its evaluation time (core 9.5). */
+export interface LogEntry {
+  /** The event, as a validated copy. */
   readonly event: IdentityEvent;
+  /** The state after the event. */
+  readonly state: IdentityState;
+  /** The event's evaluation time. It never decreases along a log. */
+  readonly time: Instant;
 }
 
 /**
- * An identity log that verified (Layer 1, Section 4), with the state after
- * each event and each event's evaluation time (core 9.5). The times come
- * from the evidence the log was verified with, so nothing that reads this
- * can be asked about a log whose times are unknown (ADR-0003).
+ * An identity log that verified (Layer 1, Section 4): each event with the
+ * state after it and its evaluation time (core 9.5). The times come from the
+ * evidence the log was verified with, so nothing that reads this can be
+ * asked about a log whose times are unknown (ADR-0003).
  */
 export interface VerifiedLog {
   /** The mind's address: `did:oip:` and the content ID of the genesis. */
   readonly mind: string;
-  /** The events, as validated copies. */
-  readonly events: readonly IdentityEvent[];
-  /** `states[i]` is the state after `events[i]`. */
-  readonly states: readonly IdentityState[];
-  /** `times[i]` is the evaluation time of `events[i]`. It never decreases. */
-  readonly times: readonly Instant[];
+  /** The events in order, the genesis first. */
+  readonly entries: readonly [LogEntry, ...LogEntry[]];
   /** Layer 1, 4.7: 0 for a key-controlled mind; fixed by the genesis for a collective. */
   readonly height: number;
   /**
@@ -96,23 +95,29 @@ export interface VerifiedLog {
   readonly asOf: Instant;
   /**
    * Layer 1, 7.3: the mind signed two events for one position and the
-   * evidence cannot separate them. `events` then stops before that position.
+   * evidence cannot separate them. `entries` then stops before that position.
    */
   readonly duplicitous: boolean;
   /** The later events of every conflicting branch: their removals all apply. */
-  readonly branchTails: readonly BranchTail[];
+  readonly branchTails: readonly LogEntry[];
 }
 
 /** The state after the latest event. */
 export function latestState(log: VerifiedLog): IdentityState {
-  // A verified log has at least its genesis.
-  return log.states[log.states.length - 1]!;
+  return (log.entries.at(-1) ?? log.entries[0]).state;
 }
 
-/** The position of the event a version identifier names, or `undefined` if the log has none. */
-export function positionOf(log: VerifiedLog, versionId: string): number | undefined {
-  const position = log.states.findIndex((state) => state.versionId === versionId);
-  return position === -1 ? undefined : position;
+/**
+ * The event a version identifier names, with its position in the log, or
+ * `undefined` if the log has no such event.
+ */
+export function entryAt(
+  log: VerifiedLog,
+  versionId: string,
+): { readonly position: number; readonly entry: LogEntry } | undefined {
+  const position = log.entries.findIndex((entry) => entry.state.versionId === versionId);
+  const entry = log.entries[position];
+  return entry === undefined ? undefined : { position, entry };
 }
 
 /**
@@ -128,14 +133,10 @@ export function removalTime(
   set: "keys" | "invocation",
 ): Instant | undefined {
   let earliest: Instant | undefined;
-  const consider = (time: Instant, state: IdentityState): void => {
-    if (!state.retired && state[set].includes(key)) return;
+  for (const { state, time } of [...log.entries.slice(position + 1), ...log.branchTails]) {
+    if (!state.retired && state[set].includes(key)) continue;
     if (earliest === undefined || time < earliest) earliest = time;
-  };
-  for (let i = position + 1; i < log.states.length; i++) {
-    consider(log.times[i]!, log.states[i]!);
   }
-  for (const tail of log.branchTails) consider(tail.time, tail.state);
   return earliest;
 }
 
@@ -158,9 +159,9 @@ export function compromisedSince(log: VerifiedLog, key: string): Instant | undef
  */
 export function stateAt(log: VerifiedLog, time: Instant): IdentityState | undefined {
   let found: IdentityState | undefined;
-  for (let i = 0; i < log.states.length; i++) {
-    if (log.times[i]! > time) break;
-    found = log.states[i];
+  for (const entry of log.entries) {
+    if (entry.time > time) break;
+    found = entry.state;
   }
   return found;
 }

@@ -31,9 +31,8 @@ import { proofTime } from "./evidence.ts";
 import { isJsonObject, no, ok } from "./result.ts";
 import {
   compromisedSince,
-  type IdentityState,
+  entryAt,
   latestState,
-  positionOf,
   removalTime,
   stateAt,
   type VerifiedLog,
@@ -119,15 +118,15 @@ export function operationalProofTime(
   const evaluated = proofTime(proof.created, seen);
   if (!evaluated.ok) return evaluated;
   const time = evaluated.value;
-  // `seen` is defined, or the proof would have no evaluation time.
-  if (log.asOf < seen!) {
+  // The evidence is at hand, or the proof would have no evaluation time.
+  if (log.asOf < (seen ?? time)) {
     return no(
       "the signer's log was obtained before the evidence for this proof: it may lack a later event",
       "core 9.4",
     );
   }
-  const position = positionOf(log, method.versionId);
-  if (position === undefined) {
+  const pinned = entryAt(log, method.versionId);
+  if (pinned === undefined) {
     return no(
       log.duplicitous
         ? "the mind is duplicitous, and the proof is pinned to a version at or after the divergence"
@@ -135,10 +134,10 @@ export function operationalProofTime(
       log.duplicitous ? "L1 7.3" : "L1 6.1",
     );
   }
-  if (!log.states[position]!.keys.includes(proof.key)) {
+  if (!pinned.entry.state.keys.includes(proof.key)) {
     return no("the key is not an operational key of the mind at the version named", "L1 6.1");
   }
-  const removed = removalTime(log, position, proof.key, "keys");
+  const removed = removalTime(log, pinned.position, proof.key, "keys");
   if (removed !== undefined && time >= removed) {
     return no(
       "the key was removed, or the mind retired, at or before the proof's evaluation time",
@@ -188,7 +187,7 @@ export function operationalProofs(
 /** Every mind that was ever a member, in any state of the log. */
 function membersEver(log: VerifiedLog): Set<string> {
   const members = new Set<string>();
-  for (const state of log.states) {
+  for (const { state } of log.entries) {
     if (state.controller.kind === "member") {
       for (const member of state.controller.members) members.add(member);
     }

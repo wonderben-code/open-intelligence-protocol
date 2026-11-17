@@ -7,10 +7,10 @@ import type { Validation } from "@oip/schema";
 
 import { no, ok } from "./result.ts";
 import {
+  entryAt,
   type IdentityState,
   latestState,
   type Parent,
-  positionOf,
   type VerifiedLog,
 } from "./state.ts";
 
@@ -108,11 +108,11 @@ export function didDocument(
   const { versionId, endpoints, verifiedAliases } = options;
   let state = latestState(log);
   if (versionId !== undefined) {
-    const position = positionOf(log, versionId);
-    if (position === undefined) {
+    const pinned = entryAt(log, versionId);
+    if (pinned === undefined) {
       return no("versionId names no event of the mind's log", "L1 2.4");
     }
-    state = log.states[position]!;
+    state = pinned.entry.state;
   }
   const mind = state.mind;
   const id = (key: string): string =>

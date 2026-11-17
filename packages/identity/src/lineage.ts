@@ -5,7 +5,7 @@
 
 import type { IdentityView } from "./book.ts";
 import { type JudgedRecord, ownSignedTime } from "./signing.ts";
-import { type IdentityState, positionOf, type VerifiedLog } from "./state.ts";
+import { entryAt, type VerifiedLog } from "./state.ts";
 
 /** A parent a mind's genesis names, and whether the parent acknowledges the mind. */
 export interface Lineage {
@@ -35,17 +35,16 @@ export function lineage(
   view: IdentityView,
   records: readonly JudgedRecord[] = [],
 ): Lineage[] {
-  const genesis = child.states[0]!;
-  return genesis.parents.map(({ mind, at }) => {
+  return child.entries[0].state.parents.map(({ mind, at }) => {
     const claimed: Lineage = { mind, at, status: "claimed" };
     const held = view.log(mind);
     if (!held.ok) return claimed;
     const parent = held.value;
-    const from = positionOf(parent, at);
+    const from = entryAt(parent, at);
     if (from === undefined) return claimed;
-    const forked = parent.events
-      .slice(from)
-      .some((event) => event.type === "Fork" && event.child === child.mind);
+    const forked = parent.entries
+      .slice(from.position)
+      .some(({ event }) => event.type === "Fork" && event.child === child.mind);
     const signed = records.some((judged) => {
       const record = judged.record as { type: string; author?: unknown; child?: unknown };
       return (

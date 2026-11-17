@@ -38,6 +38,9 @@ function verified(mind: Mind, others: readonly Mind[] = []): VerifiedLog {
   return result.value;
 }
 
+const states = (log: VerifiedLog) => log.entries.map((entry) => entry.state);
+const events = (log: VerifiedLog) => log.entries.map((entry) => entry.event);
+
 function refusal(result: Validation<unknown>): Issue {
   if (result.ok) throw new Error("the log verified");
   return result.issues[0];
@@ -57,7 +60,7 @@ describe(`${clause("L1 2.1", "L1 2.2")} mind addresses`, () => {
     const log = verified(ada);
     expect(log.mind).toBe(`did:oip:${contentId(ada.events[0])}`);
     expect(log.mind).toMatch(/^did:oip:bciq[a-z2-7]{52}$/);
-    expect(log.states.map((state) => state.mind)).toEqual([log.mind, log.mind]);
+    expect(states(log).map((state) => state.mind)).toEqual([log.mind, log.mind]);
   });
 
   it("changes with any member of the genesis, so no two minds share one", () => {
@@ -69,12 +72,12 @@ describe(`${clause("L1 2.1", "L1 2.2")} mind addresses`, () => {
 describe(`${clause("L1 2.3")} the operations of the DID method`, () => {
   it("creates with a Genesis, updates with an Update or a Fork, and deactivates with a Retire", () => {
     const ada = new KeyMind("ada");
-    expect(verified(ada).events.map((event) => event.type)).toEqual(["Genesis"]);
+    expect(events(verified(ada)).map((event) => event.type)).toEqual(["Genesis"]);
     ada.update(10).fork(20, { child: new KeyMind("child").address });
     expect(latestState(verified(ada)).retired).toBe(false);
     ada.retire(30);
     const log = verified(ada);
-    expect(log.events.map((event) => event.type)).toEqual(["Genesis", "Update", "Fork", "Retire"]);
+    expect(events(log).map((event) => event.type)).toEqual(["Genesis", "Update", "Fork", "Retire"]);
     expect(latestState(log).retired).toBe(true);
   });
 });
@@ -122,7 +125,7 @@ describe(`${clause("L1 3.1")} an identity log is an ordered array of events`, ()
     const ada = new KeyMind("ada").update(10).update(20);
     for (let length = 1; length <= 3; length++) {
       const log = verifyEvents(ada.events.slice(0, length));
-      expect(log.ok && log.value.states).toHaveLength(length);
+      expect(log.ok && states(log.value)).toHaveLength(length);
     }
   });
 });
@@ -167,17 +170,17 @@ describe(`${clause("L1 3.2", "L1 4.2")} the members that chain an event to the o
       clause: "L1 4.2",
       path: "/1/created",
     });
-    expect(verified(new KeyMind("ada", 10).update(10)).states).toHaveLength(2);
+    expect(states(verified(new KeyMind("ada", 10).update(10)))).toHaveLength(2);
   });
 });
 
 describe(`${clause("L1 3.3")} version identifiers`, () => {
   it("is the position and the content ID of the event, 0 for the genesis", () => {
     const ada = new KeyMind("ada").update(10).update(20);
-    expect(verified(ada).states.map((state) => state.versionId)).toEqual(
+    expect(states(verified(ada)).map((state) => state.versionId)).toEqual(
       ada.events.map((event, position) => formatVersionId(position, contentId(event))),
     );
-    expect(verified(ada).states.map((state) => [state.seq, state.head])).toEqual(
+    expect(states(verified(ada)).map((state) => [state.seq, state.head])).toEqual(
       ada.events.map((event, position) => [position, contentId(event)]),
     );
   });
@@ -485,7 +488,7 @@ describe(`${clause("L1 3.7", "L1 4.5")} Update`, () => {
       .update(30, { revoked: [{ key, compromisedSince: T(4) }] })
       .update(40, { revoked: [{ key }] });
     const log = verified(ada);
-    expect(log.states.map((state) => state.revoked.get(key))).toEqual([
+    expect(states(log).map((state) => state.revoked.get(key))).toEqual([
       undefined,
       parse(T(5)),
       parse(T(3)),
@@ -515,7 +518,7 @@ describe(`${clause("L1 3.8")} Fork`, () => {
     const one = new KeyMind("one").address;
     const two = new KeyMind("two").address;
     const ada = new KeyMind("ada").fork(10, { child: one }).update(20).fork(30, { child: two });
-    expect(verified(ada).states.map((state) => state.children)).toEqual([
+    expect(states(verified(ada)).map((state) => state.children)).toEqual([
       [],
       [one],
       [one],
@@ -588,7 +591,7 @@ describe(`${clause("L1 3.12")} recovery is reserved`, () => {
 
   it("is reserved at the top of an event only", () => {
     const ada = new KeyMind("ada", 0, { inherits: { recovery: "a word like any other" } });
-    expect(verified(ada).states).toHaveLength(1);
+    expect(states(verified(ada))).toHaveLength(1);
   });
 });
 
@@ -630,7 +633,7 @@ describe(`${clause("L1 4", "L1 4.1")} the genesis is signed by everyone it names
   it("requires a proof by every founding member, with one of its invocation keys", () => {
     const members = [new KeyMind("a"), new KeyMind("b"), new KeyMind("c")];
     const club = new Collective("club", members, 2);
-    expect(verified(club, members).states).toHaveLength(1);
+    expect(states(verified(club, members))).toHaveLength(1);
     // The threshold is for later events. A founder cannot be named without its consent.
     const genesis = club.events[0] as JsonObject;
     const two = rawSign(
@@ -716,7 +719,7 @@ describe(`${clause("L1 4.3")} a key-controlled mind's events are signed by the k
 
   it("takes the next commitment from each event in turn", () => {
     const ada = new KeyMind("ada").update(10).update(20);
-    expect(verified(ada).states.map((state) => state.controller)).toEqual(
+    expect(states(verified(ada)).map((state) => state.controller)).toEqual(
       [1, 2, 3].map((n) => ({
         kind: "key",
         next: [keyHash(ada.control(n).publicKey)],
@@ -741,8 +744,8 @@ describe(`${clause("L1 4.4")} a member-controlled mind's events are signed by it
 
   it("requires the threshold of the current members", () => {
     const club = () => new Collective("club", [a, b, c], 2);
-    expect(verified(club().update(10, [a, b]), everyone).states).toHaveLength(2);
-    expect(verified(club().update(10, [c, a, b]), everyone).states).toHaveLength(2);
+    expect(states(verified(club().update(10, [a, b]), everyone))).toHaveLength(2);
+    expect(states(verified(club().update(10, [c, a, b]), everyone))).toHaveLength(2);
     expect(refused(club().update(10, [a]), everyone)).toMatchObject({
       clause: "L1 4.4",
       path: "/1/proof",
@@ -767,7 +770,7 @@ describe(`${clause("L1 4.4")} a member-controlled mind's events are signed by it
     // The added member's proof does not count towards the threshold of the members before it.
     expect(refused(club().update(10, [a, d], { controller }), everyone).clause).toBe("L1 4.4");
     // From the next event on, the new membership signs.
-    expect(verified(joined.update(20, [b, d]), everyone).states).toHaveLength(3);
+    expect(states(verified(joined.update(20, [b, d]), everyone))).toHaveLength(3);
     const gone = club().update(10, [a, b, d], { controller }).update(20, [a, c]);
     expect(refused(gone, everyone)).toMatchObject({ clause: "L1 4.4", path: "/2/proof" });
   });
@@ -777,7 +780,7 @@ describe(`${clause("L1 4.4")} a member-controlled mind's events are signed by it
       homes: ["https://club.example"],
     });
     const log = verified(club, everyone);
-    expect(log.states[1]?.controller).toEqual(log.states[0]?.controller);
+    expect(states(log)[1]?.controller).toEqual(states(log)[0]?.controller);
     expect(latestState(log).homes).toEqual(["https://club.example"]);
   });
 });
@@ -916,11 +919,11 @@ describe("a log is judged, never trusted", () => {
 
   it("returns copies: changing the events given afterwards changes nothing verified", () => {
     const ada = new KeyMind("ada").update(10);
-    const events = copy(ada.events) as unknown as JsonObject[];
-    const log = verifyEvents(events);
+    const given = copy(ada.events) as unknown as JsonObject[];
+    const log = verifyEvents(given);
     if (!log.ok) throw new Error("the log does not verify");
-    (events[1] as { created: string }).created = T(99);
-    expect(log.value.events[1]?.created).toBe(T(10));
+    (given[1] as { created: string }).created = T(99);
+    expect(events(log.value)[1]?.created).toBe(T(10));
   });
 
   it("refuses a log whose size or shape breaks the rules for any record", () => {

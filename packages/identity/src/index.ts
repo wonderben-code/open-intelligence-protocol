@@ -65,13 +65,13 @@ export {
   ownSignedTime,
 } from "./signing.ts";
 export {
-  type BranchTail,
   compromisedSince,
   type ControllerState,
+  entryAt,
   type IdentityState,
   latestState,
+  type LogEntry,
   type Parent,
-  positionOf,
   removalTime,
   stateAt,
   type VerifiedLog,

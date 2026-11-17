@@ -86,6 +86,18 @@ Review B was right, and the milestone was not merged until every item below was 
 
 ## After the fixes
 
-Every check in `pnpm run ci` passes from a clean build: 587 tests, branch coverage 95.8%, 6 layering fixtures and 24 purity probes rejected by the guards, 36 generated files current, and the Python checker regenerates the vectors unchanged.
+Every check in `pnpm run ci` passes from a clean build: 616 tests, branch coverage 95.8%, 6 layering fixtures and 24 purity probes rejected by the guards, 36 generated files current, and the Python checker regenerates the vectors unchanged.
+
+**The mutants, run again.** Review B left its 195 mutants and the script that applies them. The 83 that had survived, or had been killed only by the random campaign, were run again against the fixed code, in a separate clone and with the random campaign cut to 200 cases so that it could not do the unit tests' work:
+
+| Outcome | Count |
+|---|---:|
+| Killed by a test | 78 |
+| No longer apply: the code they changed is gone | 3 |
+| Survive | 2 |
+
+The two that survive are the reviewer's own controls: an equivalent rewrite, and an early check that the schema repeats. The first pass killed 67; the 11 it left alive (value syntaxes, `status` without `supersedes`, the members of a price, a bound that only the schema states) each got a test, and a second pass killed them.
+
+On the pull request, CodeQL passed for TypeScript, Python and the workflows.
 
 The questions for the specification (Q1 to Q24) and the items for Eks (E1 to E11) are in [PROGRESS.md](../../PROGRESS.md).

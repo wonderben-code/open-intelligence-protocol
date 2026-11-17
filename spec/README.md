@@ -27,9 +27,9 @@ Every record carries `"oip": "1"`, the major protocol version. The specification
 | Core | core.md in full; identity-log verification and delegation verification from Layer 1 |
 | Mind | Core; Layer 1 identity management, location records, profiles, feeds, packets, sessions, HTTPS inbox |
 | Host | Layer 1 well-known endpoints, inbox and WebSocket binding; mailbox optional |
-| Resolver | Layer 1 resolver API, first-seen witnessing with live evaluation of new events, duplicity evidence |
+| Resolver | Layer 1 resolver API, first-seen witnessing of identity events and proofs, served as `firstSeen`, with live evaluation of new events, duplicity evidence |
 | Indexer | Layer 1 indexer API with signed results |
 | Mind Web | Layer 2 in full |
 | Gateway | At least one Layer 0 mapping, with assurance declarations |
 
-An implementation MUST reproduce every value in `test-vectors/vectors.json` that falls within the profiles it claims, MUST accept every must-accept case, and MUST reject every negative case within those profiles.
+An implementation MUST reproduce every value in `test-vectors/vectors.json` that falls within the profiles it claims, MUST accept every must-accept case and every control, and MUST reject every negative case within those profiles.

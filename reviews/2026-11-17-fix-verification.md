@@ -1,5 +1,7 @@
 # Fix verification: specification revision 2026-11-17
 
+> **Note added after the review.** This report checked the pre-publication candidate of revision 2026-11-17 at commit `ab980a8`. Every finding in it, N1–N10 and M1–M11, together with the remaining paper items it lists, is addressed in revision 2026-11-17 as published; [spec/CHANGELOG.md](../spec/CHANGELOG.md) says how, and the test vectors include a negative case, and where it matters a control, for each. The report itself is unchanged below.
+
 **Reviewer:** independent agent, 17 November 2026, with no access to the author's reasoning.
 **Scope:** `spec/core.md`, `spec/layer-1-mind-network.md` (L1), `spec/layer-2-mind-web.md` (L2), `spec/layer-0-bridge.md` (L0), `spec/README.md`, `spec/CHANGELOG.md`, `papers/02-technical-architecture.md` (Draft 2, "paper"), `spec/test-vectors/oip_vectors.py` ("the checker") and `vectors.json`, and `BUILD.md`. These were checked against the findings of `reviews/2026-10-30-paper-review.md` (cited here as P-C1…P-I14) and `reviews/2026-10-30-spec-review.md` (S-C1…S-I21).
 

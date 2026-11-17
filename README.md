@@ -22,7 +22,7 @@ Created by **Ekram Alam**, 30 October 2026.
 - [Technical architecture paper](papers/02-technical-architecture.md) — how it works, and why
 - [Specifications](spec/) — the normative rules for each layer
 - [Test vectors](spec/test-vectors/) — deterministic golden values, including attack cases every implementation must reject, with a checker
-- [Reviews](reviews/) — two independent reviews of the first revision, and how each finding was fixed
+- [Reviews](reviews/) — two independent reviews of the first revision, an independent check of the fixes, and how each finding was fixed
 - [Research notes](research/) — the survey of existing protocols and standards behind the design
 - [Philosophy](PHILOSOPHY.md)
 

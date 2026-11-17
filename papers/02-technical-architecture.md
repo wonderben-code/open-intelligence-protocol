@@ -20,7 +20,7 @@ On top of this network, OIP defines six linked primitives (Participant, Intent, 
 
 A Bridge layer makes the existing internet a first-class part of the network: MCP servers, A2A agents, websites, APIs, email, payment rails and existing identity systems all participate through gateways, and every MCP-capable assistant can join OIP through a single bridge.
 
-The design composes existing standards wherever they exist: W3C Decentralized Identifiers and Data Integrity proofs (the `eddsa-jcs-2022` cryptosuite), RFC 8785 canonical JSON, KERI-style pre-rotation, UCAN-style delegation, AT Protocol-style host independence and A2A-compatible capability descriptions. Most of its mechanisms have precedents, which Section 5 cites. What is new is their combination in one protocol: self-certifying, location-independent addresses for every kind of mind; lineage between minds; member-controlled collectives; sessions that survive moves and forks; general-purpose commitments and receipts that agents can sign for the people and firms they serve; and a time model in which every rule is judged on evidence of when a signature existed, never on the signer's own clock. The core rules are implemented in a checker that generates the specification's deterministic test vectors, including 36 attack cases that every implementation must reject.
+The design composes existing standards wherever they exist: W3C Decentralized Identifiers and Data Integrity proofs (the `eddsa-jcs-2022` cryptosuite), RFC 8785 canonical JSON, KERI-style pre-rotation, UCAN-style delegation, AT Protocol-style host independence and A2A-compatible capability descriptions. Most of its mechanisms have precedents, which Section 5 cites. What is new is their combination in one protocol: self-certifying, location-independent addresses for every kind of mind; lineage between minds; member-controlled collectives; sessions that survive moves and forks; general-purpose commitments and receipts that agents can sign for the people and firms they serve; and a time model in which every rule is judged on evidence of when a signature existed rather than on the date its signer claims. The core rules are implemented in a checker that generates the specification's deterministic test vectors, including 55 attack cases that every implementation must reject, each paired where it matters with a control showing that it fails for its stated reason alone.
 
 ---
 
@@ -30,7 +30,7 @@ The design composes existing standards wherever they exist: W3C Decentralized Id
 
 The founding paper described what OIP is for and why the AI era needs it. This paper describes how it works. It explains each design decision, the alternatives considered, and the prior art each decision rests on.
 
-This is a **draft architecture**. The wire format carries the major version `"1"`, and the specification is identified by dated revisions. This paper describes revision **2026-11-17**, which revises the first revision (2026-10-30) after two independent reviews, one of this paper and one of the specifications; both reviews and the changes they led to are in the repository. Until the specification is marked stable, revisions may change details in ways that are not backward compatible; every such change will be recorded in the repository and timestamped.
+This is a **draft architecture**. The wire format carries the major version `"1"`, and the specification is identified by dated revisions. This paper describes revision **2026-11-17**, which revises the first revision (2026-10-30) after two independent reviews, one of this paper and one of the specifications, and a third independent check of the fixes before publication; all three reviews and the changes they led to are in the repository. Until the specification is marked stable, revisions may change details in ways that are not backward compatible; every such change will be recorded in the repository and timestamped.
 
 ### 1.2 How to read this paper
 
@@ -39,7 +39,7 @@ This is a **draft architecture**. The wire format carries the major version `"1"
 - Sections 5, 6 and 7 describe Layer 1 (the Mind Network), Layer 2 (the Mind Web) and Layer 0 (the Bridge). Layer 0 comes last because it is defined in terms of the other two.
 - Sections 8 to 12 cover security, conformance, the road to full decentralisation, open questions and governance.
 
-The normative rules, in MUST/SHOULD/MAY language, live in the layer specifications in `spec/`. Where this paper and a specification disagree, the specification wins and the paper will be corrected. Deterministic test vectors are in `spec/test-vectors/`, generated and checked by a Python implementation of the core rules; every address and identifier quoted in this paper comes from them. During review, a second implementation written only from the specification text reproduced their identifiers and signatures.
+The normative rules, in MUST/SHOULD/MAY language, live in the layer specifications in `spec/`. Where this paper and a specification disagree, the specification wins and the paper will be corrected. Deterministic test vectors are in `spec/test-vectors/`, generated and checked by a Python implementation of the core rules; every address and identifier quoted in this paper comes from them. During review of the first revision, a second implementation written only from that revision's text reproduced its identifiers and signatures. It still reproduces the current vectors' addresses, content IDs and ordinary signatures, but it predates the newer rules (invocation keys, proof-level authority, evidence of time), which so far only the generator checks.
 
 ### 1.3 Design method
 
@@ -135,9 +135,11 @@ Every mind, whether a person, an agent, a collective or an institution, is descr
 | Record | What it says | Changes | Signed by |
 |---|---|---|---|
 | **Identity log** | Who this mind is: its address, its keys, its lineage, its controllers | Rarely (key changes, forks, membership changes) | Control keys, or a majority of members for a collective |
-| **Location record** | Where it can be reached right now: endpoints, instances, mailbox, status | Often (minutes to hours) | An operational key |
-| **Participant profile** | What it is and what it can do: name, kind, capabilities, who it acts for | Occasionally | An operational key |
-| **Public feed** | What it has said publicly: an ordered, hash-chained list of the objects it publishes | Whenever it publishes | An operational key |
+| **Location record** | Where it can be reached right now: endpoints, instances, mailbox, status | Often (minutes to hours) | An operational key, or a majority of a collective's current members |
+| **Participant profile** | What it is and what it can do: name, kind, capabilities, who it acts for | Occasionally | An operational key, or a majority of a collective's current members |
+| **Public feed** | What it has said publicly: an ordered, hash-chained list of the objects it publishes | Whenever it publishes | An operational key, or a majority of a collective's members |
+
+A collective can also authorise operational keys of its own in its identity log, which then sign for it like any mind's keys (Section 5.5).
 
 The address is derived from the first event of the identity log and never changes. The location record points to the current profile and the head of the feed, so a single fetch tells a counterpart where a mind is, what it can do and what it has most recently published.
 
@@ -155,7 +157,7 @@ No role is privileged. A client can use several resolvers and indexers at once a
 
 ### 3.4 A complete interaction
 
-The test vectors follow one scenario from start to finish. Amina, a person, needs a Swahili commercial lease translated into English. Lexis Ltd, a translation firm, runs an AI agent that does this work under a spending limit the firm has delegated to it.
+The test vectors follow one scenario from start to finish. Amina, a person, needs a Swahili commercial lease translated into English. Lexis Ltd, a translation firm, runs an AI agent that takes on this work within limits the firm has delegated to it.
 
 ```mermaid
 sequenceDiagram
@@ -176,7 +178,7 @@ sequenceDiagram
 ```
 
 1. **Identity.** Each party has a `did:oip` address created from its own genesis event. Amina's is `did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna`.
-2. **Delegation.** Lexis Ltd signs a delegation allowing its agent to sign Commitments on the firm's behalf, with a policy capping the price at 500 US dollars (both the amount and the currency) and an expiry date.
+2. **Delegation.** Lexis Ltd signs a delegation allowing its agent to sign Commitments on the firm's behalf, with a policy that admits only deals in which the firm is paid, in US dollars, at most 500 per Commitment, and never with the agent itself, and with an expiry date.
 3. **Capability publication.** The agent publishes a Participant profile describing its legal-translation capability with structured tags. Indexers collect it.
 4. **Intent.** Amina publishes an Intent addressed to a capability query (minds tagged for Swahili, English and legal work). Indexers match it to capable minds.
 5. **Offer.** The agent sends Amina a signed context packet whose content is a signed Offer: 120 USD, delivered by 1 November.
@@ -209,7 +211,7 @@ Every record has a **content ID**, computed the same way for everything from ide
 contentId(record) = "b" + base32lower( 0x12 0x20 ‖ SHA-256( JCS(record without "proof") ) )
 ```
 
-That is, a multibase base32 encoding (prefix `b`) of a SHA-256 multihash of the canonical record with its `proof` member removed. Content IDs look like `bciqmthql6djhigqky3al4ev4e37pfqpaozfnkzh7asfvg2kfhsjifxi`.
+That is, a multibase base32 encoding (prefix `b`) of a SHA-256 multihash of the canonical record with its `proof` member removed. Content IDs look like `bciqgt3dzq5yoxrat3fdyut32dmnwemrmbpcmbjjrz6i4thkums4rzii`.
 
 This choice has four useful properties:
 
@@ -237,7 +239,7 @@ The signature is Ed25519 over `SHA-256(JCS(proof options)) ‖ SHA-256(JCS(recor
 
 - **`proof` is always an array** (a W3C proof set), even with one signature. Each proof is computed independently over the record without its `proof` member, so parties can sign in any order, over any channel, and their signatures can be merged by simple union.
 - **Proof purposes** follow DID Core: `assertionMethod` for statements, `authentication` for login challenges (with the standard `challenge` and `domain` fields), `capabilityDelegation` for delegations and `capabilityInvocation` for identity-log events. A proof with the wrong purpose counts for nothing.
-- A proof made on someone else's behalf carries the delegations it relies on in its own `authority` member (Section 5.6). Everything in a proof's options is covered by its signature, so the choice to act for a principal is itself signed, and adding such a proof still never changes the record's ID.
+- A proof made on someone else's behalf names what it relies on in its own `authority` member: one delegation chain (Section 5.6) or one collective's charter (Section 6.3). Everything in a proof's options is covered by its signature, so the choice to act for a principal is itself signed, and adding such a proof still never changes the record's ID.
 - Because these are standard proofs, a Data Integrity verifier with a `did:oip` resolver, which produces versioned verification methods (Section 5.1), can check the signature on any OIP record. Whether a signature *counts* for a party is decided by OIP's rules on keys, time and delegation (Sections 5.2 to 5.6 and 6.3).
 
 ### 4.4 References
@@ -250,7 +252,7 @@ Everything in OIP is named with a DID or a DID URL, so existing DID tooling can 
 | A version of a mind's identity | `did:oip:<mindId>?versionId=<seq>-<eventId>` | `…?versionId=1-bciqhzdmvqz4…` |
 | A key at a version | `…?versionId=<seq>-<eventId>#<multikey>` | `…#z6Mkhb5CoYw9…` |
 | A control key | `did:key:<multikey>#<multikey>` | `did:key:z6Mkvxzz714c…#z6Mkvxzz714c…` |
-| A record authored by a mind | `did:oip:<mindId>/<contentId>` | `did:oip:bciqluymzsdo…/bciqmthql6dj…` |
+| A record authored by a mind | `did:oip:<mindId>/<contentId>` | `did:oip:bciqluymzsdo…/bciqgt3dzq5y…` |
 
 Keys are written as **Multikey** strings (`z6Mk…` for Ed25519, `z6LS…` for X25519), the encoding used by W3C Controlled Identifiers and `did:key`. A key's fragment is the key itself, so a key keeps the same name for as long as it exists.
 
@@ -273,7 +275,7 @@ A record reference has two parts with two jobs: the content ID makes the link im
 
 ### 4.6 Cryptographic agility
 
-Version 1 requires Ed25519 and SHA-256, and pins down exactly which Ed25519 signatures are valid (canonical encodings, points in the prime-order subgroup), because common libraries disagree at the edges and two verifiers must never disagree about a signature. The design leaves room to change algorithms without changing addresses or record shapes, though each change is a change to the verification rules, not only to the format, since verifiers of this revision reject what they do not know:
+Version 1 requires Ed25519 and SHA-256, and pins down exactly which Ed25519 signatures are valid (canonical encodings; keys and signature points of order exactly L, which excludes the identity point, for which anyone can sign anything, and every point with a small-order component), because common libraries disagree at the edges and two verifiers must never disagree about a signature. OpenSSL, for one, accepts such points, so the reference checker decodes them itself before calling it, and the test vectors include signatures on each side of the line. The design leaves room to change algorithms without changing addresses or record shapes, though each change is a change to the verification rules, not only to the format, since verifiers of this revision reject what they do not know:
 
 - Each proof names its cryptosuite. P-256 (the curve in phone secure elements and hardware security modules) can be added with the W3C `ecdsa-jcs-2019` suite. Passkeys sign WebAuthn structures rather than arbitrary data, so using them directly needs a WebAuthn-based suite (Section 11). Post-quantum signatures can be added when the W3C quantum-resistant Data Integrity suites are finalised; ML-DSA was standardised for JOSE and COSE as RFC 9964 in May 2026, and the W3C suites reached First Public Working Draft in June 2026.
 - Hashes are multihashes, so a future hash function changes the prefix and the length of content IDs, but not how they are computed.
@@ -315,7 +317,7 @@ A mind's identity log is an append-only, hash-chained sequence of signed events.
 | `Retire` | Permanently closes the log. |
 | `Merge` | Reserved. A verifier of this revision rejects a log that contains one (Section 5.4). |
 
-Every event after the genesis carries `mind` (the address), `seq` (0 for the genesis, then 1, 2, …) and `prev` (the content ID of the previous event), and no event may claim to be older than its predecessor. A **version identifier** is written `<seq>-<contentId>`.
+Every event after the genesis carries `mind` (the address), `seq` (1, 2, …; the genesis itself is position 0 and carries none of these fields) and `prev` (the content ID of the previous event), and no event may claim to be older than its predecessor. A **version identifier** is written `<seq>-<contentId>`, with 0 for the genesis.
 
 **Three kinds of signing key.** OIP separates the keys that control identity from the keys that do everyday work, a lesson from both KERI and the AT Protocol:
 
@@ -370,7 +372,7 @@ Its content ID, and therefore Amina's address, is `did:oip:bciqmwrzo6zt2xnoga2rk
 
 The reference checker performs exactly these steps. Its negative test vectors include a rotation signed correctly by a key whose hash was never committed, which pre-rotation alone rejects, and a 2-of-3 rotation that lists one key twice, which the distinct-keys rule rejects.
 
-**Duplicity.** Two valid events with different content IDs at the same position of a log are **duplicity**. Because thresholds are majorities, every such pair has a signer who signed both, so the pair is self-proving evidence of misuse. Resolvers keep the first valid event they saw at each position, record when they saw it, and publish any conflicting event as evidence. A verifier never chooses between branches by length or by recency, since an attacker can always make a branch longer: the branch whose event at the point of divergence has the earlier evidence (first seen by the verifier or by a witness it trusts, or anchored) wins. If the evidence cannot separate them, the mind is duplicitous for that verifier, which accepts nothing pinned to a version after the divergence; records pinned to earlier versions stay valid. Minds publish identity events to at least two independent witnesses so that first-seen evidence exists. This is KERI's first-seen rule, and it makes showing different histories to different people detectable rather than silent.
+**Duplicity.** Two valid events with different content IDs at the same position of a log are **duplicity**. Because thresholds are majorities, every such pair has a signer who signed both, so the pair is self-proving evidence of misuse. Resolvers keep the first valid event they saw at each position, record when they saw it, and publish any conflicting event as evidence. A verifier never chooses between branches by length or by recency, since an attacker can always make a branch longer: the branch whose event at the point of divergence has the earlier evidence (first seen by the verifier or by a witness it trusts, or anchored) wins. If the evidence cannot separate them, the mind is duplicitous for that verifier, which accepts nothing pinned to a version after the divergence; records pinned to earlier versions stay valid, and every branch's key removals apply to them, so duplicity never revives a key. Minds publish identity events to at least two independent witnesses so that first-seen evidence exists. This is KERI's first-seen rule, and it makes showing different histories to different people detectable rather than silent. The test vectors include a duplicity resolved by first-seen evidence and one that evidence cannot resolve.
 
 ### 5.3 Time, key changes and compromise
 
@@ -380,9 +382,11 @@ The reference checker performs exactly these steps. Its negative test vectors in
 t(p) = max( p.created, τ(p) )
 ```
 
-where `τ(p)` is the earliest time for which the verifier holds *evidence* that the signature existed: its own record of receiving it, the first-seen record of a witness it trusts (its resolver or indexer), an anchored checkpoint whose feed entry commits to that exact signature, or a recipient's signed acknowledgement. For anything received live, the evaluation time is simply the time of receipt, so writing an earlier date achieves nothing. One signature is never evidence for another, because each covers only the record's content.
+where `τ(p)` is the earliest time for which the verifier holds *evidence* that the signature existed: its own record of receiving it, the first-seen record of a witness it trusts (its resolver or indexer), an anchored checkpoint whose feed entry commits to that exact signature, or a recipient's signed acknowledgement. For anything received live, the evaluation time is simply the time of receipt, so writing an earlier date achieves nothing. Evidence belongs to one signature: adding a co-signature does not change a record's ID, so evidence that a record existed says nothing about a signature added to it later, and one signature is never evidence for another. Implementations therefore key evidence by the digest of the signature itself.
 
 **Removing a key.** An `Update` that leaves an operational key out of the mind's keys stops it signing anything new. The removal itself takes effect at the update's own evaluation time, so a mind cannot backdate a removal to withdraw records it has already made. After a `Retire`, none of the mind's keys can sign anything.
+
+**Both times need evidence.** Deciding whether a signature came before or after a key's removal compares two times, and the comparison means something only if both come from evidence. A verifier that receives a signature before it has fetched the signer's latest log would otherwise compare "when I saw the signature" with "when I later saw the removal", and the former holder of a removed key, a departed employee or an abandoned host, would win the race. So before counting a signature a verifier must hold the signer's log as a witness it trusts served it after the signature first appeared, and must date the log's events by that witness's first-seen times or by anchors, never by its own later sight of them.
 
 **An operational key is stolen.** The mind publishes an `Update` that removes the key and records `compromisedSince`, the time from which the key may have been in someone else's hands. Signatures by that key from that time on are withdrawn. This is the one statement by which a mind can reach back and disown its own signatures, so it is public and attributable: a Commitment that loses a party's signature this way shows as `disputed` (Section 6.4) rather than quietly reverting to a proposal. Records that claim to describe a mind's present (location records, profiles and login challenges) must also be signed by a key in the latest identity state the verifier knows, so a thief cannot keep a stale record alive by pinning it to an old version.
 
@@ -426,11 +430,13 @@ A collective needs its own address, so that it can receive packets, make commitm
 - **Founding requires consent.** Every founding member signs the genesis, with its invocation key. Nobody is made a member without agreeing.
 - **The address is derived the same way** as any other mind's, so a collective is a mind in every respect. In the test vectors, a 2-of-3 collective of Amina, the Lexis agent and a research agent has the address `did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i`.
 - **Changes need a majority.** Later identity events need signatures from at least the threshold number of current members, which must be more than half, and anyone being added must also sign.
-- **Signatures are judged at their position.** A member's signature on a collective's identity event is checked against the member's invocation keys at the version the signature names. A member's later key changes, or even a claim that its key was compromised long ago, do not reach back into the collective's log, so no member can unmake a collective by disowning its old keys. Witnesses check each new event when they receive it, so a removed or compromised invocation key cannot append anything they accept.
-- **Acting as one.** A record authored by a collective counts for it at the earliest time when members of the collective's membership at that time, signing with their own operational keys, reach its threshold; or when a member holding a role in the charter in force at the time signs within the role's powers. Roles and their powers are defined in the collective's charter, the Layer 2 `Collective` object (Section 6.2), and work like standing delegations.
-- **Collectives of collectives.** A member can itself be a collective, signing with invocation and operational keys it authorises through its own threshold. Collectives nest at most four deep and can never contain themselves. Having a member collective's own members sign directly inside another collective is reserved.
+- **Members' signatures are judged at the event's time.** A member's signature on a collective's identity event counts only if it is by an invocation key the member held at the version the signature names, and the member had not removed that key, or retired, by the event's evaluation time. A removed invocation key can therefore append nothing, even pinned to an old version. A member's claim that its key was compromised long ago does not reach back into the collective's log, so no member can unmake a collective by disowning its old keys; that claim withdraws only the member's own records.
+- **Acting as one.** A record counts for a collective at the earliest time when members of the collective's membership at that time, signing with their own operational keys, reach its threshold. A record that describes the collective's present, such as its location record, needs a majority of its latest membership, so members who leave can no longer keep a record of theirs current. A member holding a role in the charter in force at the time also signs for the collective within the role's powers, with a signature that names the charter in its `authority`, so acting for the collective is always a stated choice. Roles and their powers are defined in the collective's charter, the Layer 2 `Collective` object (Section 6.2), and work like standing delegations.
+- **Collectives of collectives.** A member can itself be a collective, signing with invocation and operational keys it authorises through its own threshold. A collective's height (how deeply it nests) is fixed by its genesis, at most four, and every member must be lower, so a member collective can never grow in a way that invalidates the collectives it belongs to, and no collective can contain itself. A collective that expects to admit other collectives later declares a larger height at genesis. Having a member collective's own members sign directly inside another collective is reserved.
 
-Member-controlled identity has precedents in multisignature accounts such as Safe and in KERI's multisignature group identifiers. OIP's contribution is to make such a group a mind like any other, with lineage, location, feeds and commitments.
+**Keeping a collective verifiable.** A control key signs once and is destroyed, so a stolen control key is useless after its event. A member's invocation key signs many events and cannot be destroyed that way, and the order of an event in the member's log and an event in the collective's log can only be known from evidence. Collectives therefore depend on witnesses and anchors in a way key-controlled minds do not: once a member has removed an invocation key, a verifier counts the events it signed only with evidence that they came first, and a verifier without that evidence rejects them, because it cannot tell them from forgeries made later with the removed key. Resolvers serve first-seen times for exactly this purpose, and collectives should anchor their identity events in their feeds, so that any verifier, including a resolver that meets the collective for the first time, can check its whole history. The test vectors include a takeover attempt with removed invocation keys, rejected when first seen after the removals and accepted, as a control, when evidence shows it came before them.
+
+Member-controlled identity has precedents in multisignature accounts such as Safe and in KERI's multisignature group identifiers. OIP's contribution is to make such a group a mind like any other, with lineage, location, feeds and commitments. In KERI's groups, each member's signing and next keys are listed and pre-rotated in the group's own log, so the group's key state can be checked from that log alone, as for a single controller; combining that property with members who rotate their own keys independently is an open question (Section 11).
 
 Institutions can choose either model. A company can be **key-controlled**, with its keys in a hardware security module, or **member-controlled**, with a board of officers' minds as its members.
 
@@ -448,7 +454,9 @@ OIP adopts the semantics of **UCAN 1.0**, a community specification for chained,
   "subject":  "did:oip:<lexis-ltd>",
   "command":  "/oip/sign/Commitment",
   "policy":   [["==", ".terms.price.currency", "USD"],
-               ["<=", ".terms.price.amount", "500"]],
+               ["<=", ".terms.price.amount", "500"],
+               ["==", ".terms.price.payee", "did:oip:<lexis-ltd>"],
+               ["all", ".parties", ["!=", ".mind", "did:oip:<lexis-agent>"]]],
   "expires":  "2026-11-30T09:30:00Z",
   "nonce": "6c1f0e9d2b8a4735",
   "created": "2026-10-30T09:30:00Z",
@@ -469,11 +477,11 @@ OIP adopts the semantics of **UCAN 1.0**, a community specification for chained,
 As in UCAN 1.0, a delegation does not name its parents. The signature that relies on a chain lists every delegation in it, as a UCAN invocation lists its proofs in `prf`.
 
 - **What can be delegated.** Only four record types can be signed on someone else's behalf: Intents, Offers, Commitments and Receipts (commands `/oip/sign/Intent` and so on), plus `/oip/send` for packets sent on someone's behalf. Delegations, revocations, charters, lineage records, identity events and current-state records always need the author's own authority, so a delegate can never create, widen or revoke authority in its principal's name. There are no blanket grants: `/oip` and `/oip/sign` are reserved. Extensions add commands under their own namespace, such as `/x402/pay`.
-- **Policies** are lists of conditions on the record being signed, all of which must hold. They follow UCAN's policy language: comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`) on selected fields, where only genuine decimals are compared as numbers; the connectives `not`, `and` and `or`; and the quantifiers `all` and `any` over arrays, so that a policy can bound who a deal is with as well as what it costs. A policy constrains only what it selects, which is why the example pins the currency as well as the amount. Where a commitment's plain-language promise says more than its structured terms, a party bound through a delegate is bound only by the terms, because those are what the policy could check.
-- **Using a delegation.** A signature made under delegation lists the delegations it relies on in its own `authority` member, which the signature covers. A verifier finds a chain from the subject to the signer among them, and checks that each step only narrows the previous one, that the command covers the record's type, that every policy holds for the record, and that everything was valid at the signature's evaluation time (Section 5.3). Because each delegated signature carries its own chain, two agents acting for different principals can sign the same commitment, in either order, without changing its ID.
+- **Policies** are lists of conditions on the record being signed, all of which must hold. They follow UCAN's policy language: comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`) on selected fields, where only genuine decimals are compared as numbers; the connectives `not`, `and` and `or`; and the quantifiers `all` and `any` over arrays, so that a policy can bound who a deal is with as well as what it costs. A comparison on a missing field, or an ordering of something that is not a decimal, is an error that fails the whole policy, so wrapping a condition in `not` or `or` can never turn a missing value into a pass. A policy constrains only what it selects, which is why the example pins the currency, the amount and who is paid, and excludes the agent itself as a party, so that the agent cannot commit the firm to pay, or to deal with the agent. Each limit applies to one commitment at a time; a cumulative budget needs an extension. Where a commitment's plain-language promise says more than its structured terms, a party bound through a delegate is bound only by the terms, because those are what the policy could check.
+- **Using a delegation.** A signature made under delegation lists, in its own `authority` member, exactly the delegations of its chain, root first; the signature covers that list. A verifier checks the chain as listed, without searching for another order, and checks that each step only narrows the previous one, that the command covers the record's type, that every policy holds for the record, and that everything was valid at the signature's evaluation time (Section 5.3). One signature therefore acts for at most one principal besides its signer. Because each delegated signature carries its own chain, two agents acting for different principals can sign the same commitment, in either order, without changing its ID.
 - **Revocation.** The issuer publishes a `Revocation` record in its feed. It takes effect from its own evaluation time, so a backdated revocation cannot void what evidence shows came before it. Expiry bounds how long a missed revocation matters, so delegations should last no longer than their purpose needs; the one in the test vectors lasts a month.
 
-In the test vectors, Lexis Ltd's delegation lets its agent sign the 120 USD commitment on the firm's behalf, and 500 USD would also be within it. The same agent signing an otherwise identical commitment for 500.01 USD, 900 USD or 400 BTC produces a valid signature from the agent that counts for nothing on the firm's behalf. The vectors also include a two-step chain, in which the agent re-delegates to its fork with a lower limit, and Amina's assistant agent, whose delegation lets it commit her only to deals between her and Lexis Ltd.
+In the test vectors, Lexis Ltd's delegation lets its agent sign the 120 USD commitment on the firm's behalf, and 500 USD would also be within it. The same agent signing an otherwise identical commitment for 500.01 USD, 900 USD or 400 BTC, or one in which the firm pays instead of being paid, or one between the firm and the agent itself, produces a valid signature from the agent that counts for nothing on the firm's behalf. The vectors also include a two-step chain, in which the agent re-delegates to its fork with a lower limit (listing the same two delegations in the wrong order counts for nothing), Amina's assistant agent, whose delegation lets it commit her to pay only Lexis Ltd, at most 150 USD, and a second delegation that lets the assistant send packets on her behalf (`/oip/send`).
 
 Delegations can be exported as W3C Verifiable Credentials for identity ecosystems such as DIF's KYA-OS, and exchanged at an OAuth authorisation server for access tokens whose actor chain mirrors the OIP chain (Section 7.6).
 
@@ -492,7 +500,7 @@ The identity log says *who* a mind is. A **location record** says where it can b
     { "binding": "mailbox", "url": "https://mailbox.example/oip/mbox/bciqluymzsdo…", "priority": 90 }
   ],
   "homes": ["https://lexis.example"],
-  "participant": "bciqeljjsyjpadmquy4x34d4noynlvr4w4k62un3kbgrfna4iqqpvmaq",
+  "participant": "bciqccafqqvuszyifsdpn4wik3b5jas7yukbmpdhn66yc2tlttby5eea",
   "feed": { "seq": 0, "head": "bciqblh5eb7afygepa5bl5u3opz6vaahim3ywc7tamigg3iomvr7bflq" },
   "proof": [ … ]
 }
@@ -502,7 +510,7 @@ The identity log says *who* a mind is. A **location record** says where it can b
 - **Paused or offline.** `status: "paused"` with an optional `resumeAfter` time tells senders to go straight to the mailbox endpoint.
 - **Moving.** A mind moves by publishing a new location record with a higher `seq`. Because the record is signed by the mind and not by its host, a move works even when the old host refuses to cooperate, the AT Protocol's "adversarial migration" case. If the old host holds one of the mind's operational keys, it could keep publishing competing records, so the mind removes that key with an `Update`; from then on the host's records stop verifying. Hosts should serve minds without holding their keys wherever the mind can sign for itself.
 - **Pointers to everything else.** `participant` is the content ID of the mind's current profile and `feed` is the head of its public feed, so one fetch tells a counterpart where a mind is, what it can do and what it has most recently published.
-- **Which record wins.** Among records whose proof is by a key in the *latest* identity state the verifier knows, the highest `seq` wins, with ties broken by the lower content ID. A record signed by a since-removed key loses even if its `seq` is higher.
+- **Which record wins.** Among records whose proof is by a key in the *latest* identity state the verifier knows (for a collective, by a majority of its latest membership), the highest `seq` wins, with ties broken by the lower content ID. A record signed by a since-removed key, or by members who have since left, loses even if its `seq` is higher, so even a record with the largest possible `seq` cannot lock a mind out.
 
 **Resolution** turns an address into its identity log, location record and profile. It works in layers, every one of them optional except the first, and none of them trusted for integrity:
 
@@ -680,7 +688,7 @@ Over HTTP, OIP endpoints authenticate requests with RFC 9421 HTTP Message Signat
 
 - `parties` lists each party's address (each mind once), its role (`debtor`, the party who owes performance; `creditor`, the party owed it; `witness`; or an extension role) and whether its signature is required.
 - `promise` is a plain-language statement of who will do what for whom.
-- `terms` holds the structured version: deadline, deliverables, price, conditions, and `selfReport`, which says whether the debtor's own report of completion counts. A party that signs through a delegate is bound by the terms where the promise says more, because the terms are what its delegation's policy could check.
+- `terms` holds the structured version: deadline, deliverables, price, conditions, and `selfReport`, which says whether the debtor's own report of completion counts. A price names its `payer` and its `payee` as well as its amount and currency, so a delegation can say whether its principal may pay or only be paid. A party that signs through a delegate is bound by the terms where the promise says more, because the terms are what its delegation's policy could check.
 - `resolves` lists the Intents and Offers the Commitment settles, and `closesIntent` says whether it closes them.
 
 **Receipt.** `about` references the object the Receipt concerns, usually a Commitment, and `outcome` is one of `accepted`, `progress`, `fulfilled`, `broken`, `cancelled`, `disputed` or `revoked`, or a namespaced extension outcome. `statement` gives a plain-language account, `evidence` lists the supporting material (Section 6.5), and an optional `rating` lets the author express satisfaction for reputation systems to use or ignore.
@@ -694,10 +702,10 @@ None of these objects is new in isolation. Singh's commitment semantics, Ricardi
 A party's signature on a Commitment, or the author's signature on any object, can come from three sources:
 
 1. **The party itself**, with one of its operational keys.
-2. **A delegate**, for Intents, Offers, Commitments and Receipts only, whose delegation chain from the party covers the action (for example `/oip/sign/Commitment`) and whose policies hold for this object. The delegate's signature carries the chain in its own `authority`.
-3. **For a collective**, a majority of its members signing with their own keys, or a member holding a role whose powers cover the action.
+2. **A delegate**, for Intents, Offers, Commitments and Receipts only, whose delegation chain from the party covers the action (for example `/oip/sign/Commitment`) and whose policies hold for this object. The delegate's signature lists exactly that chain in its own `authority`.
+3. **For a collective**, a majority of its members signing with their own keys, or a member holding a role whose powers cover the action, whose signature names the collective's charter in its `authority`.
 
-Objects that create or change authority, such as delegations, revocations and charters, can only be signed by their author's own authority (routes 1 and 3), so a delegate can never widen its own power. A Commitment is **accepted** once it is signed for its author and for every party marked `required`. Because all signatures cover the same bytes, and each delegated signature carries its own chain, they can be collected in any order and over any channel, and the Commitment keeps one content ID throughout. A party that wants its acceptance recorded in its own feed can also publish a Receipt with the outcome `accepted`.
+A signature thus counts for its signer and, through its `authority`, for at most one other mind, and acting for someone else is always a choice the signature states. A delegate that is itself a party to a deal could bind its principal to itself, so delegations and charters exclude it unless that is intended, as the vectors' do. Objects that create or change authority, such as delegations, revocations and charters, can only be signed by their author's own authority (routes 1 and 3), so a delegate can never widen its own power. A Commitment is **accepted** once it is signed for its author, whose author is one of its parties or signs for one, and for every party marked `required`. Because all signatures cover the same bytes, and each delegated signature carries its own chain, they can be collected in any order and over any channel, and the Commitment keeps one content ID throughout. A party that wants its acceptance recorded in its own feed can also publish a Receipt with the outcome `accepted`.
 
 ### 6.4 Lifecycles and status
 
@@ -719,7 +727,7 @@ The rules for Commitments follow from Singh's public-commitment semantics:
 
 Only a Commitment signed for an Intent's author can satisfy that Intent, and only Commitments signed for an Offer's author count towards its quantity, so other minds cannot close someone else's Intent or exhaust someone else's Offer by committing among themselves.
 
-Status is always "as known": two observers who know different sets of objects may compute different statuses until their knowledge converges. Feeds, checkpoints and indexers make that convergence fast. The specification defines the status functions exactly, and the test vectors check every state above except the rarer receipt outcomes.
+Status is always "as known": two observers who know different sets of objects may compute different statuses until their knowledge converges. Feeds, checkpoints and indexers make that convergence fast. The specification defines the status functions exactly, and the test vectors check every state of Intents, Offers and Commitments in the table, including both routes to `disputed`.
 
 ### 6.5 Evidence
 
@@ -775,7 +783,9 @@ The Commitment from the test vectors, after both signatures (proof values abbrev
     { "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna", "role": "creditor", "required": true }
   ],
   "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
-  "terms": { "deadline": "2026-11-01T18:00:00Z", "price": { "amount": "120", "currency": "USD" } },
+  "terms": { "deadline": "2026-11-01T18:00:00Z",
+             "price": { "amount": "120", "currency": "USD",
+                        "payer": "did:oip:bciqmwrzo6zt…", "payee": "did:oip:bciqm33shzk5…" } },
   "resolves": ["did:oip:bciqmwrzo6zt…/<intent-id>", "did:oip:bciqluymzsdo…/<offer-id>"],
   "closesIntent": true,
   "proof": [
@@ -786,9 +796,9 @@ The Commitment from the test vectors, after both signatures (proof values abbrev
 }
 ```
 
-Its content ID, `bciqmthql6djhigqky3al4ev4e37pfqpaozfnkzh7asfvg2kfhsjifxi`, is the same with one proof as with two. The agent's proof counts for Lexis Ltd because the delegation in its `authority` covers `/oip/sign/Commitment` and its policy (US dollars, at most 500) holds. Because the Commitment is accepted, signed for Amina and marked `closesIntent`, her Intent's status becomes **satisfied**. Amina's later Receipt references the Commitment with the outcome `fulfilled`, and because she is the creditor, the Commitment's computed status becomes **fulfilled**.
+Its content ID, `bciqgt3dzq5yoxrat3fdyut32dmnwemrmbpcmbjjrz6i4thkums4rzii`, is the same with one proof as with two. The agent's proof counts for Lexis Ltd because the delegation in its `authority` covers `/oip/sign/Commitment` and its policy holds: US dollars, at most 500, Lexis Ltd is the one paid, and the agent is not a party. The agent wrote the Commitment and is not a party to it, which is allowed because its signature counts for a party. Because the Commitment is accepted, signed for Amina and marked `closesIntent`, her Intent's status becomes **satisfied**. Amina's later Receipt references the Commitment with the outcome `fulfilled`, and because she is the creditor, the Commitment's computed status becomes **fulfilled**.
 
-The vectors go one step further, to the case OIP is built for: two agents striking a deal, each for its principal. In a second Commitment, a 30 USD fee for delivery twelve hours early, Amina is represented by her own assistant agent, whose delegation lets it commit her only to deals between her and Lexis Ltd, for at most 150 USD. The Lexis agent signs for the firm and the assistant signs for Amina, each carrying its own delegation in its own proof, and the Commitment is accepted for both with one unchanged content ID.
+The vectors go one step further, to the case OIP is built for: two agents striking a deal, each for its principal. In a second Commitment, a 30 USD fee for delivery twelve hours early, Amina is represented by her own assistant agent, whose delegation lets it commit her only to pay Lexis Ltd, at most 150 USD. The assistant first asks for the rush in a packet sent on Amina's behalf under a separate `/oip/send` delegation. The Lexis agent signs for the firm and the assistant signs for Amina, each carrying its own delegation in its own proof, and the Commitment is accepted for both with one unchanged content ID.
 
 ---
 
@@ -798,17 +808,17 @@ The vectors go one step further, to the case OIP is built for: two agents striki
 
 Billions of websites and APIs, every email address, every payment rail and a fast-growing ecosystem of MCP servers and A2A agents already exist. OIP brings all of them in rather than asking anyone to leave.
 
-**Gateway minds.** A gateway represents an external system as a mind of its own: an MCP server, an A2A agent, an email inbox or an HTTP API. The gateway creates and controls the bridged mind's identity log, sets its kind (usually `service`), records in an extension which protocol and endpoint it bridges, and adds its own signature to the bridged mind's genesis. Whatever the bridged mind signs, the gateway is accountable for.
+**Gateway minds.** A gateway represents an external system as a mind of its own: an MCP server, an A2A agent, an email inbox or an HTTP API. The gateway creates and controls the bridged mind's identity log, sets its kind (usually `service`) and records in an extension of the genesis which protocol and endpoint it bridges and which gateway it is. The gateway then attests the mind with an entry in its own public feed naming the bridged mind's genesis, signed with the gateway's own key, and the bridged mind's profile points to that entry. Whatever the bridged mind signs, the gateway is accountable for.
 
 **Assurance levels.** Every participant is labelled with how its identity is established, so nobody mistakes a bridged service for a self-sovereign mind:
 
 | Level | Meaning |
 |---|---|
 | **native** | No gateway has declared the mind bridged; as far as anyone has declared, it holds its own keys |
-| **bridged** | A gateway attests on the external system's behalf, and its signature on the bridged mind's genesis proves it; Receipts record what the gateway observed |
-| **claimed** | An assertion nobody has verified, such as unacknowledged lineage, or a bridge label without the gateway's signature |
+| **bridged** | A gateway attests on the external system's behalf, and the entry in its own feed proves it; Receipts record what the gateway observed |
+| **claimed** | An assertion nobody has verified, such as unacknowledged lineage, or a bridge label without the gateway's attestation |
 
-Because the gateway signs the genesis, nobody can borrow a reputable gateway's name for a mind it never bridged. The reverse cannot be detected from records alone: a gateway that bridges a system without declaring it makes the mind look native. `native` therefore means only that no gateway has declared otherwise, and a gateway that hides its role misrepresents its minds and is accountable for doing so.
+Because only the gateway can sign entries in its own feed, nobody can borrow a reputable gateway's name for a mind it never bridged. The attestation is a feed entry rather than a signature on the genesis because identity events are signed only with control and invocation keys. The test vectors include a bridged mind and one that attests itself, which stays `claimed`. The reverse cannot be detected from records alone: a gateway that bridges a system without declaring it makes the mind look native. `native` therefore means only that no gateway has declared otherwise, and a gateway that hides its role misrepresents its minds and is accountable for doing so.
 
 Several gateways may bridge the same service, and a service can later adopt a native identity and link it to its bridged ones with verified aliases.
 
@@ -881,18 +891,18 @@ OIP is designed to work alongside the standards now forming:
 
 | Threat | Mitigation |
 |---|---|
-| **A stolen operational key** | A control event removes it, with a compromise time where needed; signatures are judged at their evaluation time, so the thief cannot backdate around the removal; records that claim to describe the present need a currently valid key; per-device keys limit the damage; operational keys never change any identity |
+| **A stolen operational key** | A control event removes it, with a compromise time where needed; signatures are judged at their evaluation time, so the thief cannot backdate around the removal, and verifiers date the removal by a witness's first-seen time, so the thief cannot outrace it either; records that claim to describe the present need a currently valid key; per-device keys limit the damage; operational keys never change any identity |
 | **A stolen control key** | Pre-rotation means only unrevealed next keys can extend the log; revealed keys are destroyed, and any conflicting event signed with one is duplicity resolved against it; next keys can be kept offline, in hardware or split by a majority threshold; recovery keys are a later rule change |
 | **Showing different histories to different parties** | Hash-chained logs and feeds make any split self-proving; resolvers witness first-seen events and publish conflicts; branches are chosen by earliest evidence, never by length; anchored checkpoints make split views detectable |
-| **Backdated records** | `created` is only a claim; every time rule uses the evaluation time, the later of the claimed time and the earliest evidence that the signature existed; key removals and revocations take effect from their own evaluation time, so they cannot be backdated either |
-| **False compromise claims** | A mind that disowns its own signatures by claiming an early compromise does so publicly and attributably; affected Commitments show as `disputed`; members' later claims never reach back into a collective's identity |
+| **Backdated records** | `created` is only a claim; every time rule uses the evaluation time, the later of the claimed time and the earliest evidence that this very signature existed (evidence for a record never covers a co-signature added later); key removals and revocations take effect from their own evaluation time, so they cannot be backdated either |
+| **False compromise claims** | A mind that disowns its own signatures by claiming an early compromise does so publicly and attributably; affected Commitments show as `disputed`; compromise claims never reach into other minds' identity logs, so members cannot unmake a collective |
 | **Replay** | Nonces, `created` and `expires` windows (at most seven days), deduplication by content ID recorded only after verification, per-chain sequence numbers in sessions, and login proofs bound to the server's origin |
 | **Spam and fake identities** | Addresses are free, so mailboxes and indexers apply policy: rate limits, proof-of-work stamps, introductions through delegations from known minds, payment-backed "postage" through payment extensions, and trust-seeded reputation |
 | **Dishonest indexers or resolvers** | Signed results, client-side verification of every record, and use of several providers at once |
-| **Bridged services passing as native minds** | Assurance labels backed by the gateway's signature on the bridged mind's genesis; gateways are accountable minds; undeclared bridging remains undetectable, so `native` means only "not declared bridged" |
+| **Bridged services passing as native minds** | Assurance labels backed by the gateway's attestation in its own feed; gateways are accountable minds; undeclared bridging remains undetectable, so `native` means only "not declared bridged" |
 | **Unauthorised copies of a mind** | Lineage is labelled acknowledged or claimed; a copy holding stolen keys is a key compromise and is handled as one; agent keys should live in secure enclaves or hardware |
-| **Capture of a collective** | Consent to join; majority thresholds; dedicated invocation keys for governance; signatures judged at their position; nesting limits; threshold signatures and member recovery in later revisions |
-| **Abuse of delegated authority** | Only four record types can be signed under delegation, never delegations themselves; chains can only narrow; policies compare genuine decimals and can bound counterparties; delegated parties are bound by the structured terms; expiry and revocation are judged at the evaluation time |
+| **Capture of a collective** | Consent to join; majority thresholds; dedicated invocation keys for governance, which can sign nothing once removed; members' signatures judged at each event's evaluation time, with witnesses and anchors supplying the evidence; heights fixed at genesis; threshold signatures and member recovery in later revisions. A thief holding a majority of members' invocation keys before they are removed can still act, as with any threshold scheme |
+| **Abuse of delegated authority** | Only four record types can be signed under delegation, never delegations themselves; chains can only narrow and are checked exactly as listed; one signature acts for at most one principal; policies compare genuine decimals, fail on missing fields, and can bound who pays and who the counterparties are, including the delegate itself; delegated parties are bound by the structured terms; expiry and revocation are judged at the evaluation time |
 | **Advances in cryptography** | Cryptosuite agility, pre-rotation hash commitments and post-quantum suites as they are standardised |
 | **Downgrade and unknown extensions** | Each record fixes its version and cryptosuite; `critical` extensions block action by implementations that do not understand them |
 
@@ -927,7 +937,7 @@ Implementations claim conformance to one or more **profiles**, so that a small p
 | **Mind Web** | The six Layer 2 primitives, signing for parties and status computation |
 | **Gateway** | At least one Bridge mapping, with assurance labels |
 
-Conformance is demonstrated against the published test vectors, which include cases every implementation must reject and cases it must accept, and, as implementations multiply, against an interoperability suite in which independent implementations exchange records with one another.
+Conformance is demonstrated against the published test vectors, which include cases every implementation must reject, cases it must accept, and controls that differ from a rejected case only in the respect its reason names, and, as implementations multiply, against an interoperability suite in which independent implementations exchange records with one another.
 
 ---
 
@@ -953,15 +963,17 @@ Records verify themselves, so most of each stage below adds infrastructure witho
 5. **What is the right price of attention?** Spam resistance through rate limits, proof of work, introductions and paid postage involves trade-offs between openness and protection that communities will set differently.
 6. **Whose clock decides a deadline?** `created` is self-asserted, and evaluation times depend on each verifier's evidence. Disputes over deadlines may need to refer to anchored time.
 7. **How does a collective recover if it loses members?** If more members than the threshold allows lose their keys, the collective cannot change itself. A recovery role is one candidate answer.
-8. **How private can commerce be?** Selective-disclosure Receipts (SD-JWT, BBS signatures) may be needed for private trade.
-9. **How do people hold keys comfortably?** Passkeys use WebAuthn signatures, which are not plain signatures over a document. A WebAuthn-based proof type, or passkey-signed delegations to device keys, needs to be specified.
-10. **How should OIP sessions relate to IETF agentproto dialogs?** OIP will work with the working group as its architecture takes shape.
+8. **Can collectives be self-certifying?** A key-controlled mind's log can be checked from the log alone, but a collective's log, once members have rotated the invocation keys that signed it, can be checked only with evidence of time from witnesses or anchors (Section 5.5). Pre-rotating each member's keys inside the collective's own log, as KERI's groups do, or anchoring each member's consent in the member's own log, would remove that dependence at the cost of independent key rotation or extra events.
+9. **How private can commerce be?** Selective-disclosure Receipts (SD-JWT, BBS signatures) may be needed for private trade.
+10. **How do people hold keys comfortably?** Passkeys use WebAuthn signatures, which are not plain signatures over a document. A WebAuthn-based proof type, or passkey-signed delegations to device keys, needs to be specified.
+11. **How should OIP sessions relate to IETF agentproto dialogs?** OIP will work with the working group as its architecture takes shape.
 
 ---
 
 ## 12. Governance, licensing and provenance
 
 - **Process.** Changes to the protocol are proposed as **OIP Enhancement Proposals (OEPs)** in the public repository, discussed in the open, and adopted into dated specification revisions. (The name OEP avoids a clash with another agent project's "OIPs".)
+- **The name.** The initials OIP are also used by KServe's Open Inference Protocol, a model-serving API for inference requests, which is unrelated. Documents about this protocol spell out "Open Intelligence Protocol" wherever the initials alone could be ambiguous.
 - **Licences.** The papers and specifications are licensed under Creative Commons Attribution 4.0; code is licensed under the Apache License 2.0. Anyone may implement, extend and build on OIP, commercially or otherwise, forever.
 - **Stewardship.** OIP is owned by no one. As a community of implementers forms, stewardship will move to a neutral, multi-stakeholder home.
 - **Provenance.** Every commit to the repository is timestamped on the Bitcoin blockchain through OpenTimestamps, and the papers are being archived with permanent identifiers. Provenance is the only thing the protocol's origin keeps.
@@ -981,6 +993,7 @@ Records verify themselves, so most of each stage below adds infrastructure witho
 - AGNTCY Directory v1.0 — https://blogs.agntcy.org/technical/2026/02/19/dir-v1.html
 - IETF agentproto working group — https://datatracker.ietf.org/wg/agentproto/about/
 - Nostr NIPs index (NIP-90 status) — https://github.com/nostr-protocol/nips
+- KServe, Open Inference Protocol (an unrelated model-serving API that shares the initials) — https://github.com/kserve/open-inference-protocol
 
 **Identity, keys and delegation**
 - W3C Decentralized Identifiers v1.1, Candidate Recommendation (March 2026) — https://www.w3.org/TR/2026/CR-did-1.1-20260305/
@@ -1051,7 +1064,7 @@ The four research notes behind this paper, with fuller source lists and the unce
 
 ## Appendix A. Core algorithms
 
-The test-vector generator in `spec/test-vectors/oip_vectors.py` implements each of these, and its positive, must-accept and negative vectors exercise them. The specifications give the normative rules.
+The test-vector generator in `spec/test-vectors/oip_vectors.py` implements each of these, taking evidence of time from each test case (the cases model what a verifier's witnesses and anchors would supply), and its positive, must-accept, negative and control vectors exercise them. The specifications give the normative rules.
 
 **A.1 Content ID**
 
@@ -1071,7 +1084,7 @@ address(genesis)  = "did:oip:" + contentId(genesis)
 createProof(r, key, verificationMethod, purpose, created, authority = none):
     options = { type: "DataIntegrityProof", cryptosuite: "eddsa-jcs-2022",
                 verificationMethod, proofPurpose: purpose, created }
-    if authority: options.authority = authority          # delegations this proof relies on
+    if authority: options.authority = authority   # one delegation chain, root first, or one charter
     if r has "@context": options["@context"] = r["@context"]
     hashData = SHA256(JCS(options)) ‖ SHA256(JCS(r without "proof"))
     return options + { proofValue: "z" + base58btc(Ed25519.sign(key, hashData)) }
@@ -1083,7 +1096,12 @@ verifyProof(r, proof, publicKey):
     options  = proof without "proofValue"
     hashData = SHA256(JCS(options)) ‖ SHA256(JCS(r without "proof"))
     return Ed25519.verifyStrict(publicKey, base58btc.decode(proof.proofValue after "z"), hashData)
-    # verifyStrict: S < L; A and R canonical and in the prime-order subgroup (core 4.4)
+
+verifyStrict(A, (R, S), m):                  # core 4.4
+    require S < L
+    require A and R decode canonically (RFC 8032, 5.1.3) to points of order exactly L:
+            [L]P is the identity and P is not      # no identity, no small-order component
+    return [S]B == R + [SHA512(R ‖ A ‖ m) mod L]A
 
 purposeFor(type) = capabilityInvocation  for Genesis, Update, Fork, Retire
                    capabilityDelegation  for Delegation
@@ -1095,13 +1113,20 @@ purposeFor(type) = capabilityInvocation  for Genesis, Update, Fork, Retire
 
 ```
 t(r, p):                                   # when proof p on record r counts as made
-    τ = earliest evidence that p existed   # own first-seen record, a trusted witness,
+    τ = earliest evidence that this proof existed   # keyed by SHA-256(JCS(p)), not by r's ID:
+                                           # own first-seen record, a trusted witness,
                                            # an anchored checkpoint committing to p, an Ack
         or, with no evidence, the time p was first obtained
     if p.created > τ + 300 s: return none  # claims to come from the future
     return max(p.created, τ)
 
-eventTime(e) = max(e.created, τ(e))        # identity events take effect at their evaluation time
+eventTime(e):                              # identity events take effect at their evaluation time
+    τ = earliest evidence that e existed, valid   # a trusted witness's first-seen time or an anchor
+    require e.created ≤ τ + 300 s
+    return max(e.created, τ, eventTime(previous event))
+
+# Before counting a proof by a key of X, hold X's log as a trusted witness served it
+# after τ(p), and date X's events by the earliest evidence, never by a later own sight.
 ```
 
 **A.4 Verifying an identity log**
@@ -1116,7 +1141,9 @@ verifyLog(events):
         require every key in g.controller.keys has a valid control-key proof on g
     else:                                                        # member-controlled
         require members distinct (1–256), not the mind itself; 2·threshold > |members|
-        require every member signs g at position (A.5, invocation keys)
+        require every member signs g: memberSigns(g, p, M) (A.5)
+        height = g.height or 1 + max(height of each founder)
+        require 1 + max(height of each founder) ≤ height ≤ 4    # fixed for ever
     require g.kind == "collective" ⇒ member-controlled
     apply g's keys, invocation, agreement, homes, alsoKnownAs, parents
     for e in events[1:]:
@@ -1131,12 +1158,14 @@ verifyLog(events):
             if e.type == Retire: require e.controller.next is empty
             state.next, state.nextThreshold = e.controller.next, e.controller.nextThreshold
         else:
-            require ≥ state.threshold distinct current members signed e at position
-            if e.controller: require it is valid as above and every added member signed e
+            require ≥ state.threshold distinct current members with memberSigns(e, p, M)
+            if e.controller: require it is valid as above and every added member signs e
+            require every member relied on has height < this collective's height
         apply e's fields; removed and revoked keys leave their sets and never return;
         record compromisedSince; record Fork children; Retire ends the log
-    require collective height ≤ 4, with no collective containing itself
     return the state after each event, with each event's eventTime
+    # two valid branches: the earlier-evidenced event at the divergence wins; if evidence
+    # cannot separate them, keep only the common prefix, with every branch's removals
 ```
 
 **A.5 Valid keys**
@@ -1149,13 +1178,16 @@ validKey(r, p, X):                           # p is by an operational key of min
     t = t(r, p);  require t is not none
     if a later event E removes K or retires X: require t < eventTime(E)
     if K was revoked with compromisedSince c: require t < c
-    if r.type ∈ {Location, Participant, Hello}: require K ∈ latest(X).keys and X not retired
+    if r.type ∈ {Location, Participant, Hello}:
+        require K ∈ latest(X).keys and X neither retired nor duplicitous
     return verifyProof(r, p, K)
 
-memberSignsAtPosition(e, p, M):              # member proofs on another mind's identity event
+memberSigns(e, p, M):                        # member proofs on another mind's identity event
     (M', V, K) = parse(p.verificationMethod); require M' == M
     require K ∈ (state of M at version V).invocation and p.proofPurpose == capabilityInvocation
-    return verifyProof(e, p, K)              # later removals or compromise claims do not apply
+    if a later event E of M removes K from its invocation keys or retires M:
+        require eventTime(e) < eventTime(E)  # a removed key can append nothing
+    return verifyProof(e, p, K)              # compromise claims do not reach other minds' logs
 ```
 
 **A.6 When does a record count for a party?**
@@ -1164,31 +1196,38 @@ memberSignsAtPosition(e, p, M):              # member proofs on another mind's i
 signedTime(r, P):                            # earliest time r counts for P, or none
     T = {}
     for p in r.proof: if validKey(r, p, P): add t(r, p) to T                  # own key
-    if P is a collective:
-        for each proof time u in ascending order:                              # threshold
-            S = state of P at u (after the last event with eventTime ≤ u)
-            if |{members of S with a valid own-key proof made by u}| ≥ S.threshold
+    if P is a collective:                                                      # threshold
+        use only proofs without authority, by valid own keys of members
+        for each proof time u in ascending order:
+            S = latest state of P if r describes P's present (Location, Participant),
+                else the state of P at u (after the last event with eventTime ≤ u)
+            if |{members of S with such a proof made by u}| ≥ S.threshold
                and S not retired: add u to T; stop
     if r.type ∈ {Intent, Offer, Commitment, Receipt}:                          # delegable
-        for p in r.proof by a valid key of some D ≠ P:
-            for each chain d1 … dn (n ≤ 8) drawn from p.authority, from P to D:
-                if every di is a Delegation signed by its author's own authority no later than t(r, p),
+        for p in r.proof by a valid key of some D ≠ P whose authority is d1 … dn (n ≤ 8):
+            if exactly as listed, root first:                                  # no search
+                   every di is a Delegation signed by its author's own authority no later than t(r, p),
                    d1.author == P, every di.subject == P, links connect di.delegate → di+1.author,
+                   dn.delegate == D, no di.delegate == di.author,
                    each step narrows its parent (command, policy, expiry),
                    every command is valid and dn's covers "/oip/sign/" + r.type,
-                   every policy holds for r without its proofs,
+                   every policy holds for r without its proofs (an error fails it),
                    t(r, p) is within every [notBefore, expires] (± 300 s), and
                    no di was revoked at or before t(r, p):
-                    add t(r, p) to T
+                add t(r, p) to T
         if P is a collective:                                                  # roles
-            for p in r.proof by a valid own key of a member M of P's state at t(r, p):
-                if the charter in force at t(r, p) gives M a role whose power covers
-                   "/oip/sign/" + r.type and whose policy holds for r: add t(r, p) to T
+            for p in r.proof by a valid own key of a member M of P's state at t(r, p),
+                    whose authority is exactly one charter C of P:
+                if C is the charter in force at t(r, p) (latest completed; tie: lower ID)
+                   and gives M a role whose power covers "/oip/sign/" + r.type
+                   and whose policy holds for r: add t(r, p) to T
     drop from T every time later than r.expires + 300 s
     return min(T) or none
 
 countsFor(r, P) = signedTime(r, P) is not none
-accepted(c) = countsFor(c, c.author) and countsFor(c, party) for every required party
+accepted(c) = countsFor(c, c.author)
+              and (c.author is a party or a proof by c.author counts for a party by delegation or role)
+              and countsFor(c, party) for every required party
 ```
 
 **A.7 Commitment status**

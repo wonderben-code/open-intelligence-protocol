@@ -1,6 +1,6 @@
 # Fix design for the paper review (30 October 2026)
 
-**Superseded in detail by [spec/CHANGELOG.md](../spec/CHANGELOG.md), revision 2026-11-17, which also covers the specification review.** Two designs here changed during implementation: delegations now travel in each delegated proof's own `authority` rather than in the record, and members sign collective identity events with dedicated invocation keys, judged at their position in the log.
+**Superseded in detail by [spec/CHANGELOG.md](../spec/CHANGELOG.md), revision 2026-11-17, which also covers the specification review and the later fix verification.** Several designs here changed during implementation: delegations travel in each delegated proof's own `authority` (exactly one chain, root first) rather than in the record; members sign collective identity events with dedicated invocation keys, judged at each event's evaluation time; and a bridged mind is attested by an entry in its gateway's feed rather than by a proof on its genesis.
 
 How each finding in [2026-10-30-paper-review.md](2026-10-30-paper-review.md) is fixed, so the paper, the specifications and the test vectors change together and stay consistent. Findings from the specification review will be added when it completes. Work happens on branch `review-fixes`.
 

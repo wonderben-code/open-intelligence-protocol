@@ -100,6 +100,15 @@ const impure: [rule: string, code: string][] = [
   ["no-restricted-properties", "export const x = Math.random();"],
   ["no-restricted-properties", "const { random } = Math;\nexport const x = random();"],
   ["no-restricted-syntax", 'export const x = "a".localeCompare("b");'],
+  // A rule about time that compares the signer's own date (ADR-0003).
+  [
+    "no-restricted-syntax",
+    "export const valid = (proof: { created: bigint }, removed: bigint) => proof.created < removed;",
+  ],
+  [
+    "no-restricted-syntax",
+    "export const late = (created: bigint, expires: bigint) => created + 300n >= expires;",
+  ],
   ["no-eval", 'export const x = eval("1");'],
   ["no-restricted-globals", 'export const x = new Function("return 1")();'],
   ["no-console", 'console.log("x");\nexport {};'],

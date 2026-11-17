@@ -53,6 +53,36 @@ const AMBIENT = [
   ambient("Bun", "Read nothing from the runtime."),
 ];
 
+const PURE_SYNTAX = [
+  {
+    selector: "ImportExpression",
+    message: "Use static imports, so that the layering rules can see what is imported.",
+  },
+  {
+    selector: "CallExpression[callee.property.name=/^(localeCompare|toLocale.*)$/]",
+    message: "This reads the locale. Compare code points and format by hand.",
+  },
+];
+
+// Every rule about time is judged at an evaluation time, which comes from
+// evidence (core 9.3 and 9.5, ADR-0003). `created` is the signer's own claim,
+// and a comparison with it is how a backdating attack is let back in.
+const CREATED_COMPARED = {
+  selector: "BinaryExpression[operator=/^(<|<=|>|>=)$/] Identifier[name='created']",
+  message:
+    "`created` is the signer's claim, never evidence (core 9.2). Compare evaluation times: proofTime and eventTime of @oip/identity.",
+};
+
+// The three places that may compare a `created`: the two formulas themselves,
+// the rule that a log's dates do not run backwards (Layer 1, 4.2), and the
+// rule that a proof is not dated before its record (core 5.7). None of them
+// decides whether a key may sign.
+const MAY_COMPARE_CREATED = [
+  "packages/identity/src/evidence.ts",
+  "packages/identity/src/log.ts",
+  "packages/core/src/proof.ts",
+];
+
 export default tseslint.config(
   {
     ignores: [
@@ -112,17 +142,7 @@ export default tseslint.config(
         "error",
         { object: "Math", property: "random", message: "Take randomness as a parameter." },
       ],
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: "ImportExpression",
-          message: "Use static imports, so that the layering rules can see what is imported.",
-        },
-        {
-          selector: "CallExpression[callee.property.name=/^(localeCompare|toLocale.*)$/]",
-          message: "This reads the locale. Compare code points and format by hand.",
-        },
-      ],
+      "no-restricted-syntax": ["error", ...PURE_SYNTAX, CREATED_COMPARED],
       "no-restricted-imports": [
         "error",
         {
@@ -132,6 +152,10 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  {
+    files: MAY_COMPARE_CREATED,
+    rules: { "no-restricted-syntax": ["error", ...PURE_SYNTAX] },
   },
   {
     // Command-line scripts report on the console.

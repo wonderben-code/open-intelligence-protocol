@@ -888,8 +888,8 @@ return errors === 0;
 }
 validate76.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
-const schema32 = {"$id":"urn:oip:schema:def:httpsOrigin","type":"string","pattern":"^https://[^/?#@\\s]+$"};
-const pattern10 = new RegExp("^https://[^/?#@\\s]+$", "u");
+const schema32 = {"$id":"urn:oip:schema:def:httpsOrigin","type":"string","pattern":"^https://[A-Za-z0-9.:\\[\\]-]+$"};
+const pattern10 = new RegExp("^https://[A-Za-z0-9.:\\[\\]-]+$", "u");
 
 function validate80(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="urn:oip:schema:def:httpsOrigin" */;
@@ -905,7 +905,7 @@ evaluated0.items = undefined;
 if(errors === 0){
 if(typeof data === "string"){
 if(!pattern10.test(data)){
-validate80.errors = [{instancePath,schemaPath:"#/pattern",keyword:"pattern",params:{pattern: "^https://[^/?#@\\s]+$"},message:"must match pattern \""+"^https://[^/?#@\\s]+$"+"\""}];
+validate80.errors = [{instancePath,schemaPath:"#/pattern",keyword:"pattern",params:{pattern: "^https://[A-Za-z0-9.:\\[\\]-]+$"},message:"must match pattern \""+"^https://[A-Za-z0-9.:\\[\\]-]+$"+"\""}];
 return false;
 }
 }

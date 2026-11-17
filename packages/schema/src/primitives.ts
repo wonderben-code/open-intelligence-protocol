@@ -86,8 +86,13 @@ export const patterns = {
   oipNamespace: "^oip\\.",
   /** A namespaced name `<namespace>:<name>` (verbs, roles, outcomes, evidence kinds, tags). */
   namespaced: "^[^:]+:.+$",
-  /** An HTTPS origin: scheme, host and optional port, with no path, query or fragment. */
-  httpsOrigin: "^https://[^/?#@\\s]+$",
+  /**
+   * Layer 1, 3.13: an HTTPS origin. `https://` and then a host and an optional
+   * port, written with ASCII letters, digits and `.`, `-`, `:`, `[`, `]` only:
+   * no user, path, query or fragment, and no character outside ASCII (a name
+   * in another script is written in its A-label form).
+   */
+  httpsOrigin: "^https://[A-Za-z0-9.:\\[\\]-]+$",
   /** Layer 1, 16.2: a capability subject. */
   capabilitySubject: "^[a-z0-9_-]+(?:\\.[a-z0-9_-]+)*$",
   /** base64url without padding (Layer 1, 12.6). */

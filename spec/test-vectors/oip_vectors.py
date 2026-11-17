@@ -97,6 +97,14 @@ NONNEG_DECIMAL_RE = re.compile(r"(0|[1-9][0-9]*)(\.[0-9]+)?")
 TS_RE = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):"
                    r"([0-9]{2})(?:\.([0-9]{1,9}))?Z")
 COMMAND_RE = re.compile(r"/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*")
+# The form of a public key as a Multikey (core 4.1): necessary, not
+# sufficient. The keys are decoded, and their points checked, where used.
+ED_MK_RE = re.compile("z6Mk" + B58 + "{44}")
+X_MK_RE = re.compile("z6LS" + B58 + "{44}")
+VERSION_RE = re.compile(r"(?:0|[1-9][0-9]*)-" + CID)
+# An HTTPS origin (Layer 1, 3.13): `https://`, then a host and an optional
+# port written with ASCII letters, digits and . - : [ ] only.
+ORIGIN_RE = re.compile(r"https://[A-Za-z0-9.:\[\]-]+")
 SEL_TOKEN = re.compile(r'\.([A-Za-z0-9_]+)|\[(0|[1-9][0-9]*)\]|'
                        r'\[("(?:[^"\\]|\\.)*")\]')
 MAX_POLICY_DEPTH = 8
@@ -784,6 +792,130 @@ def _key_entries(entries, limit, checker):
     return out
 
 
+def _is_int(v, lo, hi) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi
+
+
+def _strings(items, pattern, lo, hi) -> bool:
+    """A list of lo to hi distinct strings of one form."""
+    return isinstance(items, list) and lo <= len(items) <= hi and \
+        all(isinstance(i, str) and pattern.fullmatch(i) for i in items) and \
+        len(set(items)) == len(items)
+
+
+def _controller_ok(ctl, self_address) -> bool:
+    """Layer 1, 3.4: a key controller or a member controller, with no
+    other members, and a threshold that is a majority."""
+    if not isinstance(ctl, dict):
+        return False
+    if "keys" in ctl and "next" in ctl and \
+       not set(ctl) - {"keys", "next", "nextThreshold"}:
+        nxt = ctl["next"]
+        if not _strings(ctl["keys"], ED_MK_RE, 1, 16) or \
+           not _strings(nxt, CID_RE, 0, 16):
+            return False
+        if "nextThreshold" not in ctl:
+            return len(nxt) <= 1        # the default of 1 is a majority
+        t = ctl["nextThreshold"]
+        return _is_int(t, 1, 16) and nxt != [] and t <= len(nxt) < 2 * t
+    if set(ctl) == {"members", "threshold"}:
+        members, t = ctl["members"], ctl["threshold"]
+        return _strings(members, ADDR_RE, 1, 256) and \
+            self_address not in members and \
+            _is_int(t, 1, 256) and t <= len(members) < 2 * t
+    return False
+
+
+def _entries_ok(entries, limit, pattern) -> bool:
+    """Layer 1, 3.5: key entries, with distinct keys and no other members."""
+    return isinstance(entries, list) and len(entries) <= limit and all(
+        isinstance(e, dict) and not set(e) - {"key", "label"} and
+        isinstance(e.get("key"), str) and pattern.fullmatch(e["key"]) and
+        ("label" not in e or (isinstance(e["label"], str) and
+                              len(e["label"]) <= 64))
+        for e in entries) and \
+        len({e["key"] for e in entries}) == len(entries)
+
+
+def event_ok(ev: dict) -> bool:
+    """The shape of an identity event (Layer 1, Section 3), as far as the
+    event alone shows it. What depends on the log (the chain, the keys
+    committed to, the proofs) is verify_log's."""
+    t = ev.get("type")
+    if "recovery" in ev or "height" in ev and t != "Genesis":
+        return False                        # 3.12; 3.6
+    ctl = ev.get("controller")
+    if t == "Genesis":
+        kind = ev.get("kind")
+        if any(k in ev for k in ("mind", "seq", "prev")) or \
+           not isinstance(kind, str) or not 1 <= len(kind) <= 64 or \
+           not _controller_ok(ctl, None):
+            return False
+        member = "members" in ctl
+        if kind == "collective" and not member or \
+           "height" in ev and not (member and _is_int(ev["height"], 1, 4)):
+            return False
+        parents = ev.get("parents", [])
+        if not isinstance(parents, list) or len(parents) > 16 or not all(
+                isinstance(q, dict) and isinstance(q.get("mind"), str) and
+                ADDR_RE.fullmatch(q["mind"]) and
+                isinstance(q.get("at"), str) and
+                VERSION_RE.fullmatch(q["at"]) for q in parents):
+            return False
+        if not isinstance(ev.get("inherits", {}), dict):
+            return False
+    else:
+        if not isinstance(ev.get("mind"), str) or \
+           not ADDR_RE.fullmatch(ev["mind"]) or \
+           not _is_int(ev.get("seq"), 1, MAX_SAFE_INT) or \
+           not isinstance(ev.get("prev"), str) or \
+           not CID_RE.fullmatch(ev["prev"]):
+            return False
+        if ctl is not None and not _controller_ok(ctl, ev["mind"]):
+            return False
+        revoked = ev.get("revoked", [])
+        if not isinstance(revoked, list) or not all(
+                isinstance(r, dict) and isinstance(r.get("key"), str) and
+                ED_MK_RE.fullmatch(r["key"]) for r in revoked):
+            return False
+        for r in revoked:
+            if "compromisedSince" in r:
+                ts(r["compromisedSince"])
+        gone = {r["key"] for r in revoked}
+        if any(e["key"] in gone for name in ("keys", "invocation")
+               for e in ev.get(name, []) if isinstance(e, dict) and
+               isinstance(e.get("key"), str)):
+            return False                    # 4.5
+        if t == "Fork" and (
+                not isinstance(ev.get("child"), str) or
+                not ADDR_RE.fullmatch(ev["child"]) or
+                not isinstance(ev.get("terms", {}), dict)):
+            return False
+        if t == "Retire" and (
+                "successor" in ev and not (
+                    isinstance(ev["successor"], str) and
+                    ADDR_RE.fullmatch(ev["successor"])) or
+                not isinstance(ev.get("reason", ""), str) or
+                isinstance(ctl, dict) and ctl.get("next")):
+            return False                    # 3.10
+    seen = set()
+    for name, limit, pattern in (("keys", 64, ED_MK_RE),
+                                 ("invocation", 16, ED_MK_RE),
+                                 ("agreement", 16, X_MK_RE)):
+        if name in ev:
+            if not _entries_ok(ev[name], limit, pattern):
+                return False
+            keys = {e["key"] for e in ev[name]}
+            if keys & seen:
+                return False                # 3.5: one set for each key
+            seen |= keys
+    homes, aka = ev.get("homes", []), ev.get("alsoKnownAs", [])
+    return isinstance(homes, list) and len(homes) <= 8 and \
+        all(isinstance(h, str) and ORIGIN_RE.fullmatch(h) for h in homes) and \
+        isinstance(aka, list) and len(aka) <= 16 and \
+        all(isinstance(a, str) for a in aka)
+
+
 def _control_signed(event, mk) -> bool:
     """True if control key mk has a valid capabilityInvocation proof."""
     for p in event.get("proof", []):
@@ -816,6 +948,9 @@ def verify_log(events, verifier, depth=0) -> Log:
             raise ValueError("unknown event type")
         if "recovery" in ev:
             raise ValueError("recovery is reserved in this revision")
+        if not record_ok(ev):
+            raise ValueError("an event is a well-formed record of its type "
+                             "(Layer 1, 4.8)")
         created = ts(ev.get("created"))
         proofs = ev.get("proof")
         if not isinstance(proofs, list) or not proofs or \
@@ -1177,6 +1312,8 @@ def record_ok(r) -> bool:
             ts(r["created"])
         if "expires" in r:
             ts(r["expires"])
+        if t in ("Genesis", "Update", "Fork", "Retire") and not event_ok(r):
+            return False                    # Layer 1, Section 3
         if t in ("Offer", "Commitment"):
             price = r.get("terms", {}).get("price")
             if price is not None and (
@@ -1407,8 +1544,8 @@ class Verifier:
         except (KeyError, ValueError):
             return False
         i = log.index(version)
-        if i is None:
-            return False
+        if i is None or log.states[i].retired:
+            return False        # Layer 1, 6.1 item 2: not the Retire itself
         if identity_at is not None:
             if mk not in log.states[i].invocation:
                 return False

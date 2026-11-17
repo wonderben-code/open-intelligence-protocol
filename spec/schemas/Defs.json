@@ -95,7 +95,7 @@
     "httpsOrigin": {
       "$id": "urn:oip:schema:def:httpsOrigin",
       "type": "string",
-      "pattern": "^https://[^/?#@\\s]+$"
+      "pattern": "^https://[A-Za-z0-9.:\\[\\]-]+$"
     },
     "namespaced": {
       "$id": "urn:oip:schema:def:namespaced",

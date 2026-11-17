@@ -453,7 +453,7 @@
         "type": "array",
         "items": {
           "type": "string",
-          "pattern": "^https://"
+          "pattern": "^https://\\S+$"
         }
       }
     }

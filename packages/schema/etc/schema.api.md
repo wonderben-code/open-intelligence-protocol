@@ -72,159 +72,7 @@ export type Branch = Static<typeof Branch>;
 export const Bundle: Type.TObject<{
     type: Type.TLiteral<"Bundle">;
     mind: Type.TUnsafe<string>;
-    log: Type.TArray<Type.TUnion<[Type.TUnsafe<{
-        ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        keys?: {
-            label?: string;
-            key: string;
-        }[];
-        parents?: {
-            mind: string;
-            at: string;
-        }[];
-        inherits?: Readonly<Record<string, unknown>>;
-        height?: number;
-        invocation?: {
-            label?: string;
-            key: string;
-        }[];
-        agreement?: {
-            label?: string;
-            key: string;
-        }[];
-        homes?: string[];
-        alsoKnownAs?: string[];
-        expires?: string;
-        critical?: string[];
-        type: "Genesis";
-        created: string;
-        controller: {
-            nextThreshold?: number;
-            keys: string[];
-            next: string[];
-        } | {
-            members: string[];
-            threshold: number;
-        };
-        kind: string;
-        proof: Readonly<Record<string, unknown>>[];
-        oip: "1";
-    }>, Type.TUnsafe<{
-        ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        keys?: {
-            label?: string;
-            key: string;
-        }[];
-        controller?: {
-            nextThreshold?: number;
-            keys: string[];
-            next: string[];
-        } | {
-            members: string[];
-            threshold: number;
-        };
-        invocation?: {
-            label?: string;
-            key: string;
-        }[];
-        agreement?: {
-            label?: string;
-            key: string;
-        }[];
-        homes?: string[];
-        alsoKnownAs?: string[];
-        expires?: string;
-        critical?: string[];
-        revoked?: {
-            compromisedSince?: string;
-            key: string;
-        }[];
-        type: "Update";
-        created: string;
-        mind: string;
-        proof: Readonly<Record<string, unknown>>[];
-        oip: "1";
-        seq: number;
-        prev: string;
-    }>, Type.TUnsafe<{
-        ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        keys?: {
-            label?: string;
-            key: string;
-        }[];
-        controller?: {
-            nextThreshold?: number;
-            keys: string[];
-            next: string[];
-        } | {
-            members: string[];
-            threshold: number;
-        };
-        invocation?: {
-            label?: string;
-            key: string;
-        }[];
-        agreement?: {
-            label?: string;
-            key: string;
-        }[];
-        homes?: string[];
-        alsoKnownAs?: string[];
-        expires?: string;
-        critical?: string[];
-        revoked?: {
-            compromisedSince?: string;
-            key: string;
-        }[];
-        terms?: Readonly<Record<string, unknown>>;
-        type: "Fork";
-        created: string;
-        mind: string;
-        proof: Readonly<Record<string, unknown>>[];
-        oip: "1";
-        seq: number;
-        prev: string;
-        child: string;
-    }>, Type.TUnsafe<{
-        ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        keys?: {
-            label?: string;
-            key: string;
-        }[];
-        controller?: {
-            nextThreshold?: number;
-            keys: string[];
-            next: string[];
-        } | {
-            members: string[];
-            threshold: number;
-        };
-        invocation?: {
-            label?: string;
-            key: string;
-        }[];
-        agreement?: {
-            label?: string;
-            key: string;
-        }[];
-        homes?: string[];
-        alsoKnownAs?: string[];
-        expires?: string;
-        critical?: string[];
-        revoked?: {
-            compromisedSince?: string;
-            key: string;
-        }[];
-        successor?: string;
-        reason?: string;
-        type: "Retire";
-        created: string;
-        mind: string;
-        proof: Readonly<Record<string, unknown>>[];
-        oip: "1";
-        seq: number;
-        prev: string;
-    }>]>>;
+    log: Type.TArray<Type.TUnsafe<IdentityEvent>>;
     location: Type.TOptional<Type.TUnsafe<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
         homes?: string[];
@@ -269,6 +117,7 @@ export const Bundle: Type.TObject<{
                 conditions?: string[];
                 summary: string;
             };
+            subject?: string;
             tags?: string[];
             evidence?: {
                 ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
@@ -278,7 +127,6 @@ export const Bundle: Type.TObject<{
                 kind: string;
                 ref: string;
             }[];
-            subject?: string;
             inputs?: string[];
             outputs?: string[];
             attestations?: string[];
@@ -916,159 +764,7 @@ export type Location = Static<typeof Location>;
 export const LogPage: Type.TObject<{
     type: Type.TLiteral<"LogPage">;
     mind: Type.TUnsafe<string>;
-    events: Type.TArray<Type.TUnion<[Type.TUnsafe<{
-        ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        keys?: {
-            label?: string;
-            key: string;
-        }[];
-        parents?: {
-            mind: string;
-            at: string;
-        }[];
-        inherits?: Readonly<Record<string, unknown>>;
-        height?: number;
-        invocation?: {
-            label?: string;
-            key: string;
-        }[];
-        agreement?: {
-            label?: string;
-            key: string;
-        }[];
-        homes?: string[];
-        alsoKnownAs?: string[];
-        expires?: string;
-        critical?: string[];
-        type: "Genesis";
-        created: string;
-        controller: {
-            nextThreshold?: number;
-            keys: string[];
-            next: string[];
-        } | {
-            members: string[];
-            threshold: number;
-        };
-        kind: string;
-        proof: Readonly<Record<string, unknown>>[];
-        oip: "1";
-    }>, Type.TUnsafe<{
-        ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        keys?: {
-            label?: string;
-            key: string;
-        }[];
-        controller?: {
-            nextThreshold?: number;
-            keys: string[];
-            next: string[];
-        } | {
-            members: string[];
-            threshold: number;
-        };
-        invocation?: {
-            label?: string;
-            key: string;
-        }[];
-        agreement?: {
-            label?: string;
-            key: string;
-        }[];
-        homes?: string[];
-        alsoKnownAs?: string[];
-        expires?: string;
-        critical?: string[];
-        revoked?: {
-            compromisedSince?: string;
-            key: string;
-        }[];
-        type: "Update";
-        created: string;
-        mind: string;
-        proof: Readonly<Record<string, unknown>>[];
-        oip: "1";
-        seq: number;
-        prev: string;
-    }>, Type.TUnsafe<{
-        ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        keys?: {
-            label?: string;
-            key: string;
-        }[];
-        controller?: {
-            nextThreshold?: number;
-            keys: string[];
-            next: string[];
-        } | {
-            members: string[];
-            threshold: number;
-        };
-        invocation?: {
-            label?: string;
-            key: string;
-        }[];
-        agreement?: {
-            label?: string;
-            key: string;
-        }[];
-        homes?: string[];
-        alsoKnownAs?: string[];
-        expires?: string;
-        critical?: string[];
-        revoked?: {
-            compromisedSince?: string;
-            key: string;
-        }[];
-        terms?: Readonly<Record<string, unknown>>;
-        type: "Fork";
-        created: string;
-        mind: string;
-        proof: Readonly<Record<string, unknown>>[];
-        oip: "1";
-        seq: number;
-        prev: string;
-        child: string;
-    }>, Type.TUnsafe<{
-        ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        keys?: {
-            label?: string;
-            key: string;
-        }[];
-        controller?: {
-            nextThreshold?: number;
-            keys: string[];
-            next: string[];
-        } | {
-            members: string[];
-            threshold: number;
-        };
-        invocation?: {
-            label?: string;
-            key: string;
-        }[];
-        agreement?: {
-            label?: string;
-            key: string;
-        }[];
-        homes?: string[];
-        alsoKnownAs?: string[];
-        expires?: string;
-        critical?: string[];
-        revoked?: {
-            compromisedSince?: string;
-            key: string;
-        }[];
-        successor?: string;
-        reason?: string;
-        type: "Retire";
-        created: string;
-        mind: string;
-        proof: Readonly<Record<string, unknown>>[];
-        oip: "1";
-        seq: number;
-        prev: string;
-    }>]>>;
+    events: Type.TArray<Type.TUnsafe<IdentityEvent>>;
     next: Type.TOptional<Type.TUnsafe<number>>;
     firstSeen: Type.TOptional<Type.TUnsafe<Readonly<Record<string, string>>>>;
     proof: Type.TOptional<Type.TNever>;
@@ -1083,6 +779,9 @@ export type LogPage = Static<typeof LogPage>;
 
 // @public
 export const MAX_DEPTH = 64;
+
+// @public
+export const MAX_ISSUES = 32;
 
 // @public
 export const MAX_POLICY_DEPTH = 8;

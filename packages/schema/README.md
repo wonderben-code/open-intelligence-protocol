@@ -7,7 +7,7 @@ It answers one question: **is this value a well-formed record?** That is the fir
 - A schema for every record type in [core Section 11](../../spec/core.md#11-record-types): 29 record types, plus `Proof`, `Policy` and `ExtensionRecord` (the common members of a record whose type an extension defines).
 - The same schemas as JSON Schema 2020-12 documents in [`spec/schemas/`](../../spec/schemas/README.md), for implementations in any language.
 - Validators compiled ahead of time. The package builds no code at run time, so it works under a strict Content Security Policy and in edge runtimes.
-- Pure: no I/O, no clock, one dependency (`typebox`). It runs in Node.js, browsers, Deno and Bun.
+- Pure: no I/O, no clock, one dependency (`typebox`). It uses no Node.js API, so that it can run in browsers, Deno and Bun as well. CI tests it on Node.js today; the other runtimes join the CI matrix with the client (M6).
 
 ## Use
 

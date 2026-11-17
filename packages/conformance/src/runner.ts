@@ -61,21 +61,45 @@ export function claimHolds(
   const view = viewFor(vectors, vectorCase);
   switch (vectorCase.kind) {
     case "log":
-      return adapter.logVerifies?.(vectorCase.log, view) === true;
+      return verdict(adapter.logVerifies?.(vectorCase.log, view));
     case "countsFor":
-      return adapter.countsFor?.(vectorCase.record, vectorCase.mind, view) === true;
+      return verdict(adapter.countsFor?.(vectorCase.record, vectorCase.mind, view));
     case "sentFor":
-      return adapter.sentFor?.(vectorCase.record, vectorCase.mind, view) === true;
+      return verdict(adapter.sentFor?.(vectorCase.record, vectorCase.mind, view));
     case "status":
       return (
-        adapter.status?.(vectorCase.of, vectorCase.records, vectorCase.at, view) ===
+        named(adapter.status?.(vectorCase.of, vectorCase.records, vectorCase.at, view)) ===
         vectorCase.expect
       );
     case "assurance":
-      return adapter.assurance?.(vectorCase.record, view) === vectorCase.expect;
+      return named(adapter.assurance?.(vectorCase.record, view)) === vectorCase.expect;
     case "record":
-      return adapter.recordIsWellFormed?.(vectorCase.record) === true;
+      return verdict(adapter.recordIsWellFormed?.(vectorCase.record));
   }
+}
+
+/**
+ * An answer must be exactly `true` or `false`. Anything else (`undefined`
+ * from a method that forgot to return, a truthy object) is not a verdict,
+ * and reading it as "rejected" would pass the negative cases.
+ */
+function verdict(answer: unknown): boolean {
+  if (typeof answer !== "boolean") {
+    throw new TypeError(`the adapter answered ${describe(answer)}, not true or false`);
+  }
+  return answer;
+}
+
+function named(answer: unknown): string {
+  if (typeof answer !== "string") {
+    throw new TypeError(`the adapter answered ${describe(answer)}, not a string`);
+  }
+  return answer;
+}
+
+function describe(answer: unknown): string {
+  if (answer === null || answer === undefined) return String(answer);
+  return typeof answer === "object" ? "an object" : `a ${typeof answer}`;
 }
 
 /**

@@ -115,16 +115,32 @@ describe("running a case", () => {
     expect(() => claimHolds(throwing, vectors, first("log"))).toThrow(TypeError);
   });
 
-  it("takes only the boolean true as acceptance", () => {
-    const truthy = {
-      name: "truthy",
-      logVerifies: () => "yes" as unknown as boolean,
-      countsFor: () => 1 as unknown as boolean,
-      recordIsWellFormed: () => ({}) as unknown as boolean,
-    };
-    expect(runCase(truthy, vectors, "valid", first("log", "valid")).outcome).toBe("fail");
-    expect(runCase(truthy, vectors, "valid", first("countsFor", "valid")).outcome).toBe("fail");
-    expect(claimHolds(truthy, vectors, first("record"))).toBe(false);
+  it("fails every case on which the adapter answers something other than true or false", () => {
+    for (const answer of [undefined, null, 1, 0, "yes", {}, []]) {
+      const say = () => answer as boolean;
+      const loose: ConformanceAdapter = {
+        name: "loose",
+        recordIsWellFormed: say,
+        logVerifies: say,
+        countsFor: say,
+        sentFor: say,
+        status: () => answer as string,
+        assurance: () => answer as string,
+      };
+      for (const section of ["valid", "negative", "controls"] as const) {
+        for (const vectorCase of vectors[section]) {
+          const result = runCase(loose, vectors, section, vectorCase);
+          const wantsName = vectorCase.kind === "status" || vectorCase.kind === "assurance";
+          expect(result.outcome, vectorCase.name).toBe("fail");
+          // A string is a proper answer to a status or assurance case; "yes" is simply wrong.
+          expect(result.detail).toMatch(
+            wantsName && answer === "yes"
+              ? /^must be accepted/
+              : /^the implementation threw: the adapter answered/,
+          );
+        }
+      }
+    }
   });
 
   it("compares status and assurance with the expected value", () => {

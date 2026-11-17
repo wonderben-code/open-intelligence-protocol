@@ -16,3 +16,6 @@ coverage/
 
 # Generated API reference (pnpm docs)
 docs/api/
+
+# API Extractor's working copy of each API report
+temp/

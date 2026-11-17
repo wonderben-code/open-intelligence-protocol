@@ -157,9 +157,13 @@ function validatorsSource(): string {
     "",
     code.trim(),
     "",
-    "export const validators: Readonly<Record<string, CompiledValidator>> = {",
-    ...names,
-    "};",
+    '// No prototype, so that a name such as "constructor" finds nothing.',
+    "export const validators: Readonly<Record<string, CompiledValidator>> = Object.assign(",
+    "  Object.create(null) as Record<string, CompiledValidator>,",
+    "  {",
+    ...names.map((line) => `  ${line}`),
+    "  },",
+    ");",
     "",
   ].join("\n");
 }

@@ -6,13 +6,30 @@
 import { type Static, Type } from "typebox";
 
 import { containerRecord } from "../common.ts";
-import { meta, ref } from "../naming.ts";
+import { define, meta, ref, schemaId } from "../naming.ts";
 import { Count, MindAddress, patterns } from "../primitives.ts";
 import { Fork, Genesis, type IdentityEvent, Retire, Update } from "./identity.ts";
 import { Entry, Location, Participant } from "./net.ts";
 
-/** Any identity event. `Merge` is reserved and has no schema (Layer 1, 3.9). */
-const Event = Type.Union([ref(Genesis), ref(Update), ref(Fork), ref(Retire)]);
+const EVENTS = { Genesis, Update, Fork, Retire };
+
+/**
+ * Any identity event. The schema dispatches on `type`, so that an event of
+ * another type is reported as that, not as a failure to match some member of
+ * one of the four. `Merge` is reserved and has no schema (Layer 1, 3.9).
+ */
+const Event = define(
+  "identityEvent",
+  Type.Unsafe<IdentityEvent>({
+    type: "object",
+    properties: { type: { enum: Object.keys(EVENTS) } },
+    required: ["type"],
+    allOf: Object.keys(EVENTS).map((name) => ({
+      if: { properties: { type: { const: name } } },
+      then: { $ref: schemaId(name) },
+    })),
+  }),
+);
 
 /**
  * Layer 1, 13.1: first-seen times, keyed by the content ID of an identity

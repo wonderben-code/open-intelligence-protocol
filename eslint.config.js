@@ -1,17 +1,57 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import { createRequire } from "node:module";
+
 import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
 // Packages that do no I/O and never read the clock (BUILD.md, Section 3.1).
-const PURE = "packages/{schema,core,identity,delegation,web,net}/src/**/*.ts";
+const { PURE: PURE_PACKAGES } = createRequire(import.meta.url)("./scripts/layers.cjs");
+const PURE = `packages/{${PURE_PACKAGES.join(",")}}/src/**/*.{ts,mts,cts,tsx}`;
 
-const noAmbientInput = (name, instead) => ({
+const ambient = (name, instead) => ({
   name,
   message: `Pure packages do no I/O and read no ambient state. ${instead}`,
 });
+
+// Everything through which the clock, randomness, the environment or the
+// network can be reached. `Date` is forbidden outright: an instant is a
+// number of nanoseconds passed in as a parameter (ADR-0003), and a guard
+// that lists the dangerous uses of `Date` one by one is easy to walk round.
+const AMBIENT = [
+  ambient("Date", "Take the current time as a parameter; an instant is a bigint of nanoseconds."),
+  ambient("Intl", "Formatting and collation read the locale; compare code points."),
+  ambient("performance", "Take the current time as a parameter."),
+  ambient("process", "Take configuration as a parameter."),
+  ambient("crypto", "Take randomness as a parameter; cryptography goes through @oip/core."),
+  ambient("fetch", "Fetching belongs to the client and the services."),
+  ambient("XMLHttpRequest", "Fetching belongs to the client and the services."),
+  ambient("WebSocket", "Sockets belong to the client and the services."),
+  ambient("EventSource", "Streams belong to the client and the services."),
+  ambient("localStorage", "Storage belongs to the keystore and the services."),
+  ambient("sessionStorage", "Storage belongs to the keystore and the services."),
+  ambient("indexedDB", "Storage belongs to the keystore and the services."),
+  ambient("navigator", "Read nothing from the environment."),
+  ambient("document", "Read nothing from the environment."),
+  ambient("location", "Read nothing from the environment."),
+  ambient("setTimeout", "Timers belong to the client and the services."),
+  ambient("setInterval", "Timers belong to the client and the services."),
+  ambient("setImmediate", "Timers belong to the client and the services."),
+  ambient("queueMicrotask", "Return a value; do not schedule work."),
+  ambient("console", "Return a result or throw a typed error instead of logging."),
+  // The ways to reach any of the above under another name.
+  ambient("globalThis", "Name what you use, so that these rules can see it."),
+  ambient("window", "Name what you use, so that these rules can see it."),
+  ambient("self", "Name what you use, so that these rules can see it."),
+  ambient("global", "Name what you use, so that these rules can see it."),
+  ambient("Reflect", "Call and construct directly, so that these rules can see it."),
+  ambient("Function", "Code is not built from strings."),
+  ambient("require", "Use static imports, so that the layering rules can see them."),
+  ambient("Deno", "Read nothing from the runtime."),
+  ambient("Bun", "Read nothing from the runtime."),
+];
 
 export default tseslint.config(
   {
@@ -58,41 +98,26 @@ export default tseslint.config(
   },
   {
     files: [PURE],
+    // A comment must not be able to switch these rules off.
+    linterOptions: { noInlineConfig: true },
     rules: {
-      // The current time and randomness are parameters, never read (CLAUDE.md, "Purity").
-      "no-restricted-globals": [
-        "error",
-        noAmbientInput("process", "Take configuration as a parameter."),
-        noAmbientInput("fetch", "Fetching belongs to the client and the services."),
-        noAmbientInput("XMLHttpRequest", "Fetching belongs to the client and the services."),
-        noAmbientInput("WebSocket", "Sockets belong to the client and the services."),
-        noAmbientInput("localStorage", "Storage belongs to the keystore and the services."),
-        noAmbientInput("indexedDB", "Storage belongs to the keystore and the services."),
-        noAmbientInput("performance", "Take the current time as a parameter."),
-        noAmbientInput("setTimeout", "Timers belong to the client and the services."),
-        noAmbientInput("setInterval", "Timers belong to the client and the services."),
-        noAmbientInput("console", "Return a result or throw a typed error instead of logging."),
-      ],
+      "no-restricted-globals": ["error", ...AMBIENT],
+      "no-eval": "error",
+      "no-implied-eval": "error",
+      "no-new-func": "error",
       "no-restricted-properties": [
         "error",
-        { object: "Date", property: "now", message: "Take the current time as a parameter." },
         { object: "Math", property: "random", message: "Take randomness as a parameter." },
-        {
-          object: "crypto",
-          property: "getRandomValues",
-          message: "Take randomness as a parameter.",
-        },
-        { object: "crypto", property: "randomUUID", message: "Take randomness as a parameter." },
       ],
       "no-restricted-syntax": [
         "error",
         {
-          selector: "NewExpression[callee.name='Date'][arguments.length=0]",
-          message: "new Date() reads the clock. Take the current time as a parameter.",
+          selector: "ImportExpression",
+          message: "Use static imports, so that the layering rules can see what is imported.",
         },
         {
-          selector: "CallExpression[callee.name='Date']",
-          message: "Date() reads the clock. Take the current time as a parameter.",
+          selector: "CallExpression[callee.property.name=/^(localeCompare|toLocale.*)$/]",
+          message: "This reads the locale. Compare code points and format by hand.",
         },
       ],
       "no-restricted-imports": [
@@ -123,8 +148,10 @@ export default tseslint.config(
   },
   {
     // Configuration files are outside every package's TypeScript project.
-    files: ["*.js", "*.cjs", "*.config.ts", ".dependency-cruiser.cjs"],
+    files: ["*.js", "*.cjs", "*.config.ts", ".dependency-cruiser.cjs", "scripts/*.cjs"],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: { globals: globals.node },
+    // dependency-cruiser loads its configuration as CommonJS.
+    rules: { "@typescript-eslint/no-require-imports": "off" },
   },
 );

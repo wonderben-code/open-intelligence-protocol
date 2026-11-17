@@ -25,14 +25,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./schemas/*.json": "./schemas/*.json",
     "./package.json": "./package.json"
   },
   "files": [
     "dist",
-    "schemas",
-    "src",
-    "!src/**/*.test.ts"
+    "src"
   ],
   "engines": {
     "node": ">=24"

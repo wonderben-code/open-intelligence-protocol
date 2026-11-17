@@ -88,6 +88,7 @@ export { parseSelector, type SelectorStep } from "./selector.ts";
 export {
   IMPLEMENTATION_LIMIT,
   MAX_DEPTH,
+  MAX_ISSUES,
   validateExtensionRecord,
   validateProof,
   validateRecord,

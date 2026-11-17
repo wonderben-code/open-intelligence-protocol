@@ -7,7 +7,7 @@
   "apiReport": {
     "enabled": true,
     "reportFolder": "<projectFolder>/etc/",
-    "reportTempFolder": "<projectFolder>/dist/api-report/"
+    "reportTempFolder": "<projectFolder>/temp/"
   },
   "docModel": { "enabled": false },
   "dtsRollup": { "enabled": false },

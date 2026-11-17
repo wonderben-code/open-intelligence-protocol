@@ -399,6 +399,73 @@
           }
         }
       }
+    },
+    "identityEvent": {
+      "$id": "urn:oip:schema:def:identityEvent",
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "Genesis",
+            "Update",
+            "Fork",
+            "Retire"
+          ]
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "Genesis"
+              }
+            }
+          },
+          "then": {
+            "$ref": "urn:oip:schema:Genesis"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "Update"
+              }
+            }
+          },
+          "then": {
+            "$ref": "urn:oip:schema:Update"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "Fork"
+              }
+            }
+          },
+          "then": {
+            "$ref": "urn:oip:schema:Fork"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "Retire"
+              }
+            }
+          },
+          "then": {
+            "$ref": "urn:oip:schema:Retire"
+          }
+        }
+      ]
     }
   }
 }

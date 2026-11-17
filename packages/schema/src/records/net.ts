@@ -229,7 +229,11 @@ export const Packet = Type.Object(
       Type.Unsafe<Readonly<Record<string, string[]>>>({
         type: "object",
         propertyNames: { pattern: patterns.mindAddress },
-        additionalProperties: { type: "array", items: { type: "string", pattern: "^https://" } },
+        additionalProperties: {
+          type: "array",
+          // An HTTPS URL: the scheme, and no white space. URLs are parsed where they are used.
+          items: { type: "string", pattern: "^https://\\S+$" },
+        },
       }),
     ),
   },

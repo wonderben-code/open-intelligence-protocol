@@ -1,5 +1,5 @@
 # Pinned, with hashes, so that CI installs exactly these files (pip --require-hashes).
-# The Python checker needs only `cryptography`; cffi and pycparser are its own dependencies.
+# Every package is listed, with its own dependencies.
 # Regenerate with scripts/pin-python-requirements.py when a new version is adopted.
 
 cryptography==50.0.1 \

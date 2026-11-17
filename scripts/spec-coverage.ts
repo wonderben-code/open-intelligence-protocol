@@ -23,6 +23,8 @@ import { type Clause, repoRoot, SPEC_DOCUMENTS } from "./lib/spec.ts";
 
 interface Plan {
   readonly completed: readonly string[];
+  /** The milestone that delivers each workspace package. */
+  readonly packages: Readonly<Record<string, string>>;
   readonly clauses: Readonly<Record<string, string>>;
   /** Clauses that state no requirement, each with the reason. Every other clause is gated. */
   readonly informative: Readonly<Record<string, string>>;
@@ -39,7 +41,13 @@ interface TestResult {
 interface VitestReport {
   readonly success: boolean;
   readonly numFailedTests: number;
-  readonly testResults: readonly { readonly assertionResults: readonly TestResult[] }[];
+  readonly numFailedTestSuites: number;
+  readonly testResults: readonly {
+    /** The test file's path. */
+    readonly name: string;
+    readonly status: string;
+    readonly assertionResults: readonly TestResult[];
+  }[];
 }
 
 const CITATION = /\[((?:core|L0|L1|L2) [0-9]+(?:\.[0-9]+)?)\]/g;
@@ -60,7 +68,9 @@ function runTests(): VitestReport {
       { cwd: repoRoot, stdio: ["ignore", "ignore", "inherit"], env: process.env },
     );
     if (run.error !== undefined) throw run.error;
-    return readJson(file) as VitestReport;
+    const report = readJson(file) as VitestReport;
+    // A test file that cannot be loaded has no failed tests, only a failed run.
+    return run.status === 0 ? report : { ...report, success: false };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -83,7 +93,15 @@ function milestoneFor(plan: Plan, id: string): string {
 
 const from = process.argv.indexOf("--from");
 const report = from === -1 ? runTests() : (readJson(process.argv[from + 1] ?? "") as VitestReport);
-const tests = report.testResults.flatMap((file) => file.assertionResults);
+/** The workspace package a test file belongs to. */
+function packageOf(file: string): string {
+  const match = /(?:^|\/)(?:packages|apps|examples)\/([^/]+)\//.exec(file.replaceAll("\\", "/"));
+  return match?.[1] ?? "";
+}
+
+const tests = report.testResults.flatMap((file) =>
+  file.assertionResults.map((test) => ({ ...test, package: packageOf(file.name) })),
+);
 
 const { revision, clauses } = readJson(join(repoRoot, "spec/clauses.json")) as {
   revision: string;
@@ -101,20 +119,38 @@ for (const key of Object.keys(plan.clauses)) {
     problems.push(`plan.json names "${key}", which is not in the specifications`);
 }
 
-// Which passing tests cite each clause.
-const passing = new Map<string, number>();
+// Which passing tests cite each clause, and the latest milestone among their
+// packages. A clause is tested once a package of the milestone that owes it
+// (or of a later one) has a passing test for it. A citation from an earlier
+// package tests it in part: the schemas cite many clauses that verification
+// completes.
+const passing = new Map<string, { tests: number; milestone: number }>();
 for (const test of tests) {
+  const owner = plan.packages[test.package];
   for (const match of test.fullName.matchAll(CITATION)) {
     const id = match[1] ?? "";
     if (!known.has(id)) {
       problems.push(`the test "${test.fullName}" cites ${id}, which is not a clause`);
+    } else if (owner === undefined) {
+      problems.push(
+        `plan.json assigns no milestone to the package "${test.package}", whose tests cite clauses`,
+      );
     } else if (test.status === "passed") {
-      passing.set(id, (passing.get(id) ?? 0) + 1);
+      const so = passing.get(id) ?? { tests: 0, milestone: -1 };
+      passing.set(id, {
+        tests: so.tests + 1,
+        milestone: Math.max(so.milestone, milestoneNumber(owner)),
+      });
     }
   }
 }
 
-if (report.numFailedTests > 0) problems.push(`${report.numFailedTests} tests failed`);
+if (!report.success || report.numFailedTests > 0 || report.numFailedTestSuites > 0) {
+  const broken = report.testResults.filter((file) => file.status !== "passed").length;
+  problems.push(
+    `the test run failed: ${report.numFailedTests} tests failed and ${broken} test files did not pass. Coverage read from a failed run means nothing`,
+  );
+}
 
 for (const id of Object.keys(plan.informative)) {
   if (!known.has(id))
@@ -129,17 +165,25 @@ interface Row {
 }
 const rows: Row[] = clauses.map((clause) => {
   const milestone = milestoneFor(plan, clause.id);
-  const count = passing.get(clause.id) ?? 0;
+  const cited = passing.get(clause.id);
+  const count = cited?.tests ?? 0;
+  // Tested by a package of the owing milestone or a later one.
+  const complete = cited !== undefined && cited.milestone >= milestoneNumber(milestone);
   const done = completed.has(milestone);
   const gated = !Object.hasOwn(plan.informative, clause.id);
   let status: string;
-  if (count > 0) status = done ? "tested" : `tested in part (due ${milestone})`;
+  if (complete) status = "tested";
+  else if (count > 0) status = `tested in part (due ${milestone})`;
   else if (!gated) status = "informative";
   else if (!done) status = `pending ${milestone}`;
   else status = "**untested**";
   if (gated) {
-    if (done && count === 0) {
-      problems.push(`${clause.id} is owed by ${milestone}, and no passing test cites it`);
+    if (done && !complete) {
+      problems.push(
+        count === 0
+          ? `${clause.id} is owed by ${milestone}, and no passing test cites it`
+          : `${clause.id} is owed by ${milestone}, and only tests of earlier packages cite it`,
+      );
     }
     if (milestoneNumber(milestone) > LAST_MILESTONE) {
       problems.push(
@@ -210,7 +254,7 @@ const lines: string[] = [
   "| Document | Clauses | Gated | Gated with a passing test | MUST-level | MUST-level with a passing test |",
   "|---|---:|---:|---:|---:|---:|",
 ];
-const isGated = (row: Row) => row.status !== "informative";
+const isGated = (row: Row) => !Object.hasOwn(plan.informative, row.clause.id);
 const summary = (label: string, mine: Row[]) => {
   const gated = mine.filter(isGated);
   const must = mine.filter((row) => row.clause.level === "MUST");

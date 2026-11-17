@@ -120,7 +120,9 @@ export class PythonJudge {
     }
     // The checker echoes a case's name. A mismatch means the answers have
     // slipped out of step with the questions, and none can be trusted.
-    if (typeof next.name === "string" && verdict.name !== next.name) {
+    // The one exception: a line the checker could not parse has no name to echo.
+    const unparsed = verdict.name === null && verdict.error !== undefined;
+    if (typeof next.name === "string" && verdict.name !== next.name && !unparsed) {
       this.#fail(
         new Error(
           `the Python checker answered ${JSON.stringify(verdict.name)} when asked about ${JSON.stringify(next.name)}`,

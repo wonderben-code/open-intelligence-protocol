@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-/** Removes build output: every package's `dist`, and the coverage and API documentation directories. */
+/**
+ * Removes build output: every package's `dist` and `temp`, and the coverage
+ * and API documentation directories.
+ */
 
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -14,7 +17,10 @@ for (const workspace of ["packages", "apps", "examples"]) {
   // apps/ and examples/ appear with the milestones that fill them.
   if (!existsSync(directory)) continue;
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (entry.isDirectory()) targets.push(join(repoRoot, workspace, entry.name, "dist"));
+    if (!entry.isDirectory()) continue;
+    for (const output of ["dist", "temp"]) {
+      targets.push(join(repoRoot, workspace, entry.name, output));
+    }
   }
 }
 for (const target of targets) rmSync(target, { recursive: true, force: true });

@@ -3,7 +3,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { citedClauses, clause, specClauses, specRevision } from "../src/index.ts";
+import {
+  citedClauses,
+  clause,
+  specClauses,
+  specRevision,
+  withAmbientTrapped,
+} from "../src/index.ts";
 
 describe("clause", () => {
   it("formats one or more citations for a test name", () => {
@@ -39,5 +45,44 @@ describe("the clause list", () => {
     expect(specClauses.get("core 4.4")?.level).toBe("MUST");
     expect(specClauses.get("core 5.7")?.level).toBe("SHOULD");
     expect(specClauses.get("core 2.1")?.level).toBe("none");
+  });
+});
+
+describe("withAmbientTrapped", () => {
+  it("returns what pure code returns, and restores the clock afterwards", () => {
+    const before = Date.now;
+    expect(withAmbientTrapped(() => 1 + 1)).toBe(2);
+    expect(withAmbientTrapped(() => new Date(0).toISOString())).toBe("1970-01-01T00:00:00.000Z");
+    expect(Date.now).toBe(before);
+    expect(typeof Date.now()).toBe("number");
+    expect(Math.random()).toBeLessThan(1);
+  });
+
+  const impure: [name: string, run: () => unknown][] = [
+    ["Date.now()", () => Date.now()],
+    ["new Date()", () => new Date()],
+    ["Date()", () => (Date as unknown as () => string)()],
+    ["Math.random()", () => Math.random()],
+    ["performance.now()", () => performance.now()],
+    ["crypto.randomUUID()", () => crypto.randomUUID()],
+    ["crypto.getRandomValues()", () => crypto.getRandomValues(new Uint8Array(4))],
+    ["Date.now()", () => globalThis.Date.now()],
+    ["new Date()", () => Reflect.construct(Date, []) as Date],
+  ];
+
+  it.each(impure)("throws when the code reaches %s", (name, run) => {
+    expect(() => withAmbientTrapped(run)).toThrow(`pure code reached ambient state: ${name}`);
+  });
+
+  it("reports a trap the code reached even if the code caught the exception", () => {
+    const swallowing = () => {
+      try {
+        return Date.now();
+      } catch {
+        return 0;
+      }
+    };
+    expect(() => withAmbientTrapped(swallowing)).toThrow(/Date\.now\(\)/);
+    expect(typeof Date.now()).toBe("number");
   });
 });

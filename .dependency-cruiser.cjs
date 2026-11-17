@@ -9,24 +9,7 @@
  *   3. a package's source never imports test code or development dependencies.
  */
 
-// Lowest layer first. Packages on one line are siblings and do not import each other.
-const LAYERS = [
-  ["schema"],
-  ["core"],
-  ["identity"],
-  ["delegation"],
-  ["web"],
-  ["net"],
-  ["keystore"],
-  ["client"],
-  ["host", "resolver", "indexer"],
-  ["cli", "mcp-server", "bridge-a2a", "did-resolver", "conformance"],
-];
-
-const PURE = ["schema", "core", "identity", "delegation", "web", "net"];
-
-// The npm packages a pure package may import, each justified in an ADR (docs/adr/).
-const PURE_DEPENDENCIES = ["typebox"];
+const { LAYERS, PURE, PURE_DEPENDENCIES, TEST_ONLY } = require("./scripts/layers.cjs");
 
 const group = (names) => `(?:${names.join("|")})`;
 
@@ -49,6 +32,17 @@ const layerRules = LAYERS.flatMap((layer, index) =>
 module.exports = {
   forbidden: [
     ...layerRules,
+    {
+      name: "package-not-in-the-layers",
+      comment:
+        "Every package has a place in scripts/layers.cjs. One that has none is bound by no layering rule.",
+      severity: "error",
+      from: {
+        path: "^packages/[^/]+/",
+        pathNot: `^packages/${group([...LAYERS.flat(), ...TEST_ONLY])}/`,
+      },
+      to: {},
+    },
     {
       name: "pure-no-node-builtins",
       comment: "Pure packages do no I/O, so they import no Node.js built-in.",
@@ -78,14 +72,14 @@ module.exports = {
       name: "source-not-to-tests",
       comment: "Published source never depends on tests, benchmarks, scripts or the test kit.",
       severity: "error",
-      from: { path: "^packages/[^/]+/src/" },
-      to: { path: "^packages/(?:[^/]+/(?:test|bench|scripts)|testkit)/" },
+      from: { path: "^packages/[^/]+/src/", pathNot: `^packages/${group(TEST_ONLY)}/` },
+      to: { path: `^packages/(?:[^/]+/(?:test|bench|scripts|examples)|${group(TEST_ONLY)})/` },
     },
     {
       name: "source-not-to-dev-dependencies",
       comment: "Published source imports only what the package declares under dependencies.",
       severity: "error",
-      from: { path: "^packages/[^/]+/src/", pathNot: "^packages/testkit/" },
+      from: { path: "^packages/[^/]+/src/", pathNot: `^packages/${group(TEST_ONLY)}/` },
       to: { dependencyTypes: ["npm-dev"], dependencyTypesNot: ["type-only"] },
     },
     {

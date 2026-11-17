@@ -33,8 +33,34 @@ export const MAX_DEPTH = 64;
 /** The `clause` of an issue raised by an implementation limit rather than by the specification. */
 export const IMPLEMENTATION_LIMIT = "implementation limit";
 
-function fail<T>(first: Issue, ...rest: Issue[]): Validation<T> {
+/** The most issues one validation reports. Hostile input must not buy unbounded output. */
+export const MAX_ISSUES = 32;
+
+/** The longest path an issue carries. Member names come from the input. */
+const MAX_PATH = 256;
+
+/**
+ * The most values this implementation reads in one record. core 1.6 bounds a
+ * record's canonical form at 1 MiB and every value takes at least two bytes
+ * of it, so no record within that limit comes near this number. It bounds
+ * the work done on values that did not come from a JSON text, such as an
+ * array with millions of holes or a structure that shares its parts.
+ */
+const MAX_VALUES = 1_048_576;
+
+function reject<T>(issues: readonly Issue[], fallback: Issue): Validation<T> {
+  const [first = fallback, ...rest] = issues
+    .slice(0, MAX_ISSUES)
+    .map((issue) =>
+      issue.path.length <= MAX_PATH
+        ? issue
+        : { ...issue, path: `${issue.path.slice(0, MAX_PATH - 1)}…` },
+    );
   return { ok: false, issues: [first, ...rest] };
+}
+
+function fail<T>(issue: Issue): Validation<T> {
+  return reject([], issue);
 }
 
 /** Whether a string is valid Unicode: every surrogate is half of a pair (core 1.1). */
@@ -56,48 +82,95 @@ const UNPAIRED: Issue = {
   clause: "core 1.1",
 };
 
+const NOT_JSON: Issue = {
+  path: "",
+  message:
+    "the record contains something that is not a JSON value: only objects, arrays, strings, true, false, null and integers are permitted",
+  clause: "core 1.2",
+};
+
+const TOO_DEEP: Issue = {
+  path: "",
+  message: `the record nests arrays and objects more than ${MAX_DEPTH} deep`,
+  clause: IMPLEMENTATION_LIMIT,
+};
+
+const TOO_MANY: Issue = {
+  path: "",
+  message: "the record holds more values than a record of 1 MiB can",
+  clause: "core 1.6",
+};
+
 /**
- * Checks what holds for every value in a record, whatever its type: strings
- * and member names are valid Unicode (core 1.1), numbers are safe integers
- * (core 1.2), and nesting is no deeper than `MAX_DEPTH`. It does not
- * recurse, so no input can exhaust the stack.
+ * Checks what holds for every value in a record, whatever its type:
+ *
+ *   - it is plain JSON data: objects, arrays, strings, booleans, null and
+ *     numbers, with no holes, accessors, hidden members or other prototypes
+ *     (core 1.2). A value parsed from JSON text always is; one built by other
+ *     code may not be, and the schema validators would read members this
+ *     check had not seen;
+ *   - strings and member names are valid Unicode (core 1.1);
+ *   - numbers are safe integers (core 1.2);
+ *   - nesting is no deeper than `MAX_DEPTH`, and there are no more than
+ *     `MAX_VALUES` values.
+ *
+ * It does not recurse, so no input can exhaust the stack, and it reads
+ * accessors' descriptors rather than calling them.
  */
 function checkValues(root: unknown): Issue | undefined {
-  const pending: { value: unknown; depth: number }[] = [{ value: root, depth: 0 }];
-  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
-    const { value, depth } = next;
-    if (typeof value === "string") {
-      if (!isWellFormed(value)) return UNPAIRED;
-    } else if (typeof value === "number") {
-      if (!Number.isSafeInteger(value)) {
+  let budget = MAX_VALUES;
+  const pending: { value: object; depth: number }[] = [];
+
+  const visit = (value: unknown, depth: number): Issue | undefined => {
+    switch (typeof value) {
+      case "boolean":
+        return undefined;
+      case "string":
+        return isWellFormed(value) ? undefined : UNPAIRED;
+      case "number":
+        if (Number.isSafeInteger(value)) return undefined;
         return {
           path: "",
           message: `the record contains the number ${value}, which is not an integer between -(2^53-1) and 2^53-1; write decimal quantities as strings`,
           clause: "core 1.2",
         };
+      case "object":
+        if (value === null) return undefined;
+        if (depth > MAX_DEPTH) return TOO_DEEP;
+        pending.push({ value, depth });
+        return undefined;
+      default:
+        // undefined (which is also what a hole in an array reads as), bigint, symbol, function.
+        return NOT_JSON;
+    }
+  };
+
+  let issue = visit(root, 1);
+  for (let next = pending.pop(); issue === undefined && next !== undefined; next = pending.pop()) {
+    const { value, depth } = next;
+    if (Array.isArray(value)) {
+      if (value.length > budget) return TOO_MANY;
+      budget -= value.length;
+      for (let i = 0; i < value.length && issue === undefined; i++) {
+        issue = visit(value[i], depth + 1);
       }
-    } else if (typeof value === "object" && value !== null) {
-      if (depth >= MAX_DEPTH) {
-        return {
-          path: "",
-          message: `the record nests arrays and objects more than ${MAX_DEPTH} deep`,
-          clause: IMPLEMENTATION_LIMIT,
-        };
-      }
-      if (!Array.isArray(value)) {
-        for (const name of Object.keys(value)) {
-          if (!isWellFormed(name)) return UNPAIRED;
-        }
-      }
-      const children: unknown[] = Array.isArray(value) ? value : Object.values(value);
-      for (const child of children) {
-        if (child !== null && typeof child !== "boolean") {
-          pending.push({ value: child, depth: depth + 1 });
-        }
-      }
+      continue;
+    }
+    const prototype: unknown = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return NOT_JSON;
+    if (Object.getOwnPropertySymbols(value).length > 0) return NOT_JSON;
+    const names = Object.getOwnPropertyNames(value);
+    if (names.length > budget) return TOO_MANY;
+    budget -= names.length;
+    for (const name of names) {
+      if (!isWellFormed(name)) return UNPAIRED;
+      const member = Object.getOwnPropertyDescriptor(value, name);
+      if (member === undefined || !member.enumerable || !("value" in member)) return NOT_JSON;
+      issue = visit(member.value, depth + 1);
+      if (issue !== undefined) break;
     }
   }
-  return undefined;
+  return issue;
 }
 
 /** The clause that defines each value syntax, by its pattern. */
@@ -156,10 +229,23 @@ function schemaIssues(name: string, defining: string): Issue[] {
   return issues.sort((a, b) => depthOf(b.path) - depthOf(a.path));
 }
 
-function runValidator(name: string, value: unknown): boolean {
-  const validator = validators[name];
-  if (validator === undefined) throw new Error(`no compiled validator for ${name}`);
-  return validator(value);
+const UNREADABLE: Issue = {
+  path: "",
+  message: "the value could not be read as plain JSON data",
+  clause: "core 1.2",
+};
+
+/**
+ * Runs a validation so that it always answers. Judging hostile input is the
+ * work of this package: whatever the value (a proxy, an object that throws
+ * when read), the caller gets a rejection, never an exception.
+ */
+function answering<T>(run: () => Validation<T>): Validation<T> {
+  try {
+    return run();
+  } catch {
+    return fail(UNREADABLE);
+  }
 }
 
 function validateWith<T>(
@@ -170,29 +256,46 @@ function validateWith<T>(
 ): Validation<T> {
   const unsafe = checkValues(value);
   if (unsafe !== undefined) return fail(unsafe);
-  if (!runValidator(name, value)) {
-    const [first, ...rest] = schemaIssues(name, defining);
-    return fail(
-      first ?? { path: "", message: `not a well-formed ${name}`, clause: defining },
-      ...rest,
-    );
+  const validator = validators[name];
+  if (validator === undefined) throw new Error(`no compiled validator for ${name}`);
+  if (!validator(value)) {
+    return reject(schemaIssues(name, defining), {
+      path: "",
+      message: `not a well-formed ${name}`,
+      clause: defining,
+    });
   }
   const valid = value as T;
-  const [first, ...rest] = rules(valid);
-  return first === undefined ? { ok: true, value: valid } : fail(first, ...rest);
+  const issues = rules(valid);
+  return issues.length === 0
+    ? { ok: true, value: valid }
+    : reject(issues, { path: "", message: `not a well-formed ${name}`, clause: defining });
 }
 
 /**
  * Validates a record of a known type against its schema and the structural
  * rules. Use `validateRecord` when the type is not known in advance.
+ *
+ * `type` is checked at run time as well: a name that is not a record type,
+ * such as one taken from a URL, gives a rejection and never reaches a
+ * validator.
  */
 export function validateRecordOfType<K extends RecordType>(
   type: K,
   value: unknown,
 ): Validation<RecordOf<K>> {
-  return validateWith<RecordOf<K>>(type, DEFINING_CLAUSE[type], value, (record) =>
-    checkRecordRules(record),
-  );
+  return answering(() => {
+    if (!isRecordType(type)) {
+      return fail({
+        path: "",
+        message: `${quote(String(type))} is not a record type this revision defines`,
+        clause: "core 11",
+      });
+    }
+    return validateWith<RecordOf<K>>(type, DEFINING_CLAUSE[type], value, (record) =>
+      checkRecordRules(record),
+    );
+  });
 }
 
 function typeOf(value: unknown): Validation<string> {
@@ -226,16 +329,18 @@ function typeOf(value: unknown): Validation<string> {
  * every record; use `isRecordType` to tell the two apart beforehand.
  */
 export function validateRecord(value: unknown): Validation<OipRecord> {
-  const type = typeOf(value);
-  if (!type.ok) return type;
-  if (!isRecordType(type.value)) {
-    return fail({
-      path: "/type",
-      message: `${quote(type.value)} is not a record type this revision defines; if an extension defines it, use validateExtensionRecord`,
-      clause: "core 11",
-    });
-  }
-  return validateRecordOfType(type.value, value);
+  return answering(() => {
+    const type = typeOf(value);
+    if (!type.ok) return type;
+    if (!isRecordType(type.value)) {
+      return fail({
+        path: "/type",
+        message: `${quote(type.value)} is not a record type this revision defines; if an extension defines it, use validateExtensionRecord`,
+        clause: "core 11",
+      });
+    }
+    return validateRecordOfType(type.value, value);
+  });
 }
 
 /**
@@ -247,16 +352,18 @@ export function validateRecord(value: unknown): Validation<OipRecord> {
  * `unsupported-critical` (core 10.2), not `invalid-record`.
  */
 export function validateExtensionRecord(value: unknown): Validation<ExtensionRecord> {
-  const type = typeOf(value);
-  if (!type.ok) return type;
-  if (isRecordType(type.value)) {
-    return fail({
-      path: "/type",
-      message: `${type.value} is a record type this revision defines; use validateRecord`,
-      clause: "core 11",
-    });
-  }
-  return validateWith<ExtensionRecord>("ExtensionRecord", "core 7", value, checkExtensionRules);
+  return answering(() => {
+    const type = typeOf(value);
+    if (!type.ok) return type;
+    if (isRecordType(type.value)) {
+      return fail({
+        path: "/type",
+        message: `${type.value} is a record type this revision defines; use validateRecord`,
+        clause: "core 11",
+      });
+    }
+    return validateWith<ExtensionRecord>("ExtensionRecord", "core 7", value, checkExtensionRules);
+  });
 }
 
 /**
@@ -266,5 +373,5 @@ export function validateExtensionRecord(value: unknown): Validation<ExtensionRec
  * see `AuthorityItem`.
  */
 export function validateProof(value: unknown): Validation<Proof> {
-  return validateWith<Proof>("Proof", "core 5.2", value, checkProofRules);
+  return answering(() => validateWith<Proof>("Proof", "core 5.2", value, checkProofRules));
 }

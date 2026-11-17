@@ -1,8 +1,12 @@
+# SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+# SPDX-License-Identifier: Apache-2.0
+
 name: CI
 
 # Every gate of BUILD.md, Section 2, that applies to the code in the
-# repository so far. Actions are pinned by commit SHA; Dependabot keeps the
-# pins current.
+# repository so far. The "checks" job runs `pnpm run ci` (scripts/ci.ts), the
+# same script a contributor runs before pushing, so the two cannot drift
+# apart. Actions are pinned by commit SHA; Dependabot keeps the pins current.
 
 on:
   push:
@@ -15,7 +19,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # A push and a pull request for the same commit each keep their own run:
+  # a skipped job must never stand in for a failed one on a required check.
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   # A newer push replaces a run still in progress, except on main, where
   # every commit keeps its own result.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -26,11 +32,9 @@ env:
 
 jobs:
   checks:
-    name: Lint, types, generated files, spec coverage
-    # A pull request from a branch of this repository is already covered by its push.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    name: Every check (pnpm run ci)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -43,34 +47,17 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - name: Install the Python checker's dependency
-        run: python -m pip install --require-hashes -r .github/requirements/vector-checker.txt
+      - name: Install the Python checker's dependency and the REUSE tool, by hash
+        run: |
+          python -m pip install --require-hashes -r .github/requirements/vector-checker.txt
+          python -m pip install --require-hashes -r .github/requirements/reuse.txt
       - name: Install with a frozen lockfile
         run: pnpm install --frozen-lockfile
-      - name: Lint, format, layering, and the guards themselves
-        run: pnpm lint
-      - name: Typecheck
-        run: pnpm typecheck
-      - name: Generated files are current (spec/clauses.json, spec/schemas, compiled validators)
-        run: pnpm generated:check
-      - name: Build, and check the API reports
-        run: pnpm api:check
-      - name: Spec coverage, and docs/conformance/coverage.md is current
-        run: |
-          pnpm spec:coverage
-          git diff --exit-code -- docs/conformance/coverage.md
-      - name: Python vector checker
-        run: |
-          python spec/test-vectors/oip_vectors.py
-          git diff --exit-code -- spec/test-vectors/vectors.json
-      - name: API reference builds
-        run: pnpm run docs
-      - name: Benchmarks run
-        run: pnpm bench
+      - name: Every check, in order
+        run: pnpm run ci
 
   test:
     name: Test (Node ${{ matrix.node }})
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -89,7 +76,7 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - name: Install the Python checker's dependency
+      - name: Install the Python checker's dependency, by hash
         run: python -m pip install --require-hashes -r .github/requirements/vector-checker.txt
       - name: Install with a frozen lockfile
         run: pnpm install --frozen-lockfile
@@ -97,14 +84,3 @@ jobs:
         run: pnpm test:coverage
       - name: Golden vectors, by case kind
         run: pnpm test:vectors
-
-  licences:
-    name: REUSE
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0

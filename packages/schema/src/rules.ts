@@ -279,9 +279,14 @@ function checkRecordAt(record: OipRecord, path: string, report: Report): void {
   }
 }
 
+/** More issues than a caller reports (see `MAX_ISSUES` in validate.ts) are not worth gathering. */
+const ENOUGH = 64;
+
 function collect(run: (report: Report) => void): Issue[] {
   const issues: Issue[] = [];
-  run((path, message, clause) => issues.push({ path, message, clause }));
+  run((path, message, clause) => {
+    if (issues.length < ENOUGH) issues.push({ path, message, clause });
+  });
   return issues;
 }
 

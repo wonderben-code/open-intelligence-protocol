@@ -30,7 +30,8 @@ interface Issue {
 
 - Validation in `@oip/schema` returns `Validation`.
 - Verification in the packages above returns a verdict of the same shape, with reasons that cite clauses. `oip verify` (M7) and the Explorer's "why" view (M11) show them.
-- A verifier never throws on input it was asked to judge. A property test in each package gives it arbitrary values and requires a result.
+- A verifier never throws on input it was asked to judge, whatever the input: a value that did not come from JSON text, a proxy, an object that throws when read. Each package has a property test that gives it arbitrary values and requires a result, and tests for the hostile inputs that once broke it.
+- An answer is bounded. A validation reports at most `MAX_ISSUES` issues (32), with paths of at most 256 characters, however many faults the input has: hostile input must not buy megabytes of output.
 
 ### Exceptions are for the third kind
 

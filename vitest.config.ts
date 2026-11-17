@@ -27,6 +27,9 @@ export default defineConfig({
         "**/scripts/**",
       ],
       thresholds: {
+        // Each file must meet the threshold, so that an untested file cannot
+        // hide behind well-tested ones.
+        perFile: true,
         lines: 85,
         branches: 85,
         functions: 85,

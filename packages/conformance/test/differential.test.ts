@@ -17,6 +17,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { sampleRecords } from "@oip/testkit";
 import fc from "fast-check";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -37,9 +38,16 @@ const unavailable = pythonJudgeUnavailable();
 const required = process.env["OIP_REQUIRE_PYTHON"] !== undefined;
 // Each PR runs a short campaign; the nightly job sets OIP_DIFFERENTIAL_RUNS higher.
 const RUNS = Number(process.env["OIP_DIFFERENTIAL_RUNS"] ?? 2000);
+// About 1.5 ms a case on a laptop; ten times that, so a slow runner does not fail the campaign.
+const TIMEOUT = Math.max(120_000, RUNS * 15);
 
 const vectors = loadVectors();
-const records = positiveRecords(vectors).map((entry) => entry.record);
+// Every record of the positive vectors, and a sample of each of the 29
+// record types, so that the types the vectors lack are compared too.
+const records = [
+  ...positiveRecords(vectors).map((entry) => entry.record),
+  ...Object.values(sampleRecords),
+];
 
 /** Values that tend to break a structural check. */
 const junk = fc.oneof(
@@ -54,7 +62,7 @@ const junk = fc.oneof(
 /** Every path to a value inside a record, as lists of keys. */
 function paths(value: unknown, prefix: (string | number)[] = [], out: (string | number)[][] = []) {
   if (prefix.length > 0) out.push(prefix);
-  if (prefix.length >= 4 || typeof value !== "object" || value === null) return out;
+  if (prefix.length >= 6 || typeof value !== "object" || value === null) return out;
   for (const [key, inner] of Object.entries(value)) {
     paths(inner, [...prefix, Array.isArray(value) ? Number(key) : key], out);
   }
@@ -129,7 +137,12 @@ describe.skipIf(unavailable !== undefined && !required)("differential: record ca
     record,
   });
 
-  it("both accept every record of the positive vectors", async () => {
+  it("covers every record type", () => {
+    const types = new Set(records.map((record) => record["type"]));
+    expect(types.size).toBe(29);
+  });
+
+  it("both accept every record of the positive vectors and every sample", async () => {
     for (const record of records) {
       expect(referenceAdapter.recordIsWellFormed?.(record)).toBe(true);
       expect((await judge.judge(recordCase(record))).holds).toBe(true);
@@ -148,25 +161,29 @@ describe.skipIf(unavailable !== undefined && !required)("differential: record ca
     expect(compared).toBe(2);
   });
 
-  it(`the schemas accept nothing the Python checker rejects (${RUNS} mutated records)`, async () => {
-    let accepted = 0;
-    await fc.assert(
-      fc.asyncProperty(mutatedRecord, async (record) => {
-        const disagreement = await compareVerdicts(
-          referenceAdapter,
-          judge,
-          vectors,
-          recordCase(record),
-          "no-laxer",
-        );
-        if (referenceAdapter.recordIsWellFormed?.(record) === true) accepted++;
-        expect(disagreement).toBeUndefined();
-      }),
-      { numRuns: RUNS },
-    );
-    // The mutations must not be so harsh that nothing survives to be compared.
-    expect(accepted).toBeGreaterThan(0);
-  }, 120_000);
+  it(
+    `the schemas accept nothing the Python checker rejects (${RUNS} mutated records)`,
+    async () => {
+      let accepted = 0;
+      await fc.assert(
+        fc.asyncProperty(mutatedRecord, async (record) => {
+          const disagreement = await compareVerdicts(
+            referenceAdapter,
+            judge,
+            vectors,
+            recordCase(record),
+            "no-laxer",
+          );
+          if (referenceAdapter.recordIsWellFormed?.(record) === true) accepted++;
+          expect(disagreement).toBeUndefined();
+        }),
+        { numRuns: RUNS },
+      );
+      // The mutations must not be so harsh that nothing survives to be compared.
+      expect(accepted).toBeGreaterThan(0);
+    },
+    TIMEOUT,
+  );
 
   it("reports a disagreement when the verdicts differ", async () => {
     const lax = { name: "lax", recordIsWellFormed: () => true };
@@ -228,15 +245,31 @@ describe.skipIf(unavailable !== undefined && !required)("differential: record ca
     expect(verdicts[1]).toMatchObject({ holds: true, name: "after" });
   });
 
-  it("rejects, without sending anything, a case that cannot be written as JSON", async () => {
+  it("stays in step after a case too deep for one side or the other", async () => {
+    // Whether JSON.stringify can write nesting this deep depends on the
+    // runtime. If it cannot, nothing is sent and the promise rejects. If it
+    // can, the checker cannot parse the line and says so. Either way the
+    // next answer belongs to the next question.
     let deep: unknown = "leaf";
     for (let i = 0; i < 200_000; i++) deep = [deep];
-    await expect(judge.judge({ name: "deep", kind: "record", record: deep })).rejects.toThrow(
-      /cannot be written as JSON/,
+    const outcome = await judge.judge({ name: "deep", kind: "record", record: deep }).then(
+      (verdict) => verdict,
+      (error: unknown) => error,
     );
+    if (outcome instanceof Error) {
+      expect(outcome.message).toMatch(/cannot be written as JSON/);
+    } else {
+      expect(outcome).toMatchObject({ holds: false, name: null });
+      expect((outcome as { error?: string }).error).toMatch(/not JSON/);
+    }
+    expect((await judge.judge(recordCase(records[0], "still in step"))).name).toBe("still in step");
+  });
+
+  it("rejects, without sending anything, a case that JSON cannot represent", async () => {
     await expect(judge.judge({ name: "big", kind: "record", record: 10n })).rejects.toThrow(
       /cannot be written as JSON/,
     );
+    await expect(judge.judge(undefined)).rejects.toThrow(/cannot be written as JSON/);
     expect((await judge.judge(recordCase(records[0], "still in step"))).name).toBe("still in step");
   });
 

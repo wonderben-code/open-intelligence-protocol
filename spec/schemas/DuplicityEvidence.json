@@ -43,36 +43,10 @@
         "type": "array",
         "prefixItems": [
           {
-            "anyOf": [
-              {
-                "$ref": "urn:oip:schema:Genesis"
-              },
-              {
-                "$ref": "urn:oip:schema:Update"
-              },
-              {
-                "$ref": "urn:oip:schema:Fork"
-              },
-              {
-                "$ref": "urn:oip:schema:Retire"
-              }
-            ]
+            "$ref": "urn:oip:schema:def:identityEvent"
           },
           {
-            "anyOf": [
-              {
-                "$ref": "urn:oip:schema:Genesis"
-              },
-              {
-                "$ref": "urn:oip:schema:Update"
-              },
-              {
-                "$ref": "urn:oip:schema:Fork"
-              },
-              {
-                "$ref": "urn:oip:schema:Retire"
-              }
-            ]
+            "$ref": "urn:oip:schema:def:identityEvent"
           }
         ],
         "items": false,

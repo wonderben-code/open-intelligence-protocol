@@ -38,7 +38,7 @@ pnpm bench                           # performance budgets (BUILD.md 3.8)
 pnpm run docs                        # API reference (`pnpm docs` is pnpm's own command)
 ```
 
-Before pushing, run `pnpm run ci`: everything CI runs, in the same order.
+Before pushing, run `pnpm run ci`. It is the script the main CI job runs (`scripts/ci.ts`): every check, in order, from a clean build.
 
 Also:
 

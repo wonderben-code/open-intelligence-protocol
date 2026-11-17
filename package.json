@@ -23,12 +23,12 @@
     "spec:coverage": "node scripts/spec-coverage.ts",
     "schemas": "pnpm --filter @oip/schema run generate",
     "generated:check": "node scripts/spec-clauses.ts --check && pnpm --filter @oip/schema run generate --check",
-    "api": "pnpm build && pnpm -r --if-present run api",
-    "api:check": "pnpm build && pnpm -r --if-present run api:check",
+    "api": "pnpm clean && pnpm build && pnpm -r --if-present run api",
+    "api:check": "pnpm clean && pnpm build && pnpm -r --if-present run api:check",
     "bench": "vitest bench --run --reporter=verbose",
     "docs": "typedoc",
     "changeset": "changeset",
-    "ci": "pnpm lint && pnpm typecheck && pnpm generated:check && pnpm api:check && pnpm spec:coverage && pnpm test:coverage && pnpm test:vectors && pnpm run docs && pnpm bench"
+    "ci": "node scripts/ci.ts"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^1.0.1",

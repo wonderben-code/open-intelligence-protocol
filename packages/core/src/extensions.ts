@@ -37,13 +37,15 @@ export function unsupportedCritical(
   record: Readonly<Record<string, unknown>>,
   understood?: Iterable<string>,
 ): string[] {
-  let critical: unknown;
   try {
-    critical = record["critical"];
+    return unsupportedIn(record["critical"], understood);
   } catch {
     // A record that cannot be read names nothing anybody understands.
     return ["critical"];
   }
+}
+
+function unsupportedIn(critical: unknown, understood: Iterable<string> | undefined): string[] {
   if (critical === undefined) return [];
   if (!Array.isArray(critical)) return ["critical"];
   const known = new Set(understood);

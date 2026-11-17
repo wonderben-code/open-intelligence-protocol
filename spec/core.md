@@ -16,13 +16,13 @@ This document defines what every OIP record has in common, at every layer. See [
 
 1.5. **Durations** MUST be ISO 8601 durations matching `^P(?!$)([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?([0-9]+S)?)?$`, for example `P30D` or `PT15M`. A duration string MUST NOT exceed 64 characters.
 
-1.6. **Size.** The canonical form (Section 2) of a record, with its `proof` member, MUST NOT exceed 1 MiB. Implementations MAY apply lower limits to particular record types but MUST accept records of at least 256 KiB. Larger content is carried by reference (Layer 1, Section 12). `Bundle`, `LogPage`, `FeedPage` and `DuplicityEvidence` are containers: the limit applies to each record they contain, and to the container without those records. It does not apply to the two together. A `Sealed` record MAY exceed the limit by its encoding overhead.
+1.6. **Size.** The canonical form (Section 2) of a record, with its `proof` member, MUST NOT exceed 1 MiB. Implementations MAY apply lower limits to particular record types but MUST accept records of at least 256 KiB. Larger content is carried by reference (Layer 1, Section 12). `Bundle`, `LogPage`, `FeedPage` and `DuplicityEvidence` are containers: the limit applies to each record they contain, and to the container without the members that hold those records (`log`, `location` and `participant` of a `Bundle`; `events`; `entries`; `pairs`). It does not apply to the two together. A `Sealed` record MAY exceed the limit by its encoding overhead.
 
 1.7. **Field names** use camelCase. Implementations MUST preserve fields they do not recognise when storing or forwarding a record, because those fields are covered by its proofs, and MUST otherwise ignore them (Section 8).
 
 1.8. **String lengths** ("at most N characters") are counted in Unicode code points.
 
-1.9. **Depth.** The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is at depth 1, and a value that is neither an array nor an object adds no depth. A record that nests more deeply MUST be rejected. For a container (1.6), the limit applies to each record it contains, counted from that record, and to the container without those records, so that a container can carry any record that is valid alone. The rules of this section apply to the whole record, including every entry of `proof`.
+1.9. **Depth.** The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is at depth 1, and a value that is neither an array nor an object adds no depth. A record that nests more deeply MUST be rejected. For a container (1.6), the limit applies to each record it contains, counted from that record, and to the container without the members that hold them, so that a container can carry any record that is valid alone. The rules of this section apply to the whole record, including every entry of `proof`.
 
 ## 2. Canonical form
 

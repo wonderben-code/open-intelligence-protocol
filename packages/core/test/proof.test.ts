@@ -738,8 +738,10 @@ describe(`${clause("core 5.7")} a proof is not dated before its record`, () => {
     }
   });
 
-  it("does not apply to a record that carries no created of its own", () => {
-    // Only a record of an extension type may lack one: every type defined here has it.
+  it("applies to every record that is signed: none is without created", () => {
+    // core 7 requires created in every record but the containers and Sealed, which
+    // are not signed. A record without it, or with one that is no time, is malformed,
+    // and nothing is signed.
     const undated = {
       oip: "1",
       type: "com.example.Note",
@@ -747,24 +749,75 @@ describe(`${clause("core 5.7")} a proof is not dated before its record`, () => {
       ext: { "com.example": { text: "a note" } },
       critical: ["com.example"],
     };
-    const proof = createProofSync(
-      undated,
-      { verificationMethod: phoneMethod, created: "2020-01-01T00:00:00Z" },
-      phoneSigner,
-    );
-    expect(proof.created).toBe("2020-01-01T00:00:00Z");
-    expect(verifyProof(undated, proof).ok).toBe(true);
-    // A created that is not a timestamp is a malformed record: nothing is signed.
+    const options = { verificationMethod: phoneMethod, created: "2020-01-01T00:00:00Z" };
+    expect(thrownBy(() => createProofSync(undated, options, phoneSigner))).toMatchObject({
+      code: "invalid-record",
+    });
     const odd = { ...intent, created: "not a time" };
+    expect(thrownBy(() => createProofSync(odd, options, phoneSigner))).toMatchObject({
+      code: "invalid-record",
+    });
+    // With created, a record of a type an extension defines is signed like any other.
+    const dated = { ...undated, created: "2020-01-01T00:00:00Z" };
+    const proof = createProofSync(dated, options, phoneSigner);
+    expect(verifyProof(dated, proof).ok).toBe(true);
+    expect(
+      thrownBy(() =>
+        createProofSync(dated, { ...options, created: "2019-12-31T23:59:59Z" }, phoneSigner),
+      ),
+    ).toMatchObject({ clause: "core 5.7" });
+  });
+
+  it("reads each option once: what is checked is what is signed", () => {
+    // Options that answer one thing when they are checked and another when they are used.
+    const flipping = (first: Partial<ProofOptions>, later: Partial<ProofOptions>): ProofOptions => {
+      const reads = new Map<string, number>();
+      const base: ProofOptions = { verificationMethod: phoneMethod, created: WHEN };
+      return new Proxy(base, {
+        get(target, name) {
+          const count = (reads.get(String(name)) ?? 0) + 1;
+          reads.set(String(name), count);
+          const source = count === 1 ? first : later;
+          return name in source
+            ? source[name as keyof ProofOptions]
+            : target[name as keyof ProofOptions];
+        },
+      });
+    };
+    let asked = 0;
+    const counting: SyncSigner = {
+      publicKey: phone,
+      sign: (message) => {
+        asked++;
+        return signEd25519(message, phoneKey);
+      },
+    };
+    // A method that names the signer's key when it is checked, and another key afterwards.
+    const proof = createProofSync(
+      intent,
+      flipping({ verificationMethod: phoneMethod }, { verificationMethod: laptopMethod }),
+      counting,
+    );
+    expect(proof.verificationMethod).toBe(phoneMethod);
+    expect(asked).toBe(1);
+    // A time that is late enough when it is checked, and earlier afterwards.
+    const dated = createProofSync(
+      intent,
+      flipping({ created: LATER }, { created: "2020-01-01T00:00:00Z" }),
+      counting,
+    );
+    expect(dated.created).toBe(LATER);
+    // And the other way about: early when checked is refused, whatever it says later.
     expect(
       thrownBy(() =>
         createProofSync(
-          odd,
-          { verificationMethod: phoneMethod, created: "2020-01-01T00:00:00Z" },
-          phoneSigner,
+          intent,
+          flipping({ created: "2020-01-01T00:00:00Z" }, { created: LATER }),
+          counting,
         ),
       ),
-    ).toMatchObject({ code: "invalid-record" });
+    ).toMatchObject({ clause: "core 5.7" });
+    expect(asked).toBe(2);
   });
 });
 
@@ -1152,6 +1205,67 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
       }),
       { numRuns: 300 },
     );
+  });
+});
+
+describe("what is judged is what was validated", () => {
+  // A proof that holds one thing in its members and answers another when asked.
+  const forged = `z${"1".repeat(88)}`;
+  const twoFaced = (): Proof =>
+    new Proxy({ ...intentProof } as unknown as Proof, {
+      get(target, name, receiver) {
+        return name === "proofValue" ? forged : (Reflect.get(target, name, receiver) as unknown);
+      },
+    });
+
+  it("verifies the members a proof holds, and gives back a plain copy of them", () => {
+    const asked = twoFaced();
+    expect(asked.proofValue).toBe(forged);
+    const verdict = verifyProof(intent, asked);
+    // What its descriptors hold is the honest proof, and that is what is verified.
+    expect(verdict.ok && verdict.value.proof).toEqual(intentProof);
+    expect(verdict.ok && verdict.value.proof).not.toBe(asked);
+    expect(verdict.ok && verdict.value.proof.proofValue).toBe(intentProof["proofValue"]);
+    expect(verdict.ok && verdict.value.digest).toBe(proofDigest(intentProof));
+    const set = verifyProofs({ ...intent, proof: [asked] });
+    expect(set.verified.map((proof) => proof.proof)).toEqual([intentProof]);
+    expect(set.verified[0]?.proof).not.toBe(asked);
+  });
+
+  it("adds to a record a plain copy of a proof, never the object it was given", () => {
+    const { proof: _proof, ...unsigned } = intent;
+    const asked = twoFaced();
+    const merged = withProofs(unsigned, [asked]);
+    expect(merged.proof).toEqual([intentProof]);
+    expect(merged.proof[0]).not.toBe(asked);
+    expect(merged.proof[0]?.proofValue).toBe(intentProof["proofValue"]);
+    expect(verifyProofs(merged).verified).toHaveLength(1);
+    // And the record it returns shares nothing with the one it was given.
+    const given = { ...unsigned, constraints: { ...(unsigned["constraints"] as object) } };
+    const result = withProofs(given, [intentProof as unknown as Proof]) as JsonObject;
+    expect(result["constraints"]).toEqual(given.constraints);
+    expect(result["constraints"]).not.toBe(given.constraints);
+  });
+});
+
+describe("a container has no proofs of its own", () => {
+  it("says so of a page that nests deeper than a signed record may", () => {
+    let deep: unknown = [];
+    for (let i = 0; i < 60; i++) deep = [deep];
+    const event = { ...genesis, proof: [...(genesis["proof"] as unknown[]), { junk: deep }] };
+    const page = { oip: "1", type: "LogPage", mind: intent["author"], events: [event] };
+    // 66 deep as a whole, and well formed. The reason is that it is unsigned.
+    expect(verifyProofs(page).issues).toEqual([
+      {
+        path: "/proof",
+        message: "a LogPage record is unsigned: no proof on it counts",
+        clause: "core 5.1",
+      },
+    ]);
+    expect(verifyProofs(event).verified).toHaveLength(1);
+    // A signed record that deep is refused for its depth.
+    const tooDeep = { ...intent, ext: { "com.example.deep": { down: [[[deep]]] } } };
+    expect(verifyProofs(tooDeep).issues[0]?.clause).toBe("core 1.9");
   });
 });
 

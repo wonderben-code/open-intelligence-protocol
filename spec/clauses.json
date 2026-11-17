@@ -71,7 +71,7 @@
         "MAY": 2,
         "MUST": 1
       },
-      "digest": "35080f5fb57fe5c2fe62bbcbb71ed9c0745872ecaea3cff031fe8823cc55422f"
+      "digest": "b725c86b6bb33093fdf707285ee61082efcdf1d8a04e5ebd0df2c883f011d562"
     },
     {
       "id": "core 1.7",
@@ -103,7 +103,7 @@
         "MUST NOT": 1,
         "MUST": 1
       },
-      "digest": "7f8802bcb3ec9dbb90cda9a7f53adf5fc76087171a6e051caef31b1caeaec254"
+      "digest": "c5b673bd793ea6815f4e696ba7ed47b13cfe2868cf3820fc79d6ab5157a9ca10"
     },
     {
       "id": "core 2.1",

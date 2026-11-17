@@ -8,6 +8,10 @@
  * kind of case is still pending after the milestone that owes it.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { parseJson } from "@oip/core";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -18,6 +22,7 @@ import {
   referenceAdapter,
   runCase,
   SECTIONS,
+  VECTORS_DIRECTORY,
 } from "../src/index.ts";
 
 const vectors = loadVectors();
@@ -62,9 +67,44 @@ describe("the vectors file", () => {
   });
 
   it("has the cases its README counts", () => {
-    expect(vectors.valid).toHaveLength(15);
-    expect(vectors.negative).toHaveLength(72);
-    expect(vectors.controls).toHaveLength(22);
+    expect(vectors.valid).toHaveLength(17);
+    expect(vectors.negative).toHaveLength(80);
+    expect(vectors.controls).toHaveLength(30);
+  });
+
+  it("holds nothing a strict reader of JSON refuses, apart from its depth", () => {
+    // No float, no unpaired surrogate and no noncharacter anywhere in the file: the
+    // cases about such things hold them as escapes inside a string. Only its depth
+    // is beyond a record's, because it carries records that nest as deep as one may.
+    const text = readFileSync(join(VECTORS_DIRECTORY, "vectors.json"), "utf8");
+    expect(text.isWellFormed()).toBe(true);
+    const noncharacter = (code: number) =>
+      (code >= 0xfdd0 && code <= 0xfdef) || (code & 0xfffe) === 0xfffe;
+    let strings = 0;
+    let numbers = 0;
+    const walk = (value: unknown): void => {
+      if (typeof value === "string") {
+        strings++;
+        expect(value.isWellFormed(), value.slice(0, 40)).toBe(true);
+        for (const character of value) {
+          expect(noncharacter(character.codePointAt(0) ?? 0), value.slice(0, 40)).toBe(false);
+        }
+      } else if (typeof value === "number") {
+        numbers++;
+        expect(Number.isSafeInteger(value), String(value)).toBe(true);
+      } else if (typeof value === "object" && value !== null) {
+        for (const [name, member] of Object.entries(value)) {
+          if (!Array.isArray(value)) walk(name);
+          walk(member);
+        }
+      }
+    };
+    walk(JSON.parse(text));
+    expect(strings).toBeGreaterThan(10_000);
+    expect(numbers).toBeGreaterThan(100);
+    // The reader of the reference implementation agrees: depth is its one objection.
+    const parsed = parseJson(text);
+    expect(!parsed.ok && parsed.issues.map((issue) => issue.clause)).toEqual(["core 1.9"]);
   });
 
   it("pairs every control with a negative case of the same name and kind", () => {

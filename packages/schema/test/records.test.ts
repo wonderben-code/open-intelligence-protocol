@@ -302,6 +302,44 @@ describe("issues", () => {
     }
   });
 
+  it("never show a character of the input that could forge a line or reorder the text", () => {
+    // Next line, line and paragraph separators, a C1 control, delete, and the
+    // controls of the bidirectional algorithm.
+    const hostile =
+      "Intent\u0085WARN forged\u2028ERROR too\u2029x\u009b2K\u007f\u202e\u200f\u061c\u2066\u2069";
+    const results = [
+      validateRecord({ oip: "1", type: hostile }),
+      validateRecord(sample("Offer", { ext: {}, critical: [`com.example.${hostile}`] })),
+      validateRecord(sample("Intent", { [hostile]: 1.5 })),
+      validateExtensionRecord({
+        oip: "1",
+        type: "com.example.X",
+        created: "2026-11-17T09:00:00Z",
+        ext: { [hostile]: {} },
+        critical: ["com.example"],
+      }),
+    ];
+    for (const result of results) {
+      expect(result.ok).toBe(false);
+      for (const issue of result.ok ? [] : result.issues) {
+        for (const character of issue.message + issue.path) {
+          const code = character.codePointAt(0) ?? 0;
+          const unsafe =
+            code < 0x20 ||
+            (code >= 0x7f && code <= 0x9f) ||
+            [0x061c, 0x200e, 0x200f].includes(code) ||
+            (code >= 0x2028 && code <= 0x202e) ||
+            (code >= 0x2066 && code <= 0x2069);
+          expect(unsafe, `U+${code.toString(16)} in ${JSON.stringify(issue.message)}`).toBe(false);
+        }
+      }
+    }
+    const first = results[0];
+    expect(!first?.ok && first?.issues[0].message).toBe(
+      String.raw`"Intent\u0085WARN forged\u2028ERROR too\u2029x\u009b2K\u007f\u202e\u200f\u061c\u2066\u2069" is not a record type this revision defines; if an extension defines it, use validateExtensionRecord`,
+    );
+  });
+
   it("never quote more than a short piece of the input", () => {
     const long = "x".repeat(100_000);
     const cases = [
@@ -346,10 +384,25 @@ describe(`${clause("core 7")} records of a type an extension defines`, () => {
     const minimal = {
       oip: "1",
       type: "com.example.Minimal",
+      created: "2026-11-17T09:00:00Z",
       ext: { "com.example.minimal": {} },
       critical: ["com.example.minimal"],
     };
     expect(validateExtensionRecord(minimal).ok).toBe(true);
+  });
+
+  it("carry created, as every record does but the containers and Sealed", () => {
+    // Those are types of this revision: a type an extension defines is none of them.
+    const undated = {
+      oip: "1",
+      type: "com.example.Minimal",
+      ext: { "com.example.minimal": {} },
+      critical: ["com.example.minimal"],
+    };
+    const result = validateExtensionRecord(undated);
+    expect(result.ok ? undefined : result.issues[0]).toMatchObject({ path: "", clause: "core 7" });
+    const { created: _created, ...withoutCreated } = escrow;
+    expect(validateExtensionRecord(withoutCreated).ok).toBe(false);
   });
 
   it("must list the extension that defines the type in critical", () => {

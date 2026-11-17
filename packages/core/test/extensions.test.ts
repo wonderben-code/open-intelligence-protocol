@@ -136,6 +136,17 @@ describe(`${clause("core 8.3")} critical extensions`, () => {
     expect(unsupportedCritical(hostile)).toEqual(["critical"]);
     expect(unsupportedCritical(hostile, ["critical"])).toEqual(["critical"]);
     expect(understandsCritical(hostile)).toBe(false);
+    // The same when it is the list that cannot be read.
+    const list = new Proxy(["com.example"], {
+      get: () => {
+        throw new Error("no");
+      },
+    });
+    expect(unsupportedCritical({ critical: list })).toEqual(["critical"]);
+    expect(understandsCritical({ critical: list }, ["com.example"])).toBe(false);
+    const revoked = Proxy.revocable([], {});
+    revoked.revoke();
+    expect(unsupportedCritical({ critical: revoked.proxy })).toEqual(["critical"]);
   });
 
   it("requires every critical namespace to have an extension block", () => {

@@ -12,13 +12,13 @@
  */
 
 import {
+  declareParsed,
   IMPLEMENTATION_LIMIT,
   type Issue,
   type JsonValue,
   MAX_CONTAINER_DEPTH,
   MAX_DEPTH,
   MAX_SAFE_INTEGER,
-  MAX_VALUES,
   quote,
   textFault,
   type Validation,
@@ -38,7 +38,11 @@ export interface ParseOptions {
   readonly maxLength?: number;
 }
 
-/** The limit on length that the options give. */
+/**
+ * The limit on length that the options give. It is the one limit on a text
+ * as a whole: a text of that length holds at most half as many values, and
+ * the parser spends on each about what the platform's own parser does.
+ */
 function lengthLimit(options: ParseOptions | undefined): number {
   const given: unknown = options?.maxLength;
   return typeof given === "number" && Number.isSafeInteger(given) && given >= 0
@@ -114,7 +118,8 @@ class Parser {
   readonly #maxDepth: number;
   readonly #elements: JsonValue[] = [];
   #at = 0;
-  #values = 0;
+  /** How deep the arrays and objects read so far nest. */
+  deepest = 0;
 
   constructor(text: string, maxDepth: number) {
     this.#text = text;
@@ -143,14 +148,6 @@ class Parser {
   }
 
   #value(depth: number): JsonValue {
-    // The tree is not built beyond what validation would then refuse: a text of
-    // nothing but brackets would otherwise cost a hundred times its own size.
-    if (++this.#values > MAX_VALUES) {
-      this.#fail(
-        `there are more than ${MAX_VALUES} values here, the most this implementation reads in one record or container`,
-        IMPLEMENTATION_LIMIT,
-      );
-    }
     const code = this.#text.charCodeAt(this.#at);
     switch (code) {
       case 0x7b: // {
@@ -184,6 +181,7 @@ class Parser {
     if (depth > this.#maxDepth) {
       this.#fail(`arrays and objects nest more than ${MAX_DEPTH} deep`, "core 1.9");
     }
+    if (depth > this.deepest) this.deepest = depth;
   }
 
   #object(depth: number): JsonValue {
@@ -380,8 +378,19 @@ function rejection<T>(message: string, clause: string): Validation<T> {
   return { ok: false, issues: [{ path: "", message, clause }] };
 }
 
-/** Parses text that is known to be a string, to a depth the caller chooses. */
-function parseText(text: string, limit: number, maxDepth: number): Validation<JsonValue> {
+/**
+ * Parses text that is known to be a string, to a depth the caller chooses.
+ * With `forRecord`, the value is declared to the validators as just parsed,
+ * so that `parseRecord` validates it as it is and does not copy it first.
+ * Only `parseRecord` asks for that: it validates the value before anything
+ * else can touch it.
+ */
+function parseText(
+  text: string,
+  limit: number,
+  maxDepth: number,
+  forRecord = false,
+): Validation<JsonValue> {
   if (text.length > limit) return tooLong(limit, "characters");
   // A record is encoded as UTF-8 (core 1.1), so its text is valid Unicode before
   // any escape is read: half a surrogate pair written raw has no encoding, even
@@ -390,7 +399,12 @@ function parseText(text: string, limit: number, maxDepth: number): Validation<Js
     return rejection("the text is not valid Unicode: it has an unpaired surrogate", "core 1.1");
   }
   try {
-    return { ok: true, value: new Parser(text, maxDepth).parse() };
+    const parser = new Parser(text, maxDepth);
+    const value = parser.parse();
+    if (forRecord && typeof value === "object" && value !== null) {
+      declareParsed(value, parser.deepest);
+    }
+    return { ok: true, value };
   } catch (error) {
     // Anything but a rejection is a fault in this parser, not in the text, and is not hidden.
     // Stryker disable next-line all: no test can reach it while the parser is sound.
@@ -401,17 +415,23 @@ function parseText(text: string, limit: number, maxDepth: number): Validation<Js
 }
 
 /** Parses bytes that are known to be a `Uint8Array`, to a depth the caller chooses. */
-function parseBytes(bytes: Uint8Array, limit: number, maxDepth: number): Validation<JsonValue> {
+function parseBytes(
+  bytes: Uint8Array,
+  limit: number,
+  maxDepth: number,
+  forRecord = false,
+): Validation<JsonValue> {
   if (bytes.length > limit) return tooLong(limit, "bytes");
   const text = decodeUtf8(bytes);
   if (text === undefined) return rejection("the bytes are not valid UTF-8", "core 1.1");
-  return parseText(text, limit, maxDepth);
+  return parseText(text, limit, maxDepth, forRecord);
 }
 
 /**
  * Parses text or bytes as `parseJson` and `parseJsonBytes` do, to the depth
- * a container may have. For `parseRecord`, which then applies core 1.9 to
- * each record.
+ * a container may have. For `parseRecord` alone, which validates the value
+ * at once and applies core 1.9 to each record: the value is declared to the
+ * validators as just parsed.
  */
 export function parseForRecord(
   input: unknown,
@@ -419,8 +439,10 @@ export function parseForRecord(
 ): Validation<JsonValue> {
   try {
     const limit = lengthLimit(options);
-    if (typeof input === "string") return parseText(input, limit, MAX_CONTAINER_DEPTH);
-    if (input instanceof Uint8Array) return parseBytes(input, limit, MAX_CONTAINER_DEPTH);
+    if (typeof input === "string") return parseText(input, limit, MAX_CONTAINER_DEPTH, true);
+    if (input instanceof Uint8Array) {
+      return parseBytes(input, limit, MAX_CONTAINER_DEPTH, true);
+    }
   } catch {
     // A value that cannot even be examined, such as a revoked proxy.
   }

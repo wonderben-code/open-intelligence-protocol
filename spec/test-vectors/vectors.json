@@ -3102,7 +3102,7 @@
     },
     {
       "name": "extension-type-with-critical-extension",
-      "reason": "A record of a type an extension defines is well formed when it lists that extension in `critical` (core 7, 8.3). A reader that does not understand the extension then rejects it with `unsupported-extension`; that is another question.",
+      "reason": "A record of a type an extension defines is well formed when it lists that extension in `critical` (core 7, 8.3). A reader that does not understand the extension then answers `unsupported-critical`; that is another question.",
       "kind": "record",
       "record": {
         "oip": "1",
@@ -3143,6 +3143,91 @@
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:00:00Z",
             "proofValue": "z65ygfAxz9GhLYDDfE9JmrawjaekrHwp4wxug5m6XcFnvVYqzBmG7HWV5xZuuAakLpr7h5D8Eyg8aBhy7yEi91J6Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "duration-of-64-characters",
+      "reason": "A duration string has at most 64 characters (core 1.5). This one has exactly 64.",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "Packet",
+        "from": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "to": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
+        ],
+        "created": "2026-10-30T10:04:05Z",
+        "expires": "2026-10-30T22:00:00Z",
+        "nonce": "a7f3c9e2b1d04f86",
+        "session": "bciqa3sa2tbotcf547qfzc67qop33nt37fvrafokk4oeo5bvtt277zxi",
+        "seq": 0,
+        "purpose": {
+          "verb": "propose",
+          "goal": "Offer to translate your lease"
+        },
+        "content": {
+          "parts": [
+            {
+              "mediaType": "application/oip+json",
+              "body": {
+                "oip": "1",
+                "type": "Session",
+                "participants": [
+                  "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                  "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
+                ],
+                "nonce": "5d2e8b1c9a7f4e30",
+                "created": "2026-10-30T10:03:00Z"
+              }
+            },
+            {
+              "mediaType": "application/oip+json",
+              "body": {
+                "oip": "1",
+                "type": "Offer",
+                "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                "created": "2026-10-30T10:04:00Z",
+                "expires": "2026-10-30T22:00:00Z",
+                "answers": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+                "provides": "English translation of the lease, reviewed by a qualified lawyer.",
+                "terms": {
+                  "summary": "120 USD, delivered by 1 Nov 18:00 UTC.",
+                  "price": {
+                    "amount": "120",
+                    "currency": "USD"
+                  },
+                  "deliveryBy": "2026-11-01T18:00:00Z"
+                },
+                "proof": [
+                  {
+                    "type": "DataIntegrityProof",
+                    "cryptosuite": "eddsa-jcs-2022",
+                    "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                    "proofPurpose": "assertionMethod",
+                    "created": "2026-10-30T10:04:00Z",
+                    "proofValue": "z48LwNapRAa26eQcxjoXrqNDwNM6Ha1wmAhs1WDqedPnFup62u6TKNAo278W7RiNs8EM2YuBZdcu6frbxwWrCezCs"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "constraints": {
+          "retention": "P99999999999999999999999999999999999999999999999999999999999999D",
+          "prohibitedUses": [
+            "train"
+          ]
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:04:05Z",
+            "proofValue": "z45yhamRGnbBCnK8hu7q7VgmsSrKzVw2y4ymNG4x2vugEsqqKFg7vs7cSRqLfeaCNz2nDf4cMwVXUb2wZwwwdrBVU"
           }
         ]
       }
@@ -3552,6 +3637,223 @@
               }
             ]
           }
+        ]
+      }
+    },
+    {
+      "name": "duplicity-evidence-carries-a-record-nested-64-deep",
+      "reason": "An event in a pair of `DuplicityEvidence` sits three levels down, the deepest a container carries a record. The event nests exactly 64 deep, so the whole nests 67 deep, which is the most any well-formed record can.",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "DuplicityEvidence",
+        "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "pairs": [
+          [
+            {
+              "oip": "1",
+              "type": "Update",
+              "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "seq": 1,
+              "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "created": "2026-10-30T09:05:00Z",
+              "controller": {
+                "keys": [
+                  "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+                ],
+                "next": [
+                  "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+                ],
+                "nextThreshold": 1
+              },
+              "keys": [
+                {
+                  "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                  "label": "amina-phone"
+                },
+                {
+                  "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                  "label": "amina-laptop"
+                }
+              ],
+              "invocation": [
+                {
+                  "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                  "label": "amina-invocation"
+                }
+              ],
+              "proof": [
+                {
+                  "type": "DataIntegrityProof",
+                  "cryptosuite": "eddsa-jcs-2022",
+                  "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                  "proofPurpose": "capabilityInvocation",
+                  "created": "2026-10-30T09:05:00Z",
+                  "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+                },
+                {
+                  "junk": [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      [
+                                                                                                                                        [
+                                                                                                                                          []
+                                                                                                                                        ]
+                                                                                                                                      ]
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "oip": "1",
+              "type": "Update",
+              "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "seq": 1,
+              "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "created": "2026-10-30T09:05:30Z",
+              "controller": {
+                "keys": [
+                  "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+                ],
+                "next": [
+                  "bciqj6232evzwz3jqtitoohmt22kbfdrqk75wsysw7b65cebs7tcipii"
+                ],
+                "nextThreshold": 1
+              },
+              "keys": [
+                {
+                  "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                  "label": "amina-phone"
+                },
+                {
+                  "key": "z6Mkw3Ln6HAJXfXBXsVNtbACoRMXhfdFGd1J2Xq5DSV4bZpw",
+                  "label": "amina-tablet"
+                }
+              ],
+              "proof": [
+                {
+                  "type": "DataIntegrityProof",
+                  "cryptosuite": "eddsa-jcs-2022",
+                  "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                  "proofPurpose": "capabilityInvocation",
+                  "created": "2026-10-30T09:05:30Z",
+                  "proofValue": "z3EcvoB18EaPXaQyu8kVdTpArGSUGtUfsKVDM5Q12aidb6wMQscPk63JQBhPuu56JF7VtPHoCPMnXuJUhNRJA1APM"
+                }
+              ]
+            }
+          ]
         ]
       }
     }
@@ -8036,9 +8338,21 @@
     },
     {
       "name": "json-noncharacter-in-a-member-name",
-      "reason": "Member names are strings too. U+1FFFF, the last code point of plane 1, is a noncharacter; here it is written as itself.",
+      "reason": "Member names are strings too. U+1FFFF, the last code point of plane 1, is a noncharacter; here it is written as a pair of escapes.",
       "kind": "json",
-      "text": "{\"🿿\":1}"
+      "text": "{\"\\ud83f\\udfff\":1}"
+    },
+    {
+      "name": "json-noncharacter-in-the-reserved-block",
+      "reason": "U+FDD0 to U+FDEF are noncharacters too, 32 of the 66.",
+      "kind": "json",
+      "text": "{\"s\":\"\\ufdd0\\ufdef\"}"
+    },
+    {
+      "name": "json-noncharacter-in-the-last-plane",
+      "reason": "U+10FFFE, the last but one code point there is, is a noncharacter: every plane ends with two.",
+      "kind": "json",
+      "text": "{\"s\":\"\\udbff\\udffe\"}"
     },
     {
       "name": "json-trailing-comma",
@@ -8171,6 +8485,137 @@
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:00:00Z",
             "proofValue": "z4fesvuXYdtsYaJy2kN8toJHLs9aet2boRVo71XnCpzK1dBfygoemfyzgL9EM7BKadDpZD5GfgZ9M4c3PQpRjKv9L"
+          }
+        ]
+      }
+    },
+    {
+      "name": "extension-type-without-created",
+      "reason": "`created` is required in every record except the containers and `Sealed` (core 7), and those are types of this specification. A record of a type an extension defines carries it like any other.",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "com.example.Note",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "expires": "2026-10-31T10:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "ext": {
+          "com.example": {
+            "v": 1
+          }
+        },
+        "critical": [
+          "com.example"
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:00:00Z",
+            "proofValue": "zw3ho3YbX14rbMw65RKTxPPWoG3cFtEgS47J9pJRKRFmhcdfbyrFVGupdKL6rhojgi7v6N7tATWpQ92svy4HkqYe"
+          }
+        ]
+      }
+    },
+    {
+      "name": "duration-of-65-characters",
+      "reason": "One character more than core 1.5 allows. Without the limit a duration could have a million digits, and a reader that computes with it would do arithmetic on numbers of that size.",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "Packet",
+        "from": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "to": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
+        ],
+        "created": "2026-10-30T10:04:05Z",
+        "expires": "2026-10-30T22:00:00Z",
+        "nonce": "a7f3c9e2b1d04f86",
+        "session": "bciqa3sa2tbotcf547qfzc67qop33nt37fvrafokk4oeo5bvtt277zxi",
+        "seq": 0,
+        "purpose": {
+          "verb": "propose",
+          "goal": "Offer to translate your lease"
+        },
+        "content": {
+          "parts": [
+            {
+              "mediaType": "application/oip+json",
+              "body": {
+                "oip": "1",
+                "type": "Session",
+                "participants": [
+                  "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                  "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
+                ],
+                "nonce": "5d2e8b1c9a7f4e30",
+                "created": "2026-10-30T10:03:00Z"
+              }
+            },
+            {
+              "mediaType": "application/oip+json",
+              "body": {
+                "oip": "1",
+                "type": "Offer",
+                "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                "created": "2026-10-30T10:04:00Z",
+                "expires": "2026-10-30T22:00:00Z",
+                "answers": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+                "provides": "English translation of the lease, reviewed by a qualified lawyer.",
+                "terms": {
+                  "summary": "120 USD, delivered by 1 Nov 18:00 UTC.",
+                  "price": {
+                    "amount": "120",
+                    "currency": "USD"
+                  },
+                  "deliveryBy": "2026-11-01T18:00:00Z"
+                },
+                "proof": [
+                  {
+                    "type": "DataIntegrityProof",
+                    "cryptosuite": "eddsa-jcs-2022",
+                    "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                    "proofPurpose": "assertionMethod",
+                    "created": "2026-10-30T10:04:00Z",
+                    "proofValue": "z48LwNapRAa26eQcxjoXrqNDwNM6Ha1wmAhs1WDqedPnFup62u6TKNAo278W7RiNs8EM2YuBZdcu6frbxwWrCezCs"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "constraints": {
+          "retention": "P999999999999999999999999999999999999999999999999999999999999999D",
+          "prohibitedUses": [
+            "train"
+          ]
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:04:05Z",
+            "proofValue": "z3D6tAUquAfjUneX6bFtKDTnqKEFDgHfs6twALgrjuK2jB2WXiBpU7LsZNuWF5ErfQpZaCwni3zVsWmcHrAt1zBmd"
           }
         ]
       }
@@ -8516,6 +8961,859 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "name": "duplicity-evidence-carries-a-record-nested-65-deep",
+      "reason": "The same evidence with the event one level deeper.",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "DuplicityEvidence",
+        "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "pairs": [
+          [
+            {
+              "oip": "1",
+              "type": "Update",
+              "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "seq": 1,
+              "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "created": "2026-10-30T09:05:00Z",
+              "controller": {
+                "keys": [
+                  "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+                ],
+                "next": [
+                  "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+                ],
+                "nextThreshold": 1
+              },
+              "keys": [
+                {
+                  "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                  "label": "amina-phone"
+                },
+                {
+                  "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                  "label": "amina-laptop"
+                }
+              ],
+              "invocation": [
+                {
+                  "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                  "label": "amina-invocation"
+                }
+              ],
+              "proof": [
+                {
+                  "type": "DataIntegrityProof",
+                  "cryptosuite": "eddsa-jcs-2022",
+                  "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                  "proofPurpose": "capabilityInvocation",
+                  "created": "2026-10-30T09:05:00Z",
+                  "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+                },
+                {
+                  "junk": [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      [
+                                                                                                                                        [
+                                                                                                                                          [
+                                                                                                                                            []
+                                                                                                                                          ]
+                                                                                                                                        ]
+                                                                                                                                      ]
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "oip": "1",
+              "type": "Update",
+              "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "seq": 1,
+              "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "created": "2026-10-30T09:05:30Z",
+              "controller": {
+                "keys": [
+                  "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+                ],
+                "next": [
+                  "bciqj6232evzwz3jqtitoohmt22kbfdrqk75wsysw7b65cebs7tcipii"
+                ],
+                "nextThreshold": 1
+              },
+              "keys": [
+                {
+                  "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                  "label": "amina-phone"
+                },
+                {
+                  "key": "z6Mkw3Ln6HAJXfXBXsVNtbACoRMXhfdFGd1J2Xq5DSV4bZpw",
+                  "label": "amina-tablet"
+                }
+              ],
+              "proof": [
+                {
+                  "type": "DataIntegrityProof",
+                  "cryptosuite": "eddsa-jcs-2022",
+                  "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                  "proofPurpose": "capabilityInvocation",
+                  "created": "2026-10-30T09:05:30Z",
+                  "proofValue": "z3EcvoB18EaPXaQyu8kVdTpArGSUGtUfsKVDM5Q12aidb6wMQscPk63JQBhPuu56JF7VtPHoCPMnXuJUhNRJA1APM"
+                }
+              ]
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "name": "feed-page-carries-a-record-nested-65-deep",
+      "reason": "The rule for containers holds for a `FeedPage` and the entries it carries.",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "FeedPage",
+        "mind": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "entries": [
+          {
+            "oip": "1",
+            "type": "Entry",
+            "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+            "seq": 0,
+            "created": "2026-10-30T10:04:01Z",
+            "object": "bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq",
+            "objectType": "Offer",
+            "proofs": [
+              "sha256:79040ad4147113504cfc17ecb282eb82f31f1d5f39beb38b91752db2fe25ae10"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                "proofPurpose": "assertionMethod",
+                "created": "2026-10-30T10:04:01Z",
+                "proofValue": "z4i9bmDfYTJB2cF9VzmUks2cU6uutojajEVqMacm6mcrBiQZoRHLDNkvPQULA5JXNiKHnc8DGZsP7Zyfc7vwMmqvk"
+              },
+              {
+                "junk": [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      [
+                                                                                                                                        [
+                                                                                                                                          []
+                                                                                                                                        ]
+                                                                                                                                      ]
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "bundle-carries-a-location-nested-65-deep",
+      "reason": "A `Bundle` carries records in three members: `log`, `location` and `participant`. Each is held to the limit.",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "Bundle",
+        "mind": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "log": [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "agent",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkmAdpKZdVxMx5SvzhLSCt4WcZGD2dqHEDQ77i69nL6EfW"
+              ],
+              "next": [
+                "bciqncsih2r3ar2yfud7qv7wefy6liozfhqudfg2axx2sumdzke6ksdq"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                "label": "lexis-agent-i1"
+              }
+            ],
+            "homes": [
+              "https://lexis.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkmAdpKZdVxMx5SvzhLSCt4WcZGD2dqHEDQ77i69nL6EfW#z6MkmAdpKZdVxMx5SvzhLSCt4WcZGD2dqHEDQ77i69nL6EfW",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z3Yk2Quye8huvV5SuGhR3Z2BngHQ3JpyrctbsQdL6X5DfYCLG3VLwtNhv9SCjZAYhPBjSGcWERDDgLxeqDFGBTZJP"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Fork",
+            "mind": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+            "seq": 1,
+            "prev": "bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+            "created": "2026-10-30T09:11:00Z",
+            "controller": {
+              "keys": [
+                "z6MkuzvQPYe83ZVTWXzckWEdQbLudB79spyscfTbs7qGk2ou"
+              ],
+              "next": [
+                "bciqlh37xxclgr32epf6iolbyxhk6b75p5cickmglolfljc7xbdkd2oa"
+              ],
+              "nextThreshold": 1
+            },
+            "child": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva",
+            "invocation": [
+              {
+                "key": "z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
+                "label": "lexis-agent-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkuzvQPYe83ZVTWXzckWEdQbLudB79spyscfTbs7qGk2ou#z6MkuzvQPYe83ZVTWXzckWEdQbLudB79spyscfTbs7qGk2ou",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:11:00Z",
+                "proofValue": "z2dqC7ZLErcv6fQQWiPupnSMoG1kjraYPfSahMX28Lr8tq2Tv3Ur2ddd3dpHUbNLpBdHivmQBDq2Ju9XmjpJE3ibL"
+              }
+            ]
+          }
+        ],
+        "location": {
+          "oip": "1",
+          "type": "Location",
+          "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+          "seq": 1,
+          "created": "2026-10-30T10:05:00Z",
+          "ttl": 900,
+          "status": "active",
+          "endpoints": [
+            {
+              "binding": "https",
+              "url": "https://lexis.example/oip",
+              "instance": "i1",
+              "priority": 10
+            },
+            {
+              "binding": "wss",
+              "url": "wss://lexis.example/oip/ws",
+              "instance": "i1",
+              "priority": 20
+            },
+            {
+              "binding": "mailbox",
+              "url": "https://mailbox.example/oip/mbox/bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+              "priority": 90
+            }
+          ],
+          "homes": [
+            "https://lexis.example"
+          ],
+          "participant": "bciqccafqqvuszyifsdpn4wik3b5jas7yukbmpdhn66yc2tlttby5eea",
+          "feed": {
+            "seq": 0,
+            "head": "bciqblh5eb7afygepa5bl5u3opz6vaahim3ywc7tamigg3iomvr7bflq"
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T10:05:00Z",
+              "proofValue": "z4GpjodiCsg41C75dYPr5soRVSSujB4Khp5bLXoNczygLW7TGJbbcxc9srucE8WhTnTRgV5rU4Jdm3sgQQnaUhp1W"
+            },
+            {
+              "junk": [
+                [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      [
+                                                                                                                                        []
+                                                                                                                                      ]
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            }
+          ]
+        },
+        "participant": {
+          "oip": "1",
+          "type": "Participant",
+          "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+          "created": "2026-10-30T09:40:00Z",
+          "name": "Lexis Translation Agent",
+          "kind": "agent",
+          "summary": "Legal translation between Swahili, English and French.",
+          "capabilities": [
+            {
+              "id": "translate-legal-sw-en",
+              "summary": "Translate Swahili commercial-law documents to and from English",
+              "tags": [
+                "oasf:natural_language_processing/translation",
+                "domain:legal/commercial",
+                "lang:sw",
+                "lang:en"
+              ],
+              "subject": "cap.nlp.translation.legal",
+              "inputs": [
+                "text/plain",
+                "application/pdf"
+              ],
+              "outputs": [
+                "text/markdown"
+              ]
+            }
+          ],
+          "actsFor": [
+            {
+              "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+              "authority": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqnznocgeizwz3tja2r4md3f4mvjtcgpol33mcsbzpn2gpyn54wyjy"
+            }
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T09:40:00Z",
+              "proofValue": "zVJCitkEGWXrtTNhRSzBczViyVbda5BtagvEQ9WBwxwFEtyPXTtGuv6hKKg7qKD8JrtseUCKpLPMiJd4Funs2Tgi"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "container-nested-65-deep-without-its-records",
+      "reason": "The limit also applies to the container without the members that hold its records: here a member of the page's own nests 65 deep.",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "LogPage",
+        "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "events": [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          }
+        ],
+        "ext": {
+          "com.example.deep": {
+            "down": [
+              [
+                [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      []
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          }
+        }
       }
     }
   ],
@@ -10149,7 +11447,988 @@
     {
       "name": "json-noncharacter-in-a-member-name",
       "kind": "json",
-      "text": "{\"🿽\":1}"
+      "text": "{\"\\ud83f\\udffd\":1}"
+    },
+    {
+      "name": "json-noncharacter-in-the-reserved-block",
+      "kind": "json",
+      "text": "{\"s\":\"\\ufdcf\\ufdf0\"}"
+    },
+    {
+      "name": "json-noncharacter-in-the-last-plane",
+      "kind": "json",
+      "text": "{\"s\":\"\\udbff\\udffd\"}"
+    },
+    {
+      "name": "extension-type-without-created",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "com.example.Note",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-10-30T10:00:00Z",
+        "expires": "2026-10-31T10:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "ext": {
+          "com.example": {
+            "v": 1
+          }
+        },
+        "critical": [
+          "com.example"
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:00:00Z",
+            "proofValue": "z65ygfAxz9GhLYDDfE9JmrawjaekrHwp4wxug5m6XcFnvVYqzBmG7HWV5xZuuAakLpr7h5D8Eyg8aBhy7yEi91J6Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "duration-of-65-characters",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "Packet",
+        "from": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "to": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
+        ],
+        "created": "2026-10-30T10:04:05Z",
+        "expires": "2026-10-30T22:00:00Z",
+        "nonce": "a7f3c9e2b1d04f86",
+        "session": "bciqa3sa2tbotcf547qfzc67qop33nt37fvrafokk4oeo5bvtt277zxi",
+        "seq": 0,
+        "purpose": {
+          "verb": "propose",
+          "goal": "Offer to translate your lease"
+        },
+        "content": {
+          "parts": [
+            {
+              "mediaType": "application/oip+json",
+              "body": {
+                "oip": "1",
+                "type": "Session",
+                "participants": [
+                  "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                  "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
+                ],
+                "nonce": "5d2e8b1c9a7f4e30",
+                "created": "2026-10-30T10:03:00Z"
+              }
+            },
+            {
+              "mediaType": "application/oip+json",
+              "body": {
+                "oip": "1",
+                "type": "Offer",
+                "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                "created": "2026-10-30T10:04:00Z",
+                "expires": "2026-10-30T22:00:00Z",
+                "answers": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+                "provides": "English translation of the lease, reviewed by a qualified lawyer.",
+                "terms": {
+                  "summary": "120 USD, delivered by 1 Nov 18:00 UTC.",
+                  "price": {
+                    "amount": "120",
+                    "currency": "USD"
+                  },
+                  "deliveryBy": "2026-11-01T18:00:00Z"
+                },
+                "proof": [
+                  {
+                    "type": "DataIntegrityProof",
+                    "cryptosuite": "eddsa-jcs-2022",
+                    "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                    "proofPurpose": "assertionMethod",
+                    "created": "2026-10-30T10:04:00Z",
+                    "proofValue": "z48LwNapRAa26eQcxjoXrqNDwNM6Ha1wmAhs1WDqedPnFup62u6TKNAo278W7RiNs8EM2YuBZdcu6frbxwWrCezCs"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "constraints": {
+          "retention": "P99999999999999999999999999999999999999999999999999999999999999D",
+          "prohibitedUses": [
+            "train"
+          ]
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:04:05Z",
+            "proofValue": "z45yhamRGnbBCnK8hu7q7VgmsSrKzVw2y4ymNG4x2vugEsqqKFg7vs7cSRqLfeaCNz2nDf4cMwVXUb2wZwwwdrBVU"
+          }
+        ]
+      }
+    },
+    {
+      "name": "duplicity-evidence-carries-a-record-nested-65-deep",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "DuplicityEvidence",
+        "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "pairs": [
+          [
+            {
+              "oip": "1",
+              "type": "Update",
+              "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "seq": 1,
+              "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "created": "2026-10-30T09:05:00Z",
+              "controller": {
+                "keys": [
+                  "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+                ],
+                "next": [
+                  "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+                ],
+                "nextThreshold": 1
+              },
+              "keys": [
+                {
+                  "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                  "label": "amina-phone"
+                },
+                {
+                  "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                  "label": "amina-laptop"
+                }
+              ],
+              "invocation": [
+                {
+                  "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                  "label": "amina-invocation"
+                }
+              ],
+              "proof": [
+                {
+                  "type": "DataIntegrityProof",
+                  "cryptosuite": "eddsa-jcs-2022",
+                  "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                  "proofPurpose": "capabilityInvocation",
+                  "created": "2026-10-30T09:05:00Z",
+                  "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+                },
+                {
+                  "junk": [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      [
+                                                                                                                                        [
+                                                                                                                                          []
+                                                                                                                                        ]
+                                                                                                                                      ]
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "oip": "1",
+              "type": "Update",
+              "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "seq": 1,
+              "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "created": "2026-10-30T09:05:30Z",
+              "controller": {
+                "keys": [
+                  "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+                ],
+                "next": [
+                  "bciqj6232evzwz3jqtitoohmt22kbfdrqk75wsysw7b65cebs7tcipii"
+                ],
+                "nextThreshold": 1
+              },
+              "keys": [
+                {
+                  "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                  "label": "amina-phone"
+                },
+                {
+                  "key": "z6Mkw3Ln6HAJXfXBXsVNtbACoRMXhfdFGd1J2Xq5DSV4bZpw",
+                  "label": "amina-tablet"
+                }
+              ],
+              "proof": [
+                {
+                  "type": "DataIntegrityProof",
+                  "cryptosuite": "eddsa-jcs-2022",
+                  "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                  "proofPurpose": "capabilityInvocation",
+                  "created": "2026-10-30T09:05:30Z",
+                  "proofValue": "z3EcvoB18EaPXaQyu8kVdTpArGSUGtUfsKVDM5Q12aidb6wMQscPk63JQBhPuu56JF7VtPHoCPMnXuJUhNRJA1APM"
+                }
+              ]
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "name": "feed-page-carries-a-record-nested-65-deep",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "FeedPage",
+        "mind": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "entries": [
+          {
+            "oip": "1",
+            "type": "Entry",
+            "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+            "seq": 0,
+            "created": "2026-10-30T10:04:01Z",
+            "object": "bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq",
+            "objectType": "Offer",
+            "proofs": [
+              "sha256:79040ad4147113504cfc17ecb282eb82f31f1d5f39beb38b91752db2fe25ae10"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                "proofPurpose": "assertionMethod",
+                "created": "2026-10-30T10:04:01Z",
+                "proofValue": "z4i9bmDfYTJB2cF9VzmUks2cU6uutojajEVqMacm6mcrBiQZoRHLDNkvPQULA5JXNiKHnc8DGZsP7Zyfc7vwMmqvk"
+              },
+              {
+                "junk": [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      [
+                                                                                                                                        []
+                                                                                                                                      ]
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "bundle-carries-a-location-nested-65-deep",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "Bundle",
+        "mind": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "log": [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "agent",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkmAdpKZdVxMx5SvzhLSCt4WcZGD2dqHEDQ77i69nL6EfW"
+              ],
+              "next": [
+                "bciqncsih2r3ar2yfud7qv7wefy6liozfhqudfg2axx2sumdzke6ksdq"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                "label": "lexis-agent-i1"
+              }
+            ],
+            "homes": [
+              "https://lexis.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkmAdpKZdVxMx5SvzhLSCt4WcZGD2dqHEDQ77i69nL6EfW#z6MkmAdpKZdVxMx5SvzhLSCt4WcZGD2dqHEDQ77i69nL6EfW",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z3Yk2Quye8huvV5SuGhR3Z2BngHQ3JpyrctbsQdL6X5DfYCLG3VLwtNhv9SCjZAYhPBjSGcWERDDgLxeqDFGBTZJP"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Fork",
+            "mind": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+            "seq": 1,
+            "prev": "bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+            "created": "2026-10-30T09:11:00Z",
+            "controller": {
+              "keys": [
+                "z6MkuzvQPYe83ZVTWXzckWEdQbLudB79spyscfTbs7qGk2ou"
+              ],
+              "next": [
+                "bciqlh37xxclgr32epf6iolbyxhk6b75p5cickmglolfljc7xbdkd2oa"
+              ],
+              "nextThreshold": 1
+            },
+            "child": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva",
+            "invocation": [
+              {
+                "key": "z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
+                "label": "lexis-agent-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkuzvQPYe83ZVTWXzckWEdQbLudB79spyscfTbs7qGk2ou#z6MkuzvQPYe83ZVTWXzckWEdQbLudB79spyscfTbs7qGk2ou",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:11:00Z",
+                "proofValue": "z2dqC7ZLErcv6fQQWiPupnSMoG1kjraYPfSahMX28Lr8tq2Tv3Ur2ddd3dpHUbNLpBdHivmQBDq2Ju9XmjpJE3ibL"
+              }
+            ]
+          }
+        ],
+        "location": {
+          "oip": "1",
+          "type": "Location",
+          "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+          "seq": 1,
+          "created": "2026-10-30T10:05:00Z",
+          "ttl": 900,
+          "status": "active",
+          "endpoints": [
+            {
+              "binding": "https",
+              "url": "https://lexis.example/oip",
+              "instance": "i1",
+              "priority": 10
+            },
+            {
+              "binding": "wss",
+              "url": "wss://lexis.example/oip/ws",
+              "instance": "i1",
+              "priority": 20
+            },
+            {
+              "binding": "mailbox",
+              "url": "https://mailbox.example/oip/mbox/bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+              "priority": 90
+            }
+          ],
+          "homes": [
+            "https://lexis.example"
+          ],
+          "participant": "bciqccafqqvuszyifsdpn4wik3b5jas7yukbmpdhn66yc2tlttby5eea",
+          "feed": {
+            "seq": 0,
+            "head": "bciqblh5eb7afygepa5bl5u3opz6vaahim3ywc7tamigg3iomvr7bflq"
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T10:05:00Z",
+              "proofValue": "z4GpjodiCsg41C75dYPr5soRVSSujB4Khp5bLXoNczygLW7TGJbbcxc9srucE8WhTnTRgV5rU4Jdm3sgQQnaUhp1W"
+            },
+            {
+              "junk": [
+                [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      []
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            }
+          ]
+        },
+        "participant": {
+          "oip": "1",
+          "type": "Participant",
+          "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+          "created": "2026-10-30T09:40:00Z",
+          "name": "Lexis Translation Agent",
+          "kind": "agent",
+          "summary": "Legal translation between Swahili, English and French.",
+          "capabilities": [
+            {
+              "id": "translate-legal-sw-en",
+              "summary": "Translate Swahili commercial-law documents to and from English",
+              "tags": [
+                "oasf:natural_language_processing/translation",
+                "domain:legal/commercial",
+                "lang:sw",
+                "lang:en"
+              ],
+              "subject": "cap.nlp.translation.legal",
+              "inputs": [
+                "text/plain",
+                "application/pdf"
+              ],
+              "outputs": [
+                "text/markdown"
+              ]
+            }
+          ],
+          "actsFor": [
+            {
+              "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+              "authority": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqnznocgeizwz3tja2r4md3f4mvjtcgpol33mcsbzpn2gpyn54wyjy"
+            }
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T09:40:00Z",
+              "proofValue": "zVJCitkEGWXrtTNhRSzBczViyVbda5BtagvEQ9WBwxwFEtyPXTtGuv6hKKg7qKD8JrtseUCKpLPMiJd4Funs2Tgi"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "container-nested-65-deep-without-its-records",
+      "kind": "record",
+      "record": {
+        "oip": "1",
+        "type": "LogPage",
+        "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "events": [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          }
+        ],
+        "ext": {
+          "com.example.deep": {
+            "down": [
+              [
+                [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    []
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          }
+        }
+      }
     },
     {
       "name": "proof-entry-not-an-object",

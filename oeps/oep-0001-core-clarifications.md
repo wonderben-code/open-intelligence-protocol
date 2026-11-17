@@ -64,11 +64,11 @@ Written against revision 2026-11-17.
 
 **core 1.6**, the sentence on containers. Current: "the limit applies to each record they contain, not to the container." Proposed:
 
-> the limit applies to each record they contain, and to the container without those records. It does not apply to the two together.
+> the limit applies to each record they contain, and to the container without the members that hold those records (`log`, `location` and `participant` of a `Bundle`; `events`; `entries`; `pairs`). It does not apply to the two together.
 
 **core 1.9**, new, after 1.8:
 
-> **Depth.** The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is at depth 1, and a value that is neither an array nor an object adds no depth. A record that nests more deeply MUST be rejected. For a container (1.6), the limit applies to each record it contains, counted from that record, and to the container without those records, so that a container can carry any record that is valid alone. The rules of this section apply to the whole record, including every entry of `proof`.
+> **Depth.** The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is at depth 1, and a value that is neither an array nor an object adds no depth. A record that nests more deeply MUST be rejected. For a container (1.6), the limit applies to each record it contains, counted from that record, and to the container without the members that hold them, so that a container can carry any record that is valid alone. The rules of this section apply to the whole record, including every entry of `proof`.
 
 **core 3.4**, add at the end:
 
@@ -104,13 +104,17 @@ Written against revision 2026-11-17.
 
 New names: none. New limits: 64, the depth of a record; 64 characters, the length of a duration.
 
-**Test vectors.** A new kind of case, `json`, whose `text` member is a JSON text: it is within the profile of core Section 1 (must-accept) or is not (negative). The text is a string because what it tests does not survive parsing: the spelling of a number, an escape, a depth. Cases of kind `record` may now stand among the must-accept cases and the controls, where the record is well formed. 15 `json` cases and 12 other cases are added, with 11 controls; they are listed under Test vectors below.
+**Test vectors.** A new kind of case, `json`, whose `text` member is a JSON text: it is within the profile of core Section 1 (must-accept) or is not (negative). The text is a string because what it tests does not survive parsing: the spelling of a number, an escape, a depth. Cases of kind `record` may now stand among the must-accept cases and the controls, where the record is well formed. 17 `json` cases and 20 other cases are added, with 19 controls; they are listed under Test vectors below.
 
 ## Rationale and alternatives
 
 **Why 64.** The deepest structure the specifications define is a proof whose `authority` carries an inline `Delegation` with a policy nested to the limit of Layer 1, 11.3: about 25 levels. 64 leaves room for extensions and inline content, and is far below what any parser's stack holds. Limits in use elsewhere are of the same order (100 in several JSON libraries, 32 for JSON in some databases).
 
 **Why a container is limited part by part.** A container exists to carry records that are valid alone. If its limits were on the whole, the deepest or largest valid record could not be carried, and since anyone can add an uncounted entry to a record's `proof`, anyone could make a record that way. If the container's own members had no limit, the limit would bound nothing: a `LogPage` could carry a gigabyte in a member no schema names. Limiting each part separately closes both. The whole container then nests at most 67 deep (a pair of events in `DuplicityEvidence` sits three levels down), which a reader can rely on before it has parsed anything.
+
+The container's own part is what remains when the members that hold records are taken out whole, so that every implementation counts the same bytes. It includes `firstSeen`, which therefore holds about 11,000 first-seen times at most: a longer log is served in pages (Layer 1, 13.1).
+
+**No limit on a container as a whole.** A reader still bounds what it accepts at once, by the length of the text. That is the reader's own limit, which it may set as it likes, and it is the only one of that kind: the second independent review found that a count of values over a whole page, kept as a safeguard, refused a page of three events that were each well formed. A reader that is refused a page asks for a shorter one.
 
 **Why forbid noncharacters.** core 1.1 already says a record is an I-JSON message, and RFC 7493 forbids them. Unicode reserves these 66 code points for internal use and advises against interchanging them; some systems strip or replace them, which would change a record's bytes and break its proofs. Naming the rule removes the doubt. The alternative, allowing them, would mean that an OIP record is not I-JSON, and the sentence that says it is would have to go.
 
@@ -133,7 +137,7 @@ New names: none. New limits: 64, the depth of a record; 64 characters, the lengt
 This is a **rule change** in one respect and a clarification in the others.
 
 - Does any record valid today become invalid? Yes, in six narrow cases: a record nested more than 64 deep; a record of a type this specification does not define that lists no critical extension; a record whose `ext` has a member that is not a namespace; a record with a noncharacter in a string; a duration of more than 64 characters; a container whose own members exceed 1 MiB. No record in the test vectors, the papers or the reference implementation is affected. A timestamp in year `0000` becomes valid for implementations that rejected it.
-- Does any golden value change? No. `vectors.json` gains 27 cases and 11 controls and loses none; every existing value is byte for byte what it was.
+- Does any golden value change? No. `vectors.json` gains 37 cases and 19 controls and loses none; every existing value is byte for byte what it was.
 - What does an implementation of the earlier revision do? It may accept a record nested more than 64 deep, or crash on it. It should adopt the limit.
 - What must existing minds and services do? Nothing, unless they emit such records. The specification is a Draft and no deployment exists.
 
@@ -148,23 +152,27 @@ A limit that implementations apply differently is itself a risk: a record one ac
 Added to `vectors.json` with `kind: "json"` and a `text`:
 
 - must accept: `json-integers-however-written`, `json-integer-written-at-length`, `json-escapes-are-spellings`, `json-same-name-in-different-objects`, `json-nested-64-deep`;
-- must reject: `json-number-with-fraction`, `json-number-with-negative-exponent`, `json-integer-beyond-safe-range`, `json-exponent-beyond-safe-range`, `json-unpaired-surrogate`, `json-noncharacter`, `json-noncharacter-in-a-member-name`, `json-nested-65-deep`, `json-trailing-comma`, `json-not-a-number`.
+- must reject: `json-number-with-fraction`, `json-number-with-negative-exponent`, `json-integer-beyond-safe-range`, `json-exponent-beyond-safe-range`, `json-unpaired-surrogate`, `json-noncharacter`, `json-noncharacter-in-a-member-name`, `json-noncharacter-in-the-reserved-block`, `json-noncharacter-in-the-last-plane`, `json-nested-65-deep`, `json-trailing-comma`, `json-not-a-number`.
 
 Duplicate member names are not among the negative cases, because core 1.1 says receivers SHOULD reject them, not MUST. Both implementations do reject them, and the differential tests compare them on such texts.
 
 Added with `kind: "record"`:
 
-- must accept: `extension-type-with-critical-extension`, `timestamp-in-year-0000`, `receipt-rating-of-minus-zero`, `record-nested-64-deep`, `container-carries-a-record-nested-64-deep`;
-- must reject: `proof-entry-not-an-object`, `extension-name-not-a-namespace`, `unknown-type-without-critical-extension`, `record-nested-65-deep`, `container-carries-a-record-nested-65-deep`.
+- must accept: `extension-type-with-critical-extension`, `timestamp-in-year-0000`, `receipt-rating-of-minus-zero`, `duration-of-64-characters`, `record-nested-64-deep`, `container-carries-a-record-nested-64-deep`, `duplicity-evidence-carries-a-record-nested-64-deep`;
+- must reject: `proof-entry-not-an-object`, `extension-name-not-a-namespace`, `unknown-type-without-critical-extension`, `extension-type-without-created`, `duration-of-65-characters`, `record-nested-65-deep`, `container-carries-a-record-nested-65-deep`, `duplicity-evidence-carries-a-record-nested-65-deep`, `feed-page-carries-a-record-nested-65-deep`, `bundle-carries-a-location-nested-65-deep`, `container-nested-65-deep-without-its-records`.
+
+No case is at the size limit: one would add a megabyte to the file. The two implementations are compared at 1 MiB and one byte more, for a record, a carried record and a container's own part, in the differential tests.
 
 Added with `kind: "countsFor"`, both negative: `signature-r-mixed-order` (core 4.4: an `R` with a small-order component, which the vectors did not cover) and `key-reference-position-wraps-around` (core 6.1: position 2⁶⁴+1 with the content ID of the event at position 1).
 
-Eleven controls are added: one for each new negative case that can have one, and one for each of the two earlier signature cases, `signature-s-not-reduced` and `signature-r-identity`, which had none.
+Nineteen controls are added: one for each new negative case that can have one, and one for each of the two earlier signature cases, `signature-s-not-reduced` and `signature-r-identity`, which had none.
+
+The file itself holds no float, no unpaired surrogate and no noncharacter: the cases about them write them as escapes inside a string, so a strict reader of JSON can load it. It nests deeper than a record may, because it carries records that nest as deep as one may.
 
 ## Reference implementation
 
-- `spec/test-vectors/oip_vectors.py`: `read_json`, `values_ok`, `json_ok`, `_integer` (which reads a number of any length as text), the calendar in `ts`, and the checks in `record_ok`, `profile_ok` and `verify_log`.
-- `@oip/core`: `parseJson` (the profile, with the depth limit), `parseRecord`, `checkSize`, `parseVersionId`, `parseDuration`.
+- `spec/test-vectors/oip_vectors.py`: `read_json`, `values_ok`, `json_ok`, `_integer` (which reads a number of any length as text), the calendar in `ts`, `is_duration`, and the checks in `record_ok`, `profile_ok` (size and depth, part by part) and `verify_log`.
+- `@oip/core`: `parseJson` (the profile, with the depth limit), `parseRecord`, `parseExtensionRecord`, `checkSize`, `parseVersionId`, `parseDuration`.
 - `@oip/schema`: `validateJson`, `MAX_DEPTH`, `MAX_CONTAINER_DEPTH`, `containerParts`, `textFault`, and the rule for extension-defined types in `validateExtensionRecord`.
 - `@oip/conformance`: the `json` kind, and differential tests that compare the two parsers under the rule "same".
 

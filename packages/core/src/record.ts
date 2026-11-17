@@ -10,6 +10,7 @@
 import {
   containerParts,
   type ExtensionRecord,
+  IMPLEMENTATION_LIMIT,
   isRecordType,
   type Issue,
   type OipRecord,
@@ -21,7 +22,7 @@ import {
 import type { JsonObject } from "./content-id.ts";
 import { canonicalBytesOf } from "./jcs.ts";
 import { parseForRecord, type ParseOptions } from "./json.ts";
-import { ok } from "./result.ts";
+import { no, ok } from "./result.ts";
 
 /** core 1.6: the longest canonical form of a record, 1 MiB, in bytes. */
 export const MAX_RECORD_BYTES = 1_048_576;
@@ -137,6 +138,12 @@ function withinSize<T extends OipRecord | ExtensionRecord>(
   validated: Validation<T>,
 ): Validation<T> {
   if (!validated.ok) return validated;
-  const [first, ...rest] = checkSize(validated.value);
-  return first === undefined ? ok(validated.value) : { ok: false, issues: [first, ...rest] };
+  try {
+    const [first, ...rest] = checkSize(validated.value);
+    return first === undefined ? ok(validated.value) : { ok: false, issues: [first, ...rest] };
+  } catch {
+    // Its size could not be measured: the stack is spent, or the process is in
+    // a state in which nothing can be serialised. A reader answers all the same.
+    return no("the record's size could not be measured", IMPLEMENTATION_LIMIT);
+  }
 }

@@ -75,7 +75,7 @@ describe("the README", () => {
     expect(core.MAX_DURATION_LENGTH).toBe(64);
     expect(readme).toMatch(row("A decimal", "64 characters"));
     expect(core.MAX_DECIMAL_LENGTH).toBe(64);
-    expect(readme).toMatch(row("Values in one text or one record", "1,048,576"));
-    expect(MAX_VALUES).toBe(1_048_576);
+    expect(readme).toMatch(row("Values in one value that did not come from text", "4,194,304"));
+    expect(MAX_VALUES).toBe(4_194_304);
   });
 });

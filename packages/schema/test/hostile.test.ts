@@ -11,8 +11,10 @@ import { type JsonObject, positiveVectorRecords, withAmbientTrapped } from "@oip
 import { describe, expect, it } from "vitest";
 
 import {
+  declareParsed,
   IMPLEMENTATION_LIMIT,
   MAX_ISSUES,
+  type Limits,
   MAX_VALUES,
   parseSelector,
   type RecordType,
@@ -221,21 +223,100 @@ describe("what an issue shows of the input", () => {
   });
 });
 
+describe("a value a parser of the JSON profile has just built", () => {
+  const plain = () => JSON.parse(JSON.stringify(samples.Intent)) as JsonObject;
+
+  it("is validated as it is, and only the once", () => {
+    const record = plain();
+    declareParsed(record, 4);
+    const first = validateRecord(record);
+    // The same object: the parser has done what the copy is for.
+    expect(first.ok && first.value).toBe(record);
+    // The declaration is spent. What happened to the value since is not known.
+    const second = validateRecord(record);
+    expect(second.ok && second.value).not.toBe(record);
+    expect(second.ok && second.value).toEqual(record);
+    const json = plain();
+    declareParsed(json, 4);
+    const whole = validateJson(json);
+    expect(whole.ok && whole.value).toBe(json);
+    const again = validateJson(json);
+    expect(again.ok && again.value).not.toBe(json);
+  });
+
+  it("is still held to the depth the validator allows", () => {
+    for (const [deepest, clause] of [
+      [64, undefined],
+      [65, "core 1.9"],
+      [1000, "core 1.9"],
+    ] as const) {
+      const value = plain();
+      declareParsed(value, deepest);
+      const result = validateJson(value);
+      expect(result.ok ? undefined : result.issues[0].clause, String(deepest)).toBe(clause);
+    }
+    // A record may be a container, which nests three deeper; beyond that nothing does.
+    const record = plain();
+    declareParsed(record, 68);
+    const tooDeep = validateRecord(record);
+    expect(!tooDeep.ok && tooDeep.issues[0].clause).toBe("core 1.9");
+    // Between the two, only a container may be: the declaration is believed.
+    const between = plain();
+    declareParsed(between, 66);
+    const refused = validateRecord(between);
+    expect(!refused.ok && refused.issues[0].clause).toBe("core 1.9");
+  });
+
+  it("is checked against its schema and rules like any other", () => {
+    const record = plain();
+    delete record["want"];
+    declareParsed(record, 4);
+    expect(validateRecord(record).ok).toBe(false);
+  });
+});
+
 describe("values that are not JSON", () => {
   const rejected = (member: unknown) =>
     expectBoundedRejection(() => validateRecord(sample("Intent", { futureMember: member })));
 
-  it("more values than the implementation reads are refused as its own limit, not the specification's", () => {
-    const many = validateRecord(
-      sample("Intent", { futureMember: new Array(MAX_VALUES + 1).fill(0) }),
-    );
+  it("more values than a reader allows are refused as its own limit, never as a rule about records", () => {
+    // As many as a text of 8 MiB can hold, at two characters a value.
+    expect(MAX_VALUES).toBe(4 * 1024 * 1024);
+    const big = new Array<number>(MAX_VALUES + 1).fill(0);
+    const many = validateRecord(sample("Intent", { futureMember: big }));
     expect(!many.ok && many.issues[0]).toEqual({
       path: "",
-      message: `there are more than ${MAX_VALUES} values here, the most this implementation reads in one record or container`,
+      message: `there are more than ${MAX_VALUES} values here, the most this reader was set to read at once`,
       clause: IMPLEMENTATION_LIMIT,
     });
-    expect(MAX_VALUES).toBe(1_048_576);
-    expect(validateJson(new Array(1000).fill(0)).ok).toBe(true);
+    expect(validateJson(big).ok).toBe(false);
+    // A reader that accepts longer texts allows more values with them.
+    const more = { maxValues: 2 * MAX_VALUES };
+    expect(validateRecord(sample("Intent", { futureMember: big }), more).ok).toBe(true);
+    expect(validateJson(big, "record", more).ok).toBe(true);
+    expect(validateJson(big, "container", more).ok).toBe(true);
+    // And one that accepts less, fewer. The array is one value and each element another.
+    expect(validateJson([0, 0, 0], "record", { maxValues: 3 }).ok).toBe(true);
+    const few = validateJson([0, 0, 0], "record", { maxValues: 2 });
+    expect(!few.ok && few.issues[0].message).toBe(
+      "there are more than 2 values here, the most this reader was set to read at once",
+    );
+    expect(validateRecord(sample("Intent"), { maxValues: 5 }).ok).toBe(false);
+    const extension = {
+      oip: "1",
+      type: "com.example.X",
+      created: "2026-11-17T09:00:00Z",
+      ext: { "com.example": {} },
+      critical: ["com.example"],
+    };
+    expect(validateExtensionRecord(extension).ok).toBe(true);
+    expect(validateExtensionRecord(extension, { maxValues: 3 }).ok).toBe(false);
+    // Anything but a count leaves the default in force: no limit is switched off by mistake.
+    for (const maxValues of [Number.NaN, -1, 1.5, "7", null, Infinity, undefined]) {
+      const limits = { maxValues } as unknown as Limits;
+      expect(validateJson([0, 0, 0], "record", limits).ok).toBe(true);
+      expect(validateJson(big, "record", limits).ok).toBe(false);
+    }
   });
 
   it("an array that is not a plain array is rejected", () => {

@@ -6,6 +6,7 @@ import {
   containerParts,
   IMPLEMENTATION_LIMIT,
   type OipRecord,
+  validateRecord,
 } from "@oip/schema";
 import { clause, copy, type JsonObject, sampleRecords, withAmbientTrapped } from "@oip/testkit";
 import fc from "fast-check";
@@ -21,6 +22,7 @@ import {
   MAX_SEALED_CIPHERTEXT_LENGTH,
   MAX_TEXT_LENGTH,
   MIN_ACCEPTED_RECORD_BYTES,
+  mindAddress,
   parseExtensionRecord,
   parseRecord,
   signerFromPrivateKey,
@@ -31,7 +33,7 @@ import {
   withProofs,
 } from "../src/index.ts";
 import { withStackSpent } from "./stack.ts";
-import { named, negative, positiveVectorRecords, privateKeyOf } from "./vectors.ts";
+import { log, named, negative, positiveVectorRecords, privateKeyOf } from "./vectors.ts";
 
 const utf8 = (text: string) => new TextEncoder().encode(text);
 const clauseOf = (result: Validation<unknown>) =>
@@ -667,6 +669,38 @@ describe(`${clause("core 1.9")} depth`, () => {
     expect(read(junk(65))).toEqual(["core 1.9 "]);
     const page = (depth: number) => ({ ...sampleRecords["LogPage"], events: [junk(depth)] });
     expect(read(page(65))).toEqual(["core 1.9 /events/0"]);
+  });
+
+  it("reads a page of records that are each well formed, however much they hold together", () => {
+    // Anyone can add an entry to an event's proof, where it never counts. Here each
+    // of three events carries one of 400,000 values, and is still well formed alone.
+    const junk = { junk: new Array<number>(400_000).fill(0) };
+    const honest = [...log("amina_log"), ...log("researcher_log")].slice(0, 3);
+    const events = honest.map((event) => ({
+      ...event,
+      proof: [...(event["proof"] as unknown[]), junk],
+    }));
+    expect(events).toHaveLength(3);
+    for (const [i, event] of events.entries()) {
+      expect(parseRecord(JSON.stringify(event)).ok, `event ${i}`).toBe(true);
+      expect(contentId(event)).toBe(contentId(honest[i]));
+      expect(verifyProofs(event).verified.length, `event ${i}`).toBeGreaterThan(0);
+    }
+    const page = {
+      oip: "1",
+      type: "LogPage",
+      mind: mindAddress(contentId(events[0])),
+      events,
+    };
+    const text = JSON.stringify(page);
+    expect(text.length).toBeGreaterThan(2 * 1024 * 1024);
+    // No limit on the page as a whole refuses it: not on depth, size or the count of values.
+    expect(parseRecord(text).ok).toBe(true);
+    expect(parseRecord(utf8(text)).ok).toBe(true);
+    // The same for the value itself, which a server holds before it writes it.
+    expect(validateRecord(page).ok).toBe(true);
+    expect(canonicalize(page)).toHaveLength(text.length);
+    expect(contentId(page)).toMatch(/^bciq/);
   });
 
   it("does not read a text deeper than any container can be", () => {

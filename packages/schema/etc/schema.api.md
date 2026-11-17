@@ -329,6 +329,9 @@ export const Controller: Type.TUnsafe<{
 // @public (undocumented)
 export type Controller = Static<typeof Controller>;
 
+// @public
+export function declareParsed(value: object, deepest: number): void;
+
 // @public (undocumented)
 export const Delegation: Type.TObject<{
     type: Type.TLiteral<"Delegation">;
@@ -413,7 +416,7 @@ export type Evidence = Static<typeof Evidence>;
 export const ExtensionRecord: Type.TObject<{
     oip: Type.TLiteral<"1">;
     type: Type.TString;
-    created: Type.TOptional<Type.TUnsafe<string>>;
+    created: Type.TUnsafe<string>;
     expires: Type.TOptional<Type.TUnsafe<string>>;
     ext: Type.TOptional<Type.TUnsafe<Readonly<Record<string, Readonly<Record<string, unknown>>>>>>;
     critical: Type.TArray<Type.TString>;
@@ -726,6 +729,11 @@ export const KeyController: Type.TUnsafe<{
 // @public (undocumented)
 export type KeyController = Static<typeof KeyController>;
 
+// @public
+export interface Limits {
+    readonly maxValues?: number;
+}
+
 // @public (undocumented)
 export const Lineage: Type.TObject<{
     type: Type.TLiteral<"Lineage">;
@@ -807,7 +815,7 @@ export const MAX_POLICY_DEPTH = 8;
 export const MAX_SAFE_INTEGER = 9007199254740991;
 
 // @public
-export const MAX_VALUES = 1048576;
+export const MAX_VALUES = 4194304;
 
 // @public
 export const MemberController: Type.TUnsafe<{
@@ -1465,16 +1473,16 @@ export const Update: Type.TObject<{
 export type Update = Static<typeof Update>;
 
 // @public
-export function validateExtensionRecord(value: unknown): Validation<ExtensionRecord>;
+export function validateExtensionRecord(value: unknown, limits?: Limits): Validation<ExtensionRecord>;
 
 // @public
-export function validateJson(value: unknown, depth?: "record" | "container"): Validation<JsonValue>;
+export function validateJson(value: unknown, depth?: "record" | "container", limits?: Limits): Validation<JsonValue>;
 
 // @public
 export function validateProof(value: unknown): Validation<Proof>;
 
 // @public
-export function validateRecord(value: unknown): Validation<OipRecord>;
+export function validateRecord(value: unknown, limits?: Limits): Validation<OipRecord>;
 
 // @public
 export function validateRecordOfType<K extends RecordType>(type: K, value: unknown): Validation<RecordOf<K>>;

@@ -38,7 +38,7 @@ import { decodeEd25519Multikey } from "./multikey.ts";
 import { checkSize, MAX_RECORD_BYTES } from "./record.ts";
 import { parseVerificationMethod, type VerificationMethod } from "./refs.ts";
 import { issuesUnder, no, ok, under } from "./result.ts";
-import { type Instant, instantOf, parseTimestamp } from "./time.ts";
+import { type Instant, instantOf } from "./time.ts";
 
 /** core 5.1: the most proofs a record carries. */
 export const MAX_PROOFS = 256;
@@ -124,15 +124,29 @@ interface Subject {
   readonly proofs: JsonValue | undefined;
 }
 
+function isUnsignedType(type: unknown): boolean {
+  return (UNSIGNED_RECORD_TYPES as readonly unknown[]).includes(type);
+}
+
+function isUnsigned(value: JsonValue): boolean {
+  return isJsonObject(value) && isUnsignedType(value["type"]);
+}
+
 /** Reads a record once, into a plain copy, and takes from the copy all that a proof is checked against. */
 function subjectOf(record: unknown): Validation<Subject> {
-  const checked = validateJson(record);
-  if (!checked.ok) return checked;
+  let checked = validateJson(record);
+  if (!checked.ok) {
+    // A container may nest deeper than any signed record. It carries no proof
+    // of its own, and that is the reason to give, not its depth.
+    const container = validateJson(record, "container");
+    if (!container.ok || !isUnsigned(container.value)) return checked;
+    checked = container;
+  }
   const value = checked.value;
   if (!isJsonObject(value)) return no("a record is a JSON object", "core 1.1");
   const type = value["type"];
   if (typeof type !== "string") return no("type must name a record type", "core 7", "/type");
-  if ((UNSIGNED_RECORD_TYPES as readonly string[]).includes(type)) {
+  if (isUnsignedType(type)) {
     return no(`a ${type} record is unsigned: no proof on it counts`, "core 5.1", "/proof");
   }
   const context = Object.hasOwn(value, "@context")
@@ -403,7 +417,10 @@ interface Draft {
 /** Everything that is checked before a signer is asked to sign. */
 function prepare(record: unknown, options: ProofOptions, publicKey: string): Draft {
   const { subject, type } = signedSubject(record);
-  const method = parseVerificationMethod(options.verificationMethod);
+  // Each option is read once, and what was read is what is checked and signed:
+  // an options object may answer differently the second time it is asked.
+  const { verificationMethod, created, challenge, domain, authority, earlierThanRecord } = options;
+  const method = parseVerificationMethod(verificationMethod);
   // A signer with no key and a reference that names none must not pass as a match.
   if (typeof publicKey !== "string" || method?.key !== publicKey) {
     throw new OipError(
@@ -415,12 +432,12 @@ function prepare(record: unknown, options: ProofOptions, publicKey: string): Dra
   const config = {
     type: "DataIntegrityProof",
     cryptosuite: "eddsa-jcs-2022",
-    verificationMethod: options.verificationMethod,
+    verificationMethod,
     proofPurpose: purposeFor(type),
-    created: options.created,
-    ...(options.challenge === undefined ? {} : { challenge: options.challenge }),
-    ...(options.domain === undefined ? {} : { domain: options.domain }),
-    ...(options.authority === undefined ? {} : { authority: options.authority }),
+    created,
+    ...(challenge === undefined ? {} : { challenge }),
+    ...(domain === undefined ? {} : { domain }),
+    ...(authority === undefined ? {} : { authority }),
     ...(Object.hasOwn(subject, "@context") ? { "@context": subject["@context"] } : {}),
   };
   // Nothing is signed that is not a proof on a well-formed record: the options
@@ -431,12 +448,11 @@ function prepare(record: unknown, options: ProofOptions, publicKey: string): Dra
   const draft = placeholder.value as Proof & JsonObject;
   wellFormed({ ...subject, proof: [...existingProofs(subject), draft] }, type);
   const { proofValue: _placeholder, ...checked } = draft;
-  const recordCreated = parseTimestamp(subject["created"]);
+  // Every record that can be signed carries created (core 7), and both times
+  // have just been validated as timestamps.
   if (
-    options.earlierThanRecord !== true &&
-    // Stryker disable next-line ConditionalExpression: a comparison with undefined is false anyway.
-    recordCreated !== undefined &&
-    instantOf(options.created) < recordCreated
+    earlierThanRecord !== true &&
+    instantOf(draft.created) < instantOf(subject["created"] as string)
   ) {
     throw new OipError(
       "invalid-proof",

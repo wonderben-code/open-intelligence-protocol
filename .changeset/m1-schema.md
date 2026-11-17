@@ -13,4 +13,7 @@
 - A string or member name with a noncharacter is rejected (core 1.1; RFC 7493, 2.1). `textFault` is exported.
 - A duration is at most 64 characters (core 1.5).
 - A path in an issue is safe to log: control characters are escaped and a long path is cut.
-- `MAX_VALUES`, the most values read in one record, is exported, and exceeding it is reported as an implementation limit.
+- `MAX_VALUES` is exported: the most values one validation reads, 4,194,304 unless the caller allows more (`Limits`). It is a limit of the reader on the whole of what it is given, reported as an implementation limit, and never makes a container malformed whose parts are well formed.
+- `declareParsed` lets a parser of the JSON profile have the value it has just built validated as it is, without a second copy.
+- A record of a type an extension defines must carry `created` (core 7).
+- Text from the input that is quoted in a message has its control characters, line separators and bidirectional controls escaped.

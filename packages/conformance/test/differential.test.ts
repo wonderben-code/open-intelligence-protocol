@@ -13,7 +13,9 @@
  *   schemas, by design, so the rule is "no laxer": whatever the schemas
  *   accept, the checker accepts.
  * - `json` (M1): whether a text is JSON within the profile of core Section 1.
- *   Both implementations decide that completely, so the rule is "same".
+ *   Both implementations decide that completely, so the rule is "same". The
+ *   reference implementation also has a limit of its own on the length of a
+ *   text, which the checker has not; the texts compared here are far below it.
  *
  * M2 extends it to identity logs, with the rule "same".
  */
@@ -23,6 +25,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { canonicalBytes } from "@oip/core";
 import { sampleRecords } from "@oip/testkit";
 import fc from "fast-check";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -54,6 +57,19 @@ const vectors = loadVectors();
 const records = [
   ...positiveRecords(vectors).map((entry) => entry.record),
   ...Object.values(sampleRecords),
+  // The well-formed records among the cases: a type an extension defines, the
+  // containers at their deepest, a duration at its longest. Mutating these reaches
+  // rules that no other record here has anything to break.
+  ...[...vectors.valid, ...vectors.controls].flatMap((entry) =>
+    entry.kind === "record" ? [entry.record as JsonObject] : [],
+  ),
+  {
+    oip: "1",
+    type: "com.example.Minimal",
+    created: "2026-11-17T09:00:00Z",
+    ext: { "com.example": {} },
+    critical: ["com.example"],
+  },
 ];
 
 /** Values that tend to break a structural check. */
@@ -67,6 +83,8 @@ const junk = fc.oneof(
     "0000-02-29T00:00:00Z",
     "0000-01-01T00:00:00.5Z",
   ),
+  // Durations, at and beyond their longest (core 1.5), and what is not one.
+  fc.constantFrom("P30D", "PT0S", "none", "P1Y", "P", `P${"9".repeat(62)}D`, `P${"9".repeat(63)}D`),
   fc.string({ maxLength: 80 }),
   fc.integer(),
 );
@@ -269,7 +287,7 @@ describe.skipIf(unavailable !== undefined && !required)("differential: the JSON 
         compared++;
       }
     }
-    expect(compared).toBe(17);
+    expect(compared).toBe(21);
   });
 
   it("agrees with it on what neither is required to reject: duplicate member names", async () => {
@@ -326,9 +344,58 @@ describe.skipIf(unavailable !== undefined && !required)("differential: record ca
     record,
   });
 
-  it("covers every record type", () => {
+  it("covers every record type, and types that extensions define", () => {
     const types = new Set(records.map((record) => record["type"]));
-    expect(types.size).toBe(29);
+    // The 29 of this revision, and two that extensions define.
+    expect(types.size).toBe(31);
+    expect(records.filter((record) => Array.isArray(record["critical"])).length).toBe(4);
+  });
+
+  it("agree on the size limit, to the byte, for a record, a carried record and a container's own part", async () => {
+    // core 1.6: 1 MiB of canonical form for each record a container carries, and
+    // for the container without the members that hold them.
+    const LIMIT = 1024 * 1024;
+    const sizeOf = (value: unknown) => canonicalBytes(value).length;
+    const padded = (base: JsonObject, measured: (record: JsonObject) => number, size: number) => {
+      const withPadding = (blob: string): JsonObject => ({
+        ...base,
+        ext: { "com.example.padding": { blob } },
+      });
+      const record = withPadding("a".repeat(size - measured(withPadding(""))));
+      expect(measured(record)).toBe(size);
+      return record;
+    };
+    const intent = sampleRecords["Intent"] as JsonObject;
+    const page = sampleRecords["LogPage"] as JsonObject;
+    const event = (page["events"] as JsonObject[])[0]!;
+    const withoutEvents = (record: JsonObject) => {
+      const { events: _events, ...rest } = record;
+      return sizeOf(rest);
+    };
+    const cases: [what: string, record: JsonObject, wellFormed: boolean][] = [];
+    for (const [size, wellFormed] of [
+      [LIMIT, true],
+      [LIMIT + 1, false],
+    ] as const) {
+      cases.push(
+        ["a record", padded(intent, sizeOf, size), wellFormed],
+        ["a carried record", { ...page, events: [padded(event, sizeOf, size)] }, wellFormed],
+        ["a container's own part", padded(page, withoutEvents, size), wellFormed],
+      );
+    }
+    for (const [what, record, wellFormed] of cases) {
+      const ours = referenceAdapter.recordIsWellFormed?.(record);
+      const theirs = (await judge.judge(recordCase(record))).holds;
+      expect([ours, theirs], `${what}, ${wellFormed ? "at" : "over"} the limit`).toEqual([
+        wellFormed,
+        wellFormed,
+      ]);
+    }
+    // The two limits are separate: a page that is 2 MiB as a whole is well formed.
+    const both = { ...padded(page, withoutEvents, LIMIT), events: [padded(event, sizeOf, LIMIT)] };
+    expect(sizeOf(both)).toBeGreaterThan(2 * LIMIT);
+    expect(referenceAdapter.recordIsWellFormed?.(both)).toBe(true);
+    expect((await judge.judge(recordCase(both))).holds).toBe(true);
   });
 
   it("both accept every record of the positive vectors and every sample", async () => {
@@ -347,8 +414,8 @@ describe.skipIf(unavailable !== undefined && !required)("differential: record ca
         compared++;
       }
     }
-    // 17 record cases and 17 json cases, over the three sections.
-    expect(compared).toBe(17 + 17);
+    // 31 record cases and 21 json cases, over the three sections.
+    expect(compared).toBe(31 + 21);
   });
 
   it(

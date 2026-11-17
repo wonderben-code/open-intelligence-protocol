@@ -104,10 +104,15 @@ export function contentId(record: unknown): string {
  * JSON object within the profile. For code that judges: it never throws.
  */
 export function contentIdIfAny(record: unknown): string | undefined {
-  const checked = validateJson(record, "container");
-  return checked.ok && isJsonObject(checked.value)
-    ? contentIdOfDigest(documentHashOf(checked.value))
-    : undefined;
+  try {
+    const checked = validateJson(record, "container");
+    return checked.ok && isJsonObject(checked.value)
+      ? contentIdOfDigest(documentHashOf(checked.value))
+      : undefined;
+  } catch {
+    // Nothing could be worked out, so there is nothing to compare with.
+    return undefined;
+  }
 }
 
 /**

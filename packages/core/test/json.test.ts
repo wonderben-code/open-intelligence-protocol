@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { IMPLEMENTATION_LIMIT, MAX_DEPTH, MAX_VALUES } from "@oip/schema";
+import { IMPLEMENTATION_LIMIT, MAX_DEPTH } from "@oip/schema";
 import { clause } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -574,47 +574,30 @@ describe(`${clause("core 1.9")} depth, and the length of a text`, () => {
     expect(parseJsonBytes("[1]" as unknown as Uint8Array).ok).toBe(false);
   });
 
-  it("reads at most as many values as a record may hold, however short they are written", () => {
-    expect(MAX_VALUES).toBe(1_048_576);
-    // The whole array is one value, and each element another.
+  it("has one limit on a text as a whole, its length: however many values that holds are read", () => {
+    // A count of values over the whole text would refuse a page of records that are
+    // each well formed (core 1.6, 1.9). The length bounds the count: two characters a value.
     const zeros = (count: number) => `[${"0,".repeat(count - 1)}0]`;
-    expect(parseJson(zeros(MAX_VALUES - 1)).ok).toBe(true);
-    expect(parseJson(zeros(MAX_VALUES))).toEqual({
-      ok: false,
-      issues: [
-        {
-          path: "",
-          message: `there are more than ${MAX_VALUES} values here, the most this implementation reads in one record or container (at character ${2 * MAX_VALUES - 1})`,
-          clause: IMPLEMENTATION_LIMIT,
-        },
-      ],
-    });
-    // Member names are not values; each member's value is.
-    const members = (count: number) =>
-      `{${Array.from({ length: count }, (_, i) => `"${i}":0`).join(",")}}`;
-    expect(parseJson(members(1000)).ok).toBe(true);
-    // Raising the limit on length does not raise this one.
-    expect(rejection(zeros(MAX_VALUES), { maxLength: 64 * MAX_TEXT_LENGTH })).toBe(
-      IMPLEMENTATION_LIMIT,
-    );
+    const most = zeros(MAX_TEXT_LENGTH / 2 - 1);
+    expect(most).toHaveLength(MAX_TEXT_LENGTH - 1);
+    const parsed = parseJson(most);
+    expect(parsed.ok && (parsed.value as number[]).length).toBe(MAX_TEXT_LENGTH / 2 - 1);
+    expect(rejection(zeros(MAX_TEXT_LENGTH / 2 + 1))).toBe(IMPLEMENTATION_LIMIT);
+    expect(parseJson(zeros(MAX_TEXT_LENGTH), { maxLength: 2 * MAX_TEXT_LENGTH + 1 }).ok).toBe(true);
   });
 
-  it("does not spend a hundred times a text's size in memory on it", () => {
-    // 8 MiB of the smallest values there are: "[[],[],[],…]". Without the limit on
-    // values this built four million arrays, and took some 700 MiB to do it.
-    const empties = `[${"[],".repeat((MAX_TEXT_LENGTH - 4) / 3)}[]]`;
+  it("spends on a text about what the platform's own parser does", () => {
+    // 8 MiB of the smallest values there are: "[[],[],[],…]". Growing each array one
+    // element at a time, this once took 730 MiB. Arrays are now cut at their exact size.
+    const count = Math.floor((MAX_TEXT_LENGTH - 4) / 3);
+    const empties = `[${"[],".repeat(count)}[]]`;
     expect(empties.length).toBeLessThanOrEqual(MAX_TEXT_LENGTH);
     const before = process.memoryUsage().heapUsed;
     const parsed = parseJson(empties);
     const grown = process.memoryUsage().heapUsed - before;
-    expect(rejectionOf(parsed)).toBe(IMPLEMENTATION_LIMIT);
-    expect(grown).toBeLessThan(160 * 1024 * 1024);
-    // The largest tree that is read: a million arrays in one. It is held, and it is bounded.
-    const most = `[${"[],".repeat(MAX_VALUES - 2)}[]]`;
-    const started = process.memoryUsage().heapUsed;
-    const held = parseJson(most);
-    expect(held.ok).toBe(true);
-    expect(process.memoryUsage().heapUsed - started).toBeLessThan(160 * 1024 * 1024);
+    expect(parsed.ok && (parsed.value as unknown[]).length).toBe(count + 1);
+    // The measure includes what the collector has not yet taken back.
+    expect(grown).toBeLessThan(320 * 1024 * 1024);
   });
 });
 

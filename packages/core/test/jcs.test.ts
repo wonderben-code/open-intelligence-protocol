@@ -274,6 +274,30 @@ describe(`${clause("core 1.2")} nothing outside the profile has a canonical form
     expect(contentIdIfAny({ a: nested })).toBeUndefined();
   });
 
+  it("serialises nothing while every object or every array has a toJSON", () => {
+    // The serialiser calls a toJSON wherever it finds one. Put on a prototype by
+    // other code in the process, it would give every record one canonical form
+    // and one content ID. Then nothing is hashed, signed or accepted.
+    const record = { oip: "1", type: "Example", n: 1 };
+    const expected = canonicalize(record);
+    for (const prototype of [Object.prototype, Array.prototype] as object[]) {
+      Object.defineProperty(prototype, "toJSON", {
+        value: () => "all the same",
+        configurable: true,
+        writable: true,
+      });
+      try {
+        expect(() => canonicalize(record)).toThrow("nothing can be serialised safely");
+        expect(() => canonicalBytes([1, 2])).toThrow(Error);
+        expect(() => contentId(record)).toThrow(Error);
+        expect(contentIdIfAny(record)).toBeUndefined();
+      } finally {
+        delete (prototype as { toJSON?: unknown }).toJSON;
+      }
+    }
+    expect(canonicalize(record)).toBe(expected);
+  });
+
   it("is not fooled by members named like the things it refuses", () => {
     expect(canonicalize({ toJSON: "a string", __proto__: null, constructor: 1 })).toBe(
       '{"constructor":1,"toJSON":"a string"}',

@@ -27,6 +27,15 @@ const serialiseJson = serialise as (value: JsonValue) => string;
  * where it finds one, and neither may ever be hashed or signed.
  */
 export function canonicalText(value: JsonValue): string {
+  // The serialiser calls a `toJSON` wherever it finds one, and it would find one
+  // on every value if other code had put it on the prototype of all objects or
+  // of all arrays: every record would then have the same canonical form, and
+  // the same content ID. Nothing is hashed or signed in a process in that state.
+  if ("toJSON" in Array.prototype) {
+    throw new Error(
+      "Object.prototype or Array.prototype has a toJSON: nothing can be serialised safely",
+    );
+  }
   return serialiseJson(value);
 }
 

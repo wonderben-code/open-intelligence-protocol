@@ -58,6 +58,8 @@ MAX_CHAIN = 8                   # delegations per chain
 MAX_AUTHORITY = 8               # entries in a proof's `authority`
 MAX_NESTING = 4                 # greatest collective height
 MAX_DEPTH = 64                  # nesting of arrays and objects (core 1.9)
+MAX_RECORD_BYTES = 2**20        # canonical form of a record (core 1.6)
+MAX_DURATION = 64               # characters in a duration (core 1.5)
 
 IDENTITY_TYPES = ("Genesis", "Update", "Fork", "Merge", "Retire")
 # Every record type this revision defines (core 11). `Merge` is reserved.
@@ -400,7 +402,8 @@ def values_ok(value) -> bool:
     return True
 
 
-_NUMBER_RE = re.compile(r"(-?)([0-9]+)(?:\.([0-9]+))?(?:[eE]([-+]?[0-9]+))?")
+_NUMBER_RE = re.compile(
+    r"(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([-+]?[0-9]+))?")
 
 
 def _integer(text: str) -> int:
@@ -1096,13 +1099,36 @@ def command_covers(granted: str, needed: str) -> bool:
 # ---------------------------------------------------------------- records
 
 
+_DURATION_TIME = (r"(?:[0-9]+H(?:[0-9]+M)?(?:[0-9]+S)?|"
+                  r"[0-9]+M(?:[0-9]+S)?|[0-9]+S)")
+DURATION_RE = re.compile(r"P(?:[0-9]+D(?:T" + _DURATION_TIME + r")?|T" +
+                         _DURATION_TIME + r")")
+
+
+def is_duration(v) -> bool:
+    """core 1.5: days, hours, minutes and seconds, in at most 64
+    characters."""
+    return fullmatch(DURATION_RE, v) and len(v) <= MAX_DURATION
+
+
+def _part_ok(part) -> bool:
+    """One record, or a container without the records it carries: the
+    values of core 1.1 and 1.2, at most 64 deep (1.9), in at most 1 MiB of
+    canonical form (1.6)."""
+    return values_ok(part) and len(jcs(part)) <= MAX_RECORD_BYTES
+
+
 def profile_ok(r: dict) -> bool:
-    """core 1.1, 1.2 and 1.9 for a record. For a container the limit on
-    depth applies to each record it carries, counted from that record, and
-    to the container without them (1.9)."""
+    """core 1.1, 1.2, 1.6 and 1.9 for a record. For a container the limits
+    on size and depth apply to each record it carries, counted from that
+    record, and to the container without the members that hold them. How
+    far a `Sealed` record may exceed the size is not yet settled (OEP-0001,
+    open questions), so its size is not judged here."""
     carrying = CONTAINERS.get(r.get("type"))
     if carrying is None:
-        return values_ok(r)
+        if r.get("type") == "Sealed":
+            return values_ok(r)
+        return _part_ok(r)
     carried = []
     for name in carrying:
         member = r.get(name, [])
@@ -1114,7 +1140,7 @@ def profile_ok(r: dict) -> bool:
         else:
             carried.append(member)
     rest = {k: v for k, v in r.items() if k not in carrying}
-    return values_ok(rest) and all(values_ok(c) for c in carried)
+    return _part_ok(rest) and all(_part_ok(c) for c in carried)
 
 
 def record_ok(r) -> bool:
@@ -1123,7 +1149,7 @@ def record_ok(r) -> bool:
         if not isinstance(r, dict) or r.get("oip") != OIP_VERSION:
             return False
         if not profile_ok(r):
-            return False                    # core 1.1, 1.2 and 1.9
+            return False                    # core 1.1, 1.2, 1.6 and 1.9
         t = r.get("type")
         if not isinstance(t, str):
             return False
@@ -1212,6 +1238,10 @@ def record_ok(r) -> bool:
                 return False
         if t == "Packet" and "session" not in r and "expires" not in r:
             return False
+        if t == "Packet":
+            retention = r.get("constraints", {}).get("retention", "none")
+            if retention != "none" and not is_duration(retention):
+                return False                # core 1.5
         return True
     except (KeyError, TypeError, ValueError, AttributeError):
         return False
@@ -3234,9 +3264,16 @@ def build():
               '{"s":"\\ufffe"}')
     json_case(neg, "json-noncharacter-in-a-member-name",
               "Member names are strings too. U+1FFFF, the last code point "
-              "of plane 1, is a noncharacter; here it is written as "
-              "itself.",
-              '{"\U0001ffff":1}')
+              "of plane 1, is a noncharacter; here it is written as a pair "
+              "of escapes.",
+              '{"\\ud83f\\udfff":1}')
+    json_case(neg, "json-noncharacter-in-the-reserved-block",
+              "U+FDD0 to U+FDEF are noncharacters too, 32 of the 66.",
+              '{"s":"\\ufdd0\\ufdef"}')
+    json_case(neg, "json-noncharacter-in-the-last-plane",
+              "U+10FFFE, the last but one code point there is, is a "
+              "noncharacter: every plane ends with two.",
+              '{"s":"\\udbff\\udffe"}')
     json_case(V["valid"], "json-integer-written-at-length",
               "Validity depends on a number's value, not on how it is "
               "written (core 1.2): 1 followed by 5,000 zeros and e-5000 "
@@ -3291,8 +3328,33 @@ def build():
                 "A record of a type an extension defines is well formed "
                 "when it lists that extension in `critical` (core 7, 8.3). "
                 "A reader that does not understand the extension then "
-                "rejects it with `unsupported-extension`; that is another "
+                "answers `unsupported-critical`; that is another "
                 "question.", extension_typed)
+    undated = variant(intent, type="com.example.Note",
+                      ext={"com.example": {"v": 1}},
+                      critical=["com.example"])
+    del undated["created"]
+    record_case(neg, "extension-type-without-created",
+                "`created` is required in every record except the "
+                "containers and `Sealed` (core 7), and those are types of "
+                "this specification. A record of a type an extension "
+                "defines carries it like any other.",
+                signed(undated, a_op2, amina_vm2,
+                       created=intent["created"]))
+
+    def retaining(duration):
+        return signed(variant(packet, constraints={
+            "retention": duration, "prohibitedUses": ["train"]}),
+            t_op, agent_vm)
+
+    record_case(V["valid"], "duration-of-64-characters",
+                "A duration string has at most 64 characters (core 1.5). "
+                "This one has exactly 64.", retaining("P" + "9" * 62 + "D"))
+    record_case(neg, "duration-of-65-characters",
+                "One character more than core 1.5 allows. Without the "
+                "limit a duration could have a million digits, and a "
+                "reader that computes with it would do arithmetic on "
+                "numbers of that size.", retaining("P" + "9" * 63 + "D"))
     record_case(V["valid"], "timestamp-in-year-0000",
                 "Years run from 0000 to 9999, and year 0000 is a leap "
                 "year (core 1.4): 29 February 0000 is a real date.",
@@ -3334,6 +3396,48 @@ def build():
                 "The same page with the event one level deeper. The event "
                 "is not a valid record (core 1.9), so the page is not "
                 "well formed.", page(padded_event(62)))
+
+    def junked(record, levels):
+        return {**record, "proof": record["proof"] + [{"junk": nest(levels)}]}
+
+    def evidence(levels):
+        return {"oip": OIP_VERSION, "type": "DuplicityEvidence",
+                "mind": amina, "pairs": [[junked(a_upd, levels), a_upd_alt]]}
+
+    def feed_page(levels):
+        return {"oip": OIP_VERSION, "type": "FeedPage", "mind": lexis,
+                "entries": [junked(entry, levels)]}
+
+    def bundle(levels):
+        return {"oip": OIP_VERSION, "type": "Bundle", "mind": lexis,
+                "log": [agent_gen, fork_ev],
+                "location": junked(location, levels),
+                "participant": participant}
+
+    def page_with_own(levels):
+        return {**page(a_gen), "ext": {"com.example.deep":
+                                       {"down": nest(levels)}}}
+
+    record_case(V["valid"], "duplicity-evidence-carries-a-record-nested-64-deep",
+                "An event in a pair of `DuplicityEvidence` sits three "
+                "levels down, the deepest a container carries a record. "
+                "The event nests exactly 64 deep, so the whole nests 67 "
+                "deep, which is the most any well-formed record can.",
+                evidence(61))
+    record_case(neg, "duplicity-evidence-carries-a-record-nested-65-deep",
+                "The same evidence with the event one level deeper.",
+                evidence(62))
+    record_case(neg, "feed-page-carries-a-record-nested-65-deep",
+                "The rule for containers holds for a `FeedPage` and the "
+                "entries it carries.", feed_page(62))
+    record_case(neg, "bundle-carries-a-location-nested-65-deep",
+                "A `Bundle` carries records in three members: `log`, "
+                "`location` and `participant`. Each is held to the limit.",
+                bundle(62))
+    record_case(neg, "container-nested-65-deep-without-its-records",
+                "The limit also applies to the container without the "
+                "members that hold its records: here a member of the "
+                "page's own nests 65 deep.", page_with_own(62))
 
     # Controls: each negative case above, changed only in the respect its
     # reason names, must be accepted, so it fails for that reason alone.
@@ -3378,7 +3482,22 @@ def build():
     control("key-reference-position-wraps-around",
             record=signed(w_doc, a_op2, amina_vm2))
     control("json-noncharacter", text='{"s":"\\ufffd"}')
-    control("json-noncharacter-in-a-member-name", text='{"\U0001fffd":1}')
+    control("json-noncharacter-in-a-member-name",
+            text='{"\\ud83f\\udffd":1}')
+    control("json-noncharacter-in-the-reserved-block",
+            text='{"s":"\\ufdcf\\ufdf0"}')
+    control("json-noncharacter-in-the-last-plane",
+            text='{"s":"\\udbff\\udffd"}')
+    control("extension-type-without-created", record=extension_typed)
+    control("duration-of-65-characters",
+            record=retaining("P" + "9" * 62 + "D"))
+    control("duplicity-evidence-carries-a-record-nested-65-deep",
+            record=evidence(61))
+    control("feed-page-carries-a-record-nested-65-deep",
+            record=feed_page(61))
+    control("bundle-carries-a-location-nested-65-deep", record=bundle(61))
+    control("container-nested-65-deep-without-its-records",
+            record=page_with_own(61))
     control("proof-entry-not-an-object", record=not_a_proof)
     control("extension-name-not-a-namespace",
             record=resigned(ext={"com.example.extension": {"v": 1}}))

@@ -116,7 +116,8 @@ The API report is [`etc/core.api.md`](etc/core.api.md).
 
 - **`verifyProofs` answers with three lists**: the proofs that `verified`, the entries that were `rejected` with their reasons, and `issues` when no proof could be judged at all (the record is unreadable, of an unsigned type, or its `proof` is not an array of 1 to 256 objects). There is no single `ok`: a record with one good proof and one bad one is neither. Count distinct keys among `verified`, never entries.
 - **A function that computes or creates throws `OipError`** when the value it was given is not a record, a proof or JSON within the profile: `canonicalize`, `contentId`, `createProof`, `withProofs`. Nothing outside the profile is ever hashed or signed. `createProof` checks the record, as it will stand with the proof on it, before it asks the signer for anything: a signer is never asked to sign a malformed record.
-- **What is judged is a plain copy.** A record is read once, through its property descriptors, and never again: an object that answers differently the second time it is read cannot be validated as one thing and hashed as another. No getter and no proxy trap for reading a member is ever called. Byte arrays are copied once in the same way.
+- **What is judged is a plain copy.** A value is read once, through its property descriptors, and never again: an object that answers differently the second time it is read cannot be validated as one thing and hashed as another. No getter is ever called. Byte arrays are copied once in the same way. A record that `parseRecord` has just parsed is plain already and is validated as it is.
+- **Limits on a whole input are the reader's; limits on a record are the protocol's.** The length of the text is the one limit on an input as a whole (`maxLength`, 8 MiB by default). The limits on size and depth are applied to each record, and for a container to each record it carries and to its own part. A server endpoint that accepts one record should pass a `maxLength` near the size limit. `canonicalize` and `contentId` take any value that nests no deeper than a container can (67); whether a record is well formed, its depth included, is `parseRecord`'s question.
 - **A wrong argument throws `TypeError`**: a private key that is not 32 bytes, for example. Its message never repeats the value ([ADR-0007](../../docs/adr/0007-programming-errors.md)).
 
 ## What verifying a proof covers
@@ -131,17 +132,17 @@ Every proof is judged on its own (core 5.5). A bad proof never invalidates a rec
 
 ## Limits
 
-| Limit                                  | Value                                                                                                                     | From                |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| Canonical form of a record             | 1 MiB. For a container: each record it carries, and the container without them                                            | core 1.6            |
-| A `Sealed` record                      | `ciphertext` of 1,398,123 characters (a packet of 1 MiB with the cipher's 16 bytes, in base64url), and 1 MiB for the rest | core 1.6            |
-| Proofs on a record                     | 256                                                                                                                       | core 5.1            |
-| Nesting of arrays and objects          | 64. For a container: each record it carries, counted from that record, and the container without them                     | core 1.9            |
-| A duration                             | 64 characters                                                                                                             | core 1.5            |
-| A decimal                              | 64 characters                                                                                                             | core 1.3            |
-| Text parsed in one call                | 8 MiB by default; set `maxLength` to change it                                                                            | this implementation |
-| Values in one text or one record       | 1,048,576 (arrays, objects, strings, numbers and literals together)                                                       | this implementation |
-| Order checks of public keys remembered | 4,096                                                                                                                     | this implementation |
+| Limit                                           | Value                                                                                                                       | From                |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| Canonical form of a record                      | 1 MiB. For a container: each record it carries, and the container without them                                              | core 1.6            |
+| A `Sealed` record                               | `ciphertext` of 1,398,123 characters (a packet of 1 MiB with the cipher's 16 bytes, in base64url), and 1 MiB for the rest   | core 1.6            |
+| Proofs on a record                              | 256                                                                                                                         | core 5.1            |
+| Nesting of arrays and objects                   | 64. For a container: each record it carries, counted from that record, and the container without them                       | core 1.9            |
+| A duration                                      | 64 characters                                                                                                               | core 1.5            |
+| A decimal                                       | 64 characters                                                                                                               | core 1.3            |
+| Text parsed in one call                         | 8 MiB by default; set `maxLength` to change it. It is the one limit on an input as a whole                                  | this implementation |
+| Values in one value that did not come from text | 4,194,304 by default: as many as a text of 8 MiB holds. `validateRecord` takes a larger count from a caller that allows one | this implementation |
+| Order checks of public keys remembered          | 4,096                                                                                                                       | this implementation |
 
 ## Tests
 

@@ -141,9 +141,15 @@ describe("the exported JSON Schemas", () => {
       validateRecord(record).ok || validateExtensionRecord(record).ok;
     const negative = ofKind("negative");
     expect(negative.map((entry) => entry.name).sort()).toEqual([
+      "bundle-carries-a-location-nested-65-deep",
       "container-carries-a-record-nested-65-deep",
+      "container-nested-65-deep-without-its-records",
       "delegation-to-self",
+      "duplicity-evidence-carries-a-record-nested-65-deep",
+      "duration-of-65-characters",
       "extension-name-not-a-namespace",
+      "extension-type-without-created",
+      "feed-page-carries-a-record-nested-65-deep",
       "packet-short-nonce",
       "proof-entry-not-an-object",
       "record-nested-65-deep",
@@ -151,15 +157,16 @@ describe("the exported JSON Schemas", () => {
     ]);
     for (const entry of negative) expect(wellFormed(entry["record"]), entry.name).toBe(false);
     const accepted = [...ofKind("valid"), ...ofKind("controls")];
-    expect(accepted).toHaveLength(10);
+    expect(accepted).toHaveLength(18);
     for (const entry of accepted) expect(wellFormed(entry["record"]), entry.name).toBe(true);
     // What a schema alone can see: a short nonce, an entry of proof that is no object, a
-    // name in ext that is no namespace. A delegation to oneself is a code rule (Layer 1,
-    // 11.1), and so is depth.
+    // name in ext that is no namespace, a duration that is too long. A delegation to
+    // oneself is a code rule (Layer 1, 11.1), and so is depth.
     for (const name of [
       "packet-short-nonce",
       "proof-entry-not-an-object",
       "extension-name-not-a-namespace",
+      "duration-of-65-characters",
     ]) {
       const found = negative.find((entry) => entry.name === name);
       expect(independent(found?.["record"]), name).toBe(false);

@@ -34,17 +34,23 @@ export function report(recordIsWellFormed: (record: unknown) => boolean): string
 }
 ```
 
-This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the seven malformed records it should have rejected:
+This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the 13 malformed records it should have rejected:
 
 ```
-my implementation: 11 passed, 7 failed, 112 pending
+my implementation: 19 passed, 13 failed, 116 pending
 FAIL negative packet-short-nonce: must be rejected. A packet nonce has 8 to 64 characters.
 FAIL negative delegation-to-self: must be rejected. A delegation's delegate must differ from its author.
 FAIL negative proof-entry-not-an-object: must be rejected. Every entry of `proof` is an object (core 5.1). A proof that does not verify never counts and does not make the record malformed (core 5.5); an entry that is not an object at all does.
 FAIL negative extension-name-not-a-namespace: must be rejected. A member of `ext` is named by a reverse-DNS namespace, one of the short names the specification lists, or a name under `oip.` (core 8.1). Any other name makes the record malformed.
 FAIL negative unknown-type-without-critical-extension: must be rejected. A record whose type this revision does not define is defined by an extension, and lists that extension in `critical` (core 7). Without it nobody can say what the record is.
+FAIL negative extension-type-without-created: must be rejected. `created` is required in every record except the containers and `Sealed` (core 7), and those are types of this specification. A record of a type an extension defines carries it like any other.
+FAIL negative duration-of-65-characters: must be rejected. One character more than core 1.5 allows. Without the limit a duration could have a million digits, and a reader that computes with it would do arithmetic on numbers of that size.
 FAIL negative record-nested-65-deep: must be rejected. One level more than core 1.9 allows.
 FAIL negative container-carries-a-record-nested-65-deep: must be rejected. The same page with the event one level deeper. The event is not a valid record (core 1.9), so the page is not well formed.
+FAIL negative duplicity-evidence-carries-a-record-nested-65-deep: must be rejected. The same evidence with the event one level deeper.
+FAIL negative feed-page-carries-a-record-nested-65-deep: must be rejected. The rule for containers holds for a `FeedPage` and the entries it carries.
+FAIL negative bundle-carries-a-location-nested-65-deep: must be rejected. A `Bundle` carries records in three members: `log`, `location` and `participant`. Each is held to the limit.
+FAIL negative container-nested-65-deep-without-its-records: must be rejected. The limit also applies to the container without the members that hold its records: here a member of the page's own nests 65 deep.
 ```
 
 ## The adapter

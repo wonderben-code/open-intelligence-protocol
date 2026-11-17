@@ -9,7 +9,7 @@
 
 import { type ValidatorError, validators } from "./generated/validators.ts";
 import { containerParts, depthOf } from "./containers.ts";
-import { type Issue, quote, type Validation } from "./issue.ts";
+import { type Issue, quote, shown, type Validation } from "./issue.ts";
 import { patterns } from "./primitives.ts";
 import type { Proof } from "./proof.ts";
 import type { ExtensionRecord } from "./records/extension.ts";
@@ -41,14 +41,37 @@ export const MAX_ISSUES = 32;
 const MAX_PATH = 256;
 
 /**
- * The most values this implementation reads in one record. core 1.6 bounds a
- * record's canonical form at 1 MiB and every value takes at least two bytes
- * of it, so no record within that limit has more than half this number. It
- * bounds the work and the memory spent on a value before its size is known:
- * a text of nothing but brackets, an array with millions of holes, a
- * structure that shares its parts.
+ * The most values one validation reads, unless its caller allows more: as
+ * many as a text of 8 MiB can hold, at two characters a value. It bounds the
+ * work and the memory spent on a value that did not come from text: an array
+ * with millions of holes, a structure that shares its parts.
+ *
+ * It is a limit of the reader, on the whole of what it is given, and never a
+ * rule about records. The rules are per record: core 1.6 bounds each record
+ * a container carries, and the container without them, at 1 MiB, which is at
+ * most 524,288 values each. So a reader that accepts longer texts allows more
+ * values with them (`Limits`), and no count of values makes a container
+ * malformed whose parts are all well formed.
  */
-export const MAX_VALUES = 1_048_576;
+export const MAX_VALUES = 4_194_304;
+
+/** What a caller may allow one validation to read. */
+export interface Limits {
+  /**
+   * The most values to read, in place of `MAX_VALUES`. A reader of text
+   * passes the length of the text it accepted, which no count of values in
+   * it can exceed.
+   */
+  readonly maxValues?: number;
+}
+
+/** The budget of values the limits give. Anything but a count leaves the default. */
+function valueBudget(limits: Limits | undefined): number {
+  const given: unknown = limits?.maxValues;
+  return typeof given === "number" && Number.isSafeInteger(given) && given >= 0
+    ? given
+    : MAX_VALUES;
+}
 
 /**
  * A path as an issue carries it. Its member names come from the input, and
@@ -61,10 +84,7 @@ function safePath(path: string): string {
   let count = 0;
   for (const character of path) {
     if (++count === MAX_PATH) return `${safe}…`;
-    const code = character.codePointAt(0) ?? 0;
-    const unsafe =
-      code < 0x20 || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029;
-    safe += unsafe ? `\\u${code.toString(16).padStart(4, "0")}` : character;
+    safe += shown(character);
     // An input cannot make this loop long: stop well before the end of a huge path.
     if (safe.length > 6 * MAX_PATH) return `${safe.slice(0, MAX_PATH)}…`;
   }
@@ -109,11 +129,32 @@ const TOO_DEEP: Issue = {
   clause: "core 1.9",
 };
 
-const TOO_MANY: Issue = {
-  path: "",
-  message: `there are more than ${MAX_VALUES} values here, the most this implementation reads in one record or container`,
-  clause: IMPLEMENTATION_LIMIT,
-};
+/** Values a parser of the JSON profile has just built, each with how deep it nests. */
+const builtByParser = new WeakMap<object, number>();
+
+/**
+ * For a parser of the JSON profile, and for nothing else: declares that it
+ * has just built `value` from text, as plain data within the profile that
+ * nothing else holds, nesting `deepest` deep. The next validation of that
+ * value then works on it as it is, where it would otherwise make a plain
+ * copy first: the parser has done what the copy is for. The declaration is
+ * used once.
+ *
+ * Never declare a value that came from anywhere else, or that other code
+ * could have changed since it was parsed. A validator believes the
+ * declaration.
+ */
+export function declareParsed(value: object, deepest: number): void {
+  builtByParser.set(value, deepest);
+}
+
+function tooMany(budget: number): Issue {
+  return {
+    path: "",
+    message: `there are more than ${budget} values here, the most this reader was set to read at once`,
+    clause: IMPLEMENTATION_LIMIT,
+  };
+}
 
 /**
  * core 1.9: the deepest a container nests as a whole. A container carries a
@@ -143,8 +184,8 @@ function put(target: Record<string, unknown>, name: string, value: unknown): voi
  *     (core 1.2);
  *   - strings and member names are valid Unicode (core 1.1);
  *   - numbers are safe integers (core 1.2);
- *   - nesting is no deeper than `MAX_DEPTH` (core 1.9), and there are no
- *     more than `MAX_VALUES` values.
+ *   - nesting is no deeper than `maxDepth` (core 1.9), and there are no
+ *     more than `maxValues` values.
  *
  * Everything after this check works on the copy, never on the value it was
  * given. A value parsed from JSON text is plain already; one built by other
@@ -158,8 +199,19 @@ function put(target: Record<string, unknown>, name: string, value: unknown): voi
 function plainCopy(
   root: unknown,
   maxDepth: number,
+  maxValues: number,
 ): { readonly issue: Issue } | { readonly value: JsonValue; readonly deepest: number } {
-  let budget = MAX_VALUES;
+  if (typeof root === "object" && root !== null) {
+    const parsed = builtByParser.get(root);
+    if (parsed !== undefined) {
+      // Once: what happens to the value after this validation is not known.
+      builtByParser.delete(root);
+      return parsed > maxDepth
+        ? { issue: TOO_DEEP }
+        : { value: root as JsonValue, deepest: parsed };
+    }
+  }
+  let budget = maxValues;
   let deepest = 0;
   const pending: { source: object; target: Container; depth: number }[] = [];
 
@@ -204,7 +256,7 @@ function plainCopy(
       // other prototype and no member such as `toJSON`.
       if (Object.getPrototypeOf(source) !== Array.prototype) return { issue: NOT_JSON };
       const length = (source as unknown[]).length;
-      if (length > budget) return { issue: TOO_MANY };
+      if (length > budget) return { issue: tooMany(maxValues) };
       budget -= length;
       // Its own members are its elements and its length: a hole leaves one out, and
       // anything else, such as a `toJSON`, adds one.
@@ -225,7 +277,7 @@ function plainCopy(
     if (prototype !== Object.prototype && prototype !== null) return { issue: NOT_JSON };
     if (Object.getOwnPropertySymbols(source).length > 0) return { issue: NOT_JSON };
     const names = Object.getOwnPropertyNames(source);
-    if (names.length > budget) return { issue: TOO_MANY };
+    if (names.length > budget) return { issue: tooMany(maxValues) };
     budget -= names.length;
     for (const name of names) {
       const fault = textFault(name);
@@ -387,9 +439,14 @@ export type JsonValue =
 export function validateJson(
   value: unknown,
   depth: "record" | "container" = "record",
+  limits?: Limits,
 ): Validation<JsonValue> {
   return answering(() => {
-    const copied = plainCopy(value, depth === "container" ? MAX_CONTAINER_DEPTH : MAX_DEPTH);
+    const copied = plainCopy(
+      value,
+      depth === "container" ? MAX_CONTAINER_DEPTH : MAX_DEPTH,
+      valueBudget(limits),
+    );
     return "issue" in copied ? fail(copied.issue) : { ok: true, value: copied.value };
   });
 }
@@ -399,11 +456,11 @@ export function validateJson(
  * the limit, as a container does; `validateRecordCopy` then applies core 1.9
  * exactly.
  */
-function recordCopy(value: unknown) {
+function recordCopy(value: unknown, limits?: Limits) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return { issue: { path: "", message: "a record is a JSON object", clause: "core 1.1" } };
   }
-  return plainCopy(value, MAX_CONTAINER_DEPTH);
+  return plainCopy(value, MAX_CONTAINER_DEPTH, valueBudget(limits));
 }
 
 /** Applies a schema and its rules to a copy, and then the depth limit of core 1.9. */
@@ -485,9 +542,9 @@ function typeOf(value: JsonValue): Validation<string> {
  * type (core 7), `validateExtensionRecord` checks the members it shares with
  * every record; use `isRecordType` to tell the two apart beforehand.
  */
-export function validateRecord(value: unknown): Validation<OipRecord> {
+export function validateRecord(value: unknown, limits?: Limits): Validation<OipRecord> {
   return answering(() => {
-    const copied = recordCopy(value);
+    const copied = recordCopy(value, limits);
     if ("issue" in copied) return fail(copied.issue);
     const type = typeOf(copied.value);
     if (!type.ok) return type;
@@ -510,9 +567,12 @@ export function validateRecord(value: unknown): Validation<OipRecord> {
  * decision; a reader that does not understand a critical extension answers
  * `unsupported-critical` (core 10.2), not `invalid-record`.
  */
-export function validateExtensionRecord(value: unknown): Validation<ExtensionRecord> {
+export function validateExtensionRecord(
+  value: unknown,
+  limits?: Limits,
+): Validation<ExtensionRecord> {
   return answering(() => {
-    const copied = recordCopy(value);
+    const copied = recordCopy(value, limits);
     if ("issue" in copied) return fail(copied.issue);
     const type = typeOf(copied.value);
     if (!type.ok) return type;
@@ -541,7 +601,7 @@ export function validateExtensionRecord(value: unknown): Validation<ExtensionRec
 export function validateProof(value: unknown): Validation<Proof> {
   return answering(() => {
     // A proof stands at depth 3 of its record: the record, its proof array, the proof.
-    const copied = plainCopy(value, MAX_DEPTH - 2);
+    const copied = plainCopy(value, MAX_DEPTH - 2, MAX_VALUES);
     if ("issue" in copied) return fail(copied.issue);
     return validatePlain<Proof>("Proof", "core 5.2", copied.value, checkProofRules);
   });

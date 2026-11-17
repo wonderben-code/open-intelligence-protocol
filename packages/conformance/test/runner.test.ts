@@ -11,6 +11,7 @@ import {
   loadVectors,
   namedLog,
   namedRecord,
+  NOT_JUDGED,
   parseVectors,
   POSITIVE_CHECKS,
   positiveRecords,
@@ -58,6 +59,22 @@ describe("what a case requires", () => {
 });
 
 describe("running a case", () => {
+  it("reports pending, never pass, when the adapter says it does not judge the case yet", () => {
+    const undecided: ConformanceAdapter = { name: "undecided", countsFor: () => NOT_JUDGED };
+    for (const section of ["valid", "negative", "controls"] as const) {
+      const vectorCase = first("countsFor", section);
+      expect(claimHolds(undecided, vectors, vectorCase)).toBeUndefined();
+      expect(runCase(undecided, vectors, section, vectorCase).outcome).toBe("pending");
+    }
+    // The reference implementation says it of every record that names an authority, until M3.
+    const results = runVectors(referenceAdapter, vectors).filter(
+      (result) => result.kind === "countsFor",
+    );
+    expect(results.filter((result) => result.outcome === "fail")).toEqual([]);
+    expect(results.filter((result) => result.outcome === "pending").length).toBeGreaterThan(0);
+    expect(results.filter((result) => result.outcome === "pass").length).toBeGreaterThan(0);
+  });
+
   it("reports pending, never pass, when the adapter lacks the method", () => {
     const none: ConformanceAdapter = { name: "nothing yet" };
     for (const section of ["valid", "negative", "controls"] as const) {
@@ -199,7 +216,141 @@ describe("the positive checks", () => {
         name,
       ).toMatchObject({ outcome: "pass" });
     }
-    expect(results.filter((result) => result.outcome === "pass")).toHaveLength(1 + m1.length);
+    // M2: identity logs, key validity, lineage and DID documents.
+    const m2 = [
+      "identity logs verify; addresses derive from genesis",
+      "2-of-3 pre-rotation with distinct keys",
+      "lineage acknowledged by a Fork event and by a Lineage record",
+      "signatures count for their authors (purpose and key checks)",
+      "DID documents, current and versioned",
+    ];
+    expect(
+      POSITIVE_CHECKS.filter((check) => check.milestone === "M2").map((check) => check.name),
+    ).toEqual(m2);
+    for (const name of m2) {
+      expect(
+        results.find((result) => result.name === name),
+        name,
+      ).toMatchObject({ outcome: "pass" });
+    }
+    expect(results.filter((result) => result.outcome === "pass")).toHaveLength(
+      1 + m1.length + m2.length,
+    );
+  });
+
+  it("fail an implementation that verifies no log, or derives the wrong addresses", () => {
+    const name = "identity logs verify; addresses derive from genesis";
+    const check = (adapter: ConformanceAdapter) =>
+      runVectors(adapter, vectors).find((result) => result.name === name);
+    // Both methods are needed.
+    expect(check({ name: "half", contentId: () => "" })?.outcome).toBe("pending");
+    expect(check({ name: "half", logVerifies: () => true })?.outcome).toBe("pending");
+    const refuses = check({ ...referenceAdapter, logVerifies: () => false });
+    expect(refuses?.outcome).toBe("fail");
+    expect(refuses?.detail).toContain("amina_log did not verify");
+    expect(refuses?.detail).toContain("collective_log did not verify");
+    const wrong = check({ ...referenceAdapter, contentId: () => `bciqa${"a".repeat(51)}` });
+    expect(wrong?.detail).toContain("amina_log: the address is not derived from the genesis");
+    expect(wrong?.detail).not.toContain("did not verify");
+    // An answer that is not a verdict fails the check; it is never read as a rejection.
+    const vague = check({ ...referenceAdapter, logVerifies: () => undefined as never });
+    expect(vague).toMatchObject({ outcome: "fail" });
+    expect(vague?.detail).toContain("not true or false");
+  });
+
+  it("fail an implementation that loses the threshold of a 2-of-3 rotation", () => {
+    const name = "2-of-3 pre-rotation with distinct keys";
+    const check = (adapter: ConformanceAdapter) =>
+      runVectors(adapter, vectors).find((result) => result.name === name);
+    for (const answer of [undefined, null, {}, { didDocumentMetadata: { nextThreshold: 2 } }]) {
+      const result = check({ name: "wrong", didDocument: () => answer });
+      expect(result?.outcome).toBe("fail");
+      expect(result?.detail).toBe("after the update, the next threshold should be 1");
+    }
+    expect(check({ name: "none" })?.outcome).toBe("pending");
+    // The check says so if the vectors no longer hold the log it was written for.
+    const changed = structuredClone(vectors) as unknown as {
+      cases: { multi_log: { controller: { nextThreshold?: number; keys: string[] } }[] };
+    };
+    const [genesis, update] = changed.cases.multi_log;
+    if (genesis === undefined || update === undefined) throw new Error("no multi_log");
+    update.controller.keys = [update.controller.keys[0] ?? "", update.controller.keys[0] ?? ""];
+    expect(
+      runVectors(referenceAdapter, changed as unknown as typeof vectors).find(
+        (result) => result.name === name,
+      )?.detail,
+    ).toContain("the update does not reveal two distinct keys");
+    genesis.controller.nextThreshold = 3;
+    expect(
+      runVectors(referenceAdapter, changed as unknown as typeof vectors).find(
+        (result) => result.name === name,
+      )?.detail,
+    ).toContain("multi_log is not the log this check was written for");
+  });
+
+  it("fail an implementation that gets lineage wrong", () => {
+    const name = "lineage acknowledged by a Fork event and by a Lineage record";
+    const check = (adapter: ConformanceAdapter) =>
+      runVectors(adapter, vectors).find((result) => result.name === name);
+    const parent = vectors.cases["lexis_agent"] as string;
+    for (const answer of [
+      {},
+      { [parent]: "claimed" },
+      { [parent]: "acknowledged", other: "claimed" },
+    ]) {
+      const result = check({ name: "wrong", lineage: () => answer as never });
+      expect(result?.outcome).toBe("fail");
+      expect(result?.detail).toContain("lexis_fork: its parent should acknowledge it, got");
+      expect(result?.detail).toContain("lexis_fork2: its parent should acknowledge it, got");
+    }
+    // Acknowledged by the Fork event only: the Lineage record is not looked at.
+    const forkOnly = check({
+      ...referenceAdapter,
+      lineage: (child, view) =>
+        referenceAdapter.lineage?.(child, { ...view, records: [], extraRecords: [] }) ?? {},
+    });
+    expect(forkOnly?.outcome).toBe("fail");
+    expect(forkOnly?.detail).toMatch(/^lexis_fork2: /);
+  });
+
+  it("fail an implementation for which a signature does not count for its author", () => {
+    const name = "signatures count for their authors (purpose and key checks)";
+    const check = (adapter: ConformanceAdapter) =>
+      runVectors(adapter, vectors).find((result) => result.name === name);
+    const never = check({ name: "never", countsFor: () => false });
+    expect(never?.outcome).toBe("fail");
+    expect(never?.detail).toContain("intent does not count for amina");
+    expect(never?.detail).toContain("bridged_participant does not count for bridged");
+    expect(never?.detail?.split("; ")).toHaveLength(19);
+    // An implementation that does not judge one of them yet has not passed the check.
+    const intent = vectors.cases["intent"];
+    const partly = check({
+      ...referenceAdapter,
+      countsFor: (record, mind, view) =>
+        record === intent
+          ? NOT_JUDGED
+          : (referenceAdapter.countsFor?.(record, mind, view) ?? false),
+    });
+    expect(partly?.outcome).toBe("pending");
+  });
+
+  it("fail an implementation whose DID documents differ", () => {
+    const name = "DID documents, current and versioned";
+    const check = (adapter: ConformanceAdapter) =>
+      runVectors(adapter, vectors).find((result) => result.name === name);
+    expect(check({ name: "half", didDocument: () => ({}) })?.outcome).toBe("pending");
+    expect(check({ name: "half", contentId: () => "" })?.outcome).toBe("pending");
+    const none = check({ ...referenceAdapter, didDocument: () => undefined });
+    expect(none?.detail).toBe(
+      "did_document_amina was not reproduced; did_document_amina_at_genesis was not reproduced; did_document_collective was not reproduced",
+    );
+    // The versioned document is asked for by the version of the genesis.
+    const unversioned = check({
+      ...referenceAdapter,
+      didDocument: (mind, _versionId, view) =>
+        referenceAdapter.didDocument?.(mind, undefined, view),
+    });
+    expect(unversioned?.detail).toBe("did_document_amina_at_genesis was not reproduced");
   });
 
   it("leave every check pending for an adapter that has none of the methods", () => {
@@ -338,6 +489,7 @@ describe("the positive checks", () => {
     expect(results.map((result) => result.name)).toEqual([
       "every record in the positive vectors is well formed",
       "JCS example",
+      "signatures count for their authors (purpose and key checks)",
     ]);
     expect(results[0]?.detail).toContain("amina_log[0] was rejected");
   });

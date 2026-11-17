@@ -17,6 +17,11 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
  * never meet the tests of another, and would be counted as surviving them.
  */
 export const sourceAliases = [
+  // The test kit's builders of minds and logs, which only some tests need.
+  {
+    find: /^@oip\/testkit\/minds$/,
+    replacement: join(repoRoot, "packages", "testkit", "src", "minds.ts"),
+  },
   {
     find: /^@oip\/([a-z0-9-]+)$/,
     replacement: join(repoRoot, "packages", "$1", "src", "index.ts"),

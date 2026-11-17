@@ -93,7 +93,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 4.4 | MUST | M1 | 21 | tested | Ed25519 verification. Every implementation MUST apply the same rule, so that all verifiers agre… |
 | core 5.1 | MUST | M1 | 6 | tested | A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 p… |
 | core 5.2 | MUST | M1 | 13 | tested | Each proof object MUST conform to W3C Data Integrity 1.0 with the `eddsa-jcs-2022` cryptosuite,… |
-| core 5.3 |  | M1 | 14 | tested | Creating a proof. Let `options` be the proof object without `proofValue`. Compute ``` hashData… |
+| core 5.3 |  | M1 | 15 | tested | Creating a proof. Let `options` be the proof object without `proofValue`. Compute ``` hashData… |
 | core 5.4 |  | M1 | 12 | tested | Verifying a proof. Check that the proof has exactly the members 5.2 allows; remove `proofValue`… |
 | core 5.5 | MAY | M1 | 3 | tested | A record MAY carry proofs that are irrelevant to its validity. Each proof is evaluated independ… |
 | core 5.6 | MUST | M1 | 7 | tested | Proof purposes. \| Records \| `proofPurpose` \| \|---\|---\| \| Identity-log events (`Genesis`, `Updat… |
@@ -105,7 +105,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 7 | MUST | M1 | 12 | tested | Common fields (table) |
 | core 8.1 |  | M1 | 6 | tested | `ext` is an object whose member names are namespaces and whose values are objects. A namespace… |
 | core 8.2 | MAY | M1 | 1 | tested | An extension block MAY contain a member `v` giving its own version. |
-| core 8.3 | MUST | M1 | 9 | tested | `critical` is an array of namespaces, each of which MUST also appear in `ext`. Naming a namespa… |
+| core 8.3 | MUST | M1 | 10 | tested | `critical` is an array of namespaces, each of which MUST also appear in `ext`. Naming a namespa… |
 | core 8.4 | MUST | M1 | 1 | tested | Extensions MUST NOT change the validity of a record under this specification unless they are li… |
 | core 8.5 | MUST | M1 | 2 | tested | Within major version `"1"`, later revisions MAY add OPTIONAL members. A member whose being igno… |
 | core 9.1 | MUST | M2 | 1 | tested in part (due M2) | Implementations MUST tolerate clock skew of up to 300 seconds when checking whether a record is… |

@@ -39,13 +39,14 @@ function encodesPointOfOrderL(encoded: Uint8Array): boolean {
 }
 
 /**
- * How many public keys' order checks are remembered. A check costs a scalar
- * multiplication and keys repeat, so it is done once per key; the bound
- * keeps a flood of distinct keys from growing the memory.
+ * How many public keys are remembered as having passed the order check. A
+ * check costs a scalar multiplication and honest keys repeat, so a key that
+ * passes is checked once; the bound keeps a flood of distinct keys from
+ * growing the memory.
  */
 export const ORDER_CHECK_CACHE_SIZE = 4096;
 
-const orderChecks = new BoundedCache<boolean>(ORDER_CHECK_CACHE_SIZE);
+const keysOfOrderL = new BoundedCache<true>(ORDER_CHECK_CACHE_SIZE);
 
 /**
  * A private copy of some bytes, or `undefined` if the value is not a byte
@@ -59,15 +60,22 @@ function snapshot(bytes: unknown, length?: number): Uint8Array | undefined {
   return length === undefined || copy.length === length ? copy : undefined;
 }
 
+/**
+ * Only a yes is remembered. A no is worked out again each time, so a check
+ * that was cut short, by an exhausted stack for example, can never leave an
+ * honest key marked as bad.
+ */
 function hasOrderL(publicKey: Uint8Array): boolean {
-  return orderChecks.get(bytesToHex(publicKey), () => encodesPointOfOrderL(publicKey));
+  const name = bytesToHex(publicKey);
+  if (!keysOfOrderL.has(name) && !encodesPointOfOrderL(publicKey)) return false;
+  return keysOfOrderL.get(name, () => true);
 }
 
 /**
  * Whether some bytes are an Ed25519 public key this revision accepts: the
  * canonical encoding of a point of order exactly L (core 4.4). A key that
  * fails must be rejected wherever it appears, including in identity logs.
- * The answer is remembered per key. It never throws.
+ * A key that passes is remembered. It never throws.
  */
 export function isEd25519PublicKey(publicKey: Uint8Array): boolean {
   try {

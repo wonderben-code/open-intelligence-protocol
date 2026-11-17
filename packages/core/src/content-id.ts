@@ -50,7 +50,6 @@ export function isJsonObject(value: JsonValue | undefined): value is JsonObject 
 
 /** A record without its `proof` member: what content IDs and proofs cover (core 3.1, 5.3). */
 export function withoutProof(record: JsonObject): JsonObject {
-  if (!Object.hasOwn(record, "proof")) return record;
   const { proof: _proof, ...rest } = record;
   return rest;
 }

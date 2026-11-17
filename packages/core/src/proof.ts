@@ -540,10 +540,10 @@ export function withProofs<T extends object>(
       clause: "core 5.1",
     });
   }
+  // The record and each proof have been validated, so the result is plain data
+  // within the depth limit: a proof nests at most 62 deep and stands at depth 3.
+  // What remains to check is the size of the whole.
   const result = { ...subject, proof: merged };
-  // The whole record, with its proofs, is within the limits on depth and size.
-  const whole = validateJson(result);
-  if (!whole.ok) throw errorFrom(whole, "invalid-record");
   const size = canonicalBytesOf(result).length;
   if (size > MAX_RECORD_BYTES) {
     throw new OipError(

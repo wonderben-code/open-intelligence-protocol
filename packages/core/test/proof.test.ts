@@ -39,6 +39,7 @@ import {
 } from "../src/index.ts";
 import { contentIdIfAny } from "../src/content-id.ts";
 import { craftSignature, expand, Point, smallOrderPoints, unreduced } from "./curve.ts";
+import { withStackSpent } from "./stack.ts";
 import { at, keys, log, named, negative, privateKeyOf, signedRecords } from "./vectors.ts";
 
 type AnyProof = Record<string, unknown>;
@@ -426,6 +427,29 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
     // An unsigned type carries no proof.
     const unsigned = await failure(createProof(session, options, phoneSigner));
     expect([unsigned.code, unsigned.clause]).toEqual(["invalid-proof", "core 5.1"]);
+  });
+
+  it("does not take a signer with no key for the signer a reference names", () => {
+    // A reference that names no key and a signer that has none must not pass as a match.
+    let asked = 0;
+    const keyless = {
+      publicKey: undefined as unknown as string,
+      sign: (message: Uint8Array) => {
+        asked++;
+        return signEd25519(message, phoneKey);
+      },
+    };
+    for (const verificationMethod of ["not a reference", "", phone, `${phoneMethod}x y`]) {
+      expect(
+        thrownBy(() => createProofSync(intent, { verificationMethod, created: WHEN }, keyless)),
+        verificationMethod,
+      ).toMatchObject({
+        code: "invalid-proof",
+        clause: "core 6.2",
+        detail: "the verification method must be a key reference that names the signer's own key",
+      });
+    }
+    expect(asked).toBe(0);
   });
 
   it("never asks the signer to sign options that are not a proof's", async () => {
@@ -1131,6 +1155,30 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
   });
 });
 
+describe("judging with the stack all but spent", () => {
+  it("answers and does not throw, and is right again afterwards", () => {
+    const one = withStackSpent(() => verifyProof(intent, intentProof));
+    expect(one).toHaveLength(200);
+    for (const verdict of one) {
+      // A rejection says why; an acceptance is the whole of one.
+      if (verdict.ok) expect(verdict.value.key).toBe(phone);
+      else expect(verdict.issues[0].message.length).toBeGreaterThan(0);
+    }
+    const all = withStackSpent(() => verifyProofs(intent));
+    expect(all).toHaveLength(200);
+    for (const verdicts of all) {
+      expect(verdicts.verified.length + verdicts.rejected.length + verdicts.issues.length).toBe(1);
+    }
+    const reference = `${intent["author"] as string}/${contentId(intent)}`;
+    for (const answer of withStackSpent(() => recordRefMatches(reference, intent))) {
+      expect(typeof answer).toBe("boolean");
+    }
+    expect(verifyProof(intent, intentProof).ok).toBe(true);
+    expect(verifyProofs(intent).verified).toHaveLength(1);
+    expect(recordRefMatches(reference, intent)).toBe(true);
+  });
+});
+
 describe(`${clause("core 4.4")} the Ed25519 cases of the vectors`, () => {
   it("rejects a signature whose S is not reduced, and accepts the signature it was made from", () => {
     const record = negative("signature-s-not-reduced")["record"] as JsonObject;
@@ -1440,6 +1488,16 @@ describe("the proof set of a record", () => {
       code: "too-large",
       clause: "core 1.6",
     });
+    // Exactly at the limit is within it, and one byte more is not.
+    const padded = (blob: string) => ({ ...unsigned, ext: { "com.example.padding": { blob } } });
+    const room = MAX_RECORD_BYTES - canonicalBytes(withProofs(padded(""), [first])).length;
+    const exact = withProofs(padded("a".repeat(room)), [first]);
+    expect(canonicalBytes(exact)).toHaveLength(MAX_RECORD_BYTES);
+    expect(thrownBy(() => withProofs(padded("a".repeat(room + 1)), [first]))).toMatchObject({
+      code: "too-large",
+      clause: "core 1.6",
+      detail: `with these proofs the record is ${MAX_RECORD_BYTES + 1} bytes in canonical form; the limit is ${MAX_RECORD_BYTES}`,
+    });
   });
 });
 
@@ -1481,6 +1539,19 @@ describe(`${clause("core 9.4")} evidence is keyed by the proof's digest`, () => 
       code: "invalid-record",
       clause: "core 5.2",
       detail: "a proof is a JSON object",
+    });
+    // What is wrong with the value is said, not only that it is no proof.
+    expect(thrownBy(() => proofDigest({ a: 0.5 }))).toMatchObject({
+      code: "invalid-record",
+      clause: "core 1.2",
+    });
+    expect(thrownBy(() => contentId({ a: 0.5 }))).toMatchObject({
+      code: "invalid-record",
+      clause: "core 1.2",
+    });
+    expect(thrownBy(() => proofHashData(intent, { a: "\ud800" }))).toMatchObject({
+      code: "invalid-record",
+      clause: "core 1.1",
     });
   });
 });

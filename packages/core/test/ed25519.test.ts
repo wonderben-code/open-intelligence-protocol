@@ -19,6 +19,7 @@ import {
   signEd25519,
   verifyEd25519,
 } from "../src/index.ts";
+import { withStackSpent } from "./stack.ts";
 import {
   craftSignature,
   expand,
@@ -426,6 +427,39 @@ describe(`${clause("core 4.4")} one verification rule for every implementation`,
       ];
       for (const check of mixedFirst ? checks : checks.toReversed()) check();
       for (const check of checks) check();
+    }
+  });
+});
+
+describe("a check that could not be finished", () => {
+  it("leaves no trace: a spent stack never marks an honest key as bad", () => {
+    // A key that passes the order check is remembered. A check cut short must not
+    // be remembered as a no: when every answer was remembered, one call from a deep
+    // stack turned an honest key away until the memory forgot it.
+    for (const fill of [77, 78]) {
+      const seed = new Uint8Array(32).fill(fill);
+      const key = ed25519PublicKey(seed);
+      const text = utf8("signed before the key was ever checked");
+      const made = signEd25519(text, seed);
+      const spent =
+        fill === 77
+          ? withStackSpent(() => verifyEd25519(made, text, key))
+          : withStackSpent(() => isEd25519PublicKey(key));
+      // It answers from the moment it can be entered, and never throws.
+      expect(spent).toHaveLength(200);
+      expect(new Set(spent.map((answer) => typeof answer))).toEqual(new Set(["boolean"]));
+      // Whatever it could answer then, it answers rightly now.
+      expect(verifyEd25519(made, text, key)).toBe(true);
+      expect(isEd25519PublicKey(key)).toBe(true);
+    }
+  });
+
+  it("works a no out again each time, and gives the same no", () => {
+    const { publicKey: honestKey } = expand(new Uint8Array(32).fill(80));
+    const mixed = Point.fromBytes(honestKey, false).add(order8).toBytes();
+    for (let round = 0; round < 5; round++) {
+      expect(isEd25519PublicKey(mixed)).toBe(false);
+      expect(isEd25519PublicKey(littleEndian(2n))).toBe(false);
     }
   });
 });

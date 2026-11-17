@@ -124,6 +124,20 @@ describe(`${clause("core 8.3")} critical extensions`, () => {
     expect(understandsCritical(record([["x402"]]), ["x402"])).toBe(false);
   });
 
+  it("reads a record it cannot read as naming something nobody understands", () => {
+    const hostile = new Proxy(
+      {},
+      {
+        get: () => {
+          throw new Error("no");
+        },
+      },
+    );
+    expect(unsupportedCritical(hostile)).toEqual(["critical"]);
+    expect(unsupportedCritical(hostile, ["critical"])).toEqual(["critical"]);
+    expect(understandsCritical(hostile)).toBe(false);
+  });
+
   it("requires every critical namespace to have an extension block", () => {
     const sample = sampleRecords["Intent"] ?? {};
     const text = (critical: unknown, ext: unknown) => JSON.stringify({ ...sample, critical, ext });

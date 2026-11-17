@@ -30,6 +30,7 @@ import {
   verifyProofs,
   withProofs,
 } from "../src/index.ts";
+import { withStackSpent } from "./stack.ts";
 import { named, negative, positiveVectorRecords, privateKeyOf } from "./vectors.ts";
 
 const utf8 = (text: string) => new TextEncoder().encode(text);
@@ -112,7 +113,12 @@ describe("reading a record from text", () => {
 
   it("never throws, whatever it is given", () => {
     for (const bad of [undefined, null, 1, {}, [], new Date(0), new ArrayBuffer(4)]) {
-      expect(parseRecord(bad as string).ok).toBe(false);
+      expect(parseRecord(bad as string)).toEqual({
+        ok: false,
+        issues: [
+          { path: "", message: "a record is read from text or from bytes", clause: "core 1.1" },
+        ],
+      });
     }
     fc.assert(
       fc.property(fc.oneof(fc.string(), fc.uint8Array(), fc.json()), (input) => {
@@ -121,6 +127,26 @@ describe("reading a record from text", () => {
       }),
       { numRuns: 1000 },
     );
+  });
+
+  it("answers and does not throw with the stack all but spent", () => {
+    const text = JSON.stringify(named("intent"));
+    const readers: (() => Validation<unknown>)[] = [
+      () => parseRecord(text),
+      () => parseRecord(utf8(text)),
+      () => parseExtensionRecord(text),
+    ];
+    for (const read of readers) {
+      const answers = withStackSpent(read);
+      expect(answers).toHaveLength(200);
+      for (const answer of answers) {
+        if (!answer.ok) expect(answer.issues[0].message.length).toBeGreaterThan(0);
+      }
+    }
+    expect(parseRecord(text).ok).toBe(true);
+    for (const answer of withStackSpent(() => unsupportedCritical(named("intent")))) {
+      expect(Array.isArray(answer)).toBe(true);
+    }
   });
 
   it("reads no clock and no randomness", () => {
@@ -430,6 +456,10 @@ describe(`${clause("core 1.6")} size`, () => {
     expect(paths({ ...bundle, log: [small("Genesis"), over("Genesis")] })).toEqual([
       "core 1.6 /log/1",
     ]);
+    const carried = parseRecord(JSON.stringify({ ...bundle, log: [over("Genesis")] }), options);
+    expect(!carried.ok && carried.issues[0].message).toBe(
+      `the record is ${MAX_RECORD_BYTES + 1} bytes in canonical form; the limit is ${MAX_RECORD_BYTES}. Carry larger content by reference`,
+    );
     expect(paths({ ...bundle, log: [small("Genesis")], location: over("Location") })).toEqual([
       "core 1.6 /location",
     ]);

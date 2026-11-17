@@ -291,6 +291,51 @@ describe(`${clause("core 6.1")} the grammar of references`, () => {
   });
 });
 
+describe("a reference is a string", () => {
+  it("reads nothing from a value that only prints as a reference", () => {
+    // A pattern's test turns what it is given into a string first. An array of one
+    // reference, or an object that prints as one, must not pass for the string.
+    const versionId = `3-${CID}`;
+    const texts = {
+      versionId,
+      versionedMind: `${MIND}?versionId=${versionId}`,
+      keyRef: `${MIND}?versionId=${versionId}#${KEY}`,
+      controlKeyRef: `did:key:${KEY}#${KEY}`,
+      recordRef: `${MIND}/${CID}`,
+    };
+    expect(parseVersionId(texts.versionId)).toBeDefined();
+    expect(parseVersionedMind(texts.versionedMind)).toBeDefined();
+    expect(parseKeyRef(texts.keyRef)).toBeDefined();
+    expect(parseControlKeyRef(texts.controlKeyRef)).toBeDefined();
+    expect(parseRecordRef(texts.recordRef)).toBeDefined();
+    const disguises = (text: string): unknown[] => [
+      [text],
+      { toString: () => text },
+      Object.assign(() => text, { toString: () => text }),
+      new String(text),
+    ];
+    for (const value of disguises(texts.versionId)) {
+      expect(parseVersionId(value)).toBeUndefined();
+    }
+    for (const value of disguises(texts.versionedMind)) {
+      expect(parseVersionedMind(value)).toBeUndefined();
+    }
+    for (const value of disguises(texts.keyRef)) {
+      expect(parseKeyRef(value)).toBeUndefined();
+      expect(parseVerificationMethod(value)).toBeUndefined();
+    }
+    for (const value of disguises(texts.controlKeyRef)) {
+      expect(parseControlKeyRef(value)).toBeUndefined();
+      expect(parseVerificationMethod(value)).toBeUndefined();
+    }
+    for (const value of disguises(texts.recordRef)) {
+      expect(parseRecordRef(value)).toBeUndefined();
+      expect(recordRefMatches(value, {})).toBe(false);
+    }
+    for (const value of disguises(MIND)) expect(isMindAddress(value)).toBe(false);
+  });
+});
+
 describe(`${clause("core 6.2")} which reference a proof uses`, () => {
   it("reads a control-key-ref only when both occurrences of the key are identical", () => {
     expect(parseControlKeyRef(`did:key:${KEY}#${KEY}`)).toEqual({ kind: "control", key: KEY });

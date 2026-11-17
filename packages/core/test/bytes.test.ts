@@ -122,8 +122,15 @@ describe("bytes", () => {
     expect([...hexToBytes("0001abff")]).toEqual([0, 1, 0xab, 0xff]);
     expect([...hexToBytes("0001ABFF")]).toEqual([0, 1, 0xab, 0xff]);
     expect(hexToBytes("")).toHaveLength(0);
-    for (const bad of ["0", "abc", "zz", "0x01", " 01"]) {
-      expect(() => hexToBytes(bad), bad).toThrow();
+    for (const bad of ["0", "abc", "zz", "0x01", " 01", 7, null, ["00"]]) {
+      // The message is constant: it never repeats what it was given, which may be a key.
+      expect(() => hexToBytes(bad as string), String(bad)).toThrow(
+        new TypeError("hexadecimal digits in pairs are needed"),
+      );
+    }
+    // Only a string can be well formed.
+    for (const other of [7, null, undefined, ["a"], { length: 0 }]) {
+      expect(isWellFormed(other as unknown as string)).toBe(false);
     }
     fc.assert(
       fc.property(fc.uint8Array({ maxLength: 64 }), (bytes) => {

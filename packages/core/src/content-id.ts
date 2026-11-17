@@ -3,7 +3,7 @@
 
 /** Content identifiers and key hashes (core Section 3). */
 
-import { type JsonValue, patterns, validateJson } from "@oip/schema";
+import { type JsonValue, type Limits, patterns, validateJson } from "@oip/schema";
 import { base32nopad } from "@scure/base";
 
 import { concatBytes, utf8 } from "./bytes.ts";
@@ -64,9 +64,9 @@ export function documentHashOf(record: JsonObject): Uint8Array {
   return sha256(canonicalBytesOf(withoutProof(record)));
 }
 
-function jsonObject(record: unknown): JsonObject {
+function jsonObject(record: unknown, limits?: Limits): JsonObject {
   // A container has a content ID too, and may nest as deep as a container does.
-  const checked = validateJson(record, "container");
+  const checked = validateJson(record, "container", limits);
   if (!checked.ok) throw errorFrom(checked);
   if (!isJsonObject(checked.value)) {
     throw new OipError("invalid-record", "a record is a JSON object", { clause: "core 1.1" });
@@ -81,8 +81,8 @@ function jsonObject(record: unknown): JsonObject {
  * @throws OipError `invalid-record` if the value is not a JSON object within
  * the profile of core Section 1.
  */
-export function documentHash(record: unknown): Uint8Array {
-  return documentHashOf(jsonObject(record));
+export function documentHash(record: unknown, limits?: Limits): Uint8Array {
+  return documentHashOf(jsonObject(record, limits));
 }
 
 /**
@@ -92,11 +92,16 @@ export function documentHash(record: unknown): Uint8Array {
  * It is computed for any JSON object within the profile; that an object has a
  * content ID does not make it a well-formed record. Validate first.
  *
+ * A value that did not come from text is read up to `MAX_VALUES` values. A
+ * caller that has accepted a longer container says so with `limits`.
+ *
  * @throws OipError `invalid-record` if the value is not a JSON object within
  * the profile of core Section 1.
+ * @throws Error if other code in the process has put a `toJSON` on the
+ * prototype of every object or every array: nothing is hashed then.
  */
-export function contentId(record: unknown): string {
-  return contentIdOfDigest(documentHash(record));
+export function contentId(record: unknown, limits?: Limits): string {
+  return contentIdOfDigest(documentHash(record, limits));
 }
 
 /**

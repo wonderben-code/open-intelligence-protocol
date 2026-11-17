@@ -14,6 +14,8 @@
 - A duration is at most 64 characters (core 1.5).
 - A path in an issue is safe to log: control characters are escaped and a long path is cut.
 - `MAX_VALUES` is exported: the most values one validation reads, 4,194,304 unless the caller allows more (`Limits`). It is a limit of the reader on the whole of what it is given, reported as an implementation limit, and never makes a container malformed whose parts are well formed.
-- `declareParsed` lets a parser of the JSON profile have the value it has just built validated as it is, without a second copy.
+- `validateParsedRecord` and `validateParsedExtensionRecord` are for a parser of the JSON profile, and for nothing else: they validate the value the parser has just built as it is, without a second copy. `validateRecord` always copies.
+- A copy has arrays of exactly the size of the original's, so that copying costs what the original does.
+- A limit is read from the caller's own object, never from a prototype.
 - A record of a type an extension defines must carry `created` (core 7).
-- Text from the input that is quoted in a message has its control characters, line separators and bidirectional controls escaped.
+- Text from the input that is quoted in a message has every character escaped that is not a visible character or a space: controls, line separators, bidirectional controls, zero-width and tag characters, and unassigned code points.

@@ -8,6 +8,7 @@ import { AuthorityItem } from '@oip/schema';
 import { ExtensionRecord } from '@oip/schema';
 import { Issue } from '@oip/schema';
 import { JsonValue } from '@oip/schema';
+import { Limits } from '@oip/schema';
 import { OipRecord } from '@oip/schema';
 import { Proof } from '@oip/schema';
 import { ProofPurpose } from '@oip/schema';
@@ -20,10 +21,10 @@ export function bytesEqual(a: Uint8Array, b: Uint8Array): boolean;
 export function bytesToHex(bytes: Uint8Array): string;
 
 // @public
-export function canonicalBytes(value: unknown): Uint8Array;
+export function canonicalBytes(value: unknown, limits?: Limits): Uint8Array;
 
 // @public
-export function canonicalize(value: unknown): string;
+export function canonicalize(value: unknown, limits?: Limits): string;
 
 // @public
 export function checkSize(record: OipRecord | ExtensionRecord): Issue[];
@@ -35,7 +36,7 @@ export const CLOCK_SKEW: bigint;
 export function compareDecimals(a: unknown, b: unknown): -1 | 0 | 1 | undefined;
 
 // @public
-export function contentId(record: unknown): string;
+export function contentId(record: unknown, limits?: Limits): string;
 
 // @public
 export function contentIdOfDigest(digest: Uint8Array): string;
@@ -66,7 +67,7 @@ export function decodeX25519Multikey(multikey: unknown): Validation<Uint8Array>;
 export function digestOfContentId(contentId: unknown): Uint8Array | undefined;
 
 // @public
-export function documentHash(record: unknown): Uint8Array;
+export function documentHash(record: unknown, limits?: Limits): Uint8Array;
 
 // @public
 export function ed25519PublicKey(privateKey: Uint8Array): Uint8Array;
@@ -157,6 +158,8 @@ export interface KeyRef extends VersionedMind {
 
 // @public
 export type KeyType = "Ed25519" | "X25519";
+
+export { Limits }
 
 // @public
 export const MAX_DECIMAL_LENGTH = 64;

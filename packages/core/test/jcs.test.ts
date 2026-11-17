@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { MAX_CONTAINER_DEPTH, MAX_DEPTH } from "@oip/schema";
+import { MAX_CONTAINER_DEPTH, MAX_DEPTH, validateJson } from "@oip/schema";
 import { clause } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { canonicalBytes, canonicalize, contentId, OipError, parseJson } from "../src/index.ts";
 import { contentIdIfAny } from "../src/content-id.ts";
+import { canonicalSizeUpTo } from "../src/jcs.ts";
 import { textInProfile } from "./text.ts";
 import { cases, positiveVectorRecords } from "./vectors.ts";
 
@@ -197,6 +198,68 @@ describe(`${clause("core 2.2")} numbers in canonical form`, () => {
   });
 });
 
+describe(`${clause("core 1.6")} the size of a canonical form, counted without writing it`, () => {
+  const sizeOf = (value: unknown) => canonicalBytes(value).length;
+  const counted = (value: unknown, limit = Number.MAX_SAFE_INTEGER) => {
+    const checked = validateJson(value, "container");
+    if (!checked.ok) throw new Error("not within the profile");
+    return canonicalSizeUpTo(checked.value, limit);
+  };
+
+  it("is the length of what the serialiser writes, for every value in the profile", () => {
+    fc.assert(
+      fc.property(json, (value) => {
+        expect(counted(value)).toBe(sizeOf(value));
+      }),
+      { numRuns: 3000 },
+    );
+    for (const { name, record } of positiveVectorRecords()) {
+      expect(counted(record), name).toBe(sizeOf(record));
+    }
+  });
+
+  it("counts every kind of character as the serialiser writes it", () => {
+    const strings = [
+      "",
+      "plain",
+      'quote " and backslash \\',
+      "\b\t\n\f\r",
+      "\u0000\u0001\u001f",
+      "\u007f\u0080\u07ff\u0800\uffee",
+      "é€😀\u{10fffd}",
+      "\u2028\u2029",
+      "a".repeat(1000),
+    ];
+    for (const text of strings) {
+      expect(counted(text), JSON.stringify(text)).toBe(sizeOf(text));
+      expect(counted({ [text]: text }), JSON.stringify(text)).toBe(sizeOf({ [text]: text }));
+    }
+    for (const value of [null, true, false, 0, -0, 7, -7, 9007199254740991, -9007199254740991]) {
+      expect(counted(value), String(value)).toBe(sizeOf(value));
+    }
+    for (const value of [[], {}, [[]], [{}], { a: [] }, [1, 2, 3], { a: 1, b: [true, null] }]) {
+      expect(counted(value), JSON.stringify(value)).toBe(sizeOf(value));
+    }
+    const proto = parseJson('{"__proto__":{"b":2},"toJSON":1}');
+    expect(proto.ok && counted(proto.value)).toBe(proto.ok ? sizeOf(proto.value) : -1);
+  });
+
+  it("stops one past the limit, however much more there is", () => {
+    const value = { a: "x".repeat(1000), b: [1, 2, 3] };
+    const size = sizeOf(value);
+    expect(counted(value, size)).toBe(size);
+    expect(counted(value, size + 1)).toBe(size);
+    expect(counted(value, size - 1)).toBe(size);
+    expect(counted(value, 10)).toBe(11);
+    expect(counted(value, 0)).toBe(1);
+    // A value a thousand times the limit is not walked to its end.
+    const huge = new Array<number>(4_000_000).fill(0);
+    const started = performance.now();
+    expect(canonicalSizeUpTo(huge, 1000)).toBe(1001);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+});
+
 describe(`${clause("core 1.2")} nothing outside the profile has a canonical form`, () => {
   it("refuses numbers that are not safe integers", () => {
     for (const bad of [0.5, 1e21, Number.MAX_SAFE_INTEGER + 1, Number.NaN, Infinity, -Infinity]) {
@@ -272,6 +335,29 @@ describe(`${clause("core 1.2")} nothing outside the profile has a canonical form
     expect(contentIdIfAny({ a: (nested as unknown[])[0] })).toMatch(/^bciq/);
     expect(() => contentId({ a: nested })).toThrow(OipError);
     expect(contentIdIfAny({ a: nested })).toBeUndefined();
+  });
+
+  it("serialises nothing when every object has a toJSON that arrays do not inherit", () => {
+    // Other code can cut Array.prototype off from Object.prototype. The guard looks at both.
+    const record = { oip: "1", type: "Example", n: 1 };
+    const expected = canonicalize(record);
+    Object.setPrototypeOf(Array.prototype, null);
+    Object.defineProperty(Object.prototype, "toJSON", {
+      value: () => 7,
+      configurable: true,
+      writable: true,
+    });
+    let thrown: unknown;
+    try {
+      canonicalize(record);
+    } catch (error) {
+      thrown = error;
+    } finally {
+      delete (Object.prototype as { toJSON?: unknown }).toJSON;
+      Object.setPrototypeOf(Array.prototype, Object.prototype);
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    expect(canonicalize(record)).toBe(expected);
   });
 
   it("serialises nothing while every object or every array has a toJSON", () => {

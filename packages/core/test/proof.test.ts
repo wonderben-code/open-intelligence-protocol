@@ -1610,7 +1610,7 @@ describe("the proof set of a record", () => {
     expect(thrownBy(() => withProofs(padded("a".repeat(room + 1)), [first]))).toMatchObject({
       code: "too-large",
       clause: "core 1.6",
-      detail: `with these proofs the record is ${MAX_RECORD_BYTES + 1} bytes in canonical form; the limit is ${MAX_RECORD_BYTES}`,
+      detail: `with these proofs the record is more than ${MAX_RECORD_BYTES} bytes in canonical form`,
     });
   });
 });

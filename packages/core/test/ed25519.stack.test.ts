@@ -15,6 +15,7 @@ import { clause } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import { ed25519PublicKey, isEd25519PublicKey, signEd25519, verifyEd25519 } from "../src/index.ts";
+import { hasOrderL } from "../src/ed25519.ts";
 import { withStackSpent } from "./stack.ts";
 
 describe(`${clause("core 4.4")} a check that could not be finished`, () => {
@@ -40,9 +41,26 @@ describe(`${clause("core 4.4")} a check that could not be finished`, () => {
       expect(verifyEd25519(made, text, key), `key ${fill}`).toBe(true);
       expect(isEd25519PublicKey(key), `key ${fill}`).toBe(true);
     }
-    // The test means something only if a check really was cut short for a key
-    // that had never passed one. If this fails, the engine no longer runs out of
-    // stack inside the check, and the test must find another way to make it.
-    expect(cutShort).toBeGreaterThan(0);
+    // Whether a check really was cut short depends on the engine, so it is not
+    // asserted here: the next test makes the same fault without the engine's help.
+    expect(cutShort).toBeGreaterThanOrEqual(0);
+  });
+
+  it("does not remember a no, whatever made the check say it", () => {
+    // The fault itself, made certain: for a key never checked before, the order
+    // check answers no once, as it does when it is cut short.
+    const key = ed25519PublicKey(new Uint8Array(32).fill(81));
+    let checks = 0;
+    const cutShort = () => {
+      checks++;
+      return false;
+    };
+    expect(hasOrderL(key, cutShort)).toBe(false);
+    expect(checks).toBe(1);
+    // Nothing was learned about the key, so nothing was remembered.
+    expect(isEd25519PublicKey(key)).toBe(true);
+    // A yes is remembered: the key is not checked again.
+    expect(hasOrderL(key, cutShort)).toBe(true);
+    expect(checks).toBe(1);
   });
 });

@@ -64,10 +64,16 @@ function snapshot(bytes: unknown, length?: number): Uint8Array | undefined {
  * Only a yes is remembered. A no is worked out again each time, so a check
  * that was cut short, by an exhausted stack for example, can never leave an
  * honest key marked as bad.
+ *
+ * It is not part of the package's interface. `check` is the order check; a
+ * test passes another to show what is remembered.
  */
-function hasOrderL(publicKey: Uint8Array): boolean {
+export function hasOrderL(
+  publicKey: Uint8Array,
+  check: (encoded: Uint8Array) => boolean = encodesPointOfOrderL,
+): boolean {
   const name = bytesToHex(publicKey);
-  if (!keysOfOrderL.has(name) && !encodesPointOfOrderL(publicKey)) return false;
+  if (!keysOfOrderL.has(name) && !check(publicKey)) return false;
   return keysOfOrderL.get(name, () => true);
 }
 

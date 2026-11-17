@@ -15,12 +15,12 @@ import {
   type Issue,
   type OipRecord,
   type Validation,
-  validateExtensionRecord,
-  validateRecord,
+  validateParsedExtensionRecord,
+  validateParsedRecord,
 } from "@oip/schema";
 
 import type { JsonObject } from "./content-id.ts";
-import { canonicalBytesOf } from "./jcs.ts";
+import { canonicalSizeUpTo } from "./jcs.ts";
 import { parseForRecord, type ParseOptions } from "./json.ts";
 import { no, ok } from "./result.ts";
 
@@ -40,15 +40,15 @@ export const MIN_ACCEPTED_RECORD_BYTES = 262_144;
  */
 export const MAX_SEALED_CIPHERTEXT_LENGTH = Math.ceil(((MAX_RECORD_BYTES + 16) * 4) / 3);
 
-/** The size in bytes of the canonical form of a value known to be within the JSON profile. */
-function sizeOf(value: object): number {
-  return canonicalBytesOf(value as JsonObject).length;
+/** Whether the canonical form of a value known to be within the JSON profile exceeds the limit. */
+function exceeds(value: object): boolean {
+  return canonicalSizeUpTo(value as JsonObject, MAX_RECORD_BYTES) > MAX_RECORD_BYTES;
 }
 
-function tooLarge(path: string, what: string, size: number): Issue {
+function tooLarge(path: string, what: string): Issue {
   return {
     path,
-    message: `${what} is ${size} bytes in canonical form; the limit is ${MAX_RECORD_BYTES}. Carry larger content by reference`,
+    message: `${what} is more than ${MAX_RECORD_BYTES} bytes in canonical form. Carry larger content by reference`,
     clause: "core 1.6",
   };
 }
@@ -69,12 +69,10 @@ export function checkSize(record: OipRecord | ExtensionRecord): Issue[] {
   const parts = isRecordType(record.type) ? containerParts(record as OipRecord) : undefined;
   if (parts !== undefined) {
     const issues = parts.carried.flatMap(([path, carried]) => {
-      const size = sizeOf(carried);
-      return size > MAX_RECORD_BYTES ? [tooLarge(path, "the record", size)] : [];
+      return exceeds(carried) ? [tooLarge(path, "the record")] : [];
     });
-    const rest = sizeOf(parts.rest);
-    return rest > MAX_RECORD_BYTES
-      ? [tooLarge("", "the container, without the records it carries,", rest), ...issues]
+    return exceeds(parts.rest)
+      ? [tooLarge("", "the container, without the records it carries,"), ...issues]
       : issues;
   }
   if (record.type === "Sealed") {
@@ -87,14 +85,10 @@ export function checkSize(record: OipRecord | ExtensionRecord): Issue[] {
         clause: "core 1.6",
       });
     }
-    const size = sizeOf(rest);
-    if (size > MAX_RECORD_BYTES) {
-      issues.push(tooLarge("", "the record, without its ciphertext,", size));
-    }
+    if (exceeds(rest)) issues.push(tooLarge("", "the record, without its ciphertext,"));
     return issues;
   }
-  const size = sizeOf(record);
-  return size > MAX_RECORD_BYTES ? [tooLarge("", "the record", size)] : [];
+  return exceeds(record) ? [tooLarge("", "the record")] : [];
 }
 
 /**
@@ -111,7 +105,10 @@ export function parseRecord(
   options?: ParseOptions,
 ): Validation<OipRecord> {
   const parsed = parseForRecord(input, options);
-  return parsed.ok ? withinSize(validateRecord(parsed.value)) : parsed;
+  // What the parser has just built is validated as it is: nothing else holds it.
+  return parsed.ok
+    ? withinSize(validateParsedRecord(parsed.value.value, parsed.value.deepest))
+    : parsed;
 }
 
 /**
@@ -130,7 +127,9 @@ export function parseExtensionRecord(
   options?: ParseOptions,
 ): Validation<ExtensionRecord> {
   const parsed = parseForRecord(input, options);
-  return parsed.ok ? withinSize(validateExtensionRecord(parsed.value)) : parsed;
+  return parsed.ok
+    ? withinSize(validateParsedExtensionRecord(parsed.value.value, parsed.value.deepest))
+    : parsed;
 }
 
 /** A validated record, if it is also within the size limit. */

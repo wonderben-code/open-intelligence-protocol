@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { IMPLEMENTATION_LIMIT, MAX_DEPTH } from "@oip/schema";
-import { clause } from "@oip/testkit";
+import { clause, heapKeptBy } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
@@ -586,18 +586,53 @@ describe(`${clause("core 1.9")} depth, and the length of a text`, () => {
     expect(parseJson(zeros(MAX_TEXT_LENGTH), { maxLength: 2 * MAX_TEXT_LENGTH + 1 }).ok).toBe(true);
   });
 
+  it("builds plain arrays whatever other code has told arrays to build", () => {
+    // splice and slice ask an array's constructor what kind of array to make. With
+    // that changed, the parser's arrays would be of another class, with whatever
+    // members the class has, and a record is validated as the parser built it.
+    class Rewritten extends Array<unknown> {
+      toJSON() {
+        return [];
+      }
+    }
+    const species = Object.getOwnPropertyDescriptor(Array, Symbol.species);
+    Object.defineProperty(Array, Symbol.species, { get: () => Rewritten, configurable: true });
+    let parsed: ReturnType<typeof parseJson>;
+    try {
+      expect([1, 2, 3].slice(0)).toBeInstanceOf(Rewritten);
+      parsed = parseJson('{"a":[1,[2,3],[]],"b":[[[4]]]}');
+    } finally {
+      if (species !== undefined) Object.defineProperty(Array, Symbol.species, species);
+    }
+    expect([1, 2, 3].slice(0)).not.toBeInstanceOf(Rewritten);
+    expect(parsed.ok).toBe(true);
+    const arrays: unknown[] = [];
+    const collect = (value: unknown): void => {
+      if (Array.isArray(value)) arrays.push(value);
+      if (typeof value === "object" && value !== null) Object.values(value).forEach(collect);
+    };
+    collect(parsed.ok ? parsed.value : undefined);
+    expect(arrays).toHaveLength(6);
+    for (const array of arrays) {
+      expect(Object.getPrototypeOf(array)).toBe(Array.prototype);
+      expect(Object.getOwnPropertyNames(array)).toHaveLength((array as unknown[]).length + 1);
+    }
+    expect(JSON.stringify(parsed.ok ? parsed.value : null)).toBe('{"a":[1,[2,3],[]],"b":[[[4]]]}');
+  });
+
   it("spends on a text about what the platform's own parser does", () => {
     // 8 MiB of the smallest values there are: "[[],[],[],…]". Growing each array one
     // element at a time, this once took 730 MiB. Arrays are now cut at their exact size.
     const count = Math.floor((MAX_TEXT_LENGTH - 4) / 3);
     const empties = `[${"[],".repeat(count)}[]]`;
     expect(empties.length).toBeLessThanOrEqual(MAX_TEXT_LENGTH);
-    const before = process.memoryUsage().heapUsed;
-    const parsed = parseJson(empties);
-    const grown = process.memoryUsage().heapUsed - before;
-    expect(parsed.ok && (parsed.value as unknown[]).length).toBe(count + 1);
-    // The measure includes what the collector has not yet taken back.
-    expect(grown).toBeLessThan(320 * 1024 * 1024);
+    const ours = heapKeptBy(() => parseJson(empties));
+    expect(ours.value.ok && (ours.value.value as unknown[]).length).toBe(count + 1);
+    const platform = heapKeptBy(() => JSON.parse(empties) as unknown[]);
+    expect(platform.value).toHaveLength(count + 1);
+    // What the value keeps is what the platform's own keeps, give or take a little.
+    expect(platform.bytes).toBeGreaterThan(32 * 1024 * 1024);
+    expect(ours.bytes).toBeLessThan(1.5 * platform.bytes);
   });
 });
 

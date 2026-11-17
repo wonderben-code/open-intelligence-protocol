@@ -67,7 +67,12 @@ export interface Limits {
 
 /** The budget of values the limits give. Anything but a count leaves the default. */
 function valueBudget(limits: Limits | undefined): number {
-  const given: unknown = limits?.maxValues;
+  // Its own member only: a default must not come from a prototype that other code changed.
+  const from: unknown = limits;
+  const given: unknown =
+    typeof from === "object" && from !== null && Object.hasOwn(from, "maxValues")
+      ? (from as Limits).maxValues
+      : undefined;
   return typeof given === "number" && Number.isSafeInteger(given) && given >= 0
     ? given
     : MAX_VALUES;
@@ -129,25 +134,6 @@ const TOO_DEEP: Issue = {
   clause: "core 1.9",
 };
 
-/** Values a parser of the JSON profile has just built, each with how deep it nests. */
-const builtByParser = new WeakMap<object, number>();
-
-/**
- * For a parser of the JSON profile, and for nothing else: declares that it
- * has just built `value` from text, as plain data within the profile that
- * nothing else holds, nesting `deepest` deep. The next validation of that
- * value then works on it as it is, where it would otherwise make a plain
- * copy first: the parser has done what the copy is for. The declaration is
- * used once.
- *
- * Never declare a value that came from anywhere else, or that other code
- * could have changed since it was parsed. A validator believes the
- * declaration.
- */
-export function declareParsed(value: object, deepest: number): void {
-  builtByParser.set(value, deepest);
-}
-
 function tooMany(budget: number): Issue {
   return {
     path: "",
@@ -201,19 +187,9 @@ function plainCopy(
   maxDepth: number,
   maxValues: number,
 ): { readonly issue: Issue } | { readonly value: JsonValue; readonly deepest: number } {
-  if (typeof root === "object" && root !== null) {
-    const parsed = builtByParser.get(root);
-    if (parsed !== undefined) {
-      // Once: what happens to the value after this validation is not known.
-      builtByParser.delete(root);
-      return parsed > maxDepth
-        ? { issue: TOO_DEEP }
-        : { value: root as JsonValue, deepest: parsed };
-    }
-  }
   let budget = maxValues;
   let deepest = 0;
-  const pending: { source: object; target: Container; depth: number }[] = [];
+  const pending: { source: object; target: Container; depth: number; length: number }[] = [];
 
   /** The copy of a value that is not a container; for a container, an empty copy to be filled. */
   const start = (value: unknown, depth: number): { issue: Issue } | { value: unknown } => {
@@ -237,8 +213,23 @@ function plainCopy(
         if (value === null) return { value };
         if (depth > maxDepth) return { issue: TOO_DEEP };
         if (depth > deepest) deepest = depth;
-        const target: Container = Array.isArray(value) ? [] : {};
-        pending.push({ source: value, target, depth });
+        if (!Array.isArray(value)) {
+          const target = {};
+          pending.push({ source: value, target, depth, length: 0 });
+          return { value: target };
+        }
+        // The length is read once, here. The copy is made with room for exactly
+        // that many elements: an array grown one element at a time keeps room for
+        // many more, and a copy of small arrays would cost several times what
+        // the original does.
+        const length: unknown = value.length;
+        if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) {
+          return { issue: NOT_JSON };
+        }
+        if (length > budget) return { issue: tooMany(maxValues) };
+        budget -= length;
+        const target = new Array<unknown>(length);
+        pending.push({ source: value, target, depth, length });
         return { value: target };
       }
       default:
@@ -250,14 +241,11 @@ function plainCopy(
   const top = start(root, 1);
   if ("issue" in top) return top;
   for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
-    const { source, target, depth } = next;
+    const { source, target, depth, length } = next;
     if (Array.isArray(target)) {
       // A plain array has its elements and its length and nothing else: no
       // other prototype and no member such as `toJSON`.
       if (Object.getPrototypeOf(source) !== Array.prototype) return { issue: NOT_JSON };
-      const length = (source as unknown[]).length;
-      if (length > budget) return { issue: tooMany(maxValues) };
-      budget -= length;
       // Its own members are its elements and its length: a hole leaves one out, and
       // anything else, such as a `toJSON`, adds one.
       if (Object.getOwnPropertyNames(source).length !== length + 1) return { issue: NOT_JSON };
@@ -269,7 +257,7 @@ function plainCopy(
         }
         const copied = start(element.value, depth + 1);
         if ("issue" in copied) return copied;
-        target.push(copied.value);
+        target[i] = copied.value;
       }
       continue;
     }
@@ -543,20 +531,55 @@ function typeOf(value: JsonValue): Validation<string> {
  * every record; use `isRecordType` to tell the two apart beforehand.
  */
 export function validateRecord(value: unknown, limits?: Limits): Validation<OipRecord> {
-  return answering(() => {
-    const copied = recordCopy(value, limits);
-    if ("issue" in copied) return fail(copied.issue);
-    const type = typeOf(copied.value);
-    if (!type.ok) return type;
-    if (!isRecordType(type.value)) {
-      return fail({
-        path: "/type",
-        message: `${quote(type.value)} is not a record type this revision defines; if an extension defines it, use validateExtensionRecord`,
-        clause: "core 11",
-      });
-    }
-    return validateKnown(type.value, copied);
-  });
+  return answering(() => judgeRecord(recordCopy(value, limits)));
+}
+
+/**
+ * For a parser of the JSON profile, and for nothing else: validates, as
+ * `validateRecord` does, a value the parser has just built from text, and
+ * does not copy it first. The parser has done what the copy is for: the
+ * value is plain data within the profile, nothing else holds it, and it
+ * nests `deepest` deep.
+ *
+ * Never give it a value that came from anywhere else, or that other code
+ * could have changed since it was parsed: a float, an accessor or a `toJSON`
+ * in it would not be seen. `validateRecord` is the function for every other
+ * value.
+ */
+export function validateParsedRecord(value: JsonValue, deepest: number): Validation<OipRecord> {
+  return answering(() => judgeRecord(parsed(value, deepest)));
+}
+
+/** As `validateParsedRecord`, for a record of a type an extension defines. */
+export function validateParsedExtensionRecord(
+  value: JsonValue,
+  deepest: number,
+): Validation<ExtensionRecord> {
+  return answering(() => judgeExtensionRecord(parsed(value, deepest)));
+}
+
+type Copied = { readonly issue: Issue } | { readonly value: JsonValue; readonly deepest: number };
+
+/** What a parser built, as the copy of it would be. */
+function parsed(value: JsonValue, deepest: number): Copied {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return { issue: { path: "", message: "a record is a JSON object", clause: "core 1.1" } };
+  }
+  return deepest > MAX_CONTAINER_DEPTH ? { issue: TOO_DEEP } : { value, deepest };
+}
+
+function judgeRecord(copied: Copied): Validation<OipRecord> {
+  if ("issue" in copied) return fail(copied.issue);
+  const type = typeOf(copied.value);
+  if (!type.ok) return type;
+  if (!isRecordType(type.value)) {
+    return fail({
+      path: "/type",
+      message: `${quote(type.value)} is not a record type this revision defines; if an extension defines it, use validateExtensionRecord`,
+      clause: "core 11",
+    });
+  }
+  return validateKnown(type.value, copied);
 }
 
 /**
@@ -571,25 +594,26 @@ export function validateExtensionRecord(
   value: unknown,
   limits?: Limits,
 ): Validation<ExtensionRecord> {
-  return answering(() => {
-    const copied = recordCopy(value, limits);
-    if ("issue" in copied) return fail(copied.issue);
-    const type = typeOf(copied.value);
-    if (!type.ok) return type;
-    if (isRecordType(type.value)) {
-      return fail({
-        path: "/type",
-        message: `${type.value} is a record type this revision defines; use validateRecord`,
-        clause: "core 11",
-      });
-    }
-    return validateRecordCopy<ExtensionRecord>(
-      "ExtensionRecord",
-      "core 7",
-      copied,
-      checkExtensionRules,
-    );
-  });
+  return answering(() => judgeExtensionRecord(recordCopy(value, limits)));
+}
+
+function judgeExtensionRecord(copied: Copied): Validation<ExtensionRecord> {
+  if ("issue" in copied) return fail(copied.issue);
+  const type = typeOf(copied.value);
+  if (!type.ok) return type;
+  if (isRecordType(type.value)) {
+    return fail({
+      path: "/type",
+      message: `${type.value} is a record type this revision defines; use validateRecord`,
+      clause: "core 11",
+    });
+  }
+  return validateRecordCopy<ExtensionRecord>(
+    "ExtensionRecord",
+    "core 7",
+    copied,
+    checkExtensionRules,
+  );
 }
 
 /**

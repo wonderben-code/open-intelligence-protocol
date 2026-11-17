@@ -20,28 +20,20 @@ export type Validation<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly issues: readonly [Issue, ...Issue[]] };
 
-/**
- * Whether a character from the input must not reach a log or a screen as
- * itself: the control characters, the line and paragraph separators, which
- * can forge a line, and the controls of the bidirectional algorithm, which
- * can show text in another order than it has.
- */
-function unsafeToShow(code: number): boolean {
-  return (
-    code < 0x20 ||
-    (code >= 0x7f && code <= 0x9f) ||
-    code === 0x061c ||
-    code === 0x200e ||
-    code === 0x200f ||
-    (code >= 0x2028 && code <= 0x202e) ||
-    (code >= 0x2066 && code <= 0x2069)
-  );
-}
+const UNSAFE_TO_SHOW = /[\p{C}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}]/u;
 
-/** A character as it is safe to show: itself, or a `\u` escape. */
+/**
+ * A character as it is safe to show: itself, or an escape. Everything that
+ * is not a visible character or a space is escaped: controls, format
+ * characters, unassigned and private-use code points, lone surrogates, and
+ * the characters a renderer is told to ignore, such as zero-width spaces,
+ * variation selectors and tags, which can carry text nobody sees.
+ */
 export function shown(character: string): string {
+  if (!UNSAFE_TO_SHOW.test(character)) return character;
   const code = character.codePointAt(0) ?? 0;
-  return unsafeToShow(code) ? `\\u${code.toString(16).padStart(4, "0")}` : character;
+  const hex = code.toString(16);
+  return code > 0xffff ? `\\u{${hex}}` : `\\u${hex.padStart(4, "0")}`;
 }
 
 /**

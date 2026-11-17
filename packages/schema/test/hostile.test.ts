@@ -7,12 +7,17 @@
  * megabytes; none may do so again.
  */
 
-import { type JsonObject, positiveVectorRecords, withAmbientTrapped } from "@oip/testkit";
+import {
+  heapKeptBy,
+  type JsonObject,
+  positiveVectorRecords,
+  withAmbientTrapped,
+} from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import {
-  declareParsed,
   IMPLEMENTATION_LIMIT,
+  type JsonValue,
   MAX_ISSUES,
   type Limits,
   MAX_VALUES,
@@ -21,6 +26,8 @@ import {
   textFault,
   validateExtensionRecord,
   validateJson,
+  validateParsedExtensionRecord,
+  validateParsedRecord,
   validateProof,
   validateRecord,
   validateRecordOfType,
@@ -224,54 +231,73 @@ describe("what an issue shows of the input", () => {
 });
 
 describe("a value a parser of the JSON profile has just built", () => {
-  const plain = () => JSON.parse(JSON.stringify(samples.Intent)) as JsonObject;
+  const plain = () => JSON.parse(JSON.stringify(samples.Intent)) as Record<string, JsonValue>;
 
-  it("is validated as it is, and only the once", () => {
+  it("is validated as it is by the entry made for a parser, and copied by every other", () => {
     const record = plain();
-    declareParsed(record, 4);
-    const first = validateRecord(record);
+    const inPlace = validateParsedRecord(record, 4);
     // The same object: the parser has done what the copy is for.
-    expect(first.ok && first.value).toBe(record);
-    // The declaration is spent. What happened to the value since is not known.
-    const second = validateRecord(record);
-    expect(second.ok && second.value).not.toBe(record);
-    expect(second.ok && second.value).toEqual(record);
-    const json = plain();
-    declareParsed(json, 4);
-    const whole = validateJson(json);
-    expect(whole.ok && whole.value).toBe(json);
-    const again = validateJson(json);
-    expect(again.ok && again.value).not.toBe(json);
+    expect(inPlace.ok && inPlace.value).toBe(record);
+    // validateRecord never takes anyone's word: it copies, whatever was done before.
+    const copied = validateRecord(record);
+    expect(copied.ok && copied.value).not.toBe(record);
+    expect(copied.ok && copied.value).toEqual(record);
+    const extension = {
+      oip: "1",
+      type: "com.example.X",
+      created: "2026-11-17T09:00:00Z",
+      ext: { "com.example": {} },
+      critical: ["com.example"],
+    };
+    const extended = validateParsedExtensionRecord(extension, 3);
+    expect(extended.ok && extended.value).toBe(extension);
+    expect(validateExtensionRecord(extension).ok).toBe(true);
   });
 
-  it("is still held to the depth the validator allows", () => {
-    for (const [deepest, clause] of [
-      [64, undefined],
-      [65, "core 1.9"],
-      [1000, "core 1.9"],
-    ] as const) {
-      const value = plain();
-      declareParsed(value, deepest);
-      const result = validateJson(value);
-      expect(result.ok ? undefined : result.issues[0].clause, String(deepest)).toBe(clause);
-    }
-    // A record may be a container, which nests three deeper; beyond that nothing does.
-    const record = plain();
-    declareParsed(record, 68);
-    const tooDeep = validateRecord(record);
+  it("is still held to the depth a record may have, by what the parser says of it", () => {
+    // A record may be a container, which nests three deeper than 64; beyond that nothing does.
+    const tooDeep = validateParsedRecord(plain(), 68);
     expect(!tooDeep.ok && tooDeep.issues[0].clause).toBe("core 1.9");
-    // Between the two, only a container may be: the declaration is believed.
-    const between = plain();
-    declareParsed(between, 66);
-    const refused = validateRecord(between);
-    expect(!refused.ok && refused.issues[0].clause).toBe("core 1.9");
+    // Between the two, only a container may be.
+    const between = validateParsedRecord(plain(), 66);
+    expect(!between.ok && between.issues[0].clause).toBe("core 1.9");
+    expect(validateParsedRecord(plain(), 64).ok).toBe(true);
+    const extension = validateParsedExtensionRecord(
+      { oip: "1", type: "com.example.X", created: "2026-11-17T09:00:00Z", critical: ["x.y"] },
+      70,
+    );
+    expect(!extension.ok && extension.issues[0].clause).toBe("core 1.9");
   });
 
   it("is checked against its schema and rules like any other", () => {
     const record = plain();
     delete record["want"];
-    declareParsed(record, 4);
-    expect(validateRecord(record).ok).toBe(false);
+    expect(validateParsedRecord(record, 4).ok).toBe(false);
+    expect(validateParsedRecord(plain(), 4).ok).toBe(true);
+    // Each entry is for its own kind of record, and only for a record.
+    expect(validateParsedExtensionRecord(plain(), 4).ok).toBe(false);
+    const others: JsonValue[] = [[], "text", 7, null, true];
+    for (const other of others) {
+      const refused = validateParsedRecord(other, 1);
+      expect(!refused.ok && refused.issues[0].message).toBe("a record is a JSON object");
+      expect(validateParsedExtensionRecord(other, 1).ok).toBe(false);
+    }
+  });
+});
+
+describe("the copy of a value", () => {
+  it("has arrays of exactly the size of the original's", () => {
+    // A million arrays of one element each. Grown one element at a time, each copy
+    // kept room for seventeen, and the copy cost several times what the original does.
+    // Each with a number of its own, so that the originals share nothing: arrays
+    // written as the same literal share their elements until one is changed.
+    const original = heapKeptBy(() => Array.from({ length: 1_000_000 }, (_, i) => [i]));
+    const copy = heapKeptBy(() => validateJson(original.value));
+    expect(copy.value.ok && (copy.value.value as unknown[]).length).toBe(1_000_000);
+    // What the copy keeps is what the original keeps, give or take a little.
+    expect(original.bytes).toBeGreaterThan(16 * 1024 * 1024);
+    expect(copy.bytes).toBeLessThan(1.25 * original.bytes);
+    expect(copy.value.ok && copy.value.value).toEqual(original.value);
   });
 });
 
@@ -311,6 +337,9 @@ describe("values that are not JSON", () => {
     };
     expect(validateExtensionRecord(extension).ok).toBe(true);
     expect(validateExtensionRecord(extension, { maxValues: 3 }).ok).toBe(false);
+    // A limit is the caller's own member, never one that other code put on a prototype.
+    const inherited = Object.create({ maxValues: 2 }) as Limits;
+    expect(validateJson([0, 0, 0], "record", inherited).ok).toBe(true);
     // Anything but a count leaves the default in force: no limit is switched off by mistake.
     for (const maxValues of [Number.NaN, -1, 1.5, "7", null, Infinity, undefined]) {
       const limits = { maxValues } as unknown as Limits;

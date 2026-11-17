@@ -12,7 +12,6 @@
  */
 
 import {
-  declareParsed,
   IMPLEMENTATION_LIMIT,
   type Issue,
   type JsonValue,
@@ -44,7 +43,12 @@ export interface ParseOptions {
  * the parser spends on each about what the platform's own parser does.
  */
 function lengthLimit(options: ParseOptions | undefined): number {
-  const given: unknown = options?.maxLength;
+  // Its own member only: a limit must not come from a prototype that other code changed.
+  const from: unknown = options;
+  const given: unknown =
+    typeof from === "object" && from !== null && Object.hasOwn(from, "maxLength")
+      ? (from as ParseOptions).maxLength
+      : undefined;
   return typeof given === "number" && Number.isSafeInteger(given) && given >= 0
     ? given
     : MAX_TEXT_LENGTH;
@@ -232,8 +236,8 @@ class Parser {
       this.#at++;
       return [];
     }
-    // Elements gather at the end of one shared list, and the array is cut from
-    // it at exactly its size. An array grown one element at a time keeps room
+    // Elements gather at the end of one shared list, and the array is made from
+    // them at exactly its size. An array grown one element at a time keeps room
     // for many more, and a text of small arrays would cost several times as much.
     const base = this.#elements.length;
     for (;;) {
@@ -241,13 +245,28 @@ class Parser {
       this.#space();
       const next = this.#text.charCodeAt(this.#at);
       this.#at++;
-      if (next === 0x5d) return this.#elements.splice(base);
+      if (next === 0x5d) return this.#cut(base);
       if (next !== 0x2c) {
         this.#at--;
         this.#fail('expected "," or "]" in an array', "core 1.1");
       }
       this.#space();
     }
+  }
+
+  /**
+   * The elements gathered since `base`, as an array of their own. It is built
+   * by hand: `splice` and `slice` ask the array's constructor what kind of
+   * array to make, which other code in the process can change, and what the
+   * parser returns must be a plain array whatever that code has done.
+   */
+  #cut(base: number): JsonValue[] {
+    const elements = this.#elements;
+    const count = elements.length - base;
+    const array = new Array<JsonValue>(count);
+    for (let i = 0; i < count; i++) array[i] = elements[base + i] as JsonValue;
+    elements.length = base;
+    return array;
   }
 
   #string(): string {
@@ -378,19 +397,14 @@ function rejection<T>(message: string, clause: string): Validation<T> {
   return { ok: false, issues: [{ path: "", message, clause }] };
 }
 
-/**
- * Parses text that is known to be a string, to a depth the caller chooses.
- * With `forRecord`, the value is declared to the validators as just parsed,
- * so that `parseRecord` validates it as it is and does not copy it first.
- * Only `parseRecord` asks for that: it validates the value before anything
- * else can touch it.
- */
-function parseText(
-  text: string,
-  limit: number,
-  maxDepth: number,
-  forRecord = false,
-): Validation<JsonValue> {
+/** A value the parser built, and how deep its arrays and objects nest. */
+export interface Parsed {
+  readonly value: JsonValue;
+  readonly deepest: number;
+}
+
+/** Parses text that is known to be a string, to a depth the caller chooses. */
+function parseText(text: string, limit: number, maxDepth: number): Validation<Parsed> {
   if (text.length > limit) return tooLong(limit, "characters");
   // A record is encoded as UTF-8 (core 1.1), so its text is valid Unicode before
   // any escape is read: half a surrogate pair written raw has no encoding, even
@@ -401,10 +415,7 @@ function parseText(
   try {
     const parser = new Parser(text, maxDepth);
     const value = parser.parse();
-    if (forRecord && typeof value === "object" && value !== null) {
-      declareParsed(value, parser.deepest);
-    }
-    return { ok: true, value };
+    return { ok: true, value: { value, deepest: parser.deepest } };
   } catch (error) {
     // Anything but a rejection is a fault in this parser, not in the text, and is not hidden.
     // Stryker disable next-line all: no test can reach it while the parser is sound.
@@ -415,38 +426,36 @@ function parseText(
 }
 
 /** Parses bytes that are known to be a `Uint8Array`, to a depth the caller chooses. */
-function parseBytes(
-  bytes: Uint8Array,
-  limit: number,
-  maxDepth: number,
-  forRecord = false,
-): Validation<JsonValue> {
+function parseBytes(bytes: Uint8Array, limit: number, maxDepth: number): Validation<Parsed> {
   if (bytes.length > limit) return tooLong(limit, "bytes");
   const text = decodeUtf8(bytes);
   if (text === undefined) return rejection("the bytes are not valid UTF-8", "core 1.1");
-  return parseText(text, limit, maxDepth, forRecord);
+  return parseText(text, limit, maxDepth);
 }
 
 /**
  * Parses text or bytes as `parseJson` and `parseJsonBytes` do, to the depth
- * a container may have. For `parseRecord` alone, which validates the value
- * at once and applies core 1.9 to each record: the value is declared to the
- * validators as just parsed.
+ * a container may have, and says how deep the value nests. For `parseRecord`
+ * alone, which validates the value at once, as the parser built it, and
+ * applies core 1.9 to each record.
  */
 export function parseForRecord(
   input: unknown,
   options: ParseOptions | undefined,
-): Validation<JsonValue> {
+): Validation<Parsed> {
   try {
     const limit = lengthLimit(options);
-    if (typeof input === "string") return parseText(input, limit, MAX_CONTAINER_DEPTH, true);
-    if (input instanceof Uint8Array) {
-      return parseBytes(input, limit, MAX_CONTAINER_DEPTH, true);
-    }
+    if (typeof input === "string") return parseText(input, limit, MAX_CONTAINER_DEPTH);
+    if (input instanceof Uint8Array) return parseBytes(input, limit, MAX_CONTAINER_DEPTH);
   } catch {
     // A value that cannot even be examined, such as a revoked proxy.
   }
   return rejection("a record is read from text or from bytes", "core 1.1");
+}
+
+/** The value alone, for a caller that asked for no more. */
+function valueOf(parsed: Validation<Parsed>): Validation<JsonValue> {
+  return parsed.ok ? { ok: true, value: parsed.value.value } : parsed;
 }
 
 /**
@@ -462,7 +471,9 @@ export function parseForRecord(
  */
 export function parseJson(text: string, options?: ParseOptions): Validation<JsonValue> {
   try {
-    if (typeof text === "string") return parseText(text, lengthLimit(options), MAX_DEPTH);
+    if (typeof text === "string") {
+      return valueOf(parseText(text, lengthLimit(options), MAX_DEPTH));
+    }
   } catch {
     // Options that cannot be read.
   }
@@ -475,7 +486,9 @@ export function parseJson(text: string, options?: ParseOptions): Validation<Json
  */
 export function parseJsonBytes(bytes: Uint8Array, options?: ParseOptions): Validation<JsonValue> {
   try {
-    if (bytes instanceof Uint8Array) return parseBytes(bytes, lengthLimit(options), MAX_DEPTH);
+    if (bytes instanceof Uint8Array) {
+      return valueOf(parseBytes(bytes, lengthLimit(options), MAX_DEPTH));
+    }
   } catch {
     // A value that cannot even be examined, such as a revoked proxy.
   }

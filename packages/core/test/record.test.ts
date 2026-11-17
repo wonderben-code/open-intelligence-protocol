@@ -8,7 +8,14 @@ import {
   type OipRecord,
   validateRecord,
 } from "@oip/schema";
-import { clause, copy, type JsonObject, sampleRecords, withAmbientTrapped } from "@oip/testkit";
+import {
+  clause,
+  copy,
+  heapInUse,
+  type JsonObject,
+  sampleRecords,
+  withAmbientTrapped,
+} from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
@@ -22,6 +29,7 @@ import {
   MAX_SEALED_CIPHERTEXT_LENGTH,
   MAX_TEXT_LENGTH,
   MIN_ACCEPTED_RECORD_BYTES,
+  OipError,
   mindAddress,
   parseExtensionRecord,
   parseRecord,
@@ -354,7 +362,7 @@ describe(`${clause("core 1.6")} size`, () => {
         {
           path: "",
           message:
-            "the record is 1048577 bytes in canonical form; the limit is 1048576. Carry larger content by reference",
+            "the record is more than 1048576 bytes in canonical form. Carry larger content by reference",
           clause: "core 1.6",
         },
       ],
@@ -460,7 +468,7 @@ describe(`${clause("core 1.6")} size`, () => {
     ]);
     const carried = parseRecord(JSON.stringify({ ...bundle, log: [over("Genesis")] }), options);
     expect(!carried.ok && carried.issues[0].message).toBe(
-      `the record is ${MAX_RECORD_BYTES + 1} bytes in canonical form; the limit is ${MAX_RECORD_BYTES}. Carry larger content by reference`,
+      `the record is more than ${MAX_RECORD_BYTES} bytes in canonical form. Carry larger content by reference`,
     );
     expect(paths({ ...bundle, log: [small("Genesis")], location: over("Location") })).toEqual([
       "core 1.6 /location",
@@ -537,7 +545,7 @@ describe(`${clause("core 1.6")} size`, () => {
     );
     const large = parseRecord(JSON.stringify(sealed(100, room + 1)));
     expect(!large.ok && large.issues[0].message).toBe(
-      "the record, without its ciphertext, is 1048577 bytes in canonical form; the limit is 1048576. Carry larger content by reference",
+      "the record, without its ciphertext, is more than 1048576 bytes in canonical form. Carry larger content by reference",
     );
   });
 
@@ -569,7 +577,7 @@ describe(`${clause("core 1.6")} size`, () => {
     expect(paths(both)).toEqual(["core 1.6 ", "core 1.6 /log/0"]);
     const message = parseRecord(JSON.stringify(both), { maxLength: 4 * MAX_TEXT_LENGTH });
     expect(!message.ok && message.issues[0].message).toMatch(
-      /^the container, without the records it carries, is \d+ bytes in canonical form; the limit is 1048576/,
+      /^the container, without the records it carries, is more than 1048576 bytes in canonical form/,
     );
   });
 
@@ -585,6 +593,56 @@ describe(`${clause("core 1.6")} size`, () => {
     expect(!over.ok && over.issues.map((issue) => issue.path)).toEqual(["/want"]);
     expect(parseRecord(JSON.stringify({ ...intent, want: "a".repeat(4096) })).ok).toBe(true);
     expect(parseRecord(JSON.stringify({ ...intent, want: "a".repeat(4097) })).ok).toBe(false);
+  });
+
+  it("learns that a record is too large without writing it out", () => {
+    // 8 MiB of the smallest values there are, in a member no schema names. Its size
+    // was once found by serialising all of it, which took as much memory again as
+    // reading it had. The count now stops one byte past the limit.
+    const intent = JSON.stringify(sampleRecords["Intent"]);
+    const count = Math.floor((MAX_TEXT_LENGTH - intent.length - 16) / 3);
+    const text = `${intent.slice(0, -1)},"x-junk":[${"[],".repeat(count)}[]]}`;
+    expect(text.length).toBeLessThanOrEqual(MAX_TEXT_LENGTH);
+    expect(text.length).toBeGreaterThan(MAX_TEXT_LENGTH - 8);
+    const before = heapInUse();
+    const parsed = parseRecord(text);
+    // Read before any collection: this is what the call left on the heap, garbage
+    // and all. It is about 175 MiB here, and was about 530 when the value was
+    // written out to be measured, so the bound has room on both sides.
+    const grown = process.memoryUsage().heapUsed - before;
+    expect(clauseOf(parsed)).toBe("core 1.6");
+    expect(grown).toBeLessThan(400 * 1024 * 1024);
+  });
+
+  it("can hash and write a container it read with a raised limit, when told of the limit", () => {
+    // Five events, each with a junk proof entry of a million values less a few: well
+    // formed, and more values than a validator reads unless its caller allows more.
+    const junk = { junk: new Array<number>(500_000).fill(0) };
+    const base = log("amina_log")[0]!;
+    const events = Array.from({ length: 9 }, () => ({
+      ...base,
+      proof: [...(base["proof"] as unknown[]), junk],
+    }));
+    const page = { oip: "1", type: "LogPage", mind: mindAddress(contentId(base)), events };
+    const text = JSON.stringify(page);
+    expect(text.length).toBeGreaterThan(MAX_TEXT_LENGTH);
+    expect(clauseOf(parseRecord(text))).toBe(IMPLEMENTATION_LIMIT);
+    const read = parseRecord(text, { maxLength: 2 * MAX_TEXT_LENGTH });
+    expect(read.ok).toBe(true);
+    const limits = { maxValues: text.length };
+    // Without the limit a validator stops at its own, and says so.
+    expect(() => contentId(page)).toThrow("the most this reader was set to read at once");
+    expect(() => canonicalize(page)).toThrow(OipError);
+    expect(canonicalize(page, limits)).toHaveLength(text.length);
+    expect(canonicalBytes(page, limits)).toHaveLength(text.length);
+    expect(contentId(page, limits)).toMatch(/^bciq/);
+  });
+
+  it("takes its limits from the options themselves, never from a prototype", () => {
+    const text = JSON.stringify(named("intent"));
+    const inherited = Object.create({ maxLength: 10 }) as { maxLength?: number };
+    expect(parseRecord(text, inherited).ok).toBe(true);
+    expect(parseRecord(text, { maxLength: 10 }).ok).toBe(false);
   });
 
   it("stops reading a text that is far longer than any record, before parsing it", () => {

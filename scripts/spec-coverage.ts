@@ -17,7 +17,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import { type Clause, repoRoot, SPEC_DOCUMENTS } from "./lib/spec.ts";
 
@@ -147,8 +147,14 @@ for (const test of tests) {
 
 if (!report.success || report.numFailedTests > 0 || report.numFailedTestSuites > 0) {
   const broken = report.testResults.filter((file) => file.status !== "passed").length;
+  // Name the tests: a failure that happens once in ten runs must be found from this line.
+  const failed = report.testResults.flatMap((file) =>
+    file.assertionResults
+      .filter((test) => test.status === "failed")
+      .map((test) => `${relative(repoRoot, file.name)}: ${test.fullName}`),
+  );
   problems.push(
-    `the test run failed: ${report.numFailedTests} tests failed and ${broken} test files did not pass. Coverage read from a failed run means nothing`,
+    `the test run failed: ${report.numFailedTests} tests failed and ${broken} test files did not pass. Coverage read from a failed run means nothing${failed.map((name) => `\n      ${name}`).join("")}`,
   );
 }
 

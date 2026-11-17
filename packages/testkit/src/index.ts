@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { repoRoot } from "./vectors.ts";
 
 export { type AmbientAllowance, withAmbientTrapped } from "./ambient.ts";
+export { heapInUse, heapKeptBy } from "./heap.ts";
 export {
   AMINA,
   CID,

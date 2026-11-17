@@ -305,8 +305,11 @@ describe("issues", () => {
   it("never show a character of the input that could forge a line or reorder the text", () => {
     // Next line, line and paragraph separators, a C1 control, delete, and the
     // controls of the bidirectional algorithm.
+    // And what a renderer shows as nothing: zero-width characters, a byte order mark,
+    // a variation selector, tag characters, a private-use and an unassigned code point.
     const hostile =
-      "Intent\u0085WARN forged\u2028ERROR too\u2029x\u009b2K\u007f\u202e\u200f\u061c\u2066\u2069";
+      "Intent\u0085WARN forged\u2028ERROR too\u2029x\u009b2K\u007f\u202e\u200f\u061c\u2066\u2069" +
+      "\u200b\u200d\u2060\ufeff\ufe0f\u{e0001}\u{e0041}\ue000\u0378";
     const results = [
       validateRecord({ oip: "1", type: hostile }),
       validateRecord(sample("Offer", { ext: {}, critical: [`com.example.${hostile}`] })),
@@ -327,16 +330,19 @@ describe("issues", () => {
           const unsafe =
             code < 0x20 ||
             (code >= 0x7f && code <= 0x9f) ||
-            [0x061c, 0x200e, 0x200f].includes(code) ||
+            [0x061c, 0x200e, 0x200f, 0xfeff, 0xe000, 0x0378].includes(code) ||
+            (code >= 0x200b && code <= 0x200d) ||
             (code >= 0x2028 && code <= 0x202e) ||
-            (code >= 0x2066 && code <= 0x2069);
+            (code >= 0x2060 && code <= 0x206f) ||
+            (code >= 0xfe00 && code <= 0xfe0f) ||
+            (code >= 0xe0000 && code <= 0xe0fff);
           expect(unsafe, `U+${code.toString(16)} in ${JSON.stringify(issue.message)}`).toBe(false);
         }
       }
     }
     const first = results[0];
     expect(!first?.ok && first?.issues[0].message).toBe(
-      String.raw`"Intent\u0085WARN forged\u2028ERROR too\u2029x\u009b2K\u007f\u202e\u200f\u061c\u2066\u2069" is not a record type this revision defines; if an extension defines it, use validateExtensionRecord`,
+      String.raw`"Intent\u0085WARN forged\u2028ERROR too\u2029x\u009b2K\u007f\u202e\u200f\u061c\u2066\u2069\u200b\u200d\u2060\ufeff\ufe0f\u{e0001}\u{e0041}\ue000\u0378" is not a record type this revision defines; if an extension defines it, use validateExtensionRecord`,
     );
   });
 

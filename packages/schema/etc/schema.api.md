@@ -329,9 +329,6 @@ export const Controller: Type.TUnsafe<{
 // @public (undocumented)
 export type Controller = Static<typeof Controller>;
 
-// @public
-export function declareParsed(value: object, deepest: number): void;
-
 // @public (undocumented)
 export const Delegation: Type.TObject<{
     type: Type.TLiteral<"Delegation">;
@@ -1477,6 +1474,12 @@ export function validateExtensionRecord(value: unknown, limits?: Limits): Valida
 
 // @public
 export function validateJson(value: unknown, depth?: "record" | "container", limits?: Limits): Validation<JsonValue>;
+
+// @public
+export function validateParsedExtensionRecord(value: JsonValue, deepest: number): Validation<ExtensionRecord>;
+
+// @public
+export function validateParsedRecord(value: JsonValue, deepest: number): Validation<OipRecord>;
 
 // @public
 export function validateProof(value: unknown): Validation<Proof>;

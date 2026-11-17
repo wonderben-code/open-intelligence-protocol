@@ -13,7 +13,7 @@
  * @packageDocumentation
  */
 
-export type { ExtensionRecord, Issue, JsonValue, OipRecord, Validation } from "@oip/schema";
+export type { ExtensionRecord, Issue, JsonValue, Limits, OipRecord, Validation } from "@oip/schema";
 export { bytesEqual, bytesToHex, decodeUtf8, hexToBytes, isWellFormed, utf8 } from "./bytes.ts";
 export {
   contentId,

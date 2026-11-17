@@ -33,7 +33,7 @@ import { documentHashOf, isJsonObject, type JsonObject } from "./content-id.ts";
 import { SIGNATURE_LENGTH, verifyEd25519 } from "./ed25519.ts";
 import { errorFrom, OipError } from "./errors.ts";
 import { sha256, sha256Digest } from "./hash.ts";
-import { canonicalBytesOf, canonicalText } from "./jcs.ts";
+import { canonicalBytesOf, canonicalSizeUpTo, canonicalText } from "./jcs.ts";
 import { decodeEd25519Multikey } from "./multikey.ts";
 import { checkSize, MAX_RECORD_BYTES } from "./record.ts";
 import { parseVerificationMethod, type VerificationMethod } from "./refs.ts";
@@ -137,7 +137,9 @@ function subjectOf(record: unknown): Validation<Subject> {
   let checked = validateJson(record);
   if (!checked.ok) {
     // A container may nest deeper than any signed record. It carries no proof
-    // of its own, and that is the reason to give, not its depth.
+    // of its own, and that is the reason to give, not its depth. Only a value
+    // refused for its depth is looked at a second time.
+    if (checked.issues[0].clause !== "core 1.9") return checked;
     const container = validateJson(record, "container");
     if (!container.ok || !isUnsigned(container.value)) return checked;
     checked = container;
@@ -560,11 +562,10 @@ export function withProofs<T extends object>(
   // within the depth limit: a proof nests at most 62 deep and stands at depth 3.
   // What remains to check is the size of the whole.
   const result = { ...subject, proof: merged };
-  const size = canonicalBytesOf(result).length;
-  if (size > MAX_RECORD_BYTES) {
+  if (canonicalSizeUpTo(result, MAX_RECORD_BYTES) > MAX_RECORD_BYTES) {
     throw new OipError(
       "too-large",
-      `with these proofs the record is ${size} bytes in canonical form; the limit is ${MAX_RECORD_BYTES}`,
+      `with these proofs the record is more than ${MAX_RECORD_BYTES} bytes in canonical form`,
       { clause: "core 1.6" },
     );
   }

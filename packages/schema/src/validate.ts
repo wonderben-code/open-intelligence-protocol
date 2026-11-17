@@ -78,26 +78,26 @@ function isWellFormed(value: string): boolean {
 
 const UNPAIRED: Issue = {
   path: "",
-  message: "the record contains a string with an unpaired surrogate, which is not valid Unicode",
+  message: "a string has an unpaired surrogate, which is not valid Unicode",
   clause: "core 1.1",
 };
 
 const NOT_JSON: Issue = {
   path: "",
   message:
-    "the record contains something that is not a JSON value: only objects, arrays, strings, true, false, null and integers are permitted",
+    "something here is not a JSON value: only objects, arrays, strings, true, false, null and integers are permitted",
   clause: "core 1.2",
 };
 
 const TOO_DEEP: Issue = {
   path: "",
-  message: `the record nests arrays and objects more than ${MAX_DEPTH} deep`,
+  message: `arrays and objects nest more than ${MAX_DEPTH} deep`,
   clause: IMPLEMENTATION_LIMIT,
 };
 
 const TOO_MANY: Issue = {
   path: "",
-  message: "the record holds more values than a record of 1 MiB can",
+  message: "there are more values here than a record of 1 MiB can hold",
   clause: "core 1.6",
 };
 
@@ -131,7 +131,7 @@ function checkValues(root: unknown): Issue | undefined {
         if (Number.isSafeInteger(value)) return undefined;
         return {
           path: "",
-          message: `the record contains the number ${value}, which is not an integer between -(2^53-1) and 2^53-1; write decimal quantities as strings`,
+          message: `the number ${value} is not an integer between -(2^53-1) and 2^53-1; write decimal quantities as strings`,
           clause: "core 1.2",
         };
       case "object":
@@ -151,6 +151,11 @@ function checkValues(root: unknown): Issue | undefined {
     if (Array.isArray(value)) {
       if (value.length > budget) return TOO_MANY;
       budget -= value.length;
+      // A plain array has its elements and its length and nothing else: no
+      // other prototype and no member such as `toJSON`, which a serialiser
+      // would call and so write something other than what was checked here.
+      if (Object.getPrototypeOf(value) !== Array.prototype) return NOT_JSON;
+      if (Object.getOwnPropertyNames(value).length !== value.length + 1) return NOT_JSON;
       for (let i = 0; i < value.length && issue === undefined; i++) {
         issue = visit(value[i], depth + 1);
       }
@@ -270,6 +275,28 @@ function validateWith<T>(
   return issues.length === 0
     ? { ok: true, value: valid }
     : reject(issues, { path: "", message: `not a well-formed ${name}`, clause: defining });
+}
+
+/**
+ * A value permitted in a record (core 1.2): an object, an array, a string,
+ * `true`, `false`, `null`, or an integer between -(2^53-1) and 2^53-1.
+ */
+export type JsonValue =
+  null | boolean | number | string | readonly JsonValue[] | { readonly [name: string]: JsonValue };
+
+/**
+ * Checks that a value is plain JSON data within the profile of core
+ * Section 1, whatever it is for: objects, arrays, strings, booleans, null and
+ * safe integers; valid Unicode; no deeper than `MAX_DEPTH`. Every validator
+ * here applies this check first. `@oip/core` applies it before it computes a
+ * canonical form, so that nothing outside the profile is ever hashed or
+ * signed.
+ */
+export function validateJson(value: unknown): Validation<JsonValue> {
+  return answering(() => {
+    const unsafe = checkValues(value);
+    return unsafe === undefined ? { ok: true, value: value as JsonValue } : fail(unsafe);
+  });
 }
 
 /**

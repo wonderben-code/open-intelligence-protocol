@@ -87,9 +87,11 @@ export { type JsonSchema, jsonSchemas, SCHEMA_DIALECT } from "./json-schemas.ts"
 export { parseSelector, type SelectorStep } from "./selector.ts";
 export {
   IMPLEMENTATION_LIMIT,
+  type JsonValue,
   MAX_DEPTH,
   MAX_ISSUES,
   validateExtensionRecord,
+  validateJson,
   validateProof,
   validateRecord,
   validateRecordOfType,

@@ -26,7 +26,14 @@ const LAYERS = [
 const PURE = ["schema", "core", "identity", "delegation", "web", "net"];
 
 // The npm packages a pure package may import, each justified in an ADR (docs/adr/).
-const PURE_DEPENDENCIES = ["typebox"];
+const PURE_DEPENDENCIES = [
+  "typebox",
+  // ADR-0002: signatures, hashes, encodings and canonical JSON. Only @oip/core imports these.
+  "@noble/curves",
+  "@noble/hashes",
+  "@scure/base",
+  "canonicalize",
+];
 
 // Packages used only by tests. No package's source may import them.
 const TEST_ONLY = ["testkit"];

@@ -2,7 +2,7 @@
   "$schema": "https://typedoc.org/schema.json",
   "name": "Open Intelligence Protocol: API reference",
   "entryPointStrategy": "packages",
-  "entryPoints": ["packages/schema", "packages/conformance"],
+  "entryPoints": ["packages/schema", "packages/core", "packages/conformance"],
   "packageOptions": {
     "entryPoints": ["src/index.ts"],
     "tsconfig": "tsconfig.build.json",

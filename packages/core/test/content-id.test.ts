@@ -3,7 +3,7 @@
 
 import { createHash } from "node:crypto";
 
-import { clause, copy } from "@oip/testkit";
+import { clause, copy, type JsonObject } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
@@ -107,11 +107,37 @@ describe(`${clause("core 3.1")} content IDs`, () => {
   });
 
   it("reproduces every reference between records in the vectors", () => {
-    // Every content ID that some record names is the content ID of a record in the vectors.
-    const known = new Set(positiveVectorRecords().map(({ record }) => contentId(record)));
+    // Every record in the vectors, wherever it stands: on its own, or carried in another.
+    const known = new Set<string>();
+    const collect = (value: unknown): void => {
+      if (typeof value !== "object" || value === null) return;
+      const members = Object.values(value);
+      if (!Array.isArray(value) && (value as JsonObject)["oip"] === "1") {
+        known.add(contentId(value));
+      }
+      members.forEach(collect);
+    };
+    const records = positiveVectorRecords().map(({ record }) => record);
+    records.forEach(collect);
+    const hashes = new Set(Object.values(keys).map((key) => keyHash(key.multikey)));
+    // Every string of the form of a content ID, wherever it is written: alone, in an
+    // address, in a version ID or in a reference. Each is the content ID of a record
+    // here, or the hash of a key here. The one exception is a Merkle root.
+    const root = (named("checkpoint") as { root: string }).root;
+    const count = { records: 0, keyHashes: 0, roots: 0 };
+    for (const text of strings(records)) {
+      for (const [id] of text.matchAll(/bciq[a-p][a-z2-7]{50}[aiqy]/g)) {
+        if (known.has(id)) count.records++;
+        else if (hashes.has(id)) count.keyHashes++;
+        else if (id === root) count.roots++;
+        else throw new Error(`${id} in ${JSON.stringify(text)} is the content ID of nothing here`);
+      }
+    }
+    expect(count).toEqual({ records: 252, keyHashes: 16, roots: 1 });
+    expect(known.size).toBe(49);
+    // Three of them, by name.
     expect(known.has(named("ack")["packet"] as string)).toBe(true);
     expect(named("feed_entry")["object"]).toBe(contentId(named("offer")));
-    expect(log("amina_log")[1]?.["prev"]).toBe(contentId(log("amina_log")[0]));
     for (const [name] of logs) {
       const events = log(name);
       for (let i = 1; i < events.length; i++) {

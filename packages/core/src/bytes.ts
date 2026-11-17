@@ -20,14 +20,20 @@ export function bytesToHex(bytes: Uint8Array): string {
 /**
  * The bytes that hexadecimal text writes, in either case.
  *
- * @throws Error if the text is not hexadecimal digits in pairs.
+ * @throws TypeError if the text is not hexadecimal digits in pairs. The
+ * message does not repeat the text, which may be a private key.
  */
 export function hexToBytes(hex: string): Uint8Array {
-  return fromHex(hex);
+  try {
+    return fromHex(hex);
+  } catch {
+    throw new TypeError("hexadecimal digits in pairs are needed");
+  }
 }
 
 /** Whether a string is valid Unicode: every surrogate is half of a pair (core 1.1). */
 export function isWellFormed(text: string): boolean {
+  if (typeof text !== "string") return false;
   for (let i = 0; i < text.length; i++) {
     const unit = text.charCodeAt(i);
     if (unit < 0xd800 || unit > 0xdfff) continue;
@@ -37,21 +43,6 @@ export function isWellFormed(text: string): boolean {
     i++;
   }
   return true;
-}
-
-/** The length of a string in Unicode code points, which is how core 1.8 counts "characters". */
-export function codePointLength(text: string): number {
-  let length = 0;
-  for (let i = 0; i < text.length; i++) {
-    const unit = text.charCodeAt(i);
-    // A surrogate pair is one code point: skip its second half.
-    if (unit >= 0xd800 && unit <= 0xdbff) {
-      const next = text.charCodeAt(i + 1);
-      if (next >= 0xdc00 && next <= 0xdfff) i++;
-    }
-    length++;
-  }
-  return length;
 }
 
 /**

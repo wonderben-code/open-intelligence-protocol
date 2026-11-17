@@ -48,14 +48,34 @@ export const ORDER_CHECK_CACHE_SIZE = 4096;
 const orderChecks = new BoundedCache<boolean>(ORDER_CHECK_CACHE_SIZE);
 
 /**
+ * A private copy of some bytes, or `undefined` if the value is not a byte
+ * array of the length required. Every check and the library's verification
+ * then read the same bytes: the caller's array may be shared with another
+ * thread, or be an object that answers differently each time it is read.
+ */
+function snapshot(bytes: unknown, length?: number): Uint8Array | undefined {
+  if (!(bytes instanceof Uint8Array)) return undefined;
+  const copy = new Uint8Array(bytes);
+  return length === undefined || copy.length === length ? copy : undefined;
+}
+
+function hasOrderL(publicKey: Uint8Array): boolean {
+  return orderChecks.get(bytesToHex(publicKey), () => encodesPointOfOrderL(publicKey));
+}
+
+/**
  * Whether some bytes are an Ed25519 public key this revision accepts: the
  * canonical encoding of a point of order exactly L (core 4.4). A key that
  * fails must be rejected wherever it appears, including in identity logs.
- * The answer is remembered per key.
+ * The answer is remembered per key. It never throws.
  */
 export function isEd25519PublicKey(publicKey: Uint8Array): boolean {
-  if (!(publicKey instanceof Uint8Array) || publicKey.length !== PUBLIC_KEY_LENGTH) return false;
-  return orderChecks.get(bytesToHex(publicKey), () => encodesPointOfOrderL(publicKey));
+  try {
+    const key = snapshot(publicKey, PUBLIC_KEY_LENGTH);
+    return key !== undefined && hasOrderL(key);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -78,10 +98,15 @@ export function verifyEd25519(
   publicKey: Uint8Array,
 ): boolean {
   try {
-    if (!(signature instanceof Uint8Array) || signature.length !== SIGNATURE_LENGTH) return false;
-    if (!isEd25519PublicKey(publicKey)) return false;
-    if (!encodesPointOfOrderL(signature.subarray(0, PUBLIC_KEY_LENGTH))) return false;
-    return ed25519.verify(signature, message, publicKey, { zip215: false });
+    // One copy of each input, taken once: the order checks and the equation
+    // must be about the same bytes.
+    const sig = snapshot(signature, SIGNATURE_LENGTH);
+    const text = snapshot(message);
+    const key = snapshot(publicKey, PUBLIC_KEY_LENGTH);
+    if (sig === undefined || text === undefined || key === undefined) return false;
+    if (!hasOrderL(key)) return false;
+    if (!encodesPointOfOrderL(sig.subarray(0, PUBLIC_KEY_LENGTH))) return false;
+    return ed25519.verify(sig, text, key, { zip215: false });
   } catch {
     return false;
   }

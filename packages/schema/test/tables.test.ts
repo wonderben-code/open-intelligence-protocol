@@ -19,6 +19,7 @@ import {
   MAX_ISSUES,
   MAX_POLICY_DEPTH,
   RECORD_TYPES,
+  textFault,
   type RecordType,
   validateProof,
   validateRecord,
@@ -929,7 +930,44 @@ describe("rules, case by case", () => {
     for (const bad of ["\udc00\udc00", "\udc00\ud800", "\ud800\ud800", "x\ud800"]) {
       expect(rejectedAt(sample("Intent", { want: bad }))).toBe("core 1.1 ");
     }
-    expect(accepts(sample("Intent", { want: "𐀀􏿿" }))).toBe("accepted");
+    expect(accepts(sample("Intent", { want: "\u{10000}\u{10fffd}\ud7ff\ue000" }))).toBe("accepted");
+  });
+
+  it(`${clause("core 1.1")} rejects the noncharacters, which an I-JSON message may not contain`, () => {
+    const noncharacters = [
+      0xfdd0, 0xfdd1, 0xfdef, 0xfffe, 0xffff, 0x1fffe, 0x1ffff, 0x2fffe, 0xefffe, 0xfffff, 0x10fffe,
+      0x10ffff,
+    ];
+    for (const code of noncharacters) {
+      const bad = `x${String.fromCodePoint(code)}y`;
+      expect(rejectedAt(sample("Intent", { want: bad })), code.toString(16)).toBe("core 1.1 ");
+      expect(rejectedAt(sample("Intent", { [bad]: 1 })), code.toString(16)).toBe("core 1.1 ");
+      expect(rejectedAt(sample("Intent", { deep: [{ a: [bad] }] })), code.toString(16)).toBe(
+        "core 1.1 ",
+      );
+    }
+    // Their neighbours are ordinary characters.
+    for (const code of [0xfdcf, 0xfdf0, 0xfffd, 0x1fffd, 0x20000, 0x10fffd, 0xfffc]) {
+      const good = `x${String.fromCodePoint(code)}y`;
+      expect(accepts(sample("Intent", { want: good })), code.toString(16)).toBe("accepted");
+    }
+  });
+
+  it("counts exactly 66 noncharacters", () => {
+    let count = 0;
+    for (let code = 0; code <= 0x10ffff; code++) {
+      if (code >= 0xd800 && code <= 0xdfff) continue;
+      if (textFault(String.fromCodePoint(code)) === "noncharacter") count++;
+    }
+    expect(count).toBe(66);
+    expect(textFault("")).toBeUndefined();
+    expect(textFault("plain")).toBeUndefined();
+    expect(textFault("\ud800")).toBe("unpaired surrogate");
+    expect(textFault("\udc00x")).toBe("unpaired surrogate");
+    expect(textFault("\ud83d\ude00")).toBeUndefined();
+    // A fault after a well-formed pair is still found.
+    expect(textFault("\ud83d\ude00\uffff")).toBe("noncharacter");
+    expect(textFault("\ud83d\ude00\ud800")).toBe("unpaired surrogate");
   });
 });
 

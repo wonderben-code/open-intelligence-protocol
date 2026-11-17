@@ -67,6 +67,14 @@ RECORD_TYPES = IDENTITY_TYPES + (
     "QueryResult", "Forwarded", "Location", "Participant", "Hello",
     "Session", "Resume", "Branch", "Bundle", "LogPage", "FeedPage",
     "DuplicityEvidence", "Sealed")
+# The containers (core 1.6), and for each the members that hold the records
+# it carries. The limits on size and depth apply to each carried record and
+# to the container without them.
+CONTAINERS = {"Bundle": ("log", "location", "participant"),
+              "LogPage": ("events",), "FeedPage": ("entries",),
+              "DuplicityEvidence": ("pairs",)}
+SHORT_NAMESPACES = ("x402", "ap2", "acp", "l402", "vc", "as2")   # core 8.1
+NAMESPACE_RE = re.compile(r"[a-z0-9-]+(\.[a-z0-9-]+)+")
 CURRENT_STATE_TYPES = ("Location", "Participant", "Hello")
 DELEGABLE_TYPES = ("Intent", "Offer", "Commitment", "Receipt")
 OIP_COMMANDS = ("/oip/send",) + tuple("/oip/sign/" + t
@@ -348,11 +356,24 @@ def is_amount(v) -> bool:
 # ---------------------------------------------------------------- JSON profile
 
 
+def _text_ok(text: str) -> bool:
+    """core 1.1: valid Unicode, and no noncharacter (RFC 7493, 2.1): no
+    unpaired surrogate, nothing from U+FDD0 to U+FDEF, and no code point
+    whose last sixteen bits are FFFE or FFFF."""
+    for ch in text:
+        cp = ord(ch)
+        if 0xD800 <= cp <= 0xDFFF or 0xFDD0 <= cp <= 0xFDEF or \
+           cp & 0xFFFE == 0xFFFE:
+            return False
+    return True
+
+
 def values_ok(value) -> bool:
     """What core Section 1 requires of every value in a record, whatever
     the record is: numbers are integers within +/-(2^53-1) (1.2), strings
-    and member names are valid Unicode (1.1), and arrays and objects nest
-    at most MAX_DEPTH deep (1.9). It does not recurse."""
+    and member names are valid Unicode without noncharacters (1.1), and
+    arrays and objects nest at most MAX_DEPTH deep (1.9). It does not
+    recurse."""
     pending = [(value, 1)]
     while pending:
         v, depth = pending.pop()
@@ -364,13 +385,13 @@ def values_ok(value) -> bool:
         elif isinstance(v, float):
             return False                    # read_json() never returns one
         elif isinstance(v, str):
-            if any(0xD800 <= ord(ch) <= 0xDFFF for ch in v):
-                return False                # an unpaired surrogate
+            if not _text_ok(v):
+                return False
         elif isinstance(v, (list, dict)):
             if depth > MAX_DEPTH:
                 return False
             if isinstance(v, dict):
-                if not all(isinstance(k, str) and values_ok(k) for k in v):
+                if not all(isinstance(k, str) and _text_ok(k) for k in v):
                     return False
                 v = v.values()
             pending.extend((item, depth + 1) for item in v)
@@ -390,20 +411,33 @@ def _integer(text: str) -> int:
     if not m:
         raise ValueError(f"not a JSON number: {text[:40]!r}")
     sign, whole, frac, exp = m.groups()
-    digits = int(whole + (frac or ""))
-    if digits == 0:
+    # A number may be written with any count of digits, so the digits are
+    # handled as text: int() refuses a long run of them, and a number
+    # written at length can still be a small integer (1 followed by five
+    # thousand zeros, e-5000, is 1).
+    frac = frac or ""
+    significant = (whole + frac).lstrip("0")
+    if not significant:
         return 0                            # -0 is 0 (core 2.2)
-    shift = int(exp or "0") - len(frac or "")
-    if shift >= 0:
-        if shift > 16:
-            raise ValueError("number outside the safe range")
-        value = digits * 10**shift
-    else:
-        if -shift >= len(whole + (frac or "")):
-            raise ValueError("number with a fractional part")
-        value, rest = divmod(digits, 10**-shift)
-        if rest:
-            raise ValueError("number with a fractional part")
+    mantissa = significant.rstrip("0")
+    zeros = len(significant) - len(mantissa)
+    if len(mantissa) > 16:
+        # More than 16 significant digits: beyond the safe range, or with
+        # a fractional part.
+        raise ValueError("number outside the safe range, or with a "
+                         "fractional part")
+    exp_sign = -1 if exp and exp[0] == "-" else 1
+    exp_digits = (exp or "0").lstrip("+-").lstrip("0") or "0"
+    if len(exp_digits) > 18:
+        # Larger than any count of digits a text can hold.
+        raise ValueError("number with a fractional part" if exp_sign < 0
+                         else "number outside the safe range")
+    shift = zeros + exp_sign * int(exp_digits) - len(frac)
+    if shift < 0:
+        raise ValueError("number with a fractional part")
+    if shift > 16:
+        raise ValueError("number outside the safe range")
+    value = int(mantissa) * 10**shift
     if value > MAX_SAFE_INT:
         raise ValueError("number outside the safe range")
     return -value if sign else value
@@ -424,9 +458,10 @@ def _no_constant(name):
 
 def read_json(text: str):
     """Parse JSON text under the profile of core Section 1: RFC 8259, no
-    duplicate member names, valid Unicode, integers within the safe range
-    judged by value, and nesting of at most MAX_DEPTH. Raises ValueError
-    (or RecursionError, for very deep nesting) on anything else."""
+    duplicate member names, valid Unicode without noncharacters, integers
+    within the safe range judged by value, and nesting of at most
+    MAX_DEPTH. Raises ValueError (or RecursionError, for very deep
+    nesting) on anything else."""
     value = json.loads(text, object_pairs_hook=_no_duplicates,
                        parse_int=_integer, parse_float=_integer,
                        parse_constant=_no_constant)
@@ -516,8 +551,15 @@ def verify_proof(doc: dict, proof, pub_multikey: str) -> bool:
             not 1 <= len(proof["authority"]) <= MAX_AUTHORITY):
         return False
     if "@context" in doc:
+        # core 5.2: present on the proof, with the same value. The values
+        # are compared in canonical form: Python's own comparison takes
+        # true for 1, and a missing member for null.
         allowed.add("@context")
-        if proof.get("@context") != doc["@context"]:
+        try:
+            if "@context" not in proof or \
+               jcs(proof["@context"]) != jcs(doc["@context"]):
+                return False
+        except Exception:
             return False
     if not PROOF_REQUIRED <= set(proof) or not set(proof) <= allowed:
         return False
@@ -761,6 +803,9 @@ def verify_log(events, verifier, depth=0) -> Log:
     for i, ev in enumerate(events):
         if not isinstance(ev, dict) or ev.get("oip") != OIP_VERSION:
             raise ValueError("unknown oip version")
+        if not values_ok(ev):
+            raise ValueError("an event outside the JSON profile of core "
+                             "Section 1")
         etype = ev.get("type")
         if etype == "Merge":
             raise ValueError("Merge is reserved in this revision")
@@ -771,8 +816,9 @@ def verify_log(events, verifier, depth=0) -> Log:
         created = ts(ev.get("created"))
         proofs = ev.get("proof")
         if not isinstance(proofs, list) or not proofs or \
-           len(proofs) > MAX_PROOFS:
-            raise ValueError("bad proof set")
+           len(proofs) > MAX_PROOFS or \
+           not all(isinstance(p, dict) for p in proofs):
+            raise ValueError("bad proof set")   # core 5.1
         when = verifier.event_time(ev)
         if times:
             when = max(when, times[-1])     # never before its predecessor
@@ -1050,16 +1096,49 @@ def command_covers(granted: str, needed: str) -> bool:
 # ---------------------------------------------------------------- records
 
 
+def profile_ok(r: dict) -> bool:
+    """core 1.1, 1.2 and 1.9 for a record. For a container the limit on
+    depth applies to each record it carries, counted from that record, and
+    to the container without them (1.9)."""
+    carrying = CONTAINERS.get(r.get("type"))
+    if carrying is None:
+        return values_ok(r)
+    carried = []
+    for name in carrying:
+        member = r.get(name, [])
+        if isinstance(member, list):
+            for item in member:
+                # A pair of events (DuplicityEvidence) is two records.
+                carried.extend(item if isinstance(item, list) and
+                               name == "pairs" else [item])
+        else:
+            carried.append(member)
+    rest = {k: v for k, v in r.items() if k not in carrying}
+    return values_ok(rest) and all(values_ok(c) for c in carried)
+
+
 def record_ok(r) -> bool:
     """Structural checks this generator relies on (not a full schema)."""
     try:
         if not isinstance(r, dict) or r.get("oip") != OIP_VERSION:
             return False
-        if not values_ok(r):
+        if not profile_ok(r):
             return False                    # core 1.1, 1.2 and 1.9
         t = r.get("type")
         if not isinstance(t, str):
             return False
+        if "proof" in r and (
+                not isinstance(r["proof"], list) or
+                not 1 <= len(r["proof"]) <= MAX_PROOFS or
+                not all(isinstance(p, dict) for p in r["proof"])):
+            return False                    # core 5.1
+        if "ext" in r and (
+                not isinstance(r["ext"], dict) or not all(
+                    isinstance(block, dict) and (
+                        name in SHORT_NAMESPACES or name.startswith("oip.")
+                        or fullmatch(NAMESPACE_RE, name))
+                    for name, block in r["ext"].items())):
+            return False                    # core 8.1
         critical = r.get("critical", [])
         if not isinstance(critical, list) or not all(
                 isinstance(n, str) and isinstance(r.get("ext"), dict) and
@@ -2951,6 +3030,31 @@ def build():
                 r_doc, amina_vm2, "assertionMethod", r_doc["created"],
                 lambda msg: ed_raw_sign(a_op2.scalar, a_op2.pub, msg,
                                         r_point=ED_IDENTITY))), amina)
+    m_doc = variant(intent, created="2026-10-30T10:03:00Z")
+    bad_sig("signature-r-mixed-order",
+            "R is an honest [nonce]B with the point of order 2 added to "
+            "it. The signature satisfies the verification equation as "
+            "RFC 8032 writes it, multiplied by the cofactor, so a library "
+            "that checks it that way accepts the signature, and one that "
+            "checks without the cofactor refuses it. Core 4.4 requires R "
+            "to have order exactly L, so every verifier rejects it.",
+            sign(m_doc, forged_proof(
+                m_doc, amina_vm2, "assertionMethod", m_doc["created"],
+                lambda msg: ed_raw_sign(
+                    a_op2.scalar, a_op2.pub, msg, nonce=0x4d1,
+                    offset=ed_decode((ED_P - 1).to_bytes(32, "little"))))),
+            amina)
+    w_doc = variant(intent, created="2026-10-30T10:04:00Z")
+    wrapped_vm = amina_vm2.replace("versionId=1-",
+                                   "versionId=%d-" % (2**64 + 1))
+    assert wrapped_vm != amina_vm2
+    bad_sig("key-reference-position-wraps-around",
+            "The verification method pins position 2^64+1 with the "
+            "content ID of the event at position 1. A reader that keeps "
+            "the position in 64 bits reads it as 1 and finds the key. A "
+            "position is an integer of at most 2^53-1 (core 6.1), so this "
+            "reference names no version of any log.",
+            signed(w_doc, a_op2, wrapped_vm), amina)
 
     # delegation chains are exact
     bad_sig("chain-out-of-order",
@@ -3123,12 +3227,113 @@ def build():
     json_case(neg, "json-nested-65-deep",
               "Arrays and objects nest at most 64 deep (core 1.9).",
               deep(MAX_DEPTH + 1))
+    json_case(neg, "json-noncharacter",
+              "A record is an I-JSON message (core 1.1; RFC 7493, 2.1): no "
+              "string in it holds a noncharacter. U+FFFE is one, however "
+              "it is written.",
+              '{"s":"\\ufffe"}')
+    json_case(neg, "json-noncharacter-in-a-member-name",
+              "Member names are strings too. U+1FFFF, the last code point "
+              "of plane 1, is a noncharacter; here it is written as "
+              "itself.",
+              '{"\U0001ffff":1}')
+    json_case(V["valid"], "json-integer-written-at-length",
+              "Validity depends on a number's value, not on how it is "
+              "written (core 1.2): 1 followed by 5,000 zeros and e-5000 "
+              "is the integer 1, and 0.000... is 0, at any length. A "
+              "reader that turns the digits into a number before it "
+              "judges them cannot read this text.",
+              '{"n":1' + "0" * 5000 + 'e-5000,"z":0.' + "0" * 5000 + '}')
     json_case(neg, "json-trailing-comma",
               "A record is JSON (RFC 8259), which has no trailing commas.",
               '{"a":1,}')
     json_case(neg, "json-not-a-number",
               "NaN is not JSON.",
               '{"n":NaN}')
+
+    # Records: what makes one well formed, whoever signed it.
+    def record_case(section, name, reason, record):
+        section.append({"name": name, "reason": reason, "kind": "record",
+                        "record": record})
+
+    def nest(levels):
+        value = []
+        for _ in range(levels - 1):
+            value = [value]
+        return value
+
+    def resigned(**changes):
+        return signed(variant(intent, **changes), a_op2, amina_vm2)
+
+    record_case(neg, "proof-entry-not-an-object",
+                "Every entry of `proof` is an object (core 5.1). A proof "
+                "that does not verify never counts and does not make the "
+                "record malformed (core 5.5); an entry that is not an "
+                "object at all does.",
+                {**intent, "proof": intent["proof"] + ["a proof"]})
+    not_a_proof = {**intent, "proof": intent["proof"] + [{"note": "x"}]}
+    record_case(neg, "extension-name-not-a-namespace",
+                "A member of `ext` is named by a reverse-DNS namespace, "
+                "one of the short names the specification lists, or a "
+                "name under `oip.` (core 8.1). Any other name makes the "
+                "record malformed.",
+                resigned(ext={"Example Extension": {"v": 1}}))
+    record_case(neg, "unknown-type-without-critical-extension",
+                "A record whose type this revision does not define is "
+                "defined by an extension, and lists that extension in "
+                "`critical` (core 7). Without it nobody can say what the "
+                "record is.",
+                resigned(type="com.example.Note"))
+    extension_typed = resigned(type="com.example.Note",
+                               ext={"com.example": {"v": 1}},
+                               critical=["com.example"])
+    record_case(V["valid"], "extension-type-with-critical-extension",
+                "A record of a type an extension defines is well formed "
+                "when it lists that extension in `critical` (core 7, 8.3). "
+                "A reader that does not understand the extension then "
+                "rejects it with `unsupported-extension`; that is another "
+                "question.", extension_typed)
+    record_case(V["valid"], "timestamp-in-year-0000",
+                "Years run from 0000 to 9999, and year 0000 is a leap "
+                "year (core 1.4): 29 February 0000 is a real date.",
+                resigned(created="0000-02-29T00:00:00Z",
+                         expires="0000-03-01T00:00:00Z",
+                         constraints={"deadline": "0000-03-01T00:00:00Z"}))
+    record_case(V["valid"], "receipt-rating-of-minus-zero",
+                "`-0` is a decimal equal to `0` (core 1.3), so it is a "
+                "score from 0 to 1.",
+                signed(variant(receipt, rating={"score": "-0"}),
+                       a_op1, amina_vm1))
+    # The record is at depth 1, `ext` at 2 and its block at 3.
+    record_case(V["valid"], "record-nested-64-deep",
+                "The arrays and objects of a record nest at most 64 deep, "
+                "the record itself being depth 1 (core 1.9). This one "
+                "nests exactly 64.",
+                resigned(ext={"com.example.deep": {"down": nest(61)}}))
+    record_case(neg, "record-nested-65-deep",
+                "One level more than core 1.9 allows.",
+                resigned(ext={"com.example.deep": {"down": nest(62)}}))
+    # The event is at depth 1, `proof` at 2 and its entry at 3.
+    def padded_event(levels):
+        return {**a_gen, "proof": a_gen["proof"] + [{"junk": nest(levels)}]}
+
+    def page(event):
+        return {"oip": OIP_VERSION, "type": "LogPage", "mind": amina,
+                "events": [event]}
+
+    record_case(V["valid"], "container-carries-a-record-nested-64-deep",
+                "For a container the limit on depth applies to each record "
+                "it carries, counted from that record, and to the "
+                "container without them (core 1.9). Anyone can add an "
+                "entry to an event's `proof`, where it never counts "
+                "(core 5.5); here it brings the event to exactly 64 deep, "
+                "which is valid. The page as a whole nests 66 deep, and "
+                "must still be accepted: otherwise one junk entry would "
+                "stop a log from being served.", page(padded_event(61)))
+    record_case(neg, "container-carries-a-record-nested-65-deep",
+                "The same page with the event one level deeper. The event "
+                "is not a valid record (core 1.9), so the page is not "
+                "well formed.", page(padded_event(62)))
 
     # Controls: each negative case above, changed only in the respect its
     # reason names, must be accepted, so it fails for that reason alone.
@@ -3165,6 +3370,24 @@ def build():
             record=signed(variant(unpriced, terms__price=usd("120")),
                           t_op, agent_vm, authority=[d_not]))
     control("collective-location-after-member-left", extraLogs=None)
+    # The Ed25519 cases: the same record with an honest signature counts.
+    control("signature-s-not-reduced", record=sign(s_doc, s_ok))
+    control("signature-r-identity", record=signed(r_doc, a_op2, amina_vm2))
+    control("signature-r-mixed-order",
+            record=signed(m_doc, a_op2, amina_vm2))
+    control("key-reference-position-wraps-around",
+            record=signed(w_doc, a_op2, amina_vm2))
+    control("json-noncharacter", text='{"s":"\\ufffd"}')
+    control("json-noncharacter-in-a-member-name", text='{"\U0001fffd":1}')
+    control("proof-entry-not-an-object", record=not_a_proof)
+    control("extension-name-not-a-namespace",
+            record=resigned(ext={"com.example.extension": {"v": 1}}))
+    control("unknown-type-without-critical-extension",
+            record=extension_typed)
+    control("record-nested-65-deep",
+            record=resigned(ext={"com.example.deep": {"down": nest(61)}}))
+    control("container-carries-a-record-nested-65-deep",
+            record=page(padded_event(61)))
     return V
 
 
@@ -3180,15 +3403,19 @@ def forged_proof(doc, vm, purpose, created, sign_raw) -> dict:
     return {**config, "proofValue": "z" + b58encode(sign_raw(msg))}
 
 
-def ed_raw_sign(scalar, pub: bytes, msg: bytes, nonce=None, r_point=None):
+def ed_raw_sign(scalar, pub: bytes, msg: bytes, nonce=None, r_point=None,
+                offset=None):
     """Ed25519 signing from a scalar (TEST VECTORS ONLY): R = [nonce]B, or
     r_point with its discrete log taken as 0 (the identity), and
-    S = r + k * scalar mod L."""
+    S = r + k * scalar mod L. With `offset`, a point of small order is
+    added to R: [8]R is what it was, so the equation still holds for a
+    verifier that multiplies it by the cofactor."""
     if r_point is not None:
         r, R = 0, ed_encode(r_point)
     else:
         r = nonce % ED_L
-        R = ed_encode(ed_mul(r, ED_B))
+        point = ed_mul(r, ED_B)
+        R = ed_encode(ed_add(point, offset) if offset is not None else point)
     k = int.from_bytes(hashlib.sha512(R + pub + msg).digest(), "little") % ED_L
     return R + ((r + k * scalar) % ED_L).to_bytes(32, "little")
 

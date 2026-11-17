@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { CONTAINER_RECORD_TYPES, IMPLEMENTATION_LIMIT, type OipRecord } from "@oip/schema";
+import {
+  CONTAINER_RECORD_TYPES,
+  containerParts,
+  IMPLEMENTATION_LIMIT,
+  type OipRecord,
+} from "@oip/schema";
 import { clause, copy, type JsonObject, sampleRecords, withAmbientTrapped } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -13,9 +18,10 @@ import {
   contentId,
   createProofSync,
   MAX_RECORD_BYTES,
-  MAX_SEALED_BYTES,
+  MAX_SEALED_CIPHERTEXT_LENGTH,
   MAX_TEXT_LENGTH,
   MIN_ACCEPTED_RECORD_BYTES,
+  parseExtensionRecord,
   parseRecord,
   signerFromPrivateKey,
   understandsCritical,
@@ -65,7 +71,8 @@ describe("reading a record from text", () => {
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     const verdicts = verifyProofs(parsed.value);
-    expect(verdicts.ok && verdicts.value.every((verdict) => verdict.ok)).toBe(true);
+    expect(verdicts.verified).toHaveLength(1);
+    expect(verdicts.rejected).toEqual([]);
   });
 
   it(`${clause("core 1.1", "core 1.2")} applies the JSON profile before anything else`, () => {
@@ -121,8 +128,7 @@ describe("reading a record from text", () => {
     const proofs = withAmbientTrapped(() => {
       const parsed = parseRecord(text);
       if (!parsed.ok) return -1;
-      const verdicts = verifyProofs(parsed.value);
-      return verdicts.ok ? verdicts.value.filter((verdict) => verdict.ok).length : -1;
+      return verifyProofs(parsed.value).verified.length;
     });
     expect(proofs).toBeGreaterThanOrEqual(2);
   });
@@ -155,6 +161,41 @@ describe(`${clause("core 7")} the members every record shares`, () => {
     expect(clauseOf(parseRecord(JSON.stringify(without)))).toBe("core 7");
     for (const type of ["intent", "INTENT", "Intent ", "Unknown", ""]) {
       expect(parseRecord(JSON.stringify({ ...sample("Intent"), type })).ok, type).toBe(false);
+    }
+  });
+
+  it("reads a record of a type an extension defines with parseExtensionRecord, and only with it", () => {
+    const note = {
+      oip: "1",
+      type: "com.example.Note",
+      created: "2026-11-17T09:00:00Z",
+      text: "a member this revision knows nothing of",
+      ext: { "com.example": { v: 1 } },
+      critical: ["com.example"],
+    };
+    const text = JSON.stringify(note);
+    expect(parseExtensionRecord(text)).toEqual({ ok: true, value: note });
+    expect(parseExtensionRecord(utf8(text)).ok).toBe(true);
+    // parseRecord says where to take it.
+    const refused = parseRecord(text);
+    expect(!refused.ok && refused.issues[0]).toMatchObject({ path: "/type", clause: "core 11" });
+    // A reader that does not understand the extension stores and forwards, and does not act.
+    expect(unsupportedCritical(note)).toEqual(["com.example"]);
+    expect(unsupportedCritical(note, ["com.example"])).toEqual([]);
+    // It is for those records alone, and applies the same rules to them.
+    const intent = JSON.stringify(sample("Intent"));
+    expect(clauseOf(parseExtensionRecord(intent))).toBe("core 11");
+    const { critical: _critical, ...unlisted } = note;
+    expect(clauseOf(parseExtensionRecord(JSON.stringify(unlisted)))).toBe("core 7");
+    expect(clauseOf(parseExtensionRecord(JSON.stringify({ ...note, n: 1.5 })))).toBe("core 1.2");
+    expect(clauseOf(parseExtensionRecord(`{"a":1,"a":2}`))).toBe("core 1.1");
+    const big = { ...note, text: "a".repeat(MAX_RECORD_BYTES) };
+    expect(clauseOf(parseExtensionRecord(JSON.stringify(big)))).toBe("core 1.6");
+    let deep: unknown = [];
+    for (let i = 0; i < 63; i++) deep = [deep];
+    expect(clauseOf(parseExtensionRecord(JSON.stringify({ ...note, deep })))).toBe("core 1.9");
+    for (const hostile of [null, 7, {}, [], new Proxy({}, {})]) {
+      expect(parseExtensionRecord(hostile as unknown as string).ok).toBe(false);
     }
   });
 
@@ -211,15 +252,15 @@ describe(`${clause("core 1.7")} members a reader does not recognise`, () => {
     expect(canonicalize(parsed.value)).toBe(canonicalize(signed));
     expect(contentId(parsed.value)).toBe(contentId(extended));
     const again = parseRecord(canonicalize(parsed.value));
-    const verdicts = again.ok ? verifyProofs(again.value) : again;
-    expect(verdicts.ok && verdicts.value.map((verdict) => verdict.ok)).toEqual([true]);
+    expect(again.ok && verifyProofs(again.value).verified.map((proof) => proof.index)).toEqual([0]);
   });
 
   it("are covered by the proofs: dropping one breaks the signature", () => {
     const signed = withProofs(extended, [proofOf(extended)]);
     const { futureMember: _dropped, ...stripped } = signed;
     const verdicts = verifyProofs(stripped);
-    expect(verdicts.ok && verdicts.value.map((verdict) => verdict.ok)).toEqual([false]);
+    expect(verdicts.verified).toEqual([]);
+    expect(verdicts.rejected.map((entry) => entry.issues[0].clause)).toEqual(["core 4.4"]);
     expect(contentId(stripped)).not.toBe(contentId(signed));
   });
 
@@ -285,7 +326,7 @@ describe(`${clause("core 1.6")} size`, () => {
         {
           path: "",
           message:
-            "the canonical form is 1048577 bytes; the limit is 1048576. Carry larger content by reference",
+            "the record is 1048577 bytes in canonical form; the limit is 1048576. Carry larger content by reference",
           clause: "core 1.6",
         },
       ],
@@ -428,22 +469,90 @@ describe(`${clause("core 1.6")} size`, () => {
   });
 
   it("lets a Sealed record exceed the limit by its encoding overhead, and no further", () => {
-    // The cipher adds 16 bytes, base64url writes four characters for three bytes, and the other members are small.
-    expect(MAX_SEALED_BYTES).toBe(Math.ceil(((MAX_RECORD_BYTES + 16) * 4) / 3) + 4096);
-    expect(MAX_SEALED_BYTES).toBeGreaterThan(MAX_RECORD_BYTES);
-    const sealed = (size: number) => {
-      const base = { ...(sampleRecords["Sealed"] ?? {}), ciphertext: "" };
-      return { ...base, ciphertext: "A".repeat(size - sizeOf(base)) };
-    };
-    expect(sizeOf(sealed(MAX_SEALED_BYTES))).toBe(MAX_SEALED_BYTES);
-    expect(parseRecord(JSON.stringify(sealed(MAX_RECORD_BYTES + 1))).ok).toBe(true);
-    expect(parseRecord(JSON.stringify(sealed(MAX_SEALED_BYTES))).ok).toBe(true);
-    const over = parseRecord(JSON.stringify(sealed(MAX_SEALED_BYTES + 1)));
-    expect(!over.ok && over.issues[0]).toEqual({
-      path: "",
-      message: `the canonical form is ${MAX_SEALED_BYTES + 1} bytes; the limit is ${MAX_SEALED_BYTES}. Carry larger content by reference`,
-      clause: "core 1.6",
+    // A packet of 1 MiB, the cipher's 16 bytes, and base64url at four characters for three bytes.
+    expect(MAX_SEALED_CIPHERTEXT_LENGTH).toBe(Math.ceil(((MAX_RECORD_BYTES + 16) * 4) / 3));
+    expect(MAX_SEALED_CIPHERTEXT_LENGTH).toBe(1_398_123);
+    const base = sampleRecords["Sealed"] ?? {};
+    const sealed = (ciphertext: number, extra = 0) => ({
+      ...base,
+      ciphertext: "A".repeat(ciphertext),
+      ...(extra === 0 ? {} : { ext: { "com.example.padding": { blob: "a".repeat(extra) } } }),
     });
+    const verdict = (record: unknown) => {
+      const parsed = parseRecord(JSON.stringify(record));
+      return parsed.ok ? "ok" : parsed.issues.map((issue) => `${issue.clause} ${issue.path}`);
+    };
+    // The whole record is larger than 1 MiB, and that is allowed.
+    expect(sizeOf(sealed(MAX_SEALED_CIPHERTEXT_LENGTH))).toBeGreaterThan(MAX_RECORD_BYTES);
+    expect(verdict(sealed(MAX_SEALED_CIPHERTEXT_LENGTH))).toBe("ok");
+    expect(verdict(sealed(MAX_SEALED_CIPHERTEXT_LENGTH + 1))).toEqual(["core 1.6 /ciphertext"]);
+    // The allowance is for the ciphertext only: the rest obeys the ordinary limit.
+    const rest = (record: Record<string, unknown>) => {
+      const { ciphertext: _ciphertext, ...others } = record;
+      return sizeOf(others);
+    };
+    const room = MAX_RECORD_BYTES - rest(sealed(100, 1)) + 1;
+    expect(rest(sealed(100, room))).toBe(MAX_RECORD_BYTES);
+    expect(verdict(sealed(100, room))).toBe("ok");
+    expect(verdict(sealed(100, room + 1))).toEqual(["core 1.6 "]);
+    expect(verdict(sealed(MAX_SEALED_CIPHERTEXT_LENGTH + 1, room + 1))).toEqual([
+      "core 1.6 /ciphertext",
+      "core 1.6 ",
+    ]);
+    const over = parseRecord(JSON.stringify(sealed(MAX_SEALED_CIPHERTEXT_LENGTH + 1)));
+    expect(!over.ok && over.issues[0].message).toBe(
+      "the ciphertext is 1398124 characters; a sealed packet of 1 MiB needs at most 1398123",
+    );
+    const large = parseRecord(JSON.stringify(sealed(100, room + 1)));
+    expect(!large.ok && large.issues[0].message).toBe(
+      "the record, without its ciphertext, is 1048577 bytes in canonical form; the limit is 1048576. Carry larger content by reference",
+    );
+  });
+
+  it("applies the limit to a container without the records it carries", () => {
+    const paths = (record: unknown) => {
+      const parsed = parseRecord(JSON.stringify(record), { maxLength: 4 * MAX_TEXT_LENGTH });
+      return parsed.ok ? "ok" : parsed.issues.map((issue) => `${issue.clause} ${issue.path}`);
+    };
+    for (const type of ["Bundle", "LogPage", "FeedPage", "DuplicityEvidence"]) {
+      const container = sampleRecords[type] ?? {};
+      const parts = containerParts(container as unknown as OipRecord);
+      const own = sizeOf(parts?.rest ?? {});
+      const padding = (size: number) => ({
+        ext: { "com.example.padding": { blob: "a".repeat(size) } },
+      });
+      const overhead = sizeOf({ ...parts?.rest, ...padding(0) }) - own;
+      const room = MAX_RECORD_BYTES - own - overhead;
+      expect(paths({ ...container, ...padding(room) }), type).toBe("ok");
+      expect(paths({ ...container, ...padding(room + 1) }), type).toEqual(["core 1.6 "]);
+    }
+    // Both rules at once: the container's own part and a record it carries.
+    const bundle = sampleRecords["Bundle"] ?? {};
+    const tooLarge = padded("Genesis", MAX_RECORD_BYTES + 1);
+    const both = {
+      ...bundle,
+      log: [tooLarge],
+      ext: { "com.example.padding": { blob: "a".repeat(MAX_RECORD_BYTES) } },
+    };
+    expect(paths(both)).toEqual(["core 1.6 ", "core 1.6 /log/0"]);
+    const message = parseRecord(JSON.stringify(both), { maxLength: 4 * MAX_TEXT_LENGTH });
+    expect(!message.ok && message.issues[0].message).toMatch(
+      /^the container, without the records it carries, is \d+ bytes in canonical form; the limit is 1048576/,
+    );
+  });
+
+  it(`${clause("core 1.8")} counts a limit on characters in code points`, () => {
+    // An Intent's want is at most 4096 characters. Each of these is one code
+    // point and two UTF-16 code units, so a count of units would halve the limit.
+    const intent = sampleRecords["Intent"] ?? {};
+    const want = (count: number) => JSON.stringify({ ...intent, want: "😀".repeat(count) });
+    expect("😀".repeat(4096)).toHaveLength(8192);
+    expect(parseRecord(want(4096)).ok).toBe(true);
+    expect(parseRecord(utf8(want(4096))).ok).toBe(true);
+    const over = parseRecord(want(4097));
+    expect(!over.ok && over.issues.map((issue) => issue.path)).toEqual(["/want"]);
+    expect(parseRecord(JSON.stringify({ ...intent, want: "a".repeat(4096) })).ok).toBe(true);
+    expect(parseRecord(JSON.stringify({ ...intent, want: "a".repeat(4097) })).ok).toBe(false);
   });
 
   it("stops reading a text that is far longer than any record, before parsing it", () => {
@@ -456,5 +565,84 @@ describe(`${clause("core 1.6")} size`, () => {
     expect(clauseOf(parseRecord(utf8(JSON.stringify(named("intent"))), { maxLength: 10 }))).toBe(
       IMPLEMENTATION_LIMIT,
     );
+  });
+});
+
+describe(`${clause("core 1.9")} depth`, () => {
+  /** A value that nests `levels` deep: an array in an array, and so on. */
+  const nest = (levels: number): unknown => {
+    let value: unknown = [];
+    for (let i = 1; i < levels; i++) value = [value];
+    return value;
+  };
+  // The record is depth 1, ext 2 and the block 3: the member's value starts at depth 4.
+  const deep = (record: JsonObject, depth: number): JsonObject => ({
+    ...record,
+    ext: { "com.example.deep": { down: nest(depth - 3) } },
+  });
+  const read = (record: unknown) => {
+    const parsed = parseRecord(JSON.stringify(record));
+    return parsed.ok ? "ok" : parsed.issues.map((issue) => `${issue.clause} ${issue.path}`);
+  };
+  const genesis = sampleRecords["Genesis"] ?? {};
+
+  it("lets a record nest 64 deep, and no deeper", () => {
+    for (const type of ["Genesis", "Intent", "Offer", "Packet"]) {
+      const record = sampleRecords[type] ?? {};
+      expect(read(deep(record, 64)), type).toBe("ok");
+      expect(read(deep(record, 65)), type).toEqual(["core 1.9 "]);
+    }
+  });
+
+  it("counts a carried record from itself: a container can carry any record that is valid alone", () => {
+    const deepest = deep(genesis, 64);
+    const tooDeep = deep(genesis, 65);
+    expect(read(deepest)).toBe("ok");
+    const carrying = (event: JsonObject): [type: string, record: unknown, path: string][] => [
+      ["LogPage", { ...sampleRecords["LogPage"], events: [event] }, "/events/0"],
+      ["Bundle", { ...sampleRecords["Bundle"], log: [event] }, "/log/0"],
+    ];
+    for (const [type, container] of carrying(deepest)) {
+      // The whole container nests deeper than 64, and is valid: nothing in it does.
+      expect(read(container), type).toBe("ok");
+      expect(canonicalize(container).length).toBeGreaterThan(0);
+    }
+    for (const [type, container, path] of carrying(tooDeep)) {
+      expect(read(container), type).toEqual([`core 1.9 ${path}`]);
+    }
+    // A pair of events sits three levels down: the deepest a container reaches.
+    const pair = (sampleRecords["DuplicityEvidence"] as { pairs: JsonObject[][] }).pairs[0] ?? [];
+    const evidence = (first: JsonObject) => ({
+      ...sampleRecords["DuplicityEvidence"],
+      pairs: [[first, pair[1]]],
+    });
+    expect(read(evidence(deep(pair[0] ?? {}, 64)))).toBe("ok");
+    // One level more is deeper than any container can be, and is not read far enough to say where.
+    expect(read(evidence(deep(pair[0] ?? {}, 65)))).toEqual(["core 1.9 "]);
+  });
+
+  it("applies the limit to the container without the records it carries", () => {
+    for (const type of CONTAINER_RECORD_TYPES) {
+      const container = sampleRecords[type] ?? {};
+      expect(read(deep(container, 64)), type).toBe("ok");
+      expect(read(deep(container, 65)), type).toEqual(["core 1.9 "]);
+    }
+  });
+
+  it("counts the entries of proof with the record that carries them", () => {
+    // An entry of proof that is not a proof is carried and never counts (core 5.5),
+    // but it is part of the record, and the record's limits cover it.
+    const junk = (depth: number) => ({ ...genesis, proof: [{ junk: nest(depth - 3) }] });
+    expect(read(junk(64))).not.toEqual(["core 1.9 "]);
+    expect(read(junk(65))).toEqual(["core 1.9 "]);
+    const page = (depth: number) => ({ ...sampleRecords["LogPage"], events: [junk(depth)] });
+    expect(read(page(65))).toEqual(["core 1.9 /events/0"]);
+  });
+
+  it("does not read a text deeper than any container can be", () => {
+    // Three levels for the container and 64 for the record it carries.
+    expect(clauseOf(parseRecord(JSON.stringify(nest(67))))).toBe("core 1.1");
+    expect(clauseOf(parseRecord(JSON.stringify(nest(68))))).toBe("core 1.9");
+    expect(clauseOf(parseRecord("[".repeat(1_000_000)))).toBe("core 1.9");
   });
 });

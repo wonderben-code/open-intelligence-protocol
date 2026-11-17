@@ -301,6 +301,15 @@ export type ComparisonOperator = "==" | "!=" | "<" | "<=" | ">" | ">=";
 // @public
 export const CONTAINER_RECORD_TYPES: readonly ["Bundle", "LogPage", "FeedPage", "DuplicityEvidence"];
 
+// @public
+export interface ContainerParts {
+    readonly carried: readonly (readonly [path: string, record: OipRecord])[];
+    readonly rest: Readonly<Record<string, unknown>>;
+}
+
+// @public
+export function containerParts(record: OipRecord): ContainerParts | undefined;
+
 // @public (undocumented)
 export type Content = InlineContent | ReferencedContent | MultipartContent;
 
@@ -783,6 +792,9 @@ export const LogPage: Type.TObject<{
 export type LogPage = Static<typeof LogPage>;
 
 // @public
+export const MAX_CONTAINER_DEPTH: number;
+
+// @public
 export const MAX_DEPTH = 64;
 
 // @public
@@ -793,6 +805,9 @@ export const MAX_POLICY_DEPTH = 8;
 
 // @public
 export const MAX_SAFE_INTEGER = 9007199254740991;
+
+// @public
+export const MAX_VALUES = 1048576;
 
 // @public
 export const MemberController: Type.TUnsafe<{
@@ -1124,6 +1139,9 @@ export const QueryResult: Type.TObject<{
 // @public (undocumented)
 export type QueryResult = Static<typeof QueryResult>;
 
+// @public
+export function quote(value: string, max?: number): string;
+
 // @public (undocumented)
 export const Receipt: Type.TObject<{
     type: Type.TLiteral<"Receipt">;
@@ -1395,6 +1413,12 @@ export const SigningKeyEntry: Type.TUnsafe<{
 export type SigningKeyEntry = Static<typeof SigningKeyEntry>;
 
 // @public
+export type TextFault = "unpaired surrogate" | "noncharacter";
+
+// @public
+export function textFault(text: string): TextFault | undefined;
+
+// @public
 export const UNSIGNED_RECORD_TYPES: readonly ["Session", "Resume", "Branch", "Bundle", "LogPage", "FeedPage", "DuplicityEvidence", "Sealed"];
 
 // @public (undocumented)
@@ -1444,7 +1468,7 @@ export type Update = Static<typeof Update>;
 export function validateExtensionRecord(value: unknown): Validation<ExtensionRecord>;
 
 // @public
-export function validateJson(value: unknown): Validation<JsonValue>;
+export function validateJson(value: unknown, depth?: "record" | "container"): Validation<JsonValue>;
 
 // @public
 export function validateProof(value: unknown): Validation<Proof>;

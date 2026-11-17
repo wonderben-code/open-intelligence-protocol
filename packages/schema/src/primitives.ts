@@ -112,8 +112,11 @@ export const Timestamp = define(
   Type.String({ pattern: patterns.timestamp, maxLength: 30 }),
 );
 
-/** core 1.5. */
-export const Duration = define("duration", Type.String({ pattern: patterns.duration }));
+/** core 1.5. At most 64 characters, so that its length is a number a reader can hold. */
+export const Duration = define(
+  "duration",
+  Type.String({ pattern: patterns.duration, maxLength: 64 }),
+);
 
 /** core 1.3. At most 64 characters, compared with exact decimal arithmetic. */
 export const Decimal = define("decimal", Type.String({ pattern: patterns.decimal, maxLength: 64 }));

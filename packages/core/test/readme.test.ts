@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { MAX_VALUES } from "@oip/schema";
 import { repoRoot } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
@@ -68,5 +69,13 @@ describe("the README", () => {
     expect(core.ORDER_CHECK_CACHE_SIZE).toBe(4096);
     expect(readme).toMatch(row("Canonical form of a record", "1 MiB"));
     expect(core.MAX_RECORD_BYTES).toBe(1024 * 1024);
+    expect(readme).toMatch(row("A `Sealed` record", "`ciphertext` of 1,398,123 characters"));
+    expect(core.MAX_SEALED_CIPHERTEXT_LENGTH).toBe(1_398_123);
+    expect(readme).toMatch(row("A duration", "64 characters"));
+    expect(core.MAX_DURATION_LENGTH).toBe(64);
+    expect(readme).toMatch(row("A decimal", "64 characters"));
+    expect(core.MAX_DECIMAL_LENGTH).toBe(64);
+    expect(readme).toMatch(row("Values in one text or one record", "1,048,576"));
+    expect(MAX_VALUES).toBe(1_048_576);
   });
 });

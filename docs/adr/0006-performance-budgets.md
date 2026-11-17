@@ -36,14 +36,18 @@ The signatures of a 1,000-event identity log therefore take about 2 s. Replaying
 
 1. **The portable implementation gets its own budgets**, which a regression must not exceed, on this reference machine:
 
-   | Operation                                                | Budget         |
-   | -------------------------------------------------------- | -------------- |
-   | Verify a record with two proofs, read from text          | 6 ms           |
-   | Verify the signatures of an identity log of 1,000 events | 3 s            |
-   | The order check of a public key seen before              | 0.05 ms        |
-   | `verifyEd25519` against the library's bare verification  | a ratio of 2.2 |
+   | Operation                                                | Budget                               |
+   | -------------------------------------------------------- | ------------------------------------ |
+   | Verify a record with two proofs, read from text          | 6 ms, and 4.6 times the bare library |
+   | Verify the signatures of an identity log of 1,000 events | 3 s, and 2.3 times per event         |
+   | The order check of a public key seen before              | 0.05 ms                              |
+   | `verifyEd25519` against the library's bare verification  | a ratio of 2.0                       |
 
-   `pnpm bench` asserts all four, and CI runs it. It compares each budget with the fastest sample of a run, not the median: on a shared machine other work only ever adds time, so the fastest sample is the steadiest measure of what the code costs, and a regression moves it as surely as it moves the median. Medians on this machine varied between 3.9 ms and 5.4 ms from run to run for the first row, while the fastest sample stayed at 3.7 ms.
+   `pnpm bench` asserts them all, and CI runs it. The limits in milliseconds are ceilings with room for a slower machine. The ratios are the regression checks: they compare this package with the library's bare verification of one signature in the same run, so they hold on any machine, and they are set within 15% of what is measured (1.8, 4.0 and 2.0).
+
+   The budgets in milliseconds are three times the starting budgets of BUILD.md 3.8. That is a miss, stated plainly, and not a new target: item 2 says how the starting budgets are met.
+
+   Each is compared with the fastest sample of a run, not the median: on a shared machine other work only ever adds time, so the fastest sample is the steadiest measure of what the code costs, and a regression moves it as surely as it moves the median. Medians on this machine varied between 3.9 ms and 5.4 ms from run to run for the first row, while the fastest sample stayed at 3.7 ms.
 
    The ratio does not depend on the machine: core 4.4 adds one scalar multiplication to the library's two, which measures at about 1.8, and a second one would pass 2.5.
 
@@ -61,4 +65,4 @@ The signatures of a 1,000-event identity log therefore take about 2 s. Replaying
 
 - A record with two proofs verifies in about 4 ms, and a client that verifies a mind's whole history pays about 2 ms per signature. That is acceptable for clients and tools.
 - The servers of M5 are expected to need the native engine to meet their budgets (p99 of 25 ms at 500 requests per second on one core).
-- A verifier can be made to do 256 signature checks by one record, about half a second. Rate limits in the services (BUILD.md 3.7) bound that.
+- A verifier can be made to do 256 signature checks by one record. With forged signatures that is about 0.9 s on this machine, since each costs the order check of `R` and the library's verification before it fails. `verifyProofs` verifies a proof that is repeated in a record once, so the cost is per distinct proof. The limits on a record bound the rest of the work: 1 MiB, 64 levels, and about a million values. Rate limits in the services (BUILD.md 3.7) bound how often anyone can ask for it, and the servers of M5 should verify a record's proofs lazily, stopping when the threshold they need is met.

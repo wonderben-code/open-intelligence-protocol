@@ -29,6 +29,6 @@ describe("the README", () => {
   it("reports no failure for the reference implementation", () => {
     const output = report((record) => referenceAdapter.recordIsWellFormed?.(record) === true);
     expect(output).toHaveLength(1);
-    expect(output[0]).toMatch(/^my implementation: 3 passed, 0 failed, \d+ pending$/);
+    expect(output[0]).toMatch(/^my implementation: 18 passed, 0 failed, \d+ pending$/);
   });
 });

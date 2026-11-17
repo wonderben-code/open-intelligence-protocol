@@ -13,14 +13,18 @@
 
 import {
   type AuthorityItem,
+  isRecordType,
   type Issue,
   type JsonValue,
   type Proof,
   type ProofPurpose,
+  quote,
   UNSIGNED_RECORD_TYPES,
   type Validation,
+  validateExtensionRecord,
   validateJson,
   validateProof,
+  validateRecord,
 } from "@oip/schema";
 import { base58 } from "@scure/base";
 
@@ -31,8 +35,9 @@ import { errorFrom, OipError } from "./errors.ts";
 import { sha256, sha256Digest } from "./hash.ts";
 import { canonicalBytesOf, canonicalText } from "./jcs.ts";
 import { decodeEd25519Multikey } from "./multikey.ts";
+import { checkSize, MAX_RECORD_BYTES } from "./record.ts";
 import { parseVerificationMethod, type VerificationMethod } from "./refs.ts";
-import { no, ok, under } from "./result.ts";
+import { issuesUnder, no, ok, under } from "./result.ts";
 import { type Instant, instantOf, parseTimestamp } from "./time.ts";
 
 /** core 5.1: the most proofs a record carries. */
@@ -82,7 +87,8 @@ function hashDataOf(options: JsonObject, documentHash: Uint8Array): Uint8Array {
  * package. `options` is the proof object without `proofValue`.
  *
  * @throws OipError `invalid-record` if either value is not a JSON object
- * within the profile of core Section 1.
+ * within the profile of core Section 1, and `invalid-proof` if the options
+ * already hold a `proofValue`.
  */
 export function proofHashData(record: unknown, options: unknown): Uint8Array {
   const config = jsonObject(options, "a proof's options");
@@ -114,8 +120,11 @@ interface Subject {
   readonly documentHash: Uint8Array;
   /** The canonical form of the record's `@context`, if it has one. */
   readonly context: string | undefined;
+  /** The record's own `proof` member, as it was read. */
+  readonly proofs: JsonValue | undefined;
 }
 
+/** Reads a record once, into a plain copy, and takes from the copy all that a proof is checked against. */
 function subjectOf(record: unknown): Validation<Subject> {
   const checked = validateJson(record);
   if (!checked.ok) return checked;
@@ -129,7 +138,7 @@ function subjectOf(record: unknown): Validation<Subject> {
   const context = Object.hasOwn(value, "@context")
     ? canonicalText(value["@context"] as JsonValue)
     : undefined;
-  return ok({ type, documentHash: documentHashOf(value), context });
+  return ok({ type, documentHash: documentHashOf(value), context, proofs: value["proof"] });
 }
 
 function verifyAgainst(subject: Subject, candidate: unknown): Validation<VerifiedProof> {
@@ -140,7 +149,7 @@ function verifyAgainst(subject: Subject, candidate: unknown): Validation<Verifie
   const required = purposeFor(subject.type);
   if (proof.proofPurpose !== required) {
     return no(
-      `a ${subject.type.slice(0, 64)} record needs a proof with the purpose ${required}; this proof's purpose is ${proof.proofPurpose}`,
+      `a record of type ${quote(subject.type)} needs a proof with the purpose ${required}; this proof's purpose is ${proof.proofPurpose}`,
       "core 5.6",
       "/proofPurpose",
     );
@@ -203,36 +212,99 @@ function verifyAgainst(subject: Subject, candidate: unknown): Validation<Verifie
  * nothing. It never throws.
  */
 export function verifyProof(record: unknown, proof: unknown): Validation<VerifiedProof> {
-  const subject = subjectOf(record);
-  return subject.ok ? verifyAgainst(subject.value, proof) : subject;
+  try {
+    const subject = subjectOf(record);
+    return subject.ok ? verifyAgainst(subject.value, proof) : subject;
+  } catch {
+    return no("the record or the proof could not be read as plain JSON data", "core 1.2");
+  }
+}
+
+/** A verified proof, and where it stands in its record's `proof` array. */
+export interface PlacedProof extends VerifiedProof {
+  /** The proof's position in the record's `proof` array, from 0. */
+  readonly index: number;
+}
+
+/** An entry of a record's `proof` array that did not verify, and why. */
+export interface RejectedProof {
+  /** The entry's position in the record's `proof` array, from 0. */
+  readonly index: number;
+  /** Why it did not verify, each with the clause it comes from. */
+  readonly issues: readonly [Issue, ...Issue[]];
+}
+
+/** What verifying a record's proof set found. */
+export interface ProofVerdicts {
+  /**
+   * The proofs that verified, in the record's order. One proof may stand in
+   * a record more than once, and one key may make several: count distinct
+   * keys, never entries.
+   */
+  readonly verified: readonly PlacedProof[];
+  /** The entries that did not verify, in the record's order, each with its reasons. */
+  readonly rejected: readonly RejectedProof[];
+  /**
+   * Why no proof was judged at all: the record is not JSON within the
+   * profile, is of an unsigned type, or its `proof` is not an array of 1 to
+   * 256 objects (core 5.1). Empty when the proof set was judged.
+   */
+  readonly issues: readonly Issue[];
+}
+
+function notJudged(issues: readonly Issue[]): ProofVerdicts {
+  return { verified: [], rejected: [], issues };
 }
 
 /**
  * Verifies every proof of a record, each on its own (core 5.5): an invalid
  * proof does not invalidate the record or any other proof, and it never
- * counts. The answers are in the order of the record's `proof` array.
+ * counts.
  *
- * The outer rejection means there is no proof set to judge: the record is not
- * JSON within the profile, is of an unsigned type, or its `proof` is not an
- * array of 1 to 256 entries (core 5.1). It never throws.
+ * There is no single answer to read as "the record is verified": look at
+ * `verified`, and at whose keys made those proofs. A record with no valid
+ * proof gives an empty `verified`. It never throws.
  */
-export function verifyProofs(record: unknown): Validation<readonly Validation<VerifiedProof>[]> {
-  const subject = subjectOf(record);
-  if (!subject.ok) return subject;
-  const proofs = (record as { readonly proof?: unknown }).proof;
-  if (!Array.isArray(proofs) || proofs.length === 0 || proofs.length > MAX_PROOFS) {
-    return no(
-      `a signed record carries a proof member that is an array of 1 to ${MAX_PROOFS} proofs`,
-      "core 5.1",
-      "/proof",
-    );
+export function verifyProofs(record: unknown): ProofVerdicts {
+  try {
+    const subject = subjectOf(record);
+    if (!subject.ok) return notJudged(subject.issues);
+    const proofs = subject.value.proofs;
+    if (
+      !Array.isArray(proofs) ||
+      proofs.length === 0 ||
+      proofs.length > MAX_PROOFS ||
+      !(proofs as readonly JsonValue[]).every(isJsonObject)
+    ) {
+      return notJudged([
+        {
+          path: "/proof",
+          message: `a signed record carries a proof member that is an array of 1 to ${MAX_PROOFS} proof objects`,
+          clause: "core 5.1",
+        },
+      ]);
+    }
+    const verified: PlacedProof[] = [];
+    const rejected: RejectedProof[] = [];
+    // A proof repeated in the set is verified once: a signature check is the costly part.
+    const verdicts = new Map<string, Validation<VerifiedProof>>();
+    (proofs as readonly JsonObject[]).forEach((proof, index) => {
+      const text = canonicalText(proof);
+      const verdict = verdicts.get(text) ?? verifyAgainst(subject.value, proof);
+      verdicts.set(text, verdict);
+      if (verdict.ok) verified.push({ ...verdict.value, index });
+      else rejected.push({ index, issues: issuesUnder(`/proof/${index}`, verdict) });
+    });
+    return { verified, rejected, issues: [] };
+  } catch {
+    return notJudged([
+      {
+        path: "",
+        message: "the record could not be read as plain JSON data",
+        clause: "core 1.2",
+      },
+    ]);
   }
-  return ok(
-    (proofs as readonly unknown[]).map((proof, index) => {
-      const verdict = verifyAgainst(subject.value, proof);
-      return verdict.ok ? verdict : under<VerifiedProof>(`/proof/${index}`, verdict);
-    }),
-  );
 }
 
 /**
@@ -261,10 +333,7 @@ export interface ProofOptions {
    * (core 6.2).
    */
   readonly verificationMethod: string;
-  /**
-   * When the proof is made, as a timestamp. The caller reads the clock. It
-   * is not earlier than the record's own `created` (core 5.7).
-   */
+  /** When the proof is made, as a timestamp. The caller reads the clock. */
   readonly created: string;
   /** Only in `authentication` proofs (Layer 1, 13.3). */
   readonly challenge?: string;
@@ -272,10 +341,56 @@ export interface ProofOptions {
   readonly domain?: string;
   /** One delegation chain, root first, or one charter (core 5.2). */
   readonly authority?: readonly AuthorityItem[];
+  /**
+   * core 5.7 says a proof's `created` should not be earlier than its
+   * record's, and a proof dated earlier is refused unless this is `true`.
+   * The case for it: a co-signer whose clock runs behind the author's has no
+   * later time that is honestly its own.
+   */
+  readonly earlierThanRecord?: boolean;
 }
 
 function invalidProof(issues: readonly [Issue, ...Issue[]]): OipError {
   return errorFrom({ issues }, "invalid-proof");
+}
+
+/** The record's own proofs, which must be an array of objects if it has any (core 5.1). */
+function existingProofs(subject: JsonObject): readonly JsonObject[] {
+  const existing = subject["proof"] ?? [];
+  if (!Array.isArray(existing) || !(existing as readonly JsonValue[]).every(isJsonObject)) {
+    throw new OipError("invalid-record", "proof must be an array of proof objects", {
+      clause: "core 5.1",
+    });
+  }
+  return existing as readonly JsonObject[];
+}
+
+/** The record as a JSON object of a type that carries proofs. */
+function signedSubject(record: unknown): { subject: JsonObject; type: string } {
+  const subject = jsonObject(record, "a record");
+  const type = subject["type"];
+  if (typeof type !== "string") {
+    throw new OipError("invalid-record", "type must name a record type", { clause: "core 7" });
+  }
+  if ((UNSIGNED_RECORD_TYPES as readonly string[]).includes(type)) {
+    throw new OipError("invalid-proof", `a ${type} record is unsigned: it carries no proof`, {
+      clause: "core 5.1",
+    });
+  }
+  return { subject, type };
+}
+
+/**
+ * A record as it will stand with its proofs: well formed for its type, and
+ * within the limits on size and depth (core 1.6, 1.9).
+ */
+function wellFormed(candidate: JsonObject, type: string): void {
+  const validated = isRecordType(type)
+    ? validateRecord(candidate)
+    : validateExtensionRecord(candidate);
+  if (!validated.ok) throw errorFrom(validated, "invalid-record");
+  const [first, ...rest] = checkSize(validated.value);
+  if (first !== undefined) throw errorFrom({ issues: [first, ...rest] }, "too-large");
 }
 
 /** A proof that lacks only its signature. */
@@ -287,18 +402,10 @@ interface Draft {
 
 /** Everything that is checked before a signer is asked to sign. */
 function prepare(record: unknown, options: ProofOptions, publicKey: string): Draft {
-  const subject = jsonObject(record, "a record");
-  const type = subject["type"];
-  if (typeof type !== "string") {
-    throw new OipError("invalid-record", "type must name a record type", { clause: "core 7" });
-  }
-  if ((UNSIGNED_RECORD_TYPES as readonly string[]).includes(type)) {
-    throw new OipError("invalid-proof", `a ${type} record is unsigned: it carries no proof`, {
-      clause: "core 5.1",
-    });
-  }
+  const { subject, type } = signedSubject(record);
   const method = parseVerificationMethod(options.verificationMethod);
-  if (method?.key !== publicKey) {
+  // A signer with no key and a reference that names none must not pass as a match.
+  if (typeof publicKey !== "string" || method?.key !== publicKey) {
     throw new OipError(
       "invalid-proof",
       "the verification method must be a key reference that names the signer's own key",
@@ -316,17 +423,24 @@ function prepare(record: unknown, options: ProofOptions, publicKey: string): Dra
     ...(options.authority === undefined ? {} : { authority: options.authority }),
     ...(Object.hasOwn(subject, "@context") ? { "@context": subject["@context"] } : {}),
   };
-  // Nothing is signed that is not a proof: the options are checked first,
-  // with a placeholder where the signature will go.
-  const draft = validateProof({ ...config, proofValue: `z${"1".repeat(64)}` });
-  if (!draft.ok) throw invalidProof(draft.issues);
-  const { proofValue: _placeholder, ...checked } = draft.value as Proof & JsonObject;
+  // Nothing is signed that is not a proof on a well-formed record: the options
+  // are checked first, with a placeholder where the signature will go, and
+  // then the record as it will stand with the proof on it.
+  const placeholder = validateProof({ ...config, proofValue: `z${"1".repeat(88)}` });
+  if (!placeholder.ok) throw invalidProof(placeholder.issues);
+  const draft = placeholder.value as Proof & JsonObject;
+  wellFormed({ ...subject, proof: [...existingProofs(subject), draft] }, type);
+  const { proofValue: _placeholder, ...checked } = draft;
   const recordCreated = parseTimestamp(subject["created"]);
-  // Stryker disable next-line ConditionalExpression: a comparison with undefined is false anyway.
-  if (recordCreated !== undefined && instantOf(options.created) < recordCreated) {
+  if (
+    options.earlierThanRecord !== true &&
+    // Stryker disable next-line ConditionalExpression: a comparison with undefined is false anyway.
+    recordCreated !== undefined &&
+    instantOf(options.created) < recordCreated
+  ) {
     throw new OipError(
       "invalid-proof",
-      "a proof's created should not be earlier than its record's created: sign with the later of the two times",
+      "a proof's created should not be earlier than its record's created: sign with the later of the two times, or set earlierThanRecord",
       { clause: "core 5.7" },
     );
   }
@@ -356,13 +470,17 @@ function finish(draft: Draft, signature: unknown): Proof {
  * record if it has one. The record is not changed; add the proof with
  * `withProofs`.
  *
- * The options are checked before the signer is asked for anything, and the
- * finished proof is verified before it is returned. A wrong option, a
- * verification method that names another key, or a faulty signer is caught
- * here and not by the first receiver.
+ * Before the signer is asked for anything, the options are checked, and so
+ * is the record as it will stand with the proof on it: its schema, its rules
+ * and its size. The finished proof is verified before it is returned. A
+ * wrong option, a malformed record, a verification method that names another
+ * key, or a faulty signer is caught here and not by the first receiver.
  *
- * @throws OipError `invalid-record` if the record is not a JSON object within
- * the profile, and `invalid-proof` if the proof would not verify.
+ * @throws OipError `invalid-record` if the record, with the proof, is not a
+ * well-formed record of its type; `too-large` if it would exceed the size
+ * limit; and `invalid-proof` if the type is unsigned, an option is not one
+ * core 5.2 allows, the proof would be dated before the record (core 5.7), or
+ * the proof does not verify.
  */
 export async function createProof(
   record: unknown,
@@ -387,31 +505,52 @@ export function createProofSync(record: unknown, options: ProofOptions, signer: 
  * (core 5.3): one that is already there, member for member, is not added
  * again. The record is not changed and its content ID stays the same.
  *
- * @throws OipError `invalid-record` if a value is not a JSON object within
- * the profile, the record's `proof` is not an array, or the set would hold
- * more than 256 proofs (core 5.1).
+ * Each proof added must have the form of a proof (core 5.2). That is not
+ * verification: merge only proofs that `verifyProof` has accepted, because
+ * anything merged takes one of the 256 places.
+ *
+ * @throws OipError `invalid-record` if the record is not a JSON object
+ * within the profile, its `proof` is not an array of objects, or the result
+ * would nest too deeply (core 1.9); `invalid-proof` if the record's type is
+ * unsigned or an added entry has not the form of a proof; and `too-large` if
+ * the set would hold more than 256 proofs (core 5.1) or the record would
+ * exceed 1 MiB (core 1.6).
  */
 export function withProofs<T extends object>(
   record: T,
   proofs: readonly Proof[],
 ): Omit<T, "proof"> & { proof: Proof[] } {
-  const subject = jsonObject(record, "a record");
-  const existing = subject["proof"] ?? [];
-  if (!Array.isArray(existing)) {
-    throw new OipError("invalid-record", "proof must be an array", { clause: "core 5.1" });
-  }
+  const { subject } = signedSubject(record);
   const seen = new Set<string>();
-  const merged: Proof[] = [];
-  for (const proof of [...(existing as readonly unknown[]), ...proofs]) {
-    const digest = proofDigest(proof);
-    if (seen.has(digest)) continue;
+  const merged: JsonObject[] = [];
+  const add = (proof: JsonObject) => {
+    const digest = sha256Digest(canonicalBytesOf(proof));
+    if (seen.has(digest)) return;
     seen.add(digest);
-    merged.push(proof as Proof);
+    merged.push(proof);
+  };
+  existingProofs(subject).forEach(add);
+  for (const proof of proofs) {
+    const validated = validateProof(proof);
+    if (!validated.ok) throw invalidProof(validated.issues);
+    add(validated.value as Proof & JsonObject);
   }
   if (merged.length > MAX_PROOFS) {
-    throw new OipError("invalid-record", `a record carries at most ${MAX_PROOFS} proofs`, {
+    throw new OipError("too-large", `a record carries at most ${MAX_PROOFS} proofs`, {
       clause: "core 5.1",
     });
   }
-  return { ...(subject as T), proof: merged };
+  const result = { ...subject, proof: merged };
+  // The whole record, with its proofs, is within the limits on depth and size.
+  const whole = validateJson(result);
+  if (!whole.ok) throw errorFrom(whole, "invalid-record");
+  const size = canonicalBytesOf(result).length;
+  if (size > MAX_RECORD_BYTES) {
+    throw new OipError(
+      "too-large",
+      `with these proofs the record is ${size} bytes in canonical form; the limit is ${MAX_RECORD_BYTES}`,
+      { clause: "core 1.6" },
+    );
+  }
+  return result as unknown as Omit<T, "proof"> & { proof: Proof[] };
 }

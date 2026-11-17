@@ -40,12 +40,16 @@ export function canonicalBytesOf(value: JsonValue): Uint8Array {
  * UTF-16 code units of their names, no white space, minimal escaping, and
  * integers in their shortest decimal form.
  *
+ * The value may nest as deep as a container does (core 1.9), so that a page
+ * of records can be written. Whether each record in it keeps the limit is
+ * `validateRecord`'s question.
+ *
  * @throws OipError `invalid-record` if the value is not within the JSON
  * profile of core Section 1 (a float, a Date, an unpaired surrogate, ...).
  * Nothing outside the profile has a canonical form.
  */
 export function canonicalize(value: unknown): string {
-  const checked = validateJson(value);
+  const checked = validateJson(value, "container");
   if (!checked.ok) throw errorFrom(checked);
   return canonicalText(checked.value);
 }

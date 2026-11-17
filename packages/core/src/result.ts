@@ -17,14 +17,22 @@ export function no<T>(message: string, clause: string, path = ""): Validation<T>
   return { ok: false, issues: [{ path, message, clause }] };
 }
 
+/** The reasons of a rejection, with their paths under `path`. */
+export function issuesUnder(
+  path: string,
+  rejection: { readonly issues: readonly [Issue, ...Issue[]] },
+): [Issue, ...Issue[]] {
+  const [first, ...rest] = rejection.issues;
+  return [
+    { ...first, path: path + first.path },
+    ...rest.map((issue) => ({ ...issue, path: path + issue.path })),
+  ];
+}
+
 /** A rejection for the reasons of another, with its paths under `path`. */
 export function under<T>(
   path: string,
   rejection: { readonly issues: readonly [Issue, ...Issue[]] },
 ): Validation<T> {
-  const [first, ...rest] = rejection.issues.map((issue) => ({
-    ...issue,
-    path: path + issue.path,
-  })) as [Issue, ...Issue[]];
-  return { ok: false, issues: [first, ...rest] };
+  return { ok: false, issues: issuesUnder(path, rejection) };
 }

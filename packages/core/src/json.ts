@@ -15,8 +15,12 @@ import {
   IMPLEMENTATION_LIMIT,
   type Issue,
   type JsonValue,
+  MAX_CONTAINER_DEPTH,
   MAX_DEPTH,
   MAX_SAFE_INTEGER,
+  MAX_VALUES,
+  quote,
+  textFault,
   type Validation,
 } from "@oip/schema";
 
@@ -26,10 +30,20 @@ import { decodeUtf8 } from "./bytes.ts";
 export interface ParseOptions {
   /**
    * The longest text to parse, in UTF-16 code units for a string and in
-   * bytes for bytes. Default: `MAX_TEXT_LENGTH`. A service that accepts
-   * containers of many records sets its own.
+   * bytes for bytes: a non-negative integer. Default: `MAX_TEXT_LENGTH`. A
+   * service that accepts containers of many records sets its own. A value
+   * that is not a non-negative integer is ignored, and the default applies:
+   * a mistake in configuration must not switch the limit off.
    */
   readonly maxLength?: number;
+}
+
+/** The limit on length that the options give. */
+function lengthLimit(options: ParseOptions | undefined): number {
+  const given: unknown = options?.maxLength;
+  return typeof given === "number" && Number.isSafeInteger(given) && given >= 0
+    ? given
+    : MAX_TEXT_LENGTH;
 }
 
 /**
@@ -89,12 +103,22 @@ function integerValue(
   return negative ? -value : value;
 }
 
+const TEXT_FAULTS = {
+  "unpaired surrogate": "a string contains an unpaired surrogate, which is not valid Unicode",
+  noncharacter:
+    "a string contains a noncharacter (U+FDD0 to U+FDEF, or a code point ending FFFE or FFFF), which a record may not contain",
+} as const;
+
 class Parser {
   readonly #text: string;
+  readonly #maxDepth: number;
+  readonly #elements: JsonValue[] = [];
   #at = 0;
+  #values = 0;
 
-  constructor(text: string) {
+  constructor(text: string, maxDepth: number) {
     this.#text = text;
+    this.#maxDepth = maxDepth;
   }
 
   parse(): JsonValue {
@@ -119,6 +143,14 @@ class Parser {
   }
 
   #value(depth: number): JsonValue {
+    // The tree is not built beyond what validation would then refuse: a text of
+    // nothing but brackets would otherwise cost a hundred times its own size.
+    if (++this.#values > MAX_VALUES) {
+      this.#fail(
+        `there are more than ${MAX_VALUES} values here, the most this implementation reads in one record or container`,
+        IMPLEMENTATION_LIMIT,
+      );
+    }
     const code = this.#text.charCodeAt(this.#at);
     switch (code) {
       case 0x7b: // {
@@ -149,7 +181,7 @@ class Parser {
   }
 
   #deeper(depth: number): void {
-    if (depth > MAX_DEPTH) {
+    if (depth > this.#maxDepth) {
       this.#fail(`arrays and objects nest more than ${MAX_DEPTH} deep`, "core 1.9");
     }
   }
@@ -168,10 +200,7 @@ class Parser {
         this.#fail("a member name must be a string", "core 1.1");
       const name = this.#string();
       if (Object.hasOwn(object, name)) {
-        this.#fail(
-          `the member name ${JSON.stringify(name.slice(0, 64))} appears twice in one object`,
-          "core 1.1",
-        );
+        this.#fail(`the member name ${quote(name)} appears twice in one object`, "core 1.1");
       }
       this.#space();
       if (this.#text.charCodeAt(this.#at) !== 0x3a)
@@ -200,18 +229,21 @@ class Parser {
   #array(depth: number): JsonValue {
     this.#deeper(depth);
     this.#at++;
-    const array: JsonValue[] = [];
     this.#space();
     if (this.#text.charCodeAt(this.#at) === 0x5d) {
       this.#at++;
-      return array;
+      return [];
     }
+    // Elements gather at the end of one shared list, and the array is cut from
+    // it at exactly its size. An array grown one element at a time keeps room
+    // for many more, and a text of small arrays would cost several times as much.
+    const base = this.#elements.length;
     for (;;) {
-      array.push(this.#value(depth + 1));
+      this.#elements.push(this.#value(depth + 1));
       this.#space();
       const next = this.#text.charCodeAt(this.#at);
       this.#at++;
-      if (next === 0x5d) return array;
+      if (next === 0x5d) return this.#elements.splice(base);
       if (next !== 0x2c) {
         this.#at--;
         this.#fail('expected "," or "]" in an array', "core 1.1");
@@ -241,20 +273,10 @@ class Parser {
       if (code < 0x20) this.#fail("a control character must be escaped in a string", "core 1.1");
       this.#at++;
     }
-    // core 1.1: every string is valid Unicode. A surrogate may come from the
-    // text itself or from an escape, so the check is on the finished string.
-    for (let i = 0; i < out.length; i++) {
-      const unit = out.charCodeAt(i);
-      if (unit < 0xd800 || unit > 0xdfff) continue;
-      const next = out.charCodeAt(i + 1);
-      if (unit > 0xdbff || !(next >= 0xdc00 && next <= 0xdfff)) {
-        this.#fail(
-          "a string contains an unpaired surrogate, which is not valid Unicode",
-          "core 1.1",
-        );
-      }
-      i++;
-    }
+    // core 1.1: every string is valid Unicode and holds no noncharacter. Either may
+    // come from an escape, so the check is on the finished string.
+    const fault = textFault(out);
+    if (fault !== undefined) this.#fail(TEXT_FAULTS[fault], "core 1.1");
     return out;
   }
 
@@ -354,24 +376,21 @@ function tooLong<T>(limit: number, unit: string): Validation<T> {
   };
 }
 
-/**
- * Parses JSON text under the profile of core Section 1. It rejects, and
- * says why: duplicate member names and invalid Unicode (1.1), numbers that
- * are not safe integers (1.2), nesting deeper than 64 (1.9), and anything
- * that is not JSON (RFC 8259), including a byte order mark. Any JSON value
- * may stand at the top; whether it is a record is `parseRecord`'s question.
- *
- * The value it returns is plain data: `-0` is read as 0, and a member named
- * `__proto__` is an ordinary member. It never throws.
- */
-export function parseJson(text: string, options: ParseOptions = {}): Validation<JsonValue> {
-  const limit = options.maxLength ?? MAX_TEXT_LENGTH;
-  if (typeof text !== "string") {
-    return { ok: false, issues: [{ path: "", message: "not text", clause: "core 1.1" }] };
-  }
+function rejection<T>(message: string, clause: string): Validation<T> {
+  return { ok: false, issues: [{ path: "", message, clause }] };
+}
+
+/** Parses text that is known to be a string, to a depth the caller chooses. */
+function parseText(text: string, limit: number, maxDepth: number): Validation<JsonValue> {
   if (text.length > limit) return tooLong(limit, "characters");
+  // A record is encoded as UTF-8 (core 1.1), so its text is valid Unicode before
+  // any escape is read: half a surrogate pair written raw has no encoding, even
+  // if an escape beside it would complete the pair.
+  if (textFault(text) === "unpaired surrogate") {
+    return rejection("the text is not valid Unicode: it has an unpaired surrogate", "core 1.1");
+  }
   try {
-    return { ok: true, value: new Parser(text).parse() };
+    return { ok: true, value: new Parser(text, maxDepth).parse() };
   } catch (error) {
     // Anything but a rejection is a fault in this parser, not in the text, and is not hidden.
     // Stryker disable next-line all: no test can reach it while the parser is sound.
@@ -381,25 +400,62 @@ export function parseJson(text: string, options: ParseOptions = {}): Validation<
   }
 }
 
-/**
- * Parses the UTF-8 bytes of JSON text under the profile of core Section 1.
- * Bytes that are not valid UTF-8 are rejected (core 1.1).
- */
-export function parseJsonBytes(
-  bytes: Uint8Array,
-  options: ParseOptions = {},
-): Validation<JsonValue> {
-  const limit = options.maxLength ?? MAX_TEXT_LENGTH;
-  if (!(bytes instanceof Uint8Array)) {
-    return { ok: false, issues: [{ path: "", message: "not bytes", clause: "core 1.1" }] };
-  }
+/** Parses bytes that are known to be a `Uint8Array`, to a depth the caller chooses. */
+function parseBytes(bytes: Uint8Array, limit: number, maxDepth: number): Validation<JsonValue> {
   if (bytes.length > limit) return tooLong(limit, "bytes");
   const text = decodeUtf8(bytes);
-  if (text === undefined) {
-    return {
-      ok: false,
-      issues: [{ path: "", message: "the bytes are not valid UTF-8", clause: "core 1.1" }],
-    };
+  if (text === undefined) return rejection("the bytes are not valid UTF-8", "core 1.1");
+  return parseText(text, limit, maxDepth);
+}
+
+/**
+ * Parses text or bytes as `parseJson` and `parseJsonBytes` do, to the depth
+ * a container may have. For `parseRecord`, which then applies core 1.9 to
+ * each record.
+ */
+export function parseForRecord(
+  input: unknown,
+  options: ParseOptions | undefined,
+): Validation<JsonValue> {
+  try {
+    const limit = lengthLimit(options);
+    if (typeof input === "string") return parseText(input, limit, MAX_CONTAINER_DEPTH);
+    if (input instanceof Uint8Array) return parseBytes(input, limit, MAX_CONTAINER_DEPTH);
+  } catch {
+    // A value that cannot even be examined, such as a revoked proxy.
   }
-  return parseJson(text, options);
+  return rejection("a record is read from text or from bytes", "core 1.1");
+}
+
+/**
+ * Parses JSON text under the profile of core Section 1. It rejects, and
+ * says why: duplicate member names, invalid Unicode and noncharacters (1.1),
+ * numbers that are not safe integers (1.2), nesting deeper than 64 (1.9),
+ * and anything that is not JSON (RFC 8259), including a byte order mark. Any
+ * JSON value may stand at the top; whether it is a record is `parseRecord`'s
+ * question.
+ *
+ * The value it returns is plain data: `-0` is read as 0, and a member named
+ * `__proto__` is an ordinary member. It never throws.
+ */
+export function parseJson(text: string, options?: ParseOptions): Validation<JsonValue> {
+  try {
+    if (typeof text === "string") return parseText(text, lengthLimit(options), MAX_DEPTH);
+  } catch {
+    // Options that cannot be read.
+  }
+  return rejection("not text", "core 1.1");
+}
+
+/**
+ * Parses the UTF-8 bytes of JSON text under the profile of core Section 1.
+ * Bytes that are not valid UTF-8 are rejected (core 1.1). It never throws.
+ */
+export function parseJsonBytes(bytes: Uint8Array, options?: ParseOptions): Validation<JsonValue> {
+  try {
+    if (bytes instanceof Uint8Array) return parseBytes(bytes, lengthLimit(options), MAX_DEPTH);
+  } catch {
+    // A value that cannot even be examined, such as a revoked proxy.
+  }
+  return rejection("not bytes", "core 1.1");
 }

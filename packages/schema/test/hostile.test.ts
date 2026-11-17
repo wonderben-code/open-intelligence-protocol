@@ -11,10 +11,14 @@ import { type JsonObject, positiveVectorRecords, withAmbientTrapped } from "@oip
 import { describe, expect, it } from "vitest";
 
 import {
+  IMPLEMENTATION_LIMIT,
   MAX_ISSUES,
+  MAX_VALUES,
   parseSelector,
   type RecordType,
+  textFault,
   validateExtensionRecord,
+  validateJson,
   validateProof,
   validateRecord,
   validateRecordOfType,
@@ -97,9 +101,156 @@ describe("a type name that is not a record type", () => {
   });
 });
 
+describe("values that answer differently each time they are read", () => {
+  /** An array whose first element is an accessor: 1 the first time it is read, 1.5 after. */
+  const shifting = () => {
+    let reads = 0;
+    const array: unknown[] = [0, 2];
+    Object.defineProperty(array, 0, { get: () => (reads++ === 0 ? 1 : 1.5), enumerable: true });
+    return array;
+  };
+
+  it("are rejected: an accessor is never called, on an object or on an array", () => {
+    let called = 0;
+    const array: unknown[] = [0];
+    Object.defineProperty(array, 0, { get: () => ++called, enumerable: true });
+    const object = Object.defineProperty({}, "a", { get: () => ++called, enumerable: true });
+    for (const member of [array, object, shifting(), [shifting()], { deep: [object] }]) {
+      expect(validateJson(member).ok).toBe(false);
+      expect(validateRecord(sample("Intent", { futureMember: member })).ok).toBe(false);
+      expect(validateProof(sampleProof({ authority: [{ x: member }] })).ok).toBe(false);
+    }
+    expect(called).toBe(0);
+  });
+
+  it("are read once, when they hide behind a proxy: what is returned is what was checked", () => {
+    let reads = 0;
+    const target = sample("Intent", { futureMember: 1 });
+    // The proxy says 1 the first time each member is described, and 1.5 from then on.
+    const proxy = new Proxy(target, {
+      getOwnPropertyDescriptor(inner, name) {
+        const descriptor = Reflect.getOwnPropertyDescriptor(inner, name);
+        if (name === "futureMember" && descriptor !== undefined && reads++ > 0) {
+          return { ...descriptor, value: 1.5 };
+        }
+        return descriptor;
+      },
+      get(inner, name) {
+        return name === "futureMember" ? 1.5 : (Reflect.get(inner, name) as unknown);
+      },
+    });
+    const result = validateRecord(proxy);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // The copy holds what the check saw. Reading the proxy again would give 1.5.
+    expect(result.value).not.toBe(proxy);
+    expect((result.value as JsonObject)["futureMember"]).toBe(1);
+    expect(proxy["futureMember"]).toBe(1.5);
+    expect(JSON.stringify(result.value)).not.toContain("1.5");
+  });
+
+  it("never make a validator throw", () => {
+    const boom = () => {
+      throw new Error("boom");
+    };
+    const revoked = Proxy.revocable({}, {});
+    revoked.revoke();
+    const revokedArray = Proxy.revocable([], {});
+    revokedArray.revoke();
+    // None of these can be read as plain data.
+    const unreadable: unknown[] = [
+      new Proxy({}, { ownKeys: boom }),
+      new Proxy({ a: 1 }, { getOwnPropertyDescriptor: boom }),
+      new Proxy({}, { getPrototypeOf: boom }),
+      new Proxy([], { get: boom }),
+      new Proxy([1, 2], { getOwnPropertyDescriptor: boom }),
+      revoked.proxy,
+      revokedArray.proxy,
+      Object.defineProperty({}, "oip", { get: boom, enumerable: true }),
+    ];
+    for (const value of unreadable) {
+      for (const candidate of [value, sample("Intent", { futureMember: value }), [value]]) {
+        expect(validateJson(candidate).ok).toBe(false);
+        expect(validateRecord(candidate).ok).toBe(false);
+        expect(validateExtensionRecord(candidate).ok).toBe(false);
+        expect(validateProof(candidate).ok).toBe(false);
+        expect(validateRecordOfType("Intent", candidate).ok).toBe(false);
+      }
+    }
+    // A proxy that only watches reads of members is read through its descriptors, and is plain data.
+    const watching = new Proxy(sample("Intent"), { get: boom });
+    expect(validateRecord(watching).ok).toBe(true);
+  });
+});
+
+/** Whether a text holds a control character or a line separator. */
+function hasControl(text: string): boolean {
+  return Array.from(text).some((character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return code < 0x20 || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029;
+  });
+}
+
+describe("what an issue shows of the input", () => {
+  it("writes control characters in a path as escapes, so that a member name cannot forge a log line", () => {
+    const name = "evil\n2026-11-17 INFO login ok user=admin\u001b[2K\u2028\u0085";
+    const result = validateRecord(sample("Offer", { terms: { [name]: 1.5, price: 5 } }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    for (const issue of result.issues) {
+      expect(hasControl(issue.path), issue.path).toBe(false);
+      expect(hasControl(issue.message), issue.message).toBe(false);
+    }
+    const schema = validateRecord(
+      sample("Collective", { roles: { [`role\nINFO forged\u0007`]: { powers: "not an array" } } }),
+    );
+    expect(!schema.ok && schema.issues.some((issue) => issue.path.includes("\\u000a"))).toBe(true);
+    expect(!schema.ok && schema.issues.every((issue) => !issue.path.includes("\n"))).toBe(true);
+  });
+
+  it("cuts a long path between characters, never inside one", () => {
+    const name = "😀".repeat(400);
+    const result = validateRecord(sample("Collective", { roles: { [name]: { powers: 1 } } }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    for (const issue of result.issues) {
+      expect(Array.from(issue.path).length).toBeLessThanOrEqual(256);
+      expect(textFault(issue.path), "a path is valid Unicode").toBeUndefined();
+    }
+    expect(result.issues.some((issue) => issue.path.endsWith("…"))).toBe(true);
+  });
+});
+
 describe("values that are not JSON", () => {
   const rejected = (member: unknown) =>
     expectBoundedRejection(() => validateRecord(sample("Intent", { futureMember: member })));
+
+  it("more values than the implementation reads are refused as its own limit, not the specification's", () => {
+    const many = validateRecord(
+      sample("Intent", { futureMember: new Array(MAX_VALUES + 1).fill(0) }),
+    );
+    expect(!many.ok && many.issues[0]).toEqual({
+      path: "",
+      message: `there are more than ${MAX_VALUES} values here, the most this implementation reads in one record or container`,
+      clause: IMPLEMENTATION_LIMIT,
+    });
+    expect(MAX_VALUES).toBe(1_048_576);
+    expect(validateJson(new Array(1000).fill(0)).ok).toBe(true);
+  });
+
+  it("an array that is not a plain array is rejected", () => {
+    class Sub extends Array<unknown> {}
+    const withMember = Object.assign([1, 2], { toJSON: () => "rewritten" });
+    const withHidden = Object.defineProperty([1, 2], "extra", { value: 1, enumerable: false });
+    const holed: unknown[] = [];
+    holed[3] = 1;
+    for (const array of [Sub.from([1]), withMember, withHidden, holed, new Array(3)]) {
+      rejected(array);
+      expect(validateJson(array).ok).toBe(false);
+    }
+    expect(validateJson([]).ok).toBe(true);
+    expect(validateJson([[], [1, [2]]])).toEqual({ ok: true, value: [[], [1, [2]]] });
+  });
 
   it("an array with millions of holes is rejected without reading them", () => {
     rejected(new Array(2 ** 27));

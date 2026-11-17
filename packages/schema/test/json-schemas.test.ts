@@ -8,7 +8,13 @@ import { positiveVectorRecords, readVectors, repoRoot } from "@oip/testkit";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 
-import { jsonSchemas, RECORD_TYPES, SCHEMA_DIALECT, validateRecord } from "../src/index.ts";
+import {
+  jsonSchemas,
+  RECORD_TYPES,
+  SCHEMA_DIALECT,
+  validateExtensionRecord,
+  validateRecord,
+} from "../src/index.ts";
 import { samples } from "./fixtures.ts";
 
 const schemaDir = join(repoRoot, "spec", "schemas");
@@ -125,18 +131,38 @@ describe("the exported JSON Schemas", () => {
     }
   });
 
-  it("reject the two malformed records of the negative vectors' `record` cases as far as a schema can", () => {
+  it("judge the `record` cases of the vectors as the vectors say, as far as a schema can", () => {
     const independent = independentValidator();
-    const cases = readVectors().negative.filter((entry) => entry.kind === "record");
-    expect(cases.map((entry) => entry.name).sort()).toEqual([
+    const vectors = readVectors();
+    const ofKind = (section: "valid" | "negative" | "controls") =>
+      vectors[section].filter((entry) => entry.kind === "record");
+    // Whichever validator is the right one for the record's type.
+    const wellFormed = (record: unknown) =>
+      validateRecord(record).ok || validateExtensionRecord(record).ok;
+    const negative = ofKind("negative");
+    expect(negative.map((entry) => entry.name).sort()).toEqual([
+      "container-carries-a-record-nested-65-deep",
       "delegation-to-self",
+      "extension-name-not-a-namespace",
       "packet-short-nonce",
+      "proof-entry-not-an-object",
+      "record-nested-65-deep",
+      "unknown-type-without-critical-extension",
     ]);
-    for (const entry of cases) {
-      expect(validateRecord(entry["record"]).ok, entry.name).toBe(false);
+    for (const entry of negative) expect(wellFormed(entry["record"]), entry.name).toBe(false);
+    const accepted = [...ofKind("valid"), ...ofKind("controls")];
+    expect(accepted).toHaveLength(10);
+    for (const entry of accepted) expect(wellFormed(entry["record"]), entry.name).toBe(true);
+    // What a schema alone can see: a short nonce, an entry of proof that is no object, a
+    // name in ext that is no namespace. A delegation to oneself is a code rule (Layer 1,
+    // 11.1), and so is depth.
+    for (const name of [
+      "packet-short-nonce",
+      "proof-entry-not-an-object",
+      "extension-name-not-a-namespace",
+    ]) {
+      const found = negative.find((entry) => entry.name === name);
+      expect(independent(found?.["record"]), name).toBe(false);
     }
-    // The short nonce is a schema matter. A delegation to oneself is a code rule (Layer 1, 11.1).
-    const short = cases.find((entry) => entry.name === "packet-short-nonce");
-    expect(independent(short?.["record"])).toBe(false);
   });
 });

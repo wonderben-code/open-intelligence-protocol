@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { IMPLEMENTATION_LIMIT, MAX_DEPTH } from "@oip/schema";
+import { IMPLEMENTATION_LIMIT, MAX_DEPTH, MAX_VALUES } from "@oip/schema";
 import { clause } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { MAX_TEXT_LENGTH, parseJson, parseJsonBytes } from "../src/index.ts";
+import { MAX_TEXT_LENGTH, parseJson, parseJsonBytes, type ParseOptions } from "../src/index.ts";
+import { NONCHARACTERS, textInProfile } from "./text.ts";
 
 const utf8 = (text: string) => new TextEncoder().encode(text);
 
@@ -18,10 +19,14 @@ function value(text: string): unknown {
 }
 
 /** The clause of the rejection, or a failure that shows what was accepted. */
-function rejection(text: string): string {
-  const parsed = parseJson(text);
-  if (parsed.ok)
-    throw new Error(`accepted ${text.slice(0, 80)} as ${JSON.stringify(parsed.value)}`);
+function rejection(text: string, options?: ParseOptions): string {
+  const parsed = parseJson(text, options);
+  if (parsed.ok) throw new Error(`accepted ${text.slice(0, 80)}`);
+  return rejectionOf(parsed);
+}
+
+function rejectionOf(parsed: ReturnType<typeof parseJson>): string {
+  if (parsed.ok) throw new Error("accepted");
   expect(parsed.issues).toHaveLength(1);
   expect(parsed.issues[0].path).toBe("");
   return parsed.issues[0].clause;
@@ -292,11 +297,56 @@ describe(`${clause("core 1.1")} every string is valid Unicode`, () => {
     expect(message(String.raw`"\ud800"`)).toMatch(/^a string contains an unpaired surrogate/);
   });
 
-  it("accepts a surrogate pair however its halves are written", () => {
+  it("accepts a surrogate pair written as itself or as two escapes", () => {
     expect(value(String.raw`"\ud83d\ude00"`)).toBe("😀");
-    expect(value(`"\ud83d\\ude00"`)).toBe("😀");
-    expect(value(String.raw`"\uD800\uDC00\udbff\udfff"`)).toBe("\u{10000}\u{10ffff}");
+    expect(value('"😀"')).toBe("😀");
+    expect(value(String.raw`"\uD800\uDC00\udbff\udffd"`)).toBe("\u{10000}\u{10fffd}");
     expect(value(String.raw`"\ud7ff\ue000"`)).toBe("\ud7ff\ue000");
+  });
+
+  it("rejects a text that is not valid Unicode itself, whatever its escapes would make of it", () => {
+    // Half a pair written raw has no UTF-8 encoding, so no record holds it. An escape
+    // beside it would complete the pair, and the bytes of such a text cannot exist.
+    for (const bad of [
+      `"\ud83d\\ude00"`,
+      `"\\ud83d\ude00"`,
+      `{"\ud83d\\ude00":1}`,
+      `[1,\udc00]`,
+      "\ud800",
+      ` \udfff 1`,
+    ]) {
+      expect(rejection(bad), JSON.stringify(bad)).toBe("core 1.1");
+    }
+    expect(message(`"\ud83d\\ude00"`)).toBe(
+      "the text is not valid Unicode: it has an unpaired surrogate",
+    );
+  });
+
+  it("rejects the noncharacters, written as themselves or as escapes", () => {
+    expect(NONCHARACTERS).toHaveLength(66);
+    for (const code of NONCHARACTERS) {
+      const raw = String.fromCodePoint(code);
+      const escaped = Array.from(
+        { length: raw.length },
+        (_, i) => `\\u${raw.charCodeAt(i).toString(16).padStart(4, "0")}`,
+      ).join("");
+      for (const written of [raw, escaped]) {
+        expect(rejection(`"a${written}b"`), code.toString(16)).toBe("core 1.1");
+        expect(rejection(`{"${written}":1}`), code.toString(16)).toBe("core 1.1");
+        expect(rejection(`[[{"k":["${written}"]}]]`), code.toString(16)).toBe("core 1.1");
+      }
+      expect(parseJsonBytes(new TextEncoder().encode(`"${raw}"`)).ok, code.toString(16)).toBe(
+        false,
+      );
+    }
+    expect(message('"\uffff"')).toBe(
+      "a string contains a noncharacter (U+FDD0 to U+FDEF, or a code point ending FFFE or FFFF), which a record may not contain (at character 3)",
+    );
+    // Their neighbours are ordinary characters.
+    for (const code of [0xfdcf, 0xfdf0, 0xfffd, 0x1fffd, 0x20000, 0x10fffd]) {
+      const raw = String.fromCodePoint(code);
+      expect(value(`"${raw}"`), code.toString(16)).toBe(raw);
+    }
   });
 });
 
@@ -493,6 +543,79 @@ describe(`${clause("core 1.9")} depth, and the length of a text`, () => {
     // A caller that accepts containers of many records raises the limit.
     expect(parseJson(text(MAX_TEXT_LENGTH + 1), { maxLength: MAX_TEXT_LENGTH + 1 }).ok).toBe(true);
   });
+
+  it("keeps its own limit when the one it is given is not a length", () => {
+    const tooLong = `"${"a".repeat(MAX_TEXT_LENGTH)}"`;
+    // A limit that is no number must not become no limit: NaN compares false with everything.
+    const notLengths = [Number.NaN, Infinity, -1, 1.5, "100", null, undefined, {}, 2n ** 60n];
+    notLengths.forEach((maxLength, i) => {
+      const options = { maxLength } as unknown as ParseOptions;
+      expect(rejection(tooLong, options), `case ${i}`).toBe(IMPLEMENTATION_LIMIT);
+      expect(parseJson("[1]", options).ok, `case ${i}`).toBe(true);
+      expect(parseJsonBytes(utf8(tooLong), options).ok, `case ${i}`).toBe(false);
+      expect(parseJsonBytes(utf8("[1]"), options).ok, `case ${i}`).toBe(true);
+    });
+    expect(parseJson("[1]", { maxLength: 0 }).ok).toBe(false);
+    // Options that are not an object, or cannot be read, are no reason to throw.
+    const boom = new Proxy(
+      {},
+      {
+        get: () => {
+          throw new Error("boom");
+        },
+      },
+    );
+    for (const options of [null, 7, "x", [], boom]) {
+      expect(() => parseJson("[1]", options as unknown as ParseOptions)).not.toThrow();
+      expect(() => parseJsonBytes(utf8("[1]"), options as unknown as ParseOptions)).not.toThrow();
+    }
+    expect(parseJson("[1]", null as unknown as ParseOptions).ok).toBe(true);
+    expect(parseJson(7 as unknown as string).ok).toBe(false);
+    expect(parseJsonBytes("[1]" as unknown as Uint8Array).ok).toBe(false);
+  });
+
+  it("reads at most as many values as a record may hold, however short they are written", () => {
+    expect(MAX_VALUES).toBe(1_048_576);
+    // The whole array is one value, and each element another.
+    const zeros = (count: number) => `[${"0,".repeat(count - 1)}0]`;
+    expect(parseJson(zeros(MAX_VALUES - 1)).ok).toBe(true);
+    expect(parseJson(zeros(MAX_VALUES))).toEqual({
+      ok: false,
+      issues: [
+        {
+          path: "",
+          message: `there are more than ${MAX_VALUES} values here, the most this implementation reads in one record or container (at character ${2 * MAX_VALUES - 1})`,
+          clause: IMPLEMENTATION_LIMIT,
+        },
+      ],
+    });
+    // Member names are not values; each member's value is.
+    const members = (count: number) =>
+      `{${Array.from({ length: count }, (_, i) => `"${i}":0`).join(",")}}`;
+    expect(parseJson(members(1000)).ok).toBe(true);
+    // Raising the limit on length does not raise this one.
+    expect(rejection(zeros(MAX_VALUES), { maxLength: 64 * MAX_TEXT_LENGTH })).toBe(
+      IMPLEMENTATION_LIMIT,
+    );
+  });
+
+  it("does not spend a hundred times a text's size in memory on it", () => {
+    // 8 MiB of the smallest values there are: "[[],[],[],…]". Without the limit on
+    // values this built four million arrays, and took some 700 MiB to do it.
+    const empties = `[${"[],".repeat((MAX_TEXT_LENGTH - 4) / 3)}[]]`;
+    expect(empties.length).toBeLessThanOrEqual(MAX_TEXT_LENGTH);
+    const before = process.memoryUsage().heapUsed;
+    const parsed = parseJson(empties);
+    const grown = process.memoryUsage().heapUsed - before;
+    expect(rejectionOf(parsed)).toBe(IMPLEMENTATION_LIMIT);
+    expect(grown).toBeLessThan(160 * 1024 * 1024);
+    // The largest tree that is read: a million arrays in one. It is held, and it is bounded.
+    const most = `[${"[],".repeat(MAX_VALUES - 2)}[]]`;
+    const started = process.memoryUsage().heapUsed;
+    const held = parseJson(most);
+    expect(held.ok).toBe(true);
+    expect(process.memoryUsage().heapUsed - started).toBeLessThan(160 * 1024 * 1024);
+  });
 });
 
 describe(`${clause("core 1.1")} records are encoded as UTF-8`, () => {
@@ -552,13 +675,11 @@ describe("the parser and the platform's agree on every value in the profile", ()
       fc.constant(null),
       fc.boolean(),
       fc.maxSafeInteger(),
-      fc.string({ unit: "binary" }).filter((text) => text.isWellFormed()),
+      fc.string({ unit: "binary" }).filter(textInProfile),
       fc.array(tie("value"), { maxLength: 5 }),
-      fc.dictionary(
-        fc.string({ unit: "binary" }).filter((text) => text.isWellFormed()),
-        tie("value"),
-        { maxKeys: 5 },
-      ),
+      fc.dictionary(fc.string({ unit: "binary" }).filter(textInProfile), tie("value"), {
+        maxKeys: 5,
+      }),
     ),
   })).value;
 

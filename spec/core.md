@@ -6,7 +6,7 @@ This document defines what every OIP record has in common, at every layer. See [
 
 ## 1. Records
 
-1.1. A **record** is a JSON object (RFC 8259), encoded as UTF-8, that is also an I-JSON message (RFC 7493): it MUST NOT contain duplicate member names, and every string MUST be valid Unicode (no unpaired surrogates). Receivers SHOULD reject records with duplicate member names. Content IDs and proofs cover the record as parsed, so a receiver that cannot detect duplicates may disagree with others about whether a record is valid, but never accepts a value its signer did not sign.
+1.1. A **record** is a JSON object (RFC 8259), encoded as UTF-8, that is also an I-JSON message (RFC 7493): it MUST NOT contain duplicate member names, and every string, member names included, MUST be valid Unicode with no noncharacter in it: no unpaired surrogate, no code point from U+FDD0 to U+FDEF, and no code point whose last sixteen bits are FFFE or FFFF (RFC 7493, Section 2.1). Receivers SHOULD reject records with duplicate member names. Content IDs and proofs cover the record as parsed, so a receiver that cannot detect duplicates may disagree with others about whether a record is valid, but never accepts a value its signer did not sign.
 
 1.2. The values permitted anywhere in a record are objects, arrays, strings, `true`, `false`, `null`, and numbers whose value is an integer `n` with −(2⁵³−1) ≤ `n` ≤ 2⁵³−1. A record containing a number whose value has a fractional part, or lies outside that range, MUST be rejected. Validity depends on a number's value, not on how it is written: `1.0` and `1e2` are the integers 1 and 100, which canonical form writes as `1` and `100`. Producers MUST write integers without a fraction or exponent.
 
@@ -14,15 +14,15 @@ This document defines what every OIP record has in common, at every layer. See [
 
 1.4. **Timestamps** MUST be RFC 3339 strings in UTC matching `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$` that name a real date and time (no month 13, no second 60 or above). Years run from `0000` to `9999` of the proleptic Gregorian calendar, as in RFC 3339; year `0000` is a leap year. Timestamps are compared as instants at full precision (up to nanoseconds), never as strings.
 
-1.5. **Durations** MUST be ISO 8601 durations matching `^P(?!$)([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?([0-9]+S)?)?$`, for example `P30D` or `PT15M`.
+1.5. **Durations** MUST be ISO 8601 durations matching `^P(?!$)([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?([0-9]+S)?)?$`, for example `P30D` or `PT15M`. A duration string MUST NOT exceed 64 characters.
 
-1.6. **Size.** The canonical form (Section 2) of a record, with its `proof` member, MUST NOT exceed 1 MiB. Implementations MAY apply lower limits to particular record types but MUST accept records of at least 256 KiB. Larger content is carried by reference (Layer 1, Section 12). `Bundle`, `LogPage`, `FeedPage` and `DuplicityEvidence` are containers: the limit applies to each record they contain, not to the container. A `Sealed` record MAY exceed the limit by its encoding overhead.
+1.6. **Size.** The canonical form (Section 2) of a record, with its `proof` member, MUST NOT exceed 1 MiB. Implementations MAY apply lower limits to particular record types but MUST accept records of at least 256 KiB. Larger content is carried by reference (Layer 1, Section 12). `Bundle`, `LogPage`, `FeedPage` and `DuplicityEvidence` are containers: the limit applies to each record they contain, and to the container without those records. It does not apply to the two together. A `Sealed` record MAY exceed the limit by its encoding overhead.
 
 1.7. **Field names** use camelCase. Implementations MUST preserve fields they do not recognise when storing or forwarding a record, because those fields are covered by its proofs, and MUST otherwise ignore them (Section 8).
 
 1.8. **String lengths** ("at most N characters") are counted in Unicode code points.
 
-1.9. **Depth.** The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is at depth 1, and a value that is neither an array nor an object adds no depth. A record that nests more deeply MUST be rejected. The rules of this section apply to the whole record, including every entry of `proof`.
+1.9. **Depth.** The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is at depth 1, and a value that is neither an array nor an object adds no depth. A record that nests more deeply MUST be rejected. For a container (1.6), the limit applies to each record it contains, counted from that record, and to the container without those records, so that a container can carry any record that is valid alone. The rules of this section apply to the whole record, including every entry of `proof`.
 
 ## 2. Canonical form
 
@@ -242,4 +242,4 @@ A proof's own `created` is never evidence, and neither is another proof on the s
 
 ## 12. Security considerations
 
-The security analysis of the protocol is in Section 8 of the technical architecture paper. Three rules from this document are essential: proofs are evaluated independently, so an attacker cannot invalidate a record by adding a bad proof; unknown fields are preserved, so a record can never be altered silently by an implementation that does not understand part of it; and time rules use evidence rather than claims (Section 9), so a stolen or retired key cannot be used by writing an earlier date.
+The security analysis of the protocol is in Section 8 of the technical architecture paper. Three rules from this document are essential: proofs are evaluated independently, so an attacker cannot invalidate a record by adding a bad proof, and the limits on size and depth (1.6, 1.9) are applied to each record a container carries and never to the container as a whole, so an attacker cannot stop a log or a feed from being served by adding one; unknown fields are preserved, so a record can never be altered silently by an implementation that does not understand part of it; and time rules use evidence rather than claims (Section 9), so a stolen or retired key cannot be used by writing an earlier date.

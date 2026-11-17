@@ -7,11 +7,20 @@
  * steps of "validate, verify, then use".
  */
 
-import { type Issue, type OipRecord, type Validation, validateRecord } from "@oip/schema";
+import {
+  containerParts,
+  type ExtensionRecord,
+  isRecordType,
+  type Issue,
+  type OipRecord,
+  type Validation,
+  validateExtensionRecord,
+  validateRecord,
+} from "@oip/schema";
 
 import type { JsonObject } from "./content-id.ts";
 import { canonicalBytesOf } from "./jcs.ts";
-import { type ParseOptions, parseJson, parseJsonBytes } from "./json.ts";
+import { parseForRecord, type ParseOptions } from "./json.ts";
 import { ok } from "./result.ts";
 
 /** core 1.6: the longest canonical form of a record, 1 MiB, in bytes. */
@@ -21,69 +30,70 @@ export const MAX_RECORD_BYTES = 1_048_576;
 export const MIN_ACCEPTED_RECORD_BYTES = 262_144;
 
 /**
- * The longest canonical form of a `Sealed` record this implementation
- * accepts. core 1.6 lets a `Sealed` record exceed the limit "by its encoding
- * overhead" and does not give a number. This one allows for the 16-byte tag
- * of the cipher, base64url (four characters for three bytes) and 4 KiB for
- * the other members.
+ * The longest `ciphertext` of a `Sealed` record, in characters. core 1.6
+ * lets a `Sealed` record exceed the limit "by its encoding overhead" and
+ * gives no number. This implementation reads that as: the ciphertext may be
+ * as long as a packet of 1 MiB makes it, with the cipher's tag of 16 bytes,
+ * in base64url, and the record apart from its ciphertext obeys the ordinary
+ * limit.
  */
-export const MAX_SEALED_BYTES = Math.ceil(((MAX_RECORD_BYTES + 16) * 4) / 3) + 4096;
+export const MAX_SEALED_CIPHERTEXT_LENGTH = Math.ceil(((MAX_RECORD_BYTES + 16) * 4) / 3);
 
 /** The size in bytes of the canonical form of a value known to be within the JSON profile. */
 function sizeOf(value: object): number {
   return canonicalBytesOf(value as JsonObject).length;
 }
 
-/**
- * The records a container carries, with the path of each (core 1.6), or
- * `undefined` for a record that is not a container.
- */
-function contained(record: OipRecord): [path: string, record: object][] | undefined {
-  switch (record.type) {
-    case "Bundle": {
-      const inner: [string, object][] = record.log.map((event, i) => [`/log/${i}`, event]);
-      if (record.location !== undefined) inner.push(["/location", record.location]);
-      if (record.participant !== undefined) inner.push(["/participant", record.participant]);
-      return inner;
-    }
-    case "LogPage":
-      return record.events.map((event, i) => [`/events/${i}`, event]);
-    case "FeedPage":
-      return record.entries.map((entry, i) => [`/entries/${i}`, entry]);
-    case "DuplicityEvidence":
-      return record.pairs.flatMap((pair, i) =>
-        pair.map((event, j): [string, object] => [`/pairs/${i}/${j}`, event]),
-      );
-    default:
-      return undefined;
-  }
+function tooLarge(path: string, what: string, size: number): Issue {
+  return {
+    path,
+    message: `${what} is ${size} bytes in canonical form; the limit is ${MAX_RECORD_BYTES}. Carry larger content by reference`,
+    clause: "core 1.6",
+  };
 }
 
 /**
  * Checks a validated record against the size limit of core 1.6: its
- * canonical form, proofs included, is at most 1 MiB. For the containers
- * (`Bundle`, `LogPage`, `FeedPage`, `DuplicityEvidence`) the limit applies to
- * each record they contain and not to the container. A `Sealed` record may
- * exceed it by its encoding overhead.
+ * canonical form, proofs included, is at most 1 MiB.
+ *
+ *   - For the containers (`Bundle`, `LogPage`, `FeedPage`,
+ *     `DuplicityEvidence`) the limit applies to each record they carry, and
+ *     to the container without them.
+ *   - A `Sealed` record may exceed it by its encoding overhead: see
+ *     `MAX_SEALED_CIPHERTEXT_LENGTH`.
  *
  * The answer is the issues found: none if the record is within the limit.
  */
-export function checkSize(record: OipRecord): Issue[] {
-  const tooLarge = (path: string, size: number, limit: number): Issue => ({
-    path,
-    message: `the canonical form is ${size} bytes; the limit is ${limit}. Carry larger content by reference`,
-    clause: "core 1.6",
-  });
-  const inner = contained(record);
-  if (inner !== undefined) {
-    return inner.flatMap(([path, carried]) => {
+export function checkSize(record: OipRecord | ExtensionRecord): Issue[] {
+  const parts = isRecordType(record.type) ? containerParts(record as OipRecord) : undefined;
+  if (parts !== undefined) {
+    const issues = parts.carried.flatMap(([path, carried]) => {
       const size = sizeOf(carried);
-      return size > MAX_RECORD_BYTES ? [tooLarge(path, size, MAX_RECORD_BYTES)] : [];
+      return size > MAX_RECORD_BYTES ? [tooLarge(path, "the record", size)] : [];
     });
+    const rest = sizeOf(parts.rest);
+    return rest > MAX_RECORD_BYTES
+      ? [tooLarge("", "the container, without the records it carries,", rest), ...issues]
+      : issues;
   }
-  const limit = record.type === "Sealed" ? MAX_SEALED_BYTES : MAX_RECORD_BYTES;
+  if (record.type === "Sealed") {
+    const { ciphertext, ...rest } = record as Extract<OipRecord, { type: "Sealed" }>;
+    const issues: Issue[] = [];
+    if (ciphertext.length > MAX_SEALED_CIPHERTEXT_LENGTH) {
+      issues.push({
+        path: "/ciphertext",
+        message: `the ciphertext is ${ciphertext.length} characters; a sealed packet of 1 MiB needs at most ${MAX_SEALED_CIPHERTEXT_LENGTH}`,
+        clause: "core 1.6",
+      });
+    }
+    const size = sizeOf(rest);
+    if (size > MAX_RECORD_BYTES) {
+      issues.push(tooLarge("", "the record, without its ciphertext,", size));
+    }
+    return issues;
+  }
   const size = sizeOf(record);
-  return size > limit ? [tooLarge("", size, limit)] : [];
+  return size > MAX_RECORD_BYTES ? [tooLarge("", "the record", size)] : [];
 }
 
 /**
@@ -97,12 +107,35 @@ export function checkSize(record: OipRecord): Issue[] {
  */
 export function parseRecord(
   input: string | Uint8Array,
-  options: ParseOptions = {},
+  options?: ParseOptions,
 ): Validation<OipRecord> {
-  const parsed =
-    typeof input === "string" ? parseJson(input, options) : parseJsonBytes(input, options);
-  if (!parsed.ok) return parsed;
-  const validated = validateRecord(parsed.value);
+  const parsed = parseForRecord(input, options);
+  return parsed.ok ? withinSize(validateRecord(parsed.value)) : parsed;
+}
+
+/**
+ * Reads a record of a type this revision does not define, as an extension
+ * may define one (core 7), from JSON text or its UTF-8 bytes. The text is
+ * parsed under the JSON profile, the members every record shares are checked
+ * (among them that `critical` lists an extension), and so is the size.
+ *
+ * Such a record can be stored and forwarded. Whether it may be acted on
+ * depends on its `critical` list: see `unsupportedCritical`. `parseRecord`
+ * refuses these records and says so; this is what reads them. It never
+ * throws.
+ */
+export function parseExtensionRecord(
+  input: string | Uint8Array,
+  options?: ParseOptions,
+): Validation<ExtensionRecord> {
+  const parsed = parseForRecord(input, options);
+  return parsed.ok ? withinSize(validateExtensionRecord(parsed.value)) : parsed;
+}
+
+/** A validated record, if it is also within the size limit. */
+function withinSize<T extends OipRecord | ExtensionRecord>(
+  validated: Validation<T>,
+): Validation<T> {
   if (!validated.ok) return validated;
   const [first, ...rest] = checkSize(validated.value);
   return first === undefined ? ok(validated.value) : { ok: false, issues: [first, ...rest] };

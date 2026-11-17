@@ -10,6 +10,7 @@ import {
   formatTimestamp,
   isDuration,
   isTimestamp,
+  MAX_DURATION_LENGTH,
   parseDuration,
   parseTimestamp,
 } from "../src/index.ts";
@@ -240,17 +241,15 @@ describe("writing a timestamp", () => {
   });
 
   it("writes only what a timestamp can name", () => {
-    for (const bad of [
-      -62167219200n * SECOND - 1n,
-      253402300800n * SECOND,
-      10n ** 40n,
-      0,
-      "0",
-      null,
-      1.5,
-    ]) {
-      expect(() => formatTimestamp(bad as bigint)).toThrow(
+    for (const bad of [-62167219200n * SECOND - 1n, 253402300800n * SECOND, 10n ** 40n]) {
+      expect(() => formatTimestamp(bad)).toThrow(
         new RangeError("a timestamp names an instant in the years 0000 to 9999"),
+      );
+    }
+    // A value that is not an instant at all is a wrong argument, not one out of range.
+    for (const bad of [0, "0", null, 1.5, undefined, new Date(0)]) {
+      expect(() => formatTimestamp(bad as unknown as bigint)).toThrow(
+        new TypeError("an instant is a bigint of nanoseconds"),
       );
     }
   });
@@ -307,6 +306,21 @@ describe(`${clause("core 1.5")} durations`, () => {
     expect(parseDuration("P1000000000000000000000000000000D")).toBe(10n ** 30n * 86400n * SECOND);
     expect(parseDuration(`PT${"9".repeat(50)}S`)).toBe(BigInt("9".repeat(50)) * SECOND);
     expect(parseDuration("P9007199254740993D")).toBe(9007199254740993n * 86400n * SECOND);
+  });
+
+  it("is at most 64 characters", () => {
+    expect(MAX_DURATION_LENGTH).toBe(64);
+    const longest = `P${"9".repeat(62)}D`;
+    expect(longest).toHaveLength(64);
+    expect(isDuration(longest)).toBe(true);
+    expect(parseDuration(longest)).toBe(BigInt("9".repeat(62)) * 86400n * SECOND);
+    const tooLong = `P${"9".repeat(63)}D`;
+    expect(isDuration(tooLong)).toBe(false);
+    expect(parseDuration(tooLong)).toBeUndefined();
+    // A million digits are refused at once, not multiplied out.
+    const started = performance.now();
+    expect(parseDuration(`P${"9".repeat(1_000_000)}D`)).toBeUndefined();
+    expect(performance.now() - started).toBeLessThan(50);
   });
 
   it("rejects everything else", () => {

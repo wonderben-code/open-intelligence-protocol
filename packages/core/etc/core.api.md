@@ -5,6 +5,7 @@
 ```ts
 
 import { AuthorityItem } from '@oip/schema';
+import { ExtensionRecord } from '@oip/schema';
 import { Issue } from '@oip/schema';
 import { JsonValue } from '@oip/schema';
 import { OipRecord } from '@oip/schema';
@@ -25,13 +26,10 @@ export function canonicalBytes(value: unknown): Uint8Array;
 export function canonicalize(value: unknown): string;
 
 // @public
-export function checkSize(record: OipRecord): Issue[];
+export function checkSize(record: OipRecord | ExtensionRecord): Issue[];
 
 // @public
 export const CLOCK_SKEW: bigint;
-
-// @public
-export function codePointLength(text: string): number;
 
 // @public
 export function compareDecimals(a: unknown, b: unknown): -1 | 0 | 1 | undefined;
@@ -83,6 +81,8 @@ export function encodeX25519Multikey(publicKey: Uint8Array): string;
 export function errorFrom(rejection: {
     readonly issues: readonly [Issue, ...Issue[]];
 }, code?: ProblemCode): OipError;
+
+export { ExtensionRecord }
 
 // @public
 export function formatControlKeyRef(key: string): string;
@@ -162,13 +162,16 @@ export type KeyType = "Ed25519" | "X25519";
 export const MAX_DECIMAL_LENGTH = 64;
 
 // @public
+export const MAX_DURATION_LENGTH = 64;
+
+// @public
 export const MAX_PROOFS = 256;
 
 // @public
 export const MAX_RECORD_BYTES = 1048576;
 
 // @public
-export const MAX_SEALED_BYTES: number;
+export const MAX_SEALED_CIPHERTEXT_LENGTH: number;
 
 // @public
 export const MAX_TEXT_LENGTH: number;
@@ -204,6 +207,8 @@ export interface OipErrorOptions {
     readonly issues?: readonly Issue[];
 }
 
+export { OipRecord }
+
 // @public
 export const ORDER_CHECK_CACHE_SIZE = 4096;
 
@@ -212,6 +217,9 @@ export function parseControlKeyRef(value: unknown): ControlKeyRef | undefined;
 
 // @public
 export function parseDuration(value: unknown): bigint | undefined;
+
+// @public
+export function parseExtensionRecord(input: string | Uint8Array, options?: ParseOptions): Validation<ExtensionRecord>;
 
 // @public
 export function parseJson(text: string, options?: ParseOptions): Validation<JsonValue>;
@@ -244,6 +252,11 @@ export function parseVersionedMind(value: unknown): VersionedMind | undefined;
 
 // @public
 export function parseVersionId(value: unknown): VersionId | undefined;
+
+// @public
+export interface PlacedProof extends VerifiedProof {
+    readonly index: number;
+}
 
 // @public
 export const PRIVATE_KEY_LENGTH = 32;
@@ -339,7 +352,15 @@ export interface ProofOptions {
     readonly challenge?: string;
     readonly created: string;
     readonly domain?: string;
+    readonly earlierThanRecord?: boolean;
     readonly verificationMethod: string;
+}
+
+// @public
+export interface ProofVerdicts {
+    readonly issues: readonly Issue[];
+    readonly rejected: readonly RejectedProof[];
+    readonly verified: readonly PlacedProof[];
 }
 
 // @public
@@ -357,6 +378,12 @@ export interface RecordRef {
 
 // @public
 export function recordRefMatches(ref: unknown, record: unknown): boolean;
+
+// @public
+export interface RejectedProof {
+    readonly index: number;
+    readonly issues: readonly [Issue, ...Issue[]];
+}
 
 // @public
 export function sha256(bytes: Uint8Array): Uint8Array;
@@ -415,7 +442,7 @@ export function verifyEd25519(signature: Uint8Array, message: Uint8Array, public
 export function verifyProof(record: unknown, proof: unknown): Validation<VerifiedProof>;
 
 // @public
-export function verifyProofs(record: unknown): Validation<readonly Validation<VerifiedProof>[]>;
+export function verifyProofs(record: unknown): ProofVerdicts;
 
 // @public
 export interface VersionedMind {

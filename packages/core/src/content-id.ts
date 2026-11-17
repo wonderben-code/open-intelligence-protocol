@@ -66,7 +66,8 @@ export function documentHashOf(record: JsonObject): Uint8Array {
 }
 
 function jsonObject(record: unknown): JsonObject {
-  const checked = validateJson(record);
+  // A container has a content ID too, and may nest as deep as a container does.
+  const checked = validateJson(record, "container");
   if (!checked.ok) throw errorFrom(checked);
   if (!isJsonObject(checked.value)) {
     throw new OipError("invalid-record", "a record is a JSON object", { clause: "core 1.1" });
@@ -104,7 +105,7 @@ export function contentId(record: unknown): string {
  * JSON object within the profile. For code that judges: it never throws.
  */
 export function contentIdIfAny(record: unknown): string | undefined {
-  const checked = validateJson(record);
+  const checked = validateJson(record, "container");
   return checked.ok && isJsonObject(checked.value)
     ? contentIdOfDigest(documentHashOf(checked.value))
     : undefined;

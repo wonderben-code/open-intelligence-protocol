@@ -115,9 +115,12 @@ describe("the positive test vectors", () => {
 
 describe("common members", () => {
   it(`${clause("core 7")} rejects a record whose oip is not the string "1"`, () => {
-    for (const oip of ["2", "1.0", 1, null, undefined, ""]) {
+    for (const oip of ["2", "1.0", 1, null, ""]) {
       expectRejected({ ...samples.Intent, oip }, /oip/);
     }
+    // A member that is undefined is not JSON at all, which is said first.
+    expectRejected({ ...samples.Intent, oip: undefined }, /not a JSON value/);
+    expectRejected(without(samples.Intent, "oip"), /oip/);
   });
 
   it(`${clause("core 7")} rejects a record without a type, or with a type this revision does not define`, () => {
@@ -141,7 +144,22 @@ describe("common members", () => {
     const record = sample("Intent", { futureMember: { nested: [1, "two", null] } });
     const result = validateRecord(record);
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value).toBe(record);
+    if (result.ok) expect(result.value).toEqual(record);
+  });
+
+  it("returns a plain copy of the record, not the value it was given", () => {
+    const record = sample("Intent", { futureMember: { nested: [1, "two", null] } });
+    const result = validateRecord(record);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).not.toBe(record);
+    expect(result.value).toEqual(record);
+    // Changing the original afterwards changes nothing in what was validated.
+    (record["futureMember"] as { nested: unknown[] }).nested.push(1.5);
+    record["want"] = 42;
+    expect(validateRecord(result.value).ok).toBe(true);
+    expect(validateRecord(record).ok).toBe(false);
+    expect(JSON.stringify(result.value)).not.toContain("1.5");
   });
 
   it(`${clause("core 1.4")} rejects a created that is not a real UTC timestamp`, () => {

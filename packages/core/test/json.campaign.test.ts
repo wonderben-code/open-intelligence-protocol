@@ -9,7 +9,8 @@
  * Whether an input is within the profile is decided by an oracle written
  * for this test, which shares nothing with the parser: the platform's
  * `JSON.parse` for the grammar, exact integer arithmetic on each number's
- * source text, and a token scan for duplicate names and depth.
+ * source text, the platform's check for valid Unicode with a character class
+ * for the noncharacters, and a token scan for duplicate names and depth.
  *
  * The inputs are generated from a fixed seed, so a failure reproduces.
  * `OIP_PARSER_CAMPAIGN` sets how many are generated.
@@ -20,6 +21,7 @@ import { clause } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import { parseJson, parseJsonBytes } from "../src/index.ts";
+import { textInProfile } from "./text.ts";
 
 const INPUTS = Number(process.env["OIP_PARSER_CAMPAIGN"] ?? 1_000_000);
 
@@ -57,7 +59,8 @@ function numberInProfile(source: string): boolean {
   const shift = BigInt(exponent) - BigInt(fraction.length);
   if (shift > 20n) return false;
   if (shift >= 0n) return digits * 10n ** shift <= SAFE;
-  if (shift < -400n) return false;
+  // Dividing by more tens than the number has digits never comes out whole.
+  if (-shift > BigInt(whole.length + fraction.length)) return false;
   const divisor = 10n ** -shift;
   return digits % divisor === 0n && digits / divisor <= SAFE;
 }
@@ -89,6 +92,8 @@ function scan(text: string): { duplicate: boolean; depth: number } {
 
 /** The value of a text if it is within the JSON profile of core Section 1, and `undefined` if not. */
 function oracle(text: string): { value: unknown } | undefined {
+  // A text with half a surrogate pair in it has no UTF-8 form: no record holds it.
+  if (!text.isWellFormed()) return undefined;
   let inProfile = true;
   let value: unknown;
   try {
@@ -99,9 +104,9 @@ function oracle(text: string): { value: unknown } | undefined {
       context?: { source?: string },
     ) {
       if (typeof member === "number" && !numberInProfile(context?.source ?? "")) inProfile = false;
-      if (typeof member === "string" && !member.isWellFormed()) inProfile = false;
+      if (typeof member === "string" && !textInProfile(member)) inProfile = false;
       if (typeof member === "object" && member !== null && !Array.isArray(member)) {
-        for (const name of Object.keys(member)) if (!name.isWellFormed()) inProfile = false;
+        for (const name of Object.keys(member)) if (!textInProfile(name)) inProfile = false;
       }
       return member;
     } as Parameters<typeof JSON.parse>[1]);
@@ -176,17 +181,21 @@ function value(random: Random, depth: number): unknown {
 /** A string, written with a random choice of escapes. */
 function writeString(random: Random, text: string): string {
   let out = '"';
-  for (let i = 0; i < text.length; i++) {
-    const unit = text.charCodeAt(i);
-    const character = text.charAt(i);
+  // By code point: a pair is written as two escapes or as itself, never half and half,
+  // because a text with a raw half in it is not valid Unicode.
+  for (const character of text) {
+    const unit = character.charCodeAt(0);
     if (unit < 0x20 || character === '"' || character === "\\" || random.chance(0.1)) {
       const short = { '"': '\\"', "\\": "\\\\", "\n": "\\n", "\t": "\\t", "/": "\\/" }[character];
       out +=
         short !== undefined && random.chance(0.7)
           ? short
-          : `\\u${unit.toString(16).padStart(4, "0")}`.replace(/[a-f]/g, (hex) =>
-              random.chance(0.5) ? hex.toUpperCase() : hex,
-            );
+          : Array.from(
+              { length: character.length },
+              (_, i) => `\\u${character.charCodeAt(i).toString(16).padStart(4, "0")}`,
+            )
+              .join("")
+              .replace(/[a-f]/g, (hex) => (random.chance(0.5) ? hex.toUpperCase() : hex));
     } else out += character;
   }
   return `${out}"`;
@@ -244,6 +253,18 @@ const FAULTS = [
   "'a'",
   String.raw`"\ud800"`,
   String.raw`"\udc00\ud800"`,
+  String.raw`"\ufdd0"`,
+  String.raw`"\uFFFE"`,
+  String.raw`"\ud83f\udfff"`,
+  '"\uffff"',
+  '"\u{10ffff}"',
+  '{"\ufdef":1}',
+  '"\ud83d"',
+  // A number too long to be read as one, in the forms that keep and that lose its value.
+  `1${"0".repeat(400)}`,
+  "9".repeat(5000),
+  `1${"0".repeat(400)}e-400`,
+  `0.${"0".repeat(500)}`,
   String.raw`"\x41"`,
   String.raw`"\u12"`,
   '"\n"',
@@ -305,6 +326,10 @@ describe(`${clause("core 1.1", "core 1.2")} the campaign on the parser of the JS
       "9007199254740991",
       '{"a":1,"b":{"a":2}}',
       String.raw`"\ud83d\ude00"`,
+      '"😀"',
+      String.raw`"\ufffd\ufdcf\ufdf0"`,
+      `1${"0".repeat(400)}e-400`,
+      `0.${"0".repeat(500)}`,
       "[]",
       " [1 , 2]\n",
     ]) {
@@ -319,6 +344,14 @@ describe(`${clause("core 1.1", "core 1.2")} the campaign on the parser of the JS
       String.raw`{"a":1,"\u0061":2}`,
       String.raw`"\ud800"`,
       String.raw`{"\ud800":1}`,
+      String.raw`"\ufffe"`,
+      String.raw`{"\ufdd0":1}`,
+      String.raw`"\udbff\udfff"`,
+      '"\uffff"',
+      // Half a pair written raw, beside an escape that would complete it.
+      `"\ud83d\\ude00"`,
+      `[\udc001]`,
+      `1${"0".repeat(400)}`,
       "[1,]",
       "",
       "\ufeff1",

@@ -3,7 +3,7 @@
 
 import { createHash } from "node:crypto";
 
-import type { Proof } from "@oip/schema";
+import { type Proof, UNSIGNED_RECORD_TYPES } from "@oip/schema";
 import { clause, copy, type JsonObject } from "@oip/testkit";
 import { base58 } from "@scure/base";
 import fc from "fast-check";
@@ -19,20 +19,25 @@ import {
   documentHash,
   formatControlKeyRef,
   MAX_PROOFS,
+  MAX_RECORD_BYTES,
   OipError,
   parseJson,
+  parseTimestamp,
   proofDigest,
   proofHashData,
   type ProofOptions,
   purposeFor,
+  recordRefMatches,
   signEd25519,
   type Signer,
   signerFromPrivateKey,
+  type SyncSigner,
   type Validation,
   verifyProof,
   verifyProofs,
   withProofs,
 } from "../src/index.ts";
+import { contentIdIfAny } from "../src/content-id.ts";
 import { craftSignature, expand, Point, smallOrderPoints, unreduced } from "./curve.ts";
 import { at, keys, log, named, negative, privateKeyOf, signedRecords } from "./vectors.ts";
 
@@ -86,6 +91,19 @@ function thrownBy(run: () => unknown): unknown {
     return error;
   }
   return undefined;
+}
+
+/**
+ * What `verifyProofs` found, entry by entry: "accepted", or the clause of the
+ * entry's rejection. If no proof was judged at all, the clause of the reason.
+ */
+function verdictsOf(record: unknown): string[] | string {
+  const { verified, rejected, issues } = verifyProofs(record);
+  if (issues[0] !== undefined) return `not judged: ${issues[0].clause}`;
+  const verdicts: string[] = [];
+  for (const proof of verified) verdicts[proof.index] = "accepted";
+  for (const entry of rejected) verdicts[entry.index] = entry.issues[0].clause;
+  return verdicts;
 }
 
 function issueOf(result: Validation<unknown>) {
@@ -163,21 +181,27 @@ describe(`${clause("core 5.6")} proof purposes`, () => {
       proofPurpose: "authentication",
     });
     expect(issueOf(verifyProof(longType, onLong)).message).toBe(
-      `a ${"T".repeat(64)} record needs a proof with the purpose assertionMethod; this proof's purpose is authentication`,
+      `a record of type "${"T".repeat(64)}…" needs a proof with the purpose assertionMethod; this proof's purpose is authentication`,
+    );
+    // And it is quoted, so that it cannot pass for part of the message or break a log line.
+    const odd = { ...intent, type: 'X" is valid.\nINFO a "' };
+    const onOdd = handSigned(odd, { ...baseOptions(odd), proofPurpose: "authentication" });
+    expect(issueOf(verifyProof(odd, onOdd)).message).toBe(
+      String.raw`a record of type "X\" is valid.\nINFO a \"" needs a proof with the purpose assertionMethod; this proof's purpose is authentication`,
     );
     const wrong = handSigned(intent, { ...baseOptions(intent), proofPurpose: "authentication" });
     expect(issueOf(verifyProof(intent, wrong))).toEqual({
       path: "/proofPurpose",
       message:
-        "a Intent record needs a proof with the purpose assertionMethod; this proof's purpose is authentication",
+        'a record of type "Intent" needs a proof with the purpose assertionMethod; this proof\'s purpose is authentication',
       clause: "core 5.6",
     });
   });
 
   it("rejects the wrong-purpose case of the vectors", () => {
     const record = negative("wrong-proof-purpose")["record"] as JsonObject;
-    const verdicts = verifyProofs(record);
-    expect(verdicts.ok && verdicts.value.map(clauseOf)).toEqual(["core 5.6"]);
+    expect(verdictsOf(record)).toEqual(["core 5.6"]);
+    expect(verifyProofs(record).verified).toEqual([]);
   });
 });
 
@@ -240,8 +264,7 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
       [second, first],
     ]) {
       const signed = withProofs(unsigned, order);
-      const verdicts = verifyProofs(signed);
-      expect(verdicts.ok && verdicts.value.every((verdict) => verdict.ok)).toBe(true);
+      expect(verdictsOf(signed)).toEqual(["accepted", "accepted"]);
       expect(contentId(signed)).toBe(contentId(unsigned));
     }
   });
@@ -429,6 +452,86 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
     expect(asked).toBe(1);
   });
 
+  it("never asks the signer to sign a record that is not well formed", async () => {
+    let asked = 0;
+    const counting: SyncSigner = {
+      publicKey: phone,
+      sign: (message) => {
+        asked++;
+        return signEd25519(message, phoneKey);
+      },
+    };
+    const options = { verificationMethod: phoneMethod, created: LATER };
+    const { want: _want, ...withoutWant } = intent;
+    const { proof: _proof, ...unsigned } = intent;
+    const padded = (blob: string) => ({
+      ...unsigned,
+      ext: { "com.example.padding": { blob } },
+      proof: [],
+    });
+    const full = Array.from({ length: MAX_PROOFS }, (_, i) => ({
+      ...intentProof,
+      created: `2026-10-30T10:00:00.${String(i).padStart(3, "0")}Z`,
+    }));
+    const malformed: [what: string, record: unknown, code: string][] = [
+      ["a required member is missing", withoutWant, "invalid-record"],
+      ["created is not a timestamp", { ...intent, created: "yesterday" }, "invalid-record"],
+      [
+        "the author is not an address",
+        { ...intent, author: "did:web:example.com" },
+        "invalid-record",
+      ],
+      ["oip is not 1", { ...intent, oip: "2" }, "invalid-record"],
+      [
+        "a critical extension is not in ext",
+        { ...intent, critical: ["com.example"] },
+        "invalid-record",
+      ],
+      [
+        "a type nobody defined, with no critical",
+        { ...intent, type: "com.example.Thing" },
+        "invalid-record",
+      ],
+      ["an entry of proof is not an object", { ...intent, proof: ["junk"] }, "invalid-record"],
+      ["no place is left for another proof", { ...intent, proof: full }, "invalid-record"],
+      ["a number with a fraction", { ...intent, extra: 0.5 }, "invalid-record"],
+      [
+        "a member longer than its type allows",
+        { ...intent, want: "w".repeat(70_000) },
+        "invalid-record",
+      ],
+      ["a record over the size limit", padded("w".repeat(MAX_RECORD_BYTES)), "too-large"],
+    ];
+    for (const [what, record, code] of malformed) {
+      await expect(createProof(record, options, counting), what).rejects.toMatchObject({ code });
+      expect(
+        thrownBy(() => createProofSync(record, options, counting)),
+        what,
+      ).toMatchObject({
+        code,
+      });
+    }
+    // The size is judged with the new proof on the record: a record that fits only without it is refused.
+    const room = MAX_RECORD_BYTES - canonicalBytes(padded("")).length;
+    const exact = padded("w".repeat(room));
+    expect(canonicalBytes(exact)).toHaveLength(MAX_RECORD_BYTES);
+    await expect(createProof(exact, options, counting)).rejects.toMatchObject({
+      code: "too-large",
+      clause: "core 1.6",
+    });
+    expect(asked).toBe(0);
+    // A well-formed record of an extension type is signed.
+    const extension = {
+      oip: "1",
+      type: "com.example.Thing",
+      created: WHEN,
+      ext: { "com.example": {} },
+      critical: ["com.example"],
+    };
+    expect(verifyProof(extension, await createProof(extension, options, counting)).ok).toBe(true);
+    expect(asked).toBe(1);
+  });
+
   it("does not ask the signer to sign a record of an unsigned type", async () => {
     let asked = 0;
     const counting: Signer = {
@@ -537,11 +640,19 @@ describe(`${clause("core 5.7")} a proof is not dated before its record`, () => {
   const before = "2026-10-30T09:59:59.999999999Z";
 
   it("holds for every proof in the vectors", () => {
+    let compared = 0;
     for (const { name, record } of signedRecords) {
+      const recordCreated = parseTimestamp(record["created"]);
+      if (recordCreated === undefined) continue;
       for (const proof of record["proof"] as AnyProof[]) {
-        expect((proof["created"] as string) >= (record["created"] as string), name).toBe(true);
+        const proofCreated = parseTimestamp(proof["created"]);
+        expect(proofCreated, name).toBeDefined();
+        // Instants are compared, never the strings (core 1.4).
+        expect(proofCreated! >= recordCreated, name).toBe(true);
+        compared++;
       }
     }
+    expect(compared).toBeGreaterThan(40);
   });
 
   it("is followed when a proof is created", async () => {
@@ -552,7 +663,7 @@ describe(`${clause("core 5.7")} a proof is not dated before its record`, () => {
       code: "invalid-proof",
       clause: "core 5.7",
       detail:
-        "a proof's created should not be earlier than its record's created: sign with the later of the two times",
+        "a proof's created should not be earlier than its record's created: sign with the later of the two times, or set earlierThanRecord",
     });
     expect(() =>
       createProofSync(intent, { verificationMethod: phoneMethod, created: before }, phoneSigner),
@@ -578,22 +689,58 @@ describe(`${clause("core 5.7")} a proof is not dated before its record`, () => {
     expect(verifyProof(intent, early).ok).toBe(true);
   });
 
+  it("gives way when the signer says the earlier time is meant", () => {
+    // core 5.7 is a SHOULD: a signer that has a reason may date a proof earlier.
+    const proof = createProofSync(
+      intent,
+      { verificationMethod: phoneMethod, created: before, earlierThanRecord: true },
+      phoneSigner,
+    );
+    expect(proof.created).toBe(before);
+    expect(verifyProof(intent, proof).ok).toBe(true);
+    // Only the value true says so.
+    for (const other of [false, undefined, 1, "true"]) {
+      expect(() =>
+        createProofSync(
+          intent,
+          {
+            verificationMethod: phoneMethod,
+            created: before,
+            earlierThanRecord: other as boolean,
+          },
+          phoneSigner,
+        ),
+      ).toThrow("or set earlierThanRecord");
+    }
+  });
+
   it("does not apply to a record that carries no created of its own", () => {
-    const { created: _created, ...undated } = intent;
+    // Only a record of an extension type may lack one: every type defined here has it.
+    const undated = {
+      oip: "1",
+      type: "com.example.Note",
+      author: intent["author"],
+      ext: { "com.example": { text: "a note" } },
+      critical: ["com.example"],
+    };
     const proof = createProofSync(
       undated,
       { verificationMethod: phoneMethod, created: "2020-01-01T00:00:00Z" },
       phoneSigner,
     );
+    expect(proof.created).toBe("2020-01-01T00:00:00Z");
     expect(verifyProof(undated, proof).ok).toBe(true);
+    // A created that is not a timestamp is a malformed record: nothing is signed.
     const odd = { ...intent, created: "not a time" };
     expect(
-      createProofSync(
-        odd,
-        { verificationMethod: phoneMethod, created: "2020-01-01T00:00:00Z" },
-        phoneSigner,
-      ).created,
-    ).toBe("2020-01-01T00:00:00Z");
+      thrownBy(() =>
+        createProofSync(
+          odd,
+          { verificationMethod: phoneMethod, created: "2020-01-01T00:00:00Z" },
+          phoneSigner,
+        ),
+      ),
+    ).toMatchObject({ code: "invalid-record" });
   });
 });
 
@@ -602,14 +749,18 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
     let verified = 0;
     for (const { name, record } of signedRecords) {
       const verdicts = verifyProofs(record);
-      expect(verdicts.ok, name).toBe(true);
-      if (!verdicts.ok) continue;
-      expect(verdicts.value).toHaveLength((record["proof"] as unknown[]).length);
-      verdicts.value.forEach((verdict, i) => {
-        expect(verdict.ok, `${name} proof ${i}`).toBe(true);
-        expect(verifyProof(record, (record["proof"] as unknown[])[i])).toEqual(verdict);
+      const proofs = record["proof"] as unknown[];
+      expect(verdicts.issues, name).toEqual([]);
+      expect(verdicts.rejected, name).toEqual([]);
+      expect(
+        verdicts.verified.map((proof) => proof.index),
+        name,
+      ).toEqual(proofs.map((_, i) => i));
+      for (const { index, ...proof } of verdicts.verified) {
+        // The same verdict as verifying that proof on its own.
+        expect(verifyProof(record, proofs[index])).toEqual({ ok: true, value: proof });
         verified++;
-      });
+      }
     }
     expect(verified).toBe(56);
   });
@@ -632,9 +783,11 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
         },
         key: phone,
         digest: proofDigest(intentProof),
-        created: BigInt(Date.parse(intentProof["created"] as string)) * 1_000_000n,
+        // 2026-10-30T10:00:00Z, in nanoseconds since 1970.
+        created: 1_793_354_400_000_000_000n,
       },
     } satisfies Validation<unknown>);
+    expect(intentProof["created"]).toBe("2026-10-30T10:00:00Z");
     const control = verifyProof(genesis, (genesis["proof"] as unknown[])[0]);
     expect(control.ok && control.value.method).toEqual({
       kind: "control",
@@ -643,6 +796,28 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
     expect(control.ok && control.value.key).toBe(
       (genesis["controller"] as { keys: string[] }).keys[0],
     );
+  });
+
+  it("gives the claimed time at full precision, to the nanosecond", () => {
+    // Evidence rules compare instants (core 1.4): a time cut to milliseconds would
+    // put a proof before a rotation it came after.
+    for (const [written, instant] of [
+      ["2026-10-30T10:00:00.000000001Z", 1_793_354_400_000_000_001n],
+      ["2026-10-30T10:00:00.123456789Z", 1_793_354_400_123_456_789n],
+      ["2026-10-30T10:00:00.999999999Z", 1_793_354_400_999_999_999n],
+      ["2026-10-30T10:00:00.0001Z", 1_793_354_400_000_100_000n],
+      ["2026-10-30T10:00:00.5Z", 1_793_354_400_500_000_000n],
+    ] as const) {
+      const proof = createProofSync(
+        intent,
+        { verificationMethod: phoneMethod, created: written },
+        phoneSigner,
+      );
+      const verdict = verifyProof(intent, proof);
+      expect(verdict.ok && verdict.value.created, written).toBe(instant);
+      const placed = verifyProofs({ ...intent, proof: [proof] }).verified[0];
+      expect(placed?.created, written).toBe(instant);
+    }
   });
 
   it(`${clause("core 5.2")} requires exactly the members 5.2 allows`, () => {
@@ -728,8 +903,9 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
     expect(clauseOf(verifyProof(nullContext, signedWith(nullContext)))).toBe("core 5.2");
   });
 
-  it("requires a key reference whose key is an Ed25519 key of order L", () => {
+  it(`${clause("core 4.3")} requires a key reference whose key is an Ed25519 key of order L: no other key signs`, () => {
     const x25519 = keys["x25519:amina"]?.multikey ?? "";
+    expect(x25519).toMatch(/^z6LS/);
     const reject = (method: string, expected: string, path = "/verificationMethod") => {
       const proof = handSigned(intent, { ...baseOptions(intent), verificationMethod: method });
       const issue = issueOf(verifyProof(intent, proof));
@@ -737,6 +913,29 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
     };
     reject(phoneMethod.replace(phone, x25519), "core 4.2");
     reject(formatControlKeyRef(x25519), "core 4.2");
+    // Keys of other signature schemes, as Multikey writes them: P-256, secp256k1, BLS12-381 G2.
+    for (const [prefix, length] of [
+      [[0x80, 0x24], 33],
+      [[0xe7, 0x01], 33],
+      [[0xeb, 0x01], 96],
+    ] as const) {
+      const other = `z${base58.encode(Uint8Array.from([...prefix, ...new Uint8Array(length).fill(2)]))}`;
+      const proof = handSigned(intent, {
+        ...baseOptions(intent),
+        verificationMethod: formatControlKeyRef(other),
+      });
+      expect(verifyProof(intent, proof).ok, other.slice(0, 12)).toBe(false);
+      expect(verifyProofs({ ...intent, proof: [proof] }).verified, other.slice(0, 12)).toEqual([]);
+    }
+    // An Ed25519 prefix on a key of the wrong length.
+    for (const length of [31, 33]) {
+      const odd = `z${base58.encode(Uint8Array.from([0xed, 0x01, ...new Uint8Array(length).fill(2)]))}`;
+      const proof = handSigned(intent, {
+        ...baseOptions(intent),
+        verificationMethod: formatControlKeyRef(odd),
+      });
+      expect(verifyProof(intent, proof).ok, `${length} bytes`).toBe(false);
+    }
     reject(`did:key:${phone}#${laptop.publicKey}`, "core 6.2");
     reject(phoneMethod.replace(/versionId=[0-9]+/, "versionId=9007199254740992"), "core 6.1");
     const beyond = handSigned(intent, {
@@ -852,7 +1051,8 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
     expect(clauseOf(verifyProof({ ...intent, s: "\ud800" }, intentProof))).toBe("core 1.1");
     for (const bad of [null, undefined, "text", 1, new Date(0), new Map()]) {
       expect(verifyProof(bad, intentProof).ok).toBe(false);
-      expect(verifyProofs(bad).ok).toBe(false);
+      expect(verifyProofs(bad)).toMatchObject({ verified: [], rejected: [] });
+      expect(verifyProofs(bad).issues.length).toBeGreaterThan(0);
     }
     for (const bad of [null, undefined, "text", 1, [], [intentProof], new Date(0)]) {
       expect(clauseOf(verifyProof(intent, bad))).not.toBe("accepted");
@@ -873,13 +1073,58 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
     );
     expect(verifyProof(hostile, intentProof).ok).toBe(false);
     expect(verifyProof(intent, hostile).ok).toBe(false);
-    expect(verifyProofs(hostile).ok).toBe(false);
+    expect(verifyProofs(hostile).verified).toEqual([]);
+    // A proxy that throws only when a member is read, one that cannot be listed, one that is gone.
+    const revoked = Proxy.revocable({}, {});
+    revoked.revoke();
+    const boom = () => {
+      throw new Error("boom");
+    };
+    const reference = `${intent["author"] as string}/${contentId(intent)}`;
+    for (const value of [
+      new Proxy({}, { get: boom }),
+      new Proxy({ ...intent }, { getOwnPropertyDescriptor: boom }),
+      new Proxy({ ...intent }, { ownKeys: boom }),
+      new Proxy({ ...intent }, { getPrototypeOf: boom }),
+      new Proxy([], { get: boom }),
+      revoked.proxy,
+      Object.defineProperty({ ...intent }, "want", { get: boom, enumerable: true }),
+      Object.defineProperty({ ...intent }, "proof", { get: boom, enumerable: true }),
+    ]) {
+      expect(verifyProof(value, intentProof).ok).toBe(false);
+      expect(verifyProof(intent, value).ok).toBe(false);
+      const verdicts = verifyProofs(value);
+      expect(verdicts.verified).toEqual([]);
+      expect(verdicts.issues.length).toBeGreaterThan(0);
+      expect(recordRefMatches(reference, value)).toBe(false);
+    }
+    expect(contentIdIfAny(revoked.proxy)).toBeUndefined();
+    expect(contentIdIfAny(new Proxy({ ...intent }, { ownKeys: boom }))).toBeUndefined();
+    expect(
+      contentIdIfAny(Object.defineProperty({ ...intent }, "want", { get: boom, enumerable: true })),
+    ).toBeUndefined();
+    // A record is read once, through its property descriptors, into a plain copy.
+    // A proxy whose trap is never reached is therefore read as the data behind it,
+    // and what is verified is that data: no getter and no get trap is ever called.
+    let calls = 0;
+    const counted = new Proxy(
+      { ...intent },
+      {
+        get(target, name, receiver) {
+          calls++;
+          return Reflect.get(target, name, receiver) as unknown;
+        },
+      },
+    );
+    expect(verifyProofs(counted).verified).toHaveLength(1);
+    expect(verifyProof(counted, intentProof).ok).toBe(true);
+    expect(recordRefMatches(reference, counted)).toBe(true);
+    expect(calls).toBe(0);
     fc.assert(
       fc.property(fc.anything(), fc.anything(), (record, proof) => {
         expect(verifyProof(record, proof).ok).toBe(false);
         expect(verifyProof(intent, proof).ok).toBe(false);
-        const verdicts = verifyProofs(record);
-        expect(!verdicts.ok || verdicts.value.every((verdict) => !verdict.ok)).toBe(true);
+        expect(verifyProofs(record).verified).toEqual([]);
       }),
       { numRuns: 300 },
     );
@@ -887,17 +1132,14 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
 });
 
 describe(`${clause("core 4.4")} the Ed25519 cases of the vectors`, () => {
-  const control = verifyProofs(intent);
-
   it("rejects a signature whose S is not reduced, and accepts the signature it was made from", () => {
     const record = negative("signature-s-not-reduced")["record"] as JsonObject;
-    const verdicts = verifyProofs(record);
-    expect(verdicts.ok && verdicts.value.map(clauseOf)).toEqual(["core 4.4"]);
+    expect(verdictsOf(record)).toEqual(["core 4.4"]);
     // The same record and options with S reduced again verify: only S is at fault.
     const proof = (record["proof"] as AnyProof[])[0]!;
     const { proofValue: _proofValue, ...options } = proof;
     expect(verifyProof(record, handSigned(record, options)).ok).toBe(true);
-    expect(control.ok && control.value.every((verdict) => verdict.ok)).toBe(true);
+    expect(verdictsOf(intent)).toEqual(["accepted"]);
   });
 
   it("rejects a signature whose R is the identity point, and accepts an honest one beside it", () => {
@@ -905,8 +1147,7 @@ describe(`${clause("core 4.4")} the Ed25519 cases of the vectors`, () => {
     const proof = (record["proof"] as AnyProof[])[0]!;
     const signature = base58.decode((proof["proofValue"] as string).slice(1));
     expect(bytesToHex(signature.subarray(0, 32))).toBe(Point.ZERO.toHex());
-    const verdicts = verifyProofs(record);
-    expect(verdicts.ok && verdicts.value.map(clauseOf)).toEqual(["core 4.4"]);
+    expect(verdictsOf(record)).toEqual(["core 4.4"]);
     const { proofValue: _proofValue, ...options } = proof;
     expect(verifyProof(record, handSigned(record, options)).ok).toBe(true);
   });
@@ -946,7 +1187,7 @@ describe(`${clause("core 5.1")} the proof set`, () => {
         message: `a ${type} record is unsigned: no proof on it counts`,
         clause: "core 5.1",
       });
-      expect(clauseOf(verifyProofs(record)), type).toBe("core 5.1");
+      expect(verdictsOf(record), type).toBe("not judged: core 5.1");
     }
   });
 
@@ -963,46 +1204,98 @@ describe(`${clause("core 5.1")} the proof set`, () => {
       { ...unsigned, proof: "x" },
       { ...unsigned, proof: null },
       many(MAX_PROOFS + 1),
+      // An entry that is not an object makes the record malformed: nothing is judged.
+      { ...unsigned, proof: [42, intentProof] },
+      { ...unsigned, proof: [intentProof, null] },
+      { ...unsigned, proof: [intentProof, "proof"] },
+      { ...unsigned, proof: [[intentProof]] },
     ]) {
-      expect(issueOf(verifyProofs(bad))).toEqual({
-        path: "/proof",
-        message: "a signed record carries a proof member that is an array of 1 to 256 proofs",
-        clause: "core 5.1",
+      expect(verifyProofs(bad)).toEqual({
+        verified: [],
+        rejected: [],
+        issues: [
+          {
+            path: "/proof",
+            message:
+              "a signed record carries a proof member that is an array of 1 to 256 proof objects",
+            clause: "core 5.1",
+          },
+        ],
       });
     }
     expect(MAX_PROOFS).toBe(256);
-    const one = verifyProofs(many(1));
-    expect(one.ok && one.value).toHaveLength(1);
+    expect(verdictsOf(many(1))).toEqual(["accepted"]);
     // The largest set is judged in full. The signatures are malformed here, to keep the test quick.
     const largest = verifyProofs({
       ...unsigned,
-      proof: Array.from({ length: MAX_PROOFS }, () => ({})),
+      proof: Array.from({ length: MAX_PROOFS }, (_, i) => ({ n: i })),
     });
-    expect(largest.ok && largest.value).toHaveLength(MAX_PROOFS);
+    expect(largest.issues).toEqual([]);
+    expect(largest.rejected).toHaveLength(MAX_PROOFS);
+    expect(largest.rejected.map((entry) => entry.index)).toEqual(
+      Array.from({ length: MAX_PROOFS }, (_, i) => i),
+    );
+  });
+
+  it("verifies a proof that is repeated once, and reports it at each of its places", () => {
+    const { proof: _proof, ...unsigned } = intent;
+    const tampered = { ...intentProof, created: "2026-10-30T23:59:59Z" };
+    const repeated = {
+      ...unsigned,
+      proof: [intentProof, tampered, intentProof, tampered, intentProof],
+    };
+    const verdicts = verifyProofs(repeated);
+    expect(verdicts.verified.map((proof) => proof.index)).toEqual([0, 2, 4]);
+    expect(verdicts.rejected.map((entry) => entry.index)).toEqual([1, 3]);
+    expect(verdicts.rejected.map((entry) => entry.issues[0].path)).toEqual([
+      "/proof/1/proofValue",
+      "/proof/3/proofValue",
+    ]);
+    // Three entries, one key and one digest: whoever counts signatures counts keys.
+    expect(new Set(verdicts.verified.map((proof) => proof.key)).size).toBe(1);
+    expect(new Set(verdicts.verified.map((proof) => proof.digest)).size).toBe(1);
+    // 256 copies cost one signature check, not 256.
+    const started = performance.now();
+    const flood = verifyProofs({
+      ...unsigned,
+      proof: Array.from({ length: MAX_PROOFS }, () => intentProof),
+    });
+    expect(flood.verified).toHaveLength(MAX_PROOFS);
+    expect(performance.now() - started).toBeLessThan(250);
   });
 });
 
 describe(`${clause("core 5.5")} each proof is evaluated independently`, () => {
   it("counts the good proofs of a record that also carries bad ones", () => {
     const tampered = { ...intentProof, created: "2026-10-30T09:30:01Z" };
+    // Objects that are not proofs: junk that anyone relaying the record could add.
+    const junk = [
+      {},
+      { type: "DataIntegrityProof" },
+      { ...intentProof, id: "urn:x" },
+      { a: [1, { b: null }] },
+    ];
     const record = {
       ...intent,
-      proof: [42, tampered, intentProof, null, {}, "proof", [intentProof], intentProof],
+      proof: [junk[0], tampered, intentProof, junk[1], junk[2], junk[3], intentProof],
     };
-    const verdicts = verifyProofs(record);
-    expect(verdicts.ok && verdicts.value.map(clauseOf)).toEqual([
+    expect(verdictsOf(record)).toEqual([
       "core 5.2",
       "core 4.4",
       "accepted",
       "core 5.2",
       "core 5.2",
       "core 5.2",
-      "core 5.2",
       "accepted",
     ]);
+    const verdicts = verifyProofs(record);
+    expect(verdicts.verified.map((proof) => proof.index)).toEqual([2, 6]);
     // Each rejection says which proof it is about.
-    expect(verdicts.ok && issueOf(verdicts.value[1]!).path).toBe("/proof/1/proofValue");
-    expect(verdicts.ok && issueOf(verdicts.value[4]!).path).toMatch(/^\/proof\/4/);
+    expect(verdicts.rejected[1]).toMatchObject({
+      index: 1,
+      issues: [{ path: "/proof/1/proofValue", clause: "core 4.4" }],
+    });
+    expect(verdicts.rejected[2]?.issues[0].path).toMatch(/^\/proof\/3/);
     expect(contentId(record)).toBe(contentId(intent));
   });
 
@@ -1011,9 +1304,10 @@ describe(`${clause("core 5.5")} each proof is evaluated independently`, () => {
     const proofs = record["proof"] as unknown[];
     expect(proofs.length).toBeGreaterThanOrEqual(2);
     const together = verifyProofs(record);
+    expect(together.verified).toHaveLength(proofs.length);
     proofs.forEach((proof, i) => {
       const alone = verifyProofs({ ...record, proof: [proof] });
-      expect(alone.ok && together.ok && alone.value[0]).toEqual(together.ok && together.value[i]);
+      expect(alone.verified).toEqual([{ ...together.verified[i], index: 0 }]);
     });
   });
 });
@@ -1074,19 +1368,78 @@ describe("the proof set of a record", () => {
       ...first,
       created: `2026-10-30T10:00:00.${String(i).padStart(3, "0")}Z`,
     }));
+    // More than 256 is a matter of size, and has the code for it.
     expect(thrownBy(() => withProofs(unsigned, tooMany))).toMatchObject({
-      code: "invalid-record",
+      code: "too-large",
       clause: "core 5.1",
     });
     expect(() => withProofs({ ...unsigned, proof: { a: 1 } }, [first])).toThrow(OipError);
     expect(() => withProofs([], [first])).toThrow("a record is a JSON object");
     expect(() => withProofs({ ...unsigned, n: 0.5 }, [first])).toThrow(OipError);
-    expect(() =>
-      withProofs(unsigned, [{ ...first, created: new Date(0) } as unknown as Proof]),
-    ).toThrow(OipError);
-    expect(() => withProofs(unsigned, ["proof" as unknown as Proof])).toThrow(
-      "a proof is a JSON object",
-    );
+    expect(() => withProofs({ ...unsigned, proof: [first, "x"] }, [other])).toThrow(OipError);
+  });
+
+  it("adds only what has the form of a proof", () => {
+    // Anything merged takes one of the 256 places, so junk is never merged.
+    for (const junk of [
+      "proof",
+      null,
+      7,
+      [],
+      {},
+      { a: 1 },
+      { ...first, created: new Date(0) },
+      { ...first, proofValue: "z" },
+      { ...first, extra: 1 },
+      { ...first, cryptosuite: "ecdsa-jcs-2019" },
+      (() => {
+        const { proofValue: _proofValue, ...withoutValue } = first;
+        return withoutValue;
+      })(),
+    ]) {
+      expect(
+        thrownBy(() => withProofs(unsigned, [junk as unknown as Proof])),
+        JSON.stringify(junk),
+      ).toMatchObject({ code: "invalid-proof" });
+      expect(
+        thrownBy(() => withProofs(intent, [other, junk as unknown as Proof])),
+        JSON.stringify(junk),
+      ).toMatchObject({ code: "invalid-proof" });
+    }
+    // The form of a proof is not its verification: that is the caller's to do first.
+    const forged = { ...first, proofValue: `z${"1".repeat(88)}` };
+    expect(withProofs(unsigned, [forged]).proof).toEqual([forged]);
+    expect(verifyProofs(withProofs(unsigned, [forged])).rejected).toHaveLength(1);
+  });
+
+  it("is not for a record of a type that is never signed", () => {
+    for (const type of UNSIGNED_RECORD_TYPES) {
+      expect(
+        thrownBy(() => withProofs({ oip: "1", type }, [first])),
+        type,
+      ).toMatchObject({
+        code: "invalid-proof",
+        clause: "core 5.1",
+      });
+      expect(
+        thrownBy(() => withProofs({ oip: "1", type }, [])),
+        type,
+      ).toMatchObject({
+        code: "invalid-proof",
+      });
+    }
+    expect(thrownBy(() => withProofs({ oip: "1" }, [first]))).toMatchObject({
+      code: "invalid-record",
+      clause: "core 7",
+    });
+  });
+
+  it("keeps the result within the size limit", () => {
+    const big = { ...unsigned, want: "w".repeat(MAX_RECORD_BYTES - 900) };
+    expect(thrownBy(() => withProofs(big, [first, other]))).toMatchObject({
+      code: "too-large",
+      clause: "core 1.6",
+    });
   });
 });
 
@@ -1153,8 +1506,7 @@ describe("changing any byte of any vector record makes verification fail", () =>
     }
     const parsed = parseJson(decoded);
     if (!parsed.ok) return 0;
-    const verdicts = verifyProofs(parsed.value);
-    return verdicts.ok ? verdicts.value.filter((verdict) => verdict.ok).length : 0;
+    return verifyProofs(parsed.value).verified.length;
   }
 
   it("for any record, any position and any other byte", () => {
@@ -1190,10 +1542,9 @@ describe("changing any byte of any vector record makes verification fail", () =>
     const record = named("commitment_accepted");
     const proofs = copy(record["proof"] as AnyProof[]);
     proofs[0]!["created"] = "2026-10-30T23:59:59Z";
-    const verdicts = verifyProofs({ ...record, proof: proofs });
-    expect(verdicts.ok && verdicts.value.map((verdict) => verdict.ok)).toEqual([
-      false,
-      ...proofs.slice(1).map(() => true),
+    expect(verdictsOf({ ...record, proof: proofs })).toEqual([
+      "core 4.4",
+      ...proofs.slice(1).map(() => "accepted"),
     ]);
   });
 });

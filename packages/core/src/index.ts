@@ -13,16 +13,8 @@
  * @packageDocumentation
  */
 
-export type { Issue, JsonValue, Validation } from "@oip/schema";
-export {
-  bytesEqual,
-  bytesToHex,
-  codePointLength,
-  decodeUtf8,
-  hexToBytes,
-  isWellFormed,
-  utf8,
-} from "./bytes.ts";
+export type { ExtensionRecord, Issue, JsonValue, OipRecord, Validation } from "@oip/schema";
+export { bytesEqual, bytesToHex, decodeUtf8, hexToBytes, isWellFormed, utf8 } from "./bytes.ts";
 export {
   contentId,
   contentIdOfDigest,
@@ -74,10 +66,13 @@ export {
   createProof,
   createProofSync,
   MAX_PROOFS,
+  type PlacedProof,
   proofDigest,
   proofHashData,
   type ProofOptions,
+  type ProofVerdicts,
   purposeFor,
+  type RejectedProof,
   type Signer,
   type SyncSigner,
   type VerifiedProof,
@@ -88,8 +83,9 @@ export {
 export {
   checkSize,
   MAX_RECORD_BYTES,
-  MAX_SEALED_BYTES,
+  MAX_SEALED_CIPHERTEXT_LENGTH,
   MIN_ACCEPTED_RECORD_BYTES,
+  parseExtensionRecord,
   parseRecord,
 } from "./record.ts";
 export {
@@ -121,6 +117,7 @@ export {
   type Instant,
   isDuration,
   isTimestamp,
+  MAX_DURATION_LENGTH,
   parseDuration,
   parseTimestamp,
 } from "./time.ts";

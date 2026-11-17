@@ -69,6 +69,74 @@ describe("limits on every value", () => {
     expect(IMPLEMENTATION_LIMIT).toBe("implementation limit");
   });
 
+  it(`${clause("core 1.9")} lets a container carry records that are each as deep as the limit`, () => {
+    const depthOfIssue = (record: JsonObject) => {
+      const result = validateRecord(record);
+      return result.ok ? "ok" : result.issues.map((issue) => `${issue.clause} ${issue.path}`);
+    };
+    // An identity event with an unknown member, the whole event nesting `depth` deep.
+    const event = (depth: number) => sample("Genesis", { futureMember: nest(depth - 1) });
+    for (const depth of [61, 62, 63, MAX_DEPTH]) {
+      expect(depthOfIssue(event(depth)), `alone, ${depth}`).toBe("ok");
+      expect(depthOfIssue(sample("Bundle", { log: [event(depth)] })), `Bundle, ${depth}`).toBe(
+        "ok",
+      );
+      expect(depthOfIssue(sample("LogPage", { events: [event(depth)] })), `LogPage, ${depth}`).toBe(
+        "ok",
+      );
+      expect(
+        depthOfIssue(sample("DuplicityEvidence", { pairs: [[event(depth), event(depth)]] })),
+        `DuplicityEvidence, ${depth}`,
+      ).toBe("ok");
+    }
+    // One level more is too deep, alone or carried, and the issue says which record.
+    const tooDeep = event(MAX_DEPTH + 1);
+    expect(depthOfIssue(tooDeep)).toEqual(["core 1.9 "]);
+    expect(depthOfIssue(sample("LogPage", { events: [event(10), tooDeep] }))).toEqual([
+      "core 1.9 /events/1",
+    ]);
+    expect(depthOfIssue(sample("Bundle", { log: [tooDeep] }))).toEqual(["core 1.9 /log/0"]);
+    // In DuplicityEvidence a record stands one level further down, past what any container allows.
+    expect(depthOfIssue(sample("DuplicityEvidence", { pairs: [[event(10), tooDeep]] }))).toEqual([
+      "core 1.9 ",
+    ]);
+    const deepEntry = sample("Entry", { futureMember: nest(MAX_DEPTH - 1) });
+    expect(depthOfIssue(sample("FeedPage", { entries: [deepEntry] }))).toBe("ok");
+    expect(
+      depthOfIssue(sample("FeedPage", { entries: [sample("Entry", { x: nest(MAX_DEPTH) })] })),
+    ).toEqual(["core 1.9 /entries/0"]);
+    // Far deeper than any container allows is rejected before anything else is looked at.
+    expect(depthOfIssue(sample("LogPage", { events: [event(MAX_DEPTH + 5)] }))).toEqual([
+      "core 1.9 ",
+    ]);
+  });
+
+  it(`${clause("core 1.9")} applies the limit to a container without the records it carries`, () => {
+    const verdict = (record: JsonObject) => {
+      const result = validateRecord(record);
+      return result.ok ? "ok" : result.issues.map((issue) => `${issue.clause} ${issue.path}`);
+    };
+    // The container's own unknown member may be as deep as any record's, and no deeper.
+    expect(verdict(sample("LogPage", { futureMember: nest(MAX_DEPTH - 1) }))).toBe("ok");
+    expect(verdict(sample("LogPage", { futureMember: nest(MAX_DEPTH) }))).toEqual(["core 1.9 "]);
+    expect(verdict(sample("Bundle", { futureMember: nest(MAX_DEPTH) }))).toEqual(["core 1.9 "]);
+    // A record that only carries another is not a container: the limit is on the whole.
+    const packet = sample("Packet", { futureMember: nest(MAX_DEPTH - 1) });
+    expect(verdict(packet)).toBe("ok");
+    expect(verdict(sample("Forwarded", { packet }))).toEqual(["core 1.9 "]);
+  });
+
+  it(`${clause("core 1.9")} counts a proof from its place in a record`, () => {
+    // A proof stands at depth 3: the record, its proof array, the proof.
+    const deepest = sampleProof({ authority: [nest(MAX_DEPTH - 4)] });
+    expect(validateProof(deepest).ok).toBe(true);
+    expect(validateRecord(sample("Intent", { proof: [deepest] })).ok).toBe(true);
+    const tooDeep = sampleProof({ authority: [nest(MAX_DEPTH - 3)] });
+    const result = validateProof(tooDeep);
+    expect(!result.ok && result.issues[0].clause).toBe("core 1.9");
+    expect(validateRecord(sample("Intent", { proof: [tooDeep] })).ok).toBe(false);
+  });
+
   it("rejects hostile nesting without exhausting the stack", () => {
     expect(validateRecord(sample("Intent", { futureMember: nest(200_000) })).ok).toBe(false);
     expect(validateRecord(sample("Delegation", { policy: nest(200_000) })).ok).toBe(false);

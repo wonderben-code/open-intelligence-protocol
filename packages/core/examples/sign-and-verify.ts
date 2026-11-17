@@ -42,16 +42,14 @@ export async function example(controlKey: Uint8Array, nextKey: Uint8Array): Prom
     return received.issues.map((issue) => `${issue.clause} ${issue.path}: ${issue.message}`);
   }
   // Verify: which of its proofs are well formed, with a valid signature?
-  const verdicts = verifyProofs(received.value);
-  if (!verdicts.ok) return [`${verdicts.issues[0].clause}: ${verdicts.issues[0].message}`];
+  const { verified, rejected } = verifyProofs(received.value);
   return [
     `a well-formed ${received.value.type}`,
     // A mind's address is the content ID of its first event.
     `address: ${mindAddress(contentId(received.value))}`,
-    ...verdicts.value.map((verdict, i) =>
-      verdict.ok
-        ? `proof ${i}: a valid signature by ${verdict.value.key}`
-        : `proof ${i}: ${verdict.issues[0].clause} ${verdict.issues[0].message}`,
+    ...verified.map((proof) => `proof ${proof.index}: a valid signature by ${proof.key}`),
+    ...rejected.map(
+      (entry) => `proof ${entry.index}: ${entry.issues[0].clause} ${entry.issues[0].message}`,
     ),
   ];
 }

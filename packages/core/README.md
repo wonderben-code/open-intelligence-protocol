@@ -4,7 +4,7 @@ The foundation every record of the [Open Intelligence Protocol](../../README.md)
 
 It answers two questions about a record. **Is this text a well-formed record?** And: **which of its proofs are well formed, with a valid signature by the key they name?** Whether that key may sign for anyone, and from when, is decided by the packages above this one, from identity logs and evidence.
 
-- **The JSON profile** (core 1). A strict parser: no duplicate member names, valid Unicode, and numbers that are safe integers, judged by value. `JSON.parse` is not used for records, because it keeps the last of two members with one name and turns numbers into floats before anyone can judge them.
+- **The JSON profile** (core 1). A strict parser: no duplicate member names, valid Unicode with no noncharacters, and numbers that are safe integers, judged by value. `JSON.parse` is not used for records, because it keeps the last of two members with one name and turns numbers into floats before anyone can judge them.
 - **Canonical form** (core 2), **content IDs** in their one spelling and **key hashes** (core 3).
 - **Multikey**, with its prefix and length checks (core 4.1 to 4.3).
 - **Ed25519 under the one rule of core 4.4**: `S < L`, canonical encodings, and `A` and `R` of order exactly L. The arithmetic is `@noble/curves`; this package decides what to accept.
@@ -57,16 +57,14 @@ export async function example(controlKey: Uint8Array, nextKey: Uint8Array): Prom
     return received.issues.map((issue) => `${issue.clause} ${issue.path}: ${issue.message}`);
   }
   // Verify: which of its proofs are well formed, with a valid signature?
-  const verdicts = verifyProofs(received.value);
-  if (!verdicts.ok) return [`${verdicts.issues[0].clause}: ${verdicts.issues[0].message}`];
+  const { verified, rejected } = verifyProofs(received.value);
   return [
     `a well-formed ${received.value.type}`,
     // A mind's address is the content ID of its first event.
     `address: ${mindAddress(contentId(received.value))}`,
-    ...verdicts.value.map((verdict, i) =>
-      verdict.ok
-        ? `proof ${i}: a valid signature by ${verdict.value.key}`
-        : `proof ${i}: ${verdict.issues[0].clause} ${verdict.issues[0].message}`,
+    ...verified.map((proof) => `proof ${proof.index}: a valid signature by ${proof.key}`),
+    ...rejected.map(
+      (entry) => `proof ${entry.index}: ${entry.issues[0].clause} ${entry.issues[0].message}`,
     ),
   ];
 }
@@ -88,6 +86,7 @@ A valid signature is not yet authority. Verifying this event as the start of an 
 
 | Export                                                                                                                                                                           | What it does                                                                                                         |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `parseExtensionRecord(text)`                                                                                                                                                     | Reads a record of a type an extension defines (core 7): the profile, the members every record shares, and the size   |
 | `parseRecord(text)`                                                                                                                                                              | Reads a record from text or bytes: the JSON profile, the schema and rules of its type, and the size limit (core 1.6) |
 | `parseJson(text)`, `parseJsonBytes(bytes)`                                                                                                                                       | The parser of the JSON profile on its own                                                                            |
 | `canonicalize(value)`, `canonicalBytes(value)`                                                                                                                                   | Canonical form, RFC 8785                                                                                             |
@@ -103,7 +102,7 @@ A valid signature is not yet authority. Verifying this event as the start of an 
 | `compareDecimals`, `isDecimal`, `isAmount`                                                                                                                                       | Decimal quantities, compared exactly                                                                                 |
 | `unsupportedCritical`, `understandsCritical`, `isNamespace`                                                                                                                      | Critical extensions                                                                                                  |
 | `OipError`, `PROBLEMS`, `problemDetails`, `problemType`, `problemCode`, `errorFrom`, `MEDIA_TYPE`                                                                                | Problem types and the one error this implementation throws                                                           |
-| `sha256`, `sha256Digest`, `utf8`, `decodeUtf8`, `codePointLength`, `isWellFormed`, `bytesToHex`, `hexToBytes`, `bytesEqual`                                                      | Hashing, text and bytes                                                                                              |
+| `sha256`, `sha256Digest`, `utf8`, `decodeUtf8`, `isWellFormed`, `bytesToHex`, `hexToBytes`, `bytesEqual`                                                                         | Hashing, text and bytes                                                                                              |
 
 The API report is [`etc/core.api.md`](etc/core.api.md).
 
@@ -115,7 +114,9 @@ The API report is [`etc/core.api.md`](etc/core.api.md).
   core 4.4 /proof/0/proofValue: the signature does not verify: …
   ```
 
-- **A function that computes or creates throws `OipError`** when the value it was given is not a record, a proof or JSON within the profile: `canonicalize`, `contentId`, `createProof`, `withProofs`. Nothing outside the profile is ever hashed or signed.
+- **`verifyProofs` answers with three lists**: the proofs that `verified`, the entries that were `rejected` with their reasons, and `issues` when no proof could be judged at all (the record is unreadable, of an unsigned type, or its `proof` is not an array of 1 to 256 objects). There is no single `ok`: a record with one good proof and one bad one is neither. Count distinct keys among `verified`, never entries.
+- **A function that computes or creates throws `OipError`** when the value it was given is not a record, a proof or JSON within the profile: `canonicalize`, `contentId`, `createProof`, `withProofs`. Nothing outside the profile is ever hashed or signed. `createProof` checks the record, as it will stand with the proof on it, before it asks the signer for anything: a signer is never asked to sign a malformed record.
+- **What is judged is a plain copy.** A record is read once, through its property descriptors, and never again: an object that answers differently the second time it is read cannot be validated as one thing and hashed as another. No getter and no proxy trap for reading a member is ever called. Byte arrays are copied once in the same way.
 - **A wrong argument throws `TypeError`**: a private key that is not 32 bytes, for example. Its message never repeats the value ([ADR-0007](../../docs/adr/0007-programming-errors.md)).
 
 ## What verifying a proof covers
@@ -124,18 +125,23 @@ The API report is [`etc/core.api.md`](etc/core.api.md).
 
 It does **not** check that the record is well formed (use `parseRecord` or `validateRecord` first), that the key belongs to the mind the reference names, or anything about time. A proof's `created` is the signer's claim, never evidence (core 9.2).
 
+`withProofs` checks that each proof it adds has the form of a proof. It does not verify it. Merge only proofs that `verifyProof` has accepted: anything merged takes one of the record's 256 places.
+
 Every proof is judged on its own (core 5.5). A bad proof never invalidates a record or another proof, and never counts.
 
 ## Limits
 
-| Limit                                  | Value                                                  | From                                                                 |
-| -------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------- |
-| Canonical form of a record             | 1 MiB; a container is limited per record it carries    | core 1.6                                                             |
-| Canonical form of a `Sealed` record    | 1 MiB plus the cipher's 16 bytes, base64url, and 4 KiB | this implementation's reading of "its encoding overhead" in core 1.6 |
-| Proofs on a record                     | 256                                                    | core 5.1                                                             |
-| Nesting of arrays and objects          | 64                                                     | core 1.9                                                             |
-| Text parsed in one call                | 8 MiB by default; set `maxLength` to change it         | this implementation                                                  |
-| Order checks of public keys remembered | 4,096                                                  | this implementation                                                  |
+| Limit                                  | Value                                                                                                                     | From                |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| Canonical form of a record             | 1 MiB. For a container: each record it carries, and the container without them                                            | core 1.6            |
+| A `Sealed` record                      | `ciphertext` of 1,398,123 characters (a packet of 1 MiB with the cipher's 16 bytes, in base64url), and 1 MiB for the rest | core 1.6            |
+| Proofs on a record                     | 256                                                                                                                       | core 5.1            |
+| Nesting of arrays and objects          | 64. For a container: each record it carries, counted from that record, and the container without them                     | core 1.9            |
+| A duration                             | 64 characters                                                                                                             | core 1.5            |
+| A decimal                              | 64 characters                                                                                                             | core 1.3            |
+| Text parsed in one call                | 8 MiB by default; set `maxLength` to change it                                                                            | this implementation |
+| Values in one text or one record       | 1,048,576 (arrays, objects, strings, numbers and literals together)                                                       | this implementation |
+| Order checks of public keys remembered | 4,096                                                                                                                     | this implementation |
 
 ## Tests
 

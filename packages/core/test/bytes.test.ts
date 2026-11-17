@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 import {
   bytesEqual,
   bytesToHex,
-  codePointLength,
   decodeUtf8,
   ed25519PublicKey,
   hexToBytes,
@@ -103,42 +102,6 @@ describe(`${clause("core 1.1")} valid Unicode`, () => {
         },
       ),
       { numRuns: 1000 },
-    );
-  });
-});
-
-describe(`${clause("core 1.8")} string lengths count code points`, () => {
-  it("counts a character outside the basic plane once", () => {
-    expect(codePointLength("")).toBe(0);
-    expect(codePointLength("abc")).toBe(3);
-    expect(codePointLength("é")).toBe(1);
-    expect(codePointLength("e\u0301")).toBe(2);
-    expect(codePointLength("😀")).toBe(1);
-    expect("😀").toHaveLength(2);
-    expect(codePointLength("a😀b😀")).toBe(4);
-    expect(codePointLength("\u{10ffff}\u{10000}")).toBe(2);
-    expect(codePointLength("👨‍👩‍👧")).toBe(5);
-  });
-
-  it("counts an unpaired surrogate as one, as the platform does", () => {
-    expect(codePointLength("\ud800")).toBe(1);
-    expect(codePointLength("\udc00\ud800")).toBe(2);
-    expect(codePointLength("\ud800\ud800\udc00")).toBe(2);
-    expect(codePointLength("\ud800a")).toBe(2);
-    expect(codePointLength("a\udc00")).toBe(2);
-    expect(codePointLength("\udc00\udc00")).toBe(2);
-    expect(codePointLength("\ud800\ue000")).toBe(2);
-    expect(codePointLength("\udbff\uffff")).toBe(2);
-    expect(codePointLength("\ue000\udc00")).toBe(2);
-    expect(codePointLength("\u{ffff}\udfff")).toBe(2);
-  });
-
-  it("agrees with the platform on any string", () => {
-    fc.assert(
-      fc.property(fc.string({ unit: "binary" }), (text) => {
-        expect(codePointLength(text)).toBe(Array.from(text).length);
-      }),
-      { numRuns: 3000 },
     );
   });
 });

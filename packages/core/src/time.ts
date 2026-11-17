@@ -73,11 +73,14 @@ const pad = (value: number, width: number) => String(value).padStart(width, "0")
  * Writes an instant as a timestamp (core 1.4), with the shortest fraction
  * that keeps its precision.
  *
- * @throws RangeError if the instant is outside years 0000 to 9999, which a
- * timestamp cannot name.
+ * @throws TypeError if the instant is not a bigint, and RangeError if it is
+ * outside years 0000 to 9999, which a timestamp cannot name.
  */
 export function formatTimestamp(instant: Instant): string {
-  if (typeof instant !== "bigint" || instant < FIRST_INSTANT || instant > LAST_INSTANT) {
+  if (typeof instant !== "bigint") {
+    throw new TypeError("an instant is a bigint of nanoseconds");
+  }
+  if (instant < FIRST_INSTANT || instant > LAST_INSTANT) {
     throw new RangeError("a timestamp names an instant in the years 0000 to 9999");
   }
   let nanoseconds = instant % NANOSECONDS_PER_SECOND;
@@ -126,8 +129,8 @@ function secondsIn(unit: string): bigint {
 /**
  * The length of a duration in nanoseconds, or `undefined` if the value is
  * not a duration (core 1.5): days, hours, minutes and seconds only, such as
- * `P30D` or `PT15M`. A day is 86,400 seconds. The arithmetic is exact,
- * however large the numbers.
+ * `P30D` or `PT15M`, in at most 64 characters. A day is 86,400 seconds.
+ * The arithmetic is exact.
  */
 export function parseDuration(value: unknown): bigint | undefined {
   if (!isDuration(value)) return undefined;
@@ -139,7 +142,10 @@ export function parseDuration(value: unknown): bigint | undefined {
   return seconds * NANOSECONDS_PER_SECOND;
 }
 
-/** Whether a value is a duration (core 1.5). */
+/** core 1.5: the longest duration string, in characters. */
+export const MAX_DURATION_LENGTH = 64;
+
+/** Whether a value is a duration (core 1.5): the pattern, in at most 64 characters. */
 export function isDuration(value: unknown): value is string {
-  return typeof value === "string" && DURATION.test(value);
+  return typeof value === "string" && value.length <= MAX_DURATION_LENGTH && DURATION.test(value);
 }

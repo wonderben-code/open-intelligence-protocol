@@ -12,7 +12,7 @@
         "MUST": 1,
         "SHOULD": 1
       },
-      "digest": "226d24d6469c0ca55f7b6d54b760eae04fd938656bc77a799768caf2e6939d50"
+      "digest": "dad143ecae8b2c29db3c97628a73035de43ecba0aa3aa7468bc7d9b68b508c1b"
     },
     {
       "id": "core 1.2",
@@ -55,9 +55,10 @@
       "summary": "Durations MUST be ISO 8601 durations matching `^P(?!$)([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?…",
       "level": "MUST",
       "keywords": {
-        "MUST": 1
+        "MUST": 1,
+        "MUST NOT": 1
       },
-      "digest": "ef8207a43a6c8882318a8dec37bd01647654c7ca10f60deeb76dddf6e4e0851a"
+      "digest": "6ebd0a4c1241eb2637665e19c829776e9d4fcbb3ac5a52d1b0942dd118747031"
     },
     {
       "id": "core 1.6",
@@ -70,7 +71,7 @@
         "MAY": 2,
         "MUST": 1
       },
-      "digest": "dc5e728cfb730b97230509cf271585aea72fcbdb66a26ffa5bc27860459d3b1e"
+      "digest": "35080f5fb57fe5c2fe62bbcbb71ed9c0745872ecaea3cff031fe8823cc55422f"
     },
     {
       "id": "core 1.7",
@@ -102,7 +103,7 @@
         "MUST NOT": 1,
         "MUST": 1
       },
-      "digest": "60ce2e364116d5d8f8b7690ff9be86bb9d45960f35d2b4ef6e5341c5e05a44a7"
+      "digest": "7f8802bcb3ec9dbb90cda9a7f53adf5fc76087171a6e051caef31b1caeaec254"
     },
     {
       "id": "core 2.1",
@@ -495,7 +496,7 @@
       "summary": "The security analysis of the protocol is in Section 8 of the technical architecture paper. Thre…",
       "level": "none",
       "keywords": {},
-      "digest": "e948df43800eed334937bb80263d411f2caeb17befe03b54bdad765c6b8dbc95"
+      "digest": "ebe4bccdfd35c4e76700b6773db19fd00b7e0b2d73bf545387be73d77d8fb128"
     },
     {
       "id": "L0 1.1",
@@ -1646,7 +1647,7 @@
       "summary": "Limits (table)",
       "level": "none",
       "keywords": {},
-      "digest": "16fc209eff3cf78295e76d742ba42c17dcbdf2300d234ca605627ed1188d2a06"
+      "digest": "7a4c1a23da6e68b271c294e21d4ffe70e8649346d1947f6d25273df21894c323"
     },
     {
       "id": "L2 1.1",

@@ -4,11 +4,14 @@
 
 Changes adopted while the reference implementation is built. They stay under this heading until the maintainer dates the next revision ([GOVERNANCE.md](../GOVERNANCE.md)), which [BUILD.md](../BUILD.md) plans for the release candidate (M12). Each names its OEP.
 
-**Core clarifications ([OEP-0001](../oeps/oep-0001-core-clarifications.md), found while building `@oip/core`).** No address, content ID or proof in the test vectors changes.
+**Core clarifications and limits ([OEP-0001](../oeps/oep-0001-core-clarifications.md), found while building `@oip/core` and in its two independent reviews).** No address, content ID or proof in the test vectors changes.
 
 - **Depth (core 1.9, new).** Arrays and objects nest at most 64 deep, the record itself being depth 1. The specification set no limit, so two implementations could disagree about a deeply nested record, and one could be made to exhaust its stack. Layer 1, Section 19 lists the limit.
+- **Containers are limited part by part (core 1.6, 1.9, 12).** For `Bundle`, `LogPage`, `FeedPage` and `DuplicityEvidence`, the limits on size and on depth apply to each record the container carries, counted from that record, and to the container without those records. A container can therefore carry any record that is valid alone, and its own members are bounded too. Before, a container's own members had no size limit, and a record nesting 64 deep could not be carried at all.
+- **Noncharacters (core 1.1).** A string in a record holds no noncharacter, as I-JSON (RFC 7493, Section 2.1) requires. core 1.1 named I-JSON and only two of its three rules.
+- **Durations (core 1.5).** A duration string is at most 64 characters, as a decimal is.
 - **Size counts proofs (core 1.6).** The 1 MiB limit is on the canonical form of the record with its `proof` member. The rules of core 1 apply to every entry of `proof`.
-- **Proof entries are objects (core 5.1).** An entry of `proof` that is not a JSON object makes the record malformed. An entry that is an object but not a valid proof does not count and does not.
+- **Proof entries are objects (core 5.1).** An entry of `proof` that is not a JSON object makes the record malformed. An entry that is an object but not a valid proof does not count, and does not make the record malformed.
 - **Year 0000 (core 1.4).** Years run from `0000` to `9999` of the proleptic Gregorian calendar, as in RFC 3339, and year `0000` is a leap year. The Python checker rejected year `0000`; it now accepts it.
 - **`"-0"` (core 1.3).** It is a decimal equal to `"0"`, and not an amount.
 - **Key hashes (core 3.4).** A key hash matches the content-ID pattern of core 3.2. Both implementations already required it.
@@ -17,7 +20,14 @@ Changes adopted while the reference implementation is built. They stay under thi
 - **Extension names (core 8.1, 8.3).** A member of `ext` whose name is not a namespace makes the record malformed. A namespace repeated in `critical` counts once.
 - **`kind` (Layer 1, 3.6).** A `kind` is not empty. Both implementations already required it.
 
-**Test vectors.** A new kind of case, `json`, gives texts that a parser of the JSON profile must read (4 must-accept cases: integers however they are written, escapes, the same member name in different objects, nesting 64 deep) and must refuse (8 negative cases: fractions, integers outside the safe range, an unpaired surrogate, nesting 65 deep, text that is not JSON). Duplicate member names are not among them, because core 1.1 says receivers SHOULD reject those. The Python checker gained a parser for the profile, and applies core 1.1, 1.2 and 1.9 to every record it judges. Every other value in `vectors.json` is byte for byte what it was.
+**Test vectors.** `vectors.json` now holds 15 must-accept cases (9 before), 72 negative cases (63) and 22 controls (11). Every value that was there is byte for byte what it was.
+
+- A new kind of case, `json`, gives texts that a parser of the JSON profile must read (5 must-accept cases: integers however they are written, an integer written with 5,000 digits, escapes, the same member name in different objects, nesting 64 deep) and must refuse (10 negative cases: fractions, integers outside the safe range, an unpaired surrogate, a noncharacter in a string and in a member name, nesting 65 deep, text that is not JSON). Duplicate member names are not among them, because core 1.1 says receivers SHOULD reject those.
+- Cases of kind `record` now also stand among the must-accept cases and the controls. Five must be accepted (a type an extension defines, year 0000, a rating of `-0`, nesting 64 deep, a page carrying an event that nests 64 deep) and five rejected (a `proof` entry that is not an object, an extension name that is not a namespace, an unknown type with no critical extension, nesting 65 deep, a page carrying an event that nests 65 deep).
+- Two negative cases of kind `countsFor`: a signature whose `R` has a small-order component (core 4.4), and a key reference whose position is 2⁶⁴+1 (core 6.1).
+- Eleven controls, among them one for each signature that breaks core 4.4: the same record with an honest signature counts.
+
+**The Python checker** gained a parser for the profile, and applies core 1.1, 1.2 and 1.9 to every record and every identity event it judges, container by container. It reads a number of any length as text: before, Python's own limit of 4,300 digits made it reject an integer written at length. It compares a proof's `@context` with the record's in canonical form: before, it took `true` for `1` and a missing member for `null`. It rejects a `proof` entry that is not an object and an `ext` member whose name is not a namespace, as the specification requires.
 
 ## Revision 2026-11-17 (Draft)
 

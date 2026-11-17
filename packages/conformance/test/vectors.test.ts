@@ -62,9 +62,9 @@ describe("the vectors file", () => {
   });
 
   it("has the cases its README counts", () => {
-    expect(vectors.valid).toHaveLength(9);
-    expect(vectors.negative).toHaveLength(63);
-    expect(vectors.controls).toHaveLength(11);
+    expect(vectors.valid).toHaveLength(15);
+    expect(vectors.negative).toHaveLength(72);
+    expect(vectors.controls).toHaveLength(22);
   });
 
   it("pairs every control with a negative case of the same name and kind", () => {

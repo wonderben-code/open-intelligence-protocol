@@ -34,12 +34,17 @@ export function report(recordIsWellFormed: (record: unknown) => boolean): string
 }
 ```
 
-This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the two malformed records it should have rejected:
+This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the seven malformed records it should have rejected:
 
 ```
-my implementation: 1 passed, 2 failed, 101 pending
+my implementation: 11 passed, 7 failed, 112 pending
 FAIL negative packet-short-nonce: must be rejected. A packet nonce has 8 to 64 characters.
 FAIL negative delegation-to-self: must be rejected. A delegation's delegate must differ from its author.
+FAIL negative proof-entry-not-an-object: must be rejected. Every entry of `proof` is an object (core 5.1). A proof that does not verify never counts and does not make the record malformed (core 5.5); an entry that is not an object at all does.
+FAIL negative extension-name-not-a-namespace: must be rejected. A member of `ext` is named by a reverse-DNS namespace, one of the short names the specification lists, or a name under `oip.` (core 8.1). Any other name makes the record malformed.
+FAIL negative unknown-type-without-critical-extension: must be rejected. A record whose type this revision does not define is defined by an extension, and lists that extension in `critical` (core 7). Without it nobody can say what the record is.
+FAIL negative record-nested-65-deep: must be rejected. One level more than core 1.9 allows.
+FAIL negative container-carries-a-record-nested-65-deep: must be rejected. The same page with the event one level deeper. The event is not a valid record (core 1.9), so the page is not well formed.
 ```
 
 ## The adapter

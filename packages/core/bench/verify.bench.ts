@@ -2,9 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * The first two performance budgets of BUILD.md 3.8, measured (ADR-0005):
+ * The first two performance budgets of BUILD.md 3.8, measured (ADR-0006):
  * verifying a record with two proofs, and the signatures of an identity log
- * of 1,000 events. Each budget is asserted, so a regression fails the run.
+ * of 1,000 events.
+ *
+ * Two kinds of limit are asserted. The ceilings in milliseconds depend on
+ * the machine, so they are set with room. The ratios to the bare library do
+ * not, so they are set close: a regression in this package's own code moves
+ * a ratio whatever machine the run is on.
  *
  * The other cases show where the time goes.
  */
@@ -46,7 +51,15 @@ export const BUDGETS = {
    * signature, as a ratio. core 4.4 adds one scalar multiplication to the
    * library's two, which measures at about 1.8. A second one would pass 2.5.
    */
-  overLibrary: 2.2,
+  overLibrary: 2.0,
+  /**
+   * A record with two proofs, from text, against one bare verification:
+   * two signatures at 1.8 each and the parsing, validation and hashing,
+   * which measures at about 4.0.
+   */
+  recordOverLibrary: 4.6,
+  /** One identity event with one proof, from text, likewise: about 2.0. */
+  eventOverLibrary: 2.3,
 } as const;
 
 // A benchmark that reads an import on every call measures the module loader as well.
@@ -72,10 +85,10 @@ function receive(text: string): number {
   const parsed = parseRecord(text);
   if (!parsed.ok) throw new Error("the record did not parse");
   const verdicts = verifyProofs(parsed.value);
-  if (!verdicts.ok || verdicts.value.some((verdict) => !verdict.ok)) {
+  if (verdicts.issues.length > 0 || verdicts.rejected.length > 0) {
     throw new Error("a proof did not verify");
   }
-  return verdicts.value.length;
+  return verdicts.verified.length;
 }
 
 const method = (intent["proof"] as { verificationMethod: string; created: string }[])[0];
@@ -125,6 +138,15 @@ describe("the budgets of BUILD.md 3.8", () => {
     // core 4.4 adds one scalar multiplication, the order check of R, to the library's two.
     const ratio = ours.latency.min / bare.latency.min;
     expect(ratio).toBeLessThan(BUDGETS.overLibrary);
+    // The two budgets as ratios: what this package adds to the signatures themselves.
+    const record = await bench("parseRecord + verifyProofs: two proofs, for the ratio", () =>
+      receive(commitmentText),
+    ).run();
+    expect(record.latency.min / bare.latency.min).toBeLessThan(BUDGETS.recordOverLibrary);
+    const event = await bench("parseRecord + verifyProofs: one event, for the ratio", () =>
+      receive(genesisText),
+    ).run();
+    expect(event.latency.min / bare.latency.min).toBeLessThan(BUDGETS.eventOverLibrary);
   });
 });
 

@@ -8,7 +8,8 @@
  * @packageDocumentation
  */
 
-export type { Issue, Validation } from "./issue.ts";
+export { type ContainerParts, containerParts } from "./containers.ts";
+export { type Issue, quote, type Validation } from "./issue.ts";
 export { MAX_SAFE_INTEGER, OIP_COMMANDS, patterns, SHORT_NAMESPACES } from "./primitives.ts";
 export { type AuthorityItem, type Proof, PROOF_PURPOSES, type ProofPurpose } from "./proof.ts";
 export type { Bundle, DuplicityEvidence, FeedPage, LogPage } from "./records/containers.ts";
@@ -85,11 +86,14 @@ export {
 export { MAX_POLICY_DEPTH } from "./rules.ts";
 export { type JsonSchema, jsonSchemas, SCHEMA_DIALECT } from "./json-schemas.ts";
 export { parseSelector, type SelectorStep } from "./selector.ts";
+export { type TextFault, textFault } from "./text.ts";
 export {
   IMPLEMENTATION_LIMIT,
   type JsonValue,
+  MAX_CONTAINER_DEPTH,
   MAX_DEPTH,
   MAX_ISSUES,
+  MAX_VALUES,
   validateExtensionRecord,
   validateJson,
   validateProof,

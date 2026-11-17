@@ -363,11 +363,165 @@ describe(`${clause("core 4.4")} one verification rule for every implementation`,
     expect(isEd25519PublicKey(mixed)).toBe(false);
   });
 
-  it("does not mistake one key for another that shares its start", () => {
-    const a = littleEndian(1n << 200n);
-    const b = littleEndian((1n << 200n) + 1n);
-    expect(isEd25519PublicKey(a)).toBe(isEd25519PublicKey(Uint8Array.from(a)));
-    expect(typeof isEd25519PublicKey(b)).toBe("boolean");
+  it("does not mistake one key for another that shares all but one of its bytes", () => {
+    // What a key's order check is remembered under is the whole key. For each
+    // position, a key of order L and its neighbour that differs in that byte
+    // alone and is no such key: each keeps its own answer, whichever was seen first.
+    const isKey = (bytes: Uint8Array): boolean => {
+      try {
+        const point = Point.fromBytes(bytes, false);
+        // [L]P is the identity, worked out as [L-1]P + P: the library takes no scalar of L itself.
+        return (
+          !point.is0() &&
+          point
+            .multiplyUnsafe(L - 1n)
+            .add(point)
+            .is0()
+        );
+      } catch {
+        return false;
+      }
+    };
+    let pairs = 0;
+    for (const position of [0, 1, 15, 16, 30, 31]) {
+      for (const validFirst of [true, false]) {
+        const key = ed25519PublicKey(new Uint8Array(32).fill(100 + pairs));
+        const neighbour = Uint8Array.from(key);
+        do neighbour[position] = ((neighbour[position] ?? 0) + 1) & 0xff;
+        while (isKey(neighbour));
+        expect(isKey(key)).toBe(true);
+        expect(neighbour.filter((byte, i) => byte !== key[i])).toHaveLength(1);
+        const [first, second] = validFirst ? [key, neighbour] : [neighbour, key];
+        expect(isEd25519PublicKey(first), `position ${position}`).toBe(validFirst);
+        expect(isEd25519PublicKey(second), `position ${position}`).toBe(!validFirst);
+        // And both again, now that both are remembered.
+        expect(isEd25519PublicKey(key), `position ${position}`).toBe(true);
+        expect(isEd25519PublicKey(neighbour), `position ${position}`).toBe(false);
+        // Verification uses the same memory: a mixed-order key next to a good one stays rejected.
+        const { scalar: secret, publicKey: honestKey } = expand(
+          new Uint8Array(32).fill(200 + pairs),
+        );
+        const good = craftSignature(secret, honestKey, message, 31337n);
+        expect(verifyEd25519(good, message, honestKey)).toBe(true);
+        pairs++;
+      }
+    }
+    expect(pairs).toBe(12);
+  });
+
+  it("remembers a mixed-order key apart from the honest key it was made from, in either order", () => {
+    // The two differ in many bytes, but the same rule holds: one answer per key.
+    for (const [seed, mixedFirst] of [
+      [51, true],
+      [52, false],
+    ] as const) {
+      const { scalar: secret, publicKey: honestKey } = expand(new Uint8Array(32).fill(seed));
+      const mixed = Point.fromBytes(honestKey, false).add(order8).toBytes();
+      const onMixed = craftSignature(secret, mixed, message, 99n);
+      const onHonest = craftSignature(secret, honestKey, message, 99n);
+      expect(libraryAccepts(onMixed, message, mixed)).toBe(true);
+      const checks = [
+        () => expect(verifyEd25519(onMixed, message, mixed)).toBe(false),
+        () => expect(verifyEd25519(onHonest, message, honestKey)).toBe(true),
+      ];
+      for (const check of mixedFirst ? checks : checks.toReversed()) check();
+      for (const check of checks) check();
+    }
+  });
+});
+
+describe("the bytes that are verified are the bytes that were checked", () => {
+  const privateKey = new Uint8Array(32).fill(9);
+  const { scalar, publicKey } = expand(privateKey);
+  const message = utf8("one reading");
+  const honest = signEd25519(message, privateKey);
+  const order8 = smallOrderPoints().find((point) => orderOf(point) === 8)!;
+  // The library alone accepts this one: its R has a small-order component.
+  const mixedR = craftSignature(scalar, publicKey, message, 2468n, order8);
+
+  it("has a signature only the order check stands against", () => {
+    expect(ed25519.verify(mixedR, message, publicKey, { zip215: false })).toBe(true);
+    expect(verifyEd25519(mixedR, message, publicKey)).toBe(false);
+  });
+
+  it("is not told one thing by subarray and another by the bytes", () => {
+    // An array that shows an honest R to whoever asks for a part of it.
+    class TwoFaced extends Uint8Array {
+      override subarray(begin?: number, end?: number): Uint8Array<ArrayBuffer> {
+        return begin === 0 && end === 32
+          ? (honest.subarray(0, 32) as Uint8Array<ArrayBuffer>)
+          : super.subarray(begin, end);
+      }
+      override slice(begin?: number, end?: number): Uint8Array<ArrayBuffer> {
+        return begin === 0 && end === 32 ? honest.slice(0, 32) : super.slice(begin, end);
+      }
+    }
+    const twoFaced = new TwoFaced(mixedR);
+    expect(twoFaced.subarray(0, 32)).toEqual(honest.subarray(0, 32));
+    expect(verifyEd25519(twoFaced, message, publicKey)).toBe(false);
+    // The same array with an honest signature in it verifies: the class is not what is refused.
+    expect(verifyEd25519(new TwoFaced(honest), message, publicKey)).toBe(true);
+  });
+
+  it("is not told a length the bytes do not have", () => {
+    class Long extends Uint8Array {
+      override get length(): number {
+        return 64;
+      }
+    }
+    expect(verifyEd25519(new Long(63), message, publicKey)).toBe(false);
+    expect(verifyEd25519(new Long(honest.subarray(0, 63)), message, publicKey)).toBe(false);
+    class Short extends Uint8Array {
+      override get length(): number {
+        return 32;
+      }
+    }
+    expect(isEd25519PublicKey(new Short(33))).toBe(false);
+    expect(verifyEd25519(honest, message, new Short(Uint8Array.from([...publicKey, 0])))).toBe(
+      false,
+    );
+  });
+
+  it("reads each input once, so a change made afterwards changes nothing", () => {
+    // A key whose bytes are swapped for a mixed-order key's as soon as they have been read.
+    const mixedKey = Point.fromBytes(publicKey, false).add(order8).toBytes();
+    const onMixed = craftSignature(scalar, mixedKey, message, 1357n);
+    expect(ed25519.verify(onMixed, message, mixedKey, { zip215: false })).toBe(true);
+    let reads = 0;
+    class Changing extends Uint8Array {
+      override get buffer(): ArrayBuffer {
+        reads++;
+        return super.buffer;
+      }
+    }
+    const key = new Changing(publicKey);
+    expect(verifyEd25519(honest, message, key)).toBe(true);
+    key.set(mixedKey);
+    expect(verifyEd25519(onMixed, message, key)).toBe(false);
+    expect(verifyEd25519(honest, message, key)).toBe(false);
+    expect(reads).toBe(0);
+  });
+
+  it("answers false, and does not throw, for something that only looks like bytes", () => {
+    const boom = () => {
+      throw new Error("boom");
+    };
+    const revoked = Proxy.revocable(new Uint8Array(32), {});
+    revoked.revoke();
+    for (const fake of [
+      new Proxy(Uint8Array.from(publicKey), {}),
+      new Proxy(Uint8Array.from(publicKey), { get: boom }),
+      revoked.proxy,
+      Object.create(Uint8Array.prototype) as Uint8Array,
+      Array.from(publicKey) as unknown as Uint8Array,
+      new Uint16Array(32) as unknown as Uint8Array,
+      publicKey.buffer as unknown as Uint8Array,
+    ]) {
+      expect(isEd25519PublicKey(fake)).toBe(false);
+      expect(verifyEd25519(honest, message, fake)).toBe(false);
+      expect(verifyEd25519(fake, message, publicKey)).toBe(false);
+      expect(verifyEd25519(honest, fake, publicKey)).toBe(false);
+    }
   });
 });
 

@@ -151,6 +151,19 @@ const fragment = fc.oneof(
       "1e16",
       "1e400",
       "0e99999999999999999999",
+      "1e-99999999999999999999",
+      "1e99999999999999999999",
+      // Numbers written at length: more digits than a platform will turn into a number.
+      `1${"0".repeat(5000)}e-5000`,
+      `1${"0".repeat(5000)}e-4999`,
+      `1${"0".repeat(5000)}e-5001`,
+      `0.${"0".repeat(5000)}`,
+      `0.${"0".repeat(5000)}1e5001`,
+      `0.${"0".repeat(5000)}1e5000`,
+      "9".repeat(5000),
+      `-${"0.".padEnd(4400, "0")}`,
+      `9007199254740991${"0".repeat(4400)}e-4400`,
+      `9007199254740992${"0".repeat(4400)}e-4400`,
       "01",
       "+1",
       ".5",
@@ -161,6 +174,23 @@ const fragment = fc.oneof(
       '"\\ud800"',
       '"\\ud83d\\ude00"',
       '"\\udc00\\ud800"',
+      // Noncharacters, escaped and as themselves, and their neighbours.
+      '"\\ufffe"',
+      '"\\uFFFF"',
+      '"\\ufdd0"',
+      '"\\ufdef"',
+      '"\\ufdcf\\ufdf0\\ufffd"',
+      '"\\ud83f\\udffe"',
+      '"\\udbff\\udfff"',
+      '"\\udbff\\udffd"',
+      '"\ufffe"',
+      '"\u{1ffff}"',
+      '{"\ufdd0":1}',
+      '"\ufffd"',
+      // Half a surrogate pair as itself, beside an escape that would complete it.
+      '"\ud83d\\ude00"',
+      '"\\ud83d\ude00"',
+      '"\ud800"',
       '"\\x41"',
       '"tab\tinside"',
       '{"a":1,"a":1}',
@@ -210,9 +240,7 @@ const jsonText = fc
       default:
         return one;
     }
-  })
-  // A lone surrogate cannot be sent to the checker as UTF-8; the escapes above cover that rule.
-  .filter((text) => text.isWellFormed());
+  });
 
 describe.skipIf(unavailable !== undefined && !required)("differential: the JSON profile", () => {
   let judge: PythonJudge;
@@ -241,7 +269,7 @@ describe.skipIf(unavailable !== undefined && !required)("differential: the JSON 
         compared++;
       }
     }
-    expect(compared).toBe(12);
+    expect(compared).toBe(17);
   });
 
   it("agrees with it on what neither is required to reject: duplicate member names", async () => {
@@ -319,7 +347,8 @@ describe.skipIf(unavailable !== undefined && !required)("differential: record ca
         compared++;
       }
     }
-    expect(compared).toBe(2 + 12);
+    // 17 record cases and 17 json cases, over the three sections.
+    expect(compared).toBe(17 + 17);
   });
 
   it(

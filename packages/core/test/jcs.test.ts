@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { MAX_DEPTH } from "@oip/schema";
+import { MAX_CONTAINER_DEPTH, MAX_DEPTH } from "@oip/schema";
 import { clause } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { canonicalBytes, canonicalize, OipError, parseJson } from "../src/index.ts";
+import { canonicalBytes, canonicalize, contentId, OipError, parseJson } from "../src/index.ts";
+import { contentIdIfAny } from "../src/content-id.ts";
+import { textInProfile } from "./text.ts";
 import { cases, positiveVectorRecords } from "./vectors.ts";
 
 /**
@@ -45,7 +47,7 @@ function reference(value: unknown): string {
   return `{${names.map((name) => `${reference(name)}:${reference(object[name])}`).join(",")}}`;
 }
 
-const wellFormed = fc.string({ unit: "binary" }).filter((text) => text.isWellFormed());
+const wellFormed = fc.string({ unit: "binary" }).filter(textInProfile);
 
 const json = fc.letrec((tie) => ({
   value: fc.oneof(
@@ -252,11 +254,24 @@ describe(`${clause("core 1.2")} nothing outside the profile has a canonical form
     expect(canonicalize("\ud83d\ude00")).toBe('"😀"');
   });
 
-  it("refuses nesting deeper than the limit", () => {
+  it("refuses nesting deeper than a container may have", () => {
+    // A container carries a record three levels down, and that record may nest
+    // 64 deep (core 1.9). A page of such records has a canonical form; whether
+    // each record in a value keeps the limit is validateRecord's question.
+    expect(MAX_CONTAINER_DEPTH).toBe(MAX_DEPTH + 3);
     let nested: unknown = 1;
-    for (let i = 0; i < MAX_DEPTH; i++) nested = [nested];
-    expect(canonicalize(nested)).toBe(`${"[".repeat(MAX_DEPTH)}1${"]".repeat(MAX_DEPTH)}`);
+    for (let i = 0; i < MAX_CONTAINER_DEPTH; i++) nested = [nested];
+    expect(canonicalize(nested)).toBe(
+      `${"[".repeat(MAX_CONTAINER_DEPTH)}1${"]".repeat(MAX_CONTAINER_DEPTH)}`,
+    );
+    expect(canonicalBytes(nested)).toHaveLength(2 * MAX_CONTAINER_DEPTH + 1);
     expect(rejected([nested]).clause).toBe("core 1.9");
+    expect(rejected({ a: nested }).clause).toBe("core 1.9");
+    // Content IDs follow: the deepest container has one, and nothing deeper has.
+    expect(contentId({ a: (nested as unknown[])[0] })).toMatch(/^bciq/);
+    expect(contentIdIfAny({ a: (nested as unknown[])[0] })).toMatch(/^bciq/);
+    expect(() => contentId({ a: nested })).toThrow(OipError);
+    expect(contentIdIfAny({ a: nested })).toBeUndefined();
   });
 
   it("is not fooled by members named like the things it refuses", () => {

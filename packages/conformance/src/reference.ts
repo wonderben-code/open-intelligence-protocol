@@ -5,6 +5,7 @@
 
 import {
   canonicalize,
+  checkSize,
   contentId,
   createProofSync,
   keyHash,
@@ -13,7 +14,7 @@ import {
   signerFromPrivateKey,
   verifyProof,
 } from "@oip/core";
-import { validateRecord } from "@oip/schema";
+import { isRecordType, validateExtensionRecord, validateRecord } from "@oip/schema";
 
 import type { ConformanceAdapter } from "./adapter.ts";
 
@@ -23,7 +24,13 @@ import type { ConformanceAdapter } from "./adapter.ts";
  */
 export const referenceAdapter: ConformanceAdapter = {
   name: "OIP reference implementation (TypeScript)",
-  recordIsWellFormed: (record) => validateRecord(record).ok,
+  recordIsWellFormed: (record) => {
+    // A type this revision defines, or one an extension defines (core 7).
+    const validated = isRecordType((record as { type?: unknown } | null)?.type)
+      ? validateRecord(record)
+      : validateExtensionRecord(record);
+    return validated.ok && checkSize(validated.value).length === 0;
+  },
   jsonIsWithinProfile: (text) => parseJson(text).ok,
   canonicalize,
   contentId,

@@ -437,8 +437,9 @@ Hosts MAY serve A2A Agent Cards (Layer 0, Section 3.2) and domain aliases at `/.
 
 | Item | Limit |
 |---|---|
-| Record size (canonical form) | 1 MiB (core 1.6) |
-| Nesting of arrays and objects in a record | 64 (core 1.9) |
+| Record size (canonical form) | 1 MiB; for a container, each record it carries and the container without them (core 1.6) |
+| Nesting of arrays and objects in a record | 64; for a container, each record it carries and the container without them (core 1.9) |
+| Decimal string, and duration string | 64 characters each (core 1.3, 1.5) |
 | Proofs per record | 256 (core 5.1) |
 | Collective height | 4, fixed at genesis (Section 4.7) |
 | Delegation chain length | 8 |

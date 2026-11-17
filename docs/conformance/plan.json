@@ -24,6 +24,7 @@
   },
   "clauses": {
     "core": "M1",
+    "core 6.2": "M2",
     "core 9": "M2",
     "core 11": "M0",
     "L1": "M2",

@@ -8,6 +8,7 @@
  */
 
 import { type ValidatorError, validators } from "./generated/validators.ts";
+import { containerParts, depthOf } from "./containers.ts";
 import { type Issue, quote, type Validation } from "./issue.ts";
 import { patterns } from "./primitives.ts";
 import type { Proof } from "./proof.ts";
@@ -21,6 +22,7 @@ import {
   RESERVED_RECORD_TYPES,
 } from "./registry.ts";
 import { checkExtensionRules, checkProofRules, checkRecordRules } from "./rules.ts";
+import { type TextFault, textFault } from "./text.ts";
 
 /**
  * core 1.9: the deepest nesting of arrays and objects in a record. The record
@@ -41,20 +43,38 @@ const MAX_PATH = 256;
 /**
  * The most values this implementation reads in one record. core 1.6 bounds a
  * record's canonical form at 1 MiB and every value takes at least two bytes
- * of it, so no record within that limit comes near this number. It bounds
- * the work done on values that did not come from a JSON text, such as an
- * array with millions of holes or a structure that shares its parts.
+ * of it, so no record within that limit has more than half this number. It
+ * bounds the work and the memory spent on a value before its size is known:
+ * a text of nothing but brackets, an array with millions of holes, a
+ * structure that shares its parts.
  */
-const MAX_VALUES = 1_048_576;
+export const MAX_VALUES = 1_048_576;
+
+/**
+ * A path as an issue carries it. Its member names come from the input, and
+ * issues are logged and shown: control characters and line separators are
+ * written as escapes, so that a name cannot forge a line of a log, and a long
+ * path is cut between characters, never inside one.
+ */
+function safePath(path: string): string {
+  let safe = "";
+  let count = 0;
+  for (const character of path) {
+    if (++count === MAX_PATH) return `${safe}…`;
+    const code = character.codePointAt(0) ?? 0;
+    const unsafe =
+      code < 0x20 || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029;
+    safe += unsafe ? `\\u${code.toString(16).padStart(4, "0")}` : character;
+    // An input cannot make this loop long: stop well before the end of a huge path.
+    if (safe.length > 6 * MAX_PATH) return `${safe.slice(0, MAX_PATH)}…`;
+  }
+  return safe;
+}
 
 function reject<T>(issues: readonly Issue[], fallback: Issue): Validation<T> {
   const [first = fallback, ...rest] = issues
     .slice(0, MAX_ISSUES)
-    .map((issue) =>
-      issue.path.length <= MAX_PATH
-        ? issue
-        : { ...issue, path: `${issue.path.slice(0, MAX_PATH - 1)}…` },
-    );
+    .map((issue) => ({ ...issue, path: safePath(issue.path) }));
   return { ok: false, issues: [first, ...rest] };
 }
 
@@ -62,23 +82,18 @@ function fail<T>(issue: Issue): Validation<T> {
   return reject([], issue);
 }
 
-/** Whether a string is valid Unicode: every surrogate is half of a pair (core 1.1). */
-function isWellFormed(value: string): boolean {
-  for (let i = 0; i < value.length; i++) {
-    const unit = value.charCodeAt(i);
-    if (unit < 0xd800 || unit > 0xdfff) continue;
-    const next = value.charCodeAt(i + 1);
-    // A high surrogate must be followed by a low one; a low one on its own is unpaired.
-    if (unit > 0xdbff || !(next >= 0xdc00 && next <= 0xdfff)) return false;
-    i++;
-  }
-  return true;
-}
-
-const UNPAIRED: Issue = {
-  path: "",
-  message: "a string has an unpaired surrogate, which is not valid Unicode",
-  clause: "core 1.1",
+const TEXT_FAULTS: Readonly<Record<TextFault, Issue>> = {
+  "unpaired surrogate": {
+    path: "",
+    message: "a string has an unpaired surrogate, which is not valid Unicode",
+    clause: "core 1.1",
+  },
+  noncharacter: {
+    path: "",
+    message:
+      "a string has a noncharacter (U+FDD0 to U+FDEF, or a code point ending FFFE or FFFF), which a record may not contain",
+    clause: "core 1.1",
+  },
 };
 
 const NOT_JSON: Issue = {
@@ -96,85 +111,149 @@ const TOO_DEEP: Issue = {
 
 const TOO_MANY: Issue = {
   path: "",
-  message: "there are more values here than a record of 1 MiB can hold",
-  clause: "core 1.6",
+  message: `there are more than ${MAX_VALUES} values here, the most this implementation reads in one record or container`,
+  clause: IMPLEMENTATION_LIMIT,
 };
 
 /**
- * Checks what holds for every value in a record, whatever its type:
+ * core 1.9: the deepest a container nests as a whole. A container carries a
+ * record three levels down at most (an event in a pair in `pairs`), and that
+ * record may itself nest as deep as `MAX_DEPTH`.
+ */
+export const MAX_CONTAINER_DEPTH = MAX_DEPTH + 3;
+
+type Container = unknown[] | Record<string, unknown>;
+
+/** Adds a member to a copy. Assigning to "__proto__" would set the prototype instead. */
+function put(target: Record<string, unknown>, name: string, value: unknown): void {
+  Object.defineProperty(target, name, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+}
+
+/**
+ * Checks what holds for every value in a record, whatever its type, and
+ * returns a plain copy of the value:
  *
  *   - it is plain JSON data: objects, arrays, strings, booleans, null and
  *     numbers, with no holes, accessors, hidden members or other prototypes
- *     (core 1.2). A value parsed from JSON text always is; one built by other
- *     code may not be, and the schema validators would read members this
- *     check had not seen;
+ *     (core 1.2);
  *   - strings and member names are valid Unicode (core 1.1);
  *   - numbers are safe integers (core 1.2);
- *   - nesting is no deeper than `MAX_DEPTH`, and there are no more than
- *     `MAX_VALUES` values.
+ *   - nesting is no deeper than `MAX_DEPTH` (core 1.9), and there are no
+ *     more than `MAX_VALUES` values.
  *
- * It does not recurse, so no input can exhaust the stack, and it reads
- * accessors' descriptors rather than calling them.
+ * Everything after this check works on the copy, never on the value it was
+ * given. A value parsed from JSON text is plain already; one built by other
+ * code may be anything: an accessor that answers differently each time, a
+ * proxy, an array with a `toJSON`. Whatever was read here, once, is what is
+ * then validated, hashed, signed and returned.
+ *
+ * It reads every member through its descriptor, so no accessor is called,
+ * and it does not recurse, so no input can exhaust the stack.
  */
-function checkValues(root: unknown): Issue | undefined {
+function plainCopy(
+  root: unknown,
+  maxDepth: number,
+): { readonly issue: Issue } | { readonly value: JsonValue; readonly deepest: number } {
   let budget = MAX_VALUES;
-  const pending: { value: object; depth: number }[] = [];
+  let deepest = 0;
+  const pending: { source: object; target: Container; depth: number }[] = [];
 
-  const visit = (value: unknown, depth: number): Issue | undefined => {
+  /** The copy of a value that is not a container; for a container, an empty copy to be filled. */
+  const start = (value: unknown, depth: number): { issue: Issue } | { value: unknown } => {
     switch (typeof value) {
       case "boolean":
-        return undefined;
-      case "string":
-        return isWellFormed(value) ? undefined : UNPAIRED;
+        return { value };
+      case "string": {
+        const fault = textFault(value);
+        return fault === undefined ? { value } : { issue: TEXT_FAULTS[fault] };
+      }
       case "number":
-        if (Number.isSafeInteger(value)) return undefined;
+        if (Number.isSafeInteger(value)) return { value };
         return {
-          path: "",
-          message: `the number ${value} is not an integer between -(2^53-1) and 2^53-1; write decimal quantities as strings`,
-          clause: "core 1.2",
+          issue: {
+            path: "",
+            message: `the number ${value} is not an integer between -(2^53-1) and 2^53-1; write decimal quantities as strings`,
+            clause: "core 1.2",
+          },
         };
-      case "object":
-        if (value === null) return undefined;
-        if (depth > MAX_DEPTH) return TOO_DEEP;
-        pending.push({ value, depth });
-        return undefined;
+      case "object": {
+        if (value === null) return { value };
+        if (depth > maxDepth) return { issue: TOO_DEEP };
+        if (depth > deepest) deepest = depth;
+        const target: Container = Array.isArray(value) ? [] : {};
+        pending.push({ source: value, target, depth });
+        return { value: target };
+      }
       default:
-        // undefined (which is also what a hole in an array reads as), bigint, symbol, function.
-        return NOT_JSON;
+        // undefined, bigint, symbol, function.
+        return { issue: NOT_JSON };
     }
   };
 
-  let issue = visit(root, 1);
-  for (let next = pending.pop(); issue === undefined && next !== undefined; next = pending.pop()) {
-    const { value, depth } = next;
-    if (Array.isArray(value)) {
-      if (value.length > budget) return TOO_MANY;
-      budget -= value.length;
+  const top = start(root, 1);
+  if ("issue" in top) return top;
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    const { source, target, depth } = next;
+    if (Array.isArray(target)) {
       // A plain array has its elements and its length and nothing else: no
-      // other prototype and no member such as `toJSON`, which a serialiser
-      // would call and so write something other than what was checked here.
-      if (Object.getPrototypeOf(value) !== Array.prototype) return NOT_JSON;
-      if (Object.getOwnPropertyNames(value).length !== value.length + 1) return NOT_JSON;
-      for (let i = 0; i < value.length && issue === undefined; i++) {
-        issue = visit(value[i], depth + 1);
+      // other prototype and no member such as `toJSON`.
+      if (Object.getPrototypeOf(source) !== Array.prototype) return { issue: NOT_JSON };
+      const length = (source as unknown[]).length;
+      if (length > budget) return { issue: TOO_MANY };
+      budget -= length;
+      // Its own members are its elements and its length: a hole leaves one out, and
+      // anything else, such as a `toJSON`, adds one.
+      if (Object.getOwnPropertyNames(source).length !== length + 1) return { issue: NOT_JSON };
+      for (let i = 0; i < length; i++) {
+        // A hole has no descriptor, and an accessor has no value.
+        const element = Object.getOwnPropertyDescriptor(source, i);
+        if (element === undefined || !element.enumerable || !("value" in element)) {
+          return { issue: NOT_JSON };
+        }
+        const copied = start(element.value, depth + 1);
+        if ("issue" in copied) return copied;
+        target.push(copied.value);
       }
       continue;
     }
-    const prototype: unknown = Object.getPrototypeOf(value);
-    if (prototype !== Object.prototype && prototype !== null) return NOT_JSON;
-    if (Object.getOwnPropertySymbols(value).length > 0) return NOT_JSON;
-    const names = Object.getOwnPropertyNames(value);
-    if (names.length > budget) return TOO_MANY;
+    const prototype: unknown = Object.getPrototypeOf(source);
+    if (prototype !== Object.prototype && prototype !== null) return { issue: NOT_JSON };
+    if (Object.getOwnPropertySymbols(source).length > 0) return { issue: NOT_JSON };
+    const names = Object.getOwnPropertyNames(source);
+    if (names.length > budget) return { issue: TOO_MANY };
     budget -= names.length;
     for (const name of names) {
-      if (!isWellFormed(name)) return UNPAIRED;
-      const member = Object.getOwnPropertyDescriptor(value, name);
-      if (member === undefined || !member.enumerable || !("value" in member)) return NOT_JSON;
-      issue = visit(member.value, depth + 1);
-      if (issue !== undefined) break;
+      const fault = textFault(name);
+      if (fault !== undefined) return { issue: TEXT_FAULTS[fault] };
+      const member = Object.getOwnPropertyDescriptor(source, name);
+      if (member === undefined || !member.enumerable || !("value" in member)) {
+        return { issue: NOT_JSON };
+      }
+      const copied = start(member.value, depth + 1);
+      if ("issue" in copied) return copied;
+      put(target, name, copied.value);
     }
   }
-  return issue;
+  return { value: top.value as JsonValue, deepest };
+}
+
+/**
+ * core 1.9, for a record that has passed its schema and nests deeper than
+ * the limit somewhere. A container may: the limit applies to each record it
+ * carries, counted from that record, and to the container without them.
+ */
+function depthIssues(record: OipRecord | ExtensionRecord): Issue[] {
+  const parts = isRecordType(record.type) ? containerParts(record as OipRecord) : undefined;
+  if (parts === undefined) return [TOO_DEEP];
+  const tooDeep = parts.carried
+    .filter(([, carried]) => depthOf(carried) > MAX_DEPTH)
+    .map(([path]) => ({ ...TOO_DEEP, path }));
+  return depthOf(parts.rest) > MAX_DEPTH ? [TOO_DEEP, ...tooDeep] : tooDeep;
 }
 
 /** The clause that defines each value syntax, by its pattern. */
@@ -223,7 +302,7 @@ function clauseOf(error: ValidatorError, name: string, defining: string): string
     : defining;
 }
 
-const depthOf = (path: string) => path.split("/").length;
+const pathDepth = (path: string) => path.split("/").length;
 
 function schemaIssues(name: string, defining: string): Issue[] {
   const errors = validators[name]?.errors ?? [];
@@ -236,7 +315,7 @@ function schemaIssues(name: string, defining: string): Issue[] {
       clause: clauseOf(error, name, defining),
     }));
   // The deepest value at fault first: it is the most specific thing to fix.
-  return issues.sort((a, b) => depthOf(b.path) - depthOf(a.path));
+  return issues.sort((a, b) => pathDepth(b.path) - pathDepth(a.path));
 }
 
 const UNREADABLE: Issue = {
@@ -258,24 +337,23 @@ function answering<T>(run: () => Validation<T>): Validation<T> {
   }
 }
 
-function validateWith<T>(
+/** Validates a plain copy against a schema and its rules. */
+function validatePlain<T>(
   name: string,
   defining: string,
-  value: unknown,
+  plain: JsonValue,
   rules: (valid: T) => Issue[],
 ): Validation<T> {
-  const unsafe = checkValues(value);
-  if (unsafe !== undefined) return fail(unsafe);
   const validator = validators[name];
   if (validator === undefined) throw new Error(`no compiled validator for ${name}`);
-  if (!validator(value)) {
+  if (!validator(plain)) {
     return reject(schemaIssues(name, defining), {
       path: "",
       message: `not a well-formed ${name}`,
       clause: defining,
     });
   }
-  const valid = value as T;
+  const valid = plain as T;
   const issues = rules(valid);
   return issues.length === 0
     ? { ok: true, value: valid }
@@ -296,12 +374,49 @@ export type JsonValue =
  * here applies this check first. `@oip/core` applies it before it computes a
  * canonical form, so that nothing outside the profile is ever hashed or
  * signed.
+ *
+ * With `"container"` the value may nest as deep as a container does
+ * (`MAX_CONTAINER_DEPTH`). That is for a value which may be a container and
+ * is only to be serialised or hashed: whether each record in it keeps the
+ * limit is `validateRecord`'s question.
+ *
+ * The value it returns is a plain copy of the one it was given, as every
+ * validator's is. Use the copy: the original may be an object that answers
+ * differently the next time it is read.
  */
-export function validateJson(value: unknown): Validation<JsonValue> {
+export function validateJson(
+  value: unknown,
+  depth: "record" | "container" = "record",
+): Validation<JsonValue> {
   return answering(() => {
-    const unsafe = checkValues(value);
-    return unsafe === undefined ? { ok: true, value: value as JsonValue } : fail(unsafe);
+    const copied = plainCopy(value, depth === "container" ? MAX_CONTAINER_DEPTH : MAX_DEPTH);
+    return "issue" in copied ? fail(copied.issue) : { ok: true, value: copied.value };
   });
+}
+
+/**
+ * Copies a value that should be a record. It may nest a little deeper than
+ * the limit, as a container does; `validateRecordCopy` then applies core 1.9
+ * exactly.
+ */
+function recordCopy(value: unknown) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return { issue: { path: "", message: "a record is a JSON object", clause: "core 1.1" } };
+  }
+  return plainCopy(value, MAX_CONTAINER_DEPTH);
+}
+
+/** Applies a schema and its rules to a copy, and then the depth limit of core 1.9. */
+function validateRecordCopy<T extends OipRecord | ExtensionRecord>(
+  name: string,
+  defining: string,
+  copied: { readonly value: JsonValue; readonly deepest: number },
+  rules: (valid: T) => Issue[],
+): Validation<T> {
+  const validated = validatePlain<T>(name, defining, copied.value, rules);
+  if (!validated.ok || copied.deepest <= MAX_DEPTH) return validated;
+  const tooDeep = depthIssues(validated.value);
+  return tooDeep.length === 0 ? validated : reject(tooDeep, TOO_DEEP);
 }
 
 /**
@@ -324,13 +439,23 @@ export function validateRecordOfType<K extends RecordType>(
         clause: "core 11",
       });
     }
-    return validateWith<RecordOf<K>>(type, DEFINING_CLAUSE[type], value, (record) =>
-      checkRecordRules(record),
-    );
+    const copied = recordCopy(value);
+    if ("issue" in copied) return fail(copied.issue);
+    return validateKnown(type, copied);
   });
 }
 
-function typeOf(value: unknown): Validation<string> {
+function validateKnown<K extends RecordType>(
+  type: K,
+  copied: { readonly value: JsonValue; readonly deepest: number },
+): Validation<RecordOf<K>> {
+  return validateRecordCopy<RecordOf<K>>(type, DEFINING_CLAUSE[type], copied, (record) =>
+    checkRecordRules(record),
+  );
+}
+
+/** The type a plain copy names, if it is a record at all. */
+function typeOf(value: JsonValue): Validation<string> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return fail({ path: "", message: "a record is a JSON object", clause: "core 1.1" });
   }
@@ -362,7 +487,9 @@ function typeOf(value: unknown): Validation<string> {
  */
 export function validateRecord(value: unknown): Validation<OipRecord> {
   return answering(() => {
-    const type = typeOf(value);
+    const copied = recordCopy(value);
+    if ("issue" in copied) return fail(copied.issue);
+    const type = typeOf(copied.value);
     if (!type.ok) return type;
     if (!isRecordType(type.value)) {
       return fail({
@@ -371,7 +498,7 @@ export function validateRecord(value: unknown): Validation<OipRecord> {
         clause: "core 11",
       });
     }
-    return validateRecordOfType(type.value, value);
+    return validateKnown(type.value, copied);
   });
 }
 
@@ -385,7 +512,9 @@ export function validateRecord(value: unknown): Validation<OipRecord> {
  */
 export function validateExtensionRecord(value: unknown): Validation<ExtensionRecord> {
   return answering(() => {
-    const type = typeOf(value);
+    const copied = recordCopy(value);
+    if ("issue" in copied) return fail(copied.issue);
+    const type = typeOf(copied.value);
     if (!type.ok) return type;
     if (isRecordType(type.value)) {
       return fail({
@@ -394,7 +523,12 @@ export function validateExtensionRecord(value: unknown): Validation<ExtensionRec
         clause: "core 11",
       });
     }
-    return validateWith<ExtensionRecord>("ExtensionRecord", "core 7", value, checkExtensionRules);
+    return validateRecordCopy<ExtensionRecord>(
+      "ExtensionRecord",
+      "core 7",
+      copied,
+      checkExtensionRules,
+    );
   });
 }
 
@@ -405,5 +539,10 @@ export function validateExtensionRecord(value: unknown): Validation<ExtensionRec
  * see `AuthorityItem`.
  */
 export function validateProof(value: unknown): Validation<Proof> {
-  return answering(() => validateWith<Proof>("Proof", "core 5.2", value, checkProofRules));
+  return answering(() => {
+    // A proof stands at depth 3 of its record: the record, its proof array, the proof.
+    const copied = plainCopy(value, MAX_DEPTH - 2);
+    if ("issue" in copied) return fail(copied.issue);
+    return validatePlain<Proof>("Proof", "core 5.2", copied.value, checkProofRules);
+  });
 }

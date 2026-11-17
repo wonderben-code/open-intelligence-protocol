@@ -118,6 +118,26 @@ export function rawSign<T extends object>(
   return { ...subject, proof: proofs } as unknown as T & { proof: Proof[] };
 }
 
+/**
+ * How the minds of a test sign their events. `signEventSync` checks each
+ * event and verifies the signature it has just made, which is what a test of
+ * the package wants. A campaign that builds thousands of logs to give to a
+ * verifier signs them unchecked: the bytes are the same, at a third of the cost.
+ */
+let sign: typeof signEventSync = signEventSync;
+
+/** Runs `build` with events signed unchecked. For campaigns; what is built is verified by what it is given to. */
+export function unchecked<T>(build: () => T): T {
+  const before = sign;
+  sign = (event, signers, created) =>
+    rawSign(event, signers, created === undefined ? {} : { created });
+  try {
+    return build();
+  } finally {
+    sign = before;
+  }
+}
+
 /** What a test mind has in common, whoever controls it. */
 export abstract class Mind {
   readonly name: string;
@@ -212,7 +232,7 @@ export class KeyMind extends Mind {
       ...firstKeys(this),
       ...fields,
     });
-    this.events.push(signEventSync(genesis, [{ control: this.control(0) }]));
+    this.events.push(sign(genesis, [{ control: this.control(0) }]));
   }
 
   control(n: number): SyncSigner {
@@ -230,14 +250,14 @@ export class KeyMind extends Mind {
   update(seconds: number, fields: UpdateFields = {}): this {
     const n = this.events.length;
     const event = draftUpdate(this.head, T(seconds), { controller: this.controller(n), ...fields });
-    this.events.push(signEventSync(event, [{ control: this.control(n) }]));
+    this.events.push(sign(event, [{ control: this.control(n) }]));
     return this;
   }
 
   fork(seconds: number, fields: ForkFields): this {
     const n = this.events.length;
     const event = draftFork(this.head, T(seconds), { controller: this.controller(n), ...fields });
-    this.events.push(signEventSync(event, [{ control: this.control(n) }]));
+    this.events.push(sign(event, [{ control: this.control(n) }]));
     return this;
   }
 
@@ -247,7 +267,7 @@ export class KeyMind extends Mind {
       controller: this.controller(n, true),
       ...fields,
     });
-    this.events.push(signEventSync(event, [{ control: this.control(n) }]));
+    this.events.push(sign(event, [{ control: this.control(n) }]));
     return this;
   }
 
@@ -306,7 +326,7 @@ export class Collective extends Mind {
       ...fields,
     });
     this.events.push(
-      signEventSync(
+      sign(
         genesis,
         founders.map((founder) => founder.asMember()),
       ),
@@ -316,7 +336,7 @@ export class Collective extends Mind {
   update(seconds: number, signers: readonly Mind[], fields: UpdateFields = {}): this {
     const event = draftUpdate(this.head, T(seconds), fields);
     this.events.push(
-      signEventSync(
+      sign(
         event,
         signers.map((member) => member.asMember()),
       ),
@@ -327,7 +347,7 @@ export class Collective extends Mind {
   retire(seconds: number, signers: readonly Mind[], fields: RetireFields = {}): this {
     const event = draftRetire(this.head, T(seconds), fields);
     this.events.push(
-      signEventSync(
+      sign(
         event,
         signers.map((member) => member.asMember()),
       ),

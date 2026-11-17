@@ -26,6 +26,7 @@ import {
   rawSign,
   signer,
   T,
+  unchecked,
 } from "@oip/testkit/minds";
 import fc from "fast-check";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -318,7 +319,7 @@ const keyLogCase: fc.Arbitrary<VectorCase> = fc
     seen: seenPicks,
   })
   .map(({ name, steps, change, pick, seen }) => {
-    const log = twisted(live(name, steps), change, pick);
+    const log = unchecked(() => twisted(live(name, steps), change, pick));
     return { kind: "log", name: "generated", log, seen: seenFor(log, seen) };
   });
 
@@ -346,96 +347,98 @@ const collectiveLogCase: fc.Arbitrary<VectorCase> = fc
     seen: seenPicks,
     memberSeen: seenPicks,
   })
-  .map((plan) => {
-    const people = ["ada", "bea", "cy", "dee"].map((name) => new KeyMind(name, 0));
-    const members = people.slice(0, plan.size);
-    const outsider = people[3]!;
-    const threshold = Math.min(plan.threshold, plan.size);
-    const fields = plan.height === undefined ? {} : { height: plan.height };
-    let club: Collective;
-    try {
-      club = new Collective("club", members, threshold, 200, fields);
-    } catch {
-      // A threshold that is not a majority, or a height that cannot be: signed raw.
-      const sound = new Collective("club", members, plan.size, 200);
-      club = sound;
-      club.events[0] = rawSign(
-        withMembers(sound.events[0] as unknown as JsonObject, {
-          ...fields,
-          controller: { members: members.map((member) => member.address), threshold },
-        }),
-        members.map((member) => member.asMember()),
-      ) as never;
-    }
-    if (plan.founders === "fewer") {
-      club.events[0] = rawSign(
-        club.events[0] as unknown as JsonObject,
-        members.slice(1).map((member) => member.asMember()),
-      ) as never;
-    } else if (plan.founders === "operational") {
-      club.events[0] = rawSign(
-        club.events[0] as unknown as JsonObject,
-        members.map((member) => ({
-          member: member.address,
-          versionId: member.versionId(),
-          invocation: member.operational(),
-        })),
-      ) as never;
-    }
-    // The first member's own log goes on while the collective lives.
-    const first = members[0]!;
-    let seconds = plan.memberStart;
-    for (const { kind, gap, change } of plan.memberSteps) {
-      seconds += gap + 1;
-      const changed = fieldsFor(first, change, seconds);
-      if (kind === "retire") first.retire(seconds, changed);
-      else first.update(seconds, changed);
-    }
-    let when = 200;
-    let current = [...members];
-    for (const update of plan.updates) {
-      when += update.gap;
-      const signers = update.signers.flatMap((n) => (people[n] === undefined ? [] : [people[n]]));
+  .map((plan) =>
+    unchecked(() => {
+      const people = ["ada", "bea", "cy", "dee"].map((name) => new KeyMind(name, 0));
+      const members = people.slice(0, plan.size);
+      const outsider = people[3]!;
+      const threshold = Math.min(plan.threshold, plan.size);
+      const fields = plan.height === undefined ? {} : { height: plan.height };
+      let club: Collective;
       try {
-        if (update.change === "retire") {
-          club.retire(when, signers);
-        } else if (update.change === "admit" || update.change === "expel") {
-          current =
-            update.change === "admit"
-              ? [...new Set([...current, outsider])]
-              : current.length > 1
-                ? current.slice(1)
-                : current;
-          club.update(when, signers, {
-            controller: {
-              members: current.map((member) => member.address),
-              threshold: Math.floor(current.length / 2) + 1,
-            },
-          });
-        } else {
-          club.update(
-            when,
-            signers,
-            update.change === "homes" ? { homes: ["https://club.example"] } : {},
-          );
-        }
+        club = new Collective("club", members, threshold, 200, fields);
       } catch {
-        // An event nobody signs is not written.
+        // A threshold that is not a majority, or a height that cannot be: signed raw.
+        const sound = new Collective("club", members, plan.size, 200);
+        club = sound;
+        club.events[0] = rawSign(
+          withMembers(sound.events[0] as unknown as JsonObject, {
+            ...fields,
+            controller: { members: members.map((member) => member.address), threshold },
+          }),
+          members.map((member) => member.asMember()),
+        ) as never;
       }
-    }
-    const log = club.events as unknown as Events;
-    const extraLogs = people.map((person) => person.events as unknown as Events);
-    return {
-      kind: "log",
-      name: "generated",
-      log,
-      extraLogs,
-      seen: {
-        ...seenFor(first.events, plan.memberSeen),
-        ...seenFor(log, plan.seen),
-      },
-    };
-  });
+      if (plan.founders === "fewer") {
+        club.events[0] = rawSign(
+          club.events[0] as unknown as JsonObject,
+          members.slice(1).map((member) => member.asMember()),
+        ) as never;
+      } else if (plan.founders === "operational") {
+        club.events[0] = rawSign(
+          club.events[0] as unknown as JsonObject,
+          members.map((member) => ({
+            member: member.address,
+            versionId: member.versionId(),
+            invocation: member.operational(),
+          })),
+        ) as never;
+      }
+      // The first member's own log goes on while the collective lives.
+      const first = members[0]!;
+      let seconds = plan.memberStart;
+      for (const { kind, gap, change } of plan.memberSteps) {
+        seconds += gap + 1;
+        const changed = fieldsFor(first, change, seconds);
+        if (kind === "retire") first.retire(seconds, changed);
+        else first.update(seconds, changed);
+      }
+      let when = 200;
+      let current = [...members];
+      for (const update of plan.updates) {
+        when += update.gap;
+        const signers = update.signers.flatMap((n) => (people[n] === undefined ? [] : [people[n]]));
+        try {
+          if (update.change === "retire") {
+            club.retire(when, signers);
+          } else if (update.change === "admit" || update.change === "expel") {
+            current =
+              update.change === "admit"
+                ? [...new Set([...current, outsider])]
+                : current.length > 1
+                  ? current.slice(1)
+                  : current;
+            club.update(when, signers, {
+              controller: {
+                members: current.map((member) => member.address),
+                threshold: Math.floor(current.length / 2) + 1,
+              },
+            });
+          } else {
+            club.update(
+              when,
+              signers,
+              update.change === "homes" ? { homes: ["https://club.example"] } : {},
+            );
+          }
+        } catch {
+          // An event nobody signs is not written.
+        }
+      }
+      const log = club.events as unknown as Events;
+      const extraLogs = people.map((person) => person.events as unknown as Events);
+      return {
+        kind: "log",
+        name: "generated",
+        log,
+        extraLogs,
+        seen: {
+          ...seenFor(first.events, plan.memberSeen),
+          ...seenFor(log, plan.seen),
+        },
+      };
+    }),
+  );
 
 /**
  * A `countsFor` case: a record signed by one of a mind's operational keys,
@@ -455,7 +458,7 @@ const ownKeyCase: fc.Arbitrary<VectorCase> = fc
     logSeen: seenPicks,
   })
   .map((plan) => {
-    const mind = live(plan.name, plan.steps);
+    const mind = unchecked(() => live(plan.name, plan.steps));
     const position = plan.position % mind.events.length;
     const base =
       plan.type === "Intent" ? intentBy(mind, plan.created) : locationBy(mind, plan.created);

@@ -4,7 +4,8 @@
 name: Nightly
 
 # The longer campaigns that are too slow for every push: differential testing
-# against the Python checker with many more generated cases.
+# against the Python checker with many more generated cases, and a million
+# generated identity logs.
 
 on:
   schedule:
@@ -14,6 +15,9 @@ on:
       runs:
         description: Generated cases per differential property
         default: "200000"
+      logs:
+        description: Generated identity logs of key-controlled minds per job (half as many collectives and records again)
+        default: "170000"
 
 permissions:
   contents: read
@@ -41,3 +45,33 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Differential testing against the Python checker
         run: pnpm test:differential
+
+  # BUILD.md, M2: a million generated identity logs each night. Four jobs of
+  # 255,000 logs each (170,000 of key-controlled minds and 85,000 of
+  # collectives), and 85,000 signed records. Each job draws its own seed.
+  identity-logs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      OIP_REQUIRE_PYTHON: "1"
+      OIP_DIFFERENTIAL_LOGS: ${{ inputs.logs || '170000' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --require-hashes -r .github/requirements/vector-checker.txt
+      - run: pnpm install --frozen-lockfile
+      - name: Identity logs against the Python checker (shard ${{ matrix.shard }})
+        run: pnpm test:differential:logs

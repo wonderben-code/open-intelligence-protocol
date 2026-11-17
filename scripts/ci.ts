@@ -45,6 +45,13 @@ const STEPS: readonly Step[] = [
   },
   { name: "Tests, with coverage thresholds", command: "pnpm test:coverage" },
   { name: "Golden vectors, by case kind", command: "pnpm test:vectors" },
+  {
+    // BUILD.md, M2: 10,000 generated identity logs on every pull request. This
+    // runs 6,700 logs of key-controlled minds and 3,350 of collectives, and
+    // 3,350 records signed by a mind's own keys.
+    name: "Differential tests: 10,000 generated identity logs",
+    command: "OIP_DIFFERENTIAL_LOGS=6700 pnpm test:differential:logs",
+  },
   { name: "API reference builds", command: "pnpm run docs" },
   { name: "Benchmarks run", command: "pnpm bench" },
   { name: "Licensing (REUSE)", command: "reuse lint", optionalTool: "reuse" },

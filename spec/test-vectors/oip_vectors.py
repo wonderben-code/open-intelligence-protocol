@@ -53,8 +53,7 @@ MAX_AUTHORITY = 16              # delegations listed in `authority`
 MAX_NESTING = 4                 # collectives within collectives
 
 IDENTITY_TYPES = ("Genesis", "Update", "Fork", "Merge", "Retire")
-CURRENT_STATE_TYPES = ("Location", "Participant", "Entry", "Checkpoint",
-                       "Ack", "QueryResult", "Hello")
+CURRENT_STATE_TYPES = ("Location", "Participant", "Hello")
 DELEGABLE_TYPES = ("Intent", "Offer", "Commitment", "Receipt")
 OIP_COMMANDS = ("/oip/send",) + tuple("/oip/sign/" + t
                                       for t in DELEGABLE_TYPES)
@@ -385,8 +384,9 @@ class State:
 class Log:
     """A verified identity log: its events and the state after each."""
 
-    def __init__(self, mind, events, states):
+    def __init__(self, mind, events, states, times):
         self.mind, self.events, self.states = mind, events, states
+        self.times = times          # evaluation time of each event (ns)
 
     @property
     def latest(self) -> State:
@@ -399,22 +399,23 @@ class Log:
         return None
 
     def removal_time(self, i, key):
-        """`created` of the first event after position i that removes the
-        key or retires the mind (Layer 1, 6.1), or None."""
+        """Evaluation time of the first event after position i that removes
+        the key or retires the mind (Layer 1, 6.1), or None."""
         for j in range(i + 1, len(self.events)):
             if self.events[j]["type"] == "Retire" or \
                key not in self.states[j].keys:
-                return ts(self.events[j]["created"])
+                return self.times[j]
         return None
 
     def compromised_since(self, key):
         return self.latest.compromised.get(key)
 
     def state_at(self, t):
-        """State after the last event whose `created` is at or before t."""
+        """State after the last event whose evaluation time is at or
+        before t."""
         found = None
-        for ev, st in zip(self.events, self.states):
-            if ts(ev["created"]) > t:
+        for when, st in zip(self.times, self.states):
+            if when > t:
                 break
             found = st
         return found
@@ -501,7 +502,7 @@ def verify_log(events, verifier, depth=0) -> Log:
     """Verify an identity log (Layer 1, Section 4). Raises ValueError."""
     if not isinstance(events, list) or not events:
         raise ValueError("empty log")
-    st, states = State(), []
+    st, states, times = State(), [], []
     for i, ev in enumerate(events):
         if not isinstance(ev, dict) or ev.get("oip") != OIP_VERSION:
             raise ValueError("unknown oip version")
@@ -529,7 +530,8 @@ def verify_log(events, verifier, depth=0) -> Log:
                 raise ValueError("bad kind")
             if isinstance(ctl, dict) and "members" in ctl:
                 _check_member_controller(ctl, st.mind)
-                if len(verifier.member_signers(ev, ctl["members"], depth)) \
+                if len(verifier.member_signers(ev, ctl["members"], depth,
+                                               at_position=True)) \
                    != len(ctl["members"]):
                     raise ValueError("every founding member must sign")
                 st.controller = "member"
@@ -556,7 +558,8 @@ def verify_log(events, verifier, depth=0) -> Log:
             if created < st.created:
                 raise ValueError("created must not decrease along a log")
             if st.controller == "member":
-                if len(verifier.member_signers(ev, st.members, depth)) < \
+                if len(verifier.member_signers(ev, st.members, depth,
+                                               at_position=True)) < \
                    st.threshold:
                     raise ValueError("collective event lacks the threshold "
                                      "of current members")
@@ -564,7 +567,7 @@ def verify_log(events, verifier, depth=0) -> Log:
                     _check_member_controller(ctl, st.mind)
                     added = [m for m in ctl["members"] if m not in st.members]
                     if added and len(verifier.member_signers(
-                            ev, added, depth)) != len(added):
+                            ev, added, depth, at_position=True)) != len(added):
                         raise ValueError("added members must sign")
                     st.members, st.threshold = list(ctl["members"]), \
                         ctl["threshold"]
@@ -610,7 +613,9 @@ def verify_log(events, verifier, depth=0) -> Log:
         st.version = f"{st.seq}-{st.head}"
         st.created = created
         states.append(st.copy())
-    return Log(st.mind, events, states)
+        when = verifier.event_time(ev)
+        times.append(max(when, times[-1]) if times else when)
+    return Log(st.mind, events, states, times)
 
 # ---------------------------------------------------------------- policies
 
@@ -763,6 +768,7 @@ class Verifier:
     def __init__(self, logs=(), records=(), seen=None):
         self.raw, self.cache, self.store = {}, {}, {}
         self.seen = dict(seen or {})
+        self.apply_compromise = True
         for log in logs:
             self.add_log(log)
         for r in records:
@@ -802,8 +808,17 @@ class Verifier:
             return None
         return max(created, tau)
 
+    def event_time(self, event):
+        """Evaluation time of an identity event: max(created, evidence)."""
+        created = ts(event["created"])
+        seen = self.seen.get(content_id(event))
+        return max(created, ts(seen)) if seen else created
+
     # -- key validity (Layer 1, Section 6) ---------------------------------
-    def valid_key(self, record, p, mind, depth=0) -> bool:
+    def valid_key(self, record, p, mind, depth=0, at_position=False) -> bool:
+        """Layer 1, 6.1. With at_position (member proofs on another mind's
+        identity events, Layer 1, 6.4) the key is judged as of the version
+        it pins: later removals and compromises do not apply."""
         if not isinstance(p, dict):
             return False
         ref = parse_key_ref(p.get("verificationMethod"))
@@ -820,6 +835,8 @@ class Verifier:
         i = log.index(version)
         if i is None or mk not in log.states[i].keys:
             return False
+        if at_position:
+            return verify_proof(record, p, mk)
         t = self.t_of(record, p)
         if t is None:
             return False
@@ -827,21 +844,23 @@ class Verifier:
         if removed is not None and t >= removed:
             return False
         compromised = log.compromised_since(mk)
-        if compromised is not None and t >= compromised:
+        if self.apply_compromise and compromised is not None and \
+           t >= compromised:
             return False
         if rtype in CURRENT_STATE_TYPES and \
            (mk not in log.latest.keys or log.latest.retired):
             return False
         return verify_proof(record, p, mk)
 
-    def member_signers(self, record, members, depth) -> set:
+    def member_signers(self, record, members, depth,
+                       at_position=False) -> set:
         """Distinct members with a proof by one of their own valid keys."""
         out = set()
         for p in record.get("proof", []):
             ref = parse_key_ref(p.get("verificationMethod")) \
                 if isinstance(p, dict) else None
             if ref and ref[0] in members and ref[0] not in out and \
-               self.valid_key(record, p, ref[0], depth + 1):
+               self.valid_key(record, p, ref[0], depth + 1, at_position):
                 out.add(ref[0])
         return out
 
@@ -1079,7 +1098,12 @@ def offer_status(V, offer, records, at) -> str:
 
 def commitment_status(V, c, records, at) -> str:
     if not commitment_accepted(V, c):
-        return "proposed"
+        V.apply_compromise = False
+        try:
+            withdrawn = commitment_accepted(V, c)
+        finally:
+            V.apply_compromise = True
+        return "disputed" if withdrawn else "proposed"
     ccid = content_id(c)
     parties = {p["mind"] for p in c["parties"]}
     receipts = [r for r in records if r.get("type") == "Receipt" and

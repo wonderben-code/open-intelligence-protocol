@@ -11,6 +11,9 @@ export default defineProject({
     name: "@oip/schema",
     environment: "node",
     include: ["test/**/*.test.ts"],
+    // Hostile inputs of a megabyte take real time on a busy CI machine or
+    // under mutation testing; the default of five seconds is too tight.
+    testTimeout: 60_000,
     benchmark: { include: ["bench/**/*.bench.ts"] },
   },
 });

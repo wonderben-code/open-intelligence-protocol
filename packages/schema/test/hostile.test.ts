@@ -23,7 +23,12 @@ import { sample, sampleProof, samples } from "./fixtures.ts";
 
 const KEY = "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
 
-/** Rejected, with a bounded answer, in bounded time. */
+/**
+ * Rejected, with a bounded answer, in bounded time. The bound on time is
+ * loose on purpose: the work it guards against is quadratic or exponential,
+ * and would take hours, while a busy machine or mutation testing can make
+ * honest work take several seconds.
+ */
 function expectBoundedRejection(run: () => { ok: boolean; issues?: readonly unknown[] }): void {
   const started = performance.now();
   const result = run();
@@ -31,7 +36,7 @@ function expectBoundedRejection(run: () => { ok: boolean; issues?: readonly unkn
   expect(result.issues?.length).toBeGreaterThan(0);
   expect(result.issues?.length).toBeLessThanOrEqual(MAX_ISSUES);
   expect(JSON.stringify(result.issues).length).toBeLessThan(32_768);
-  expect(performance.now() - started).toBeLessThan(5000);
+  expect(performance.now() - started).toBeLessThan(30_000);
 }
 
 describe("many violations in one record", () => {

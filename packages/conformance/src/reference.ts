@@ -104,6 +104,14 @@ function namesAuthority(record: JsonObject): boolean {
 /**
  * The reference implementation, as far as it is built. Kinds of case it does
  * not answer yet are reported as pending.
+ *
+ * It is a test harness, and it answers under the convention of the vectors:
+ * where a case gives no evidence, every proof and event is taken as seen at
+ * its own `created`, and every log as known in full. That is how the vectors
+ * are written. It is the one thing a verifier must never assume of anything
+ * that arrives from outside (core 9.2), so nothing but a conformance test
+ * should call this adapter. A verifier uses `@oip/identity` with its own
+ * evidence.
  */
 export const referenceAdapter: ConformanceAdapter = {
   name: "OIP reference implementation (TypeScript)",

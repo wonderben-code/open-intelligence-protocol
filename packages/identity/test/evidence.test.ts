@@ -21,9 +21,13 @@ const instants = fc.bigInt({ min: 0n, max: 4_000_000_000_000_000_000n });
 
 describe(`${clause("core 9.3")} the evaluation time of a proof`, () => {
   it("is the later of the proof's date and the evidence that it existed", () => {
-    expect(proofTime(at(10), at(20))).toEqual({ ok: true, value: { seen: at(20), time: at(20) } });
-    expect(proofTime(at(20), at(10))).toEqual({ ok: true, value: { seen: at(10), time: at(20) } });
-    expect(proofTime(at(10), at(10))).toEqual({ ok: true, value: { seen: at(10), time: at(10) } });
+    const evaluation = (seen: number, time: number, evidenced = seen) => ({
+      ok: true,
+      value: { seen: at(seen), time: at(time), evidenced: at(evidenced) },
+    });
+    expect(proofTime(at(10), at(20))).toStrictEqual(evaluation(20, 20));
+    expect(proofTime(at(20), at(10))).toStrictEqual(evaluation(10, 20));
+    expect(proofTime(at(10), at(10))).toStrictEqual(evaluation(10, 10));
     fc.assert(
       fc.property(instants, instants, (created, seen) => {
         const time = proofTime(created, seen);
@@ -32,7 +36,9 @@ describe(`${clause("core 9.3")} the evaluation time of a proof`, () => {
           time.ok &&
           time.value.time >= created &&
           time.value.time >= seen &&
-          time.value.seen === seen
+          time.value.seen === seen &&
+          // The signer's own date is no part of what the evidence shows.
+          time.value.evidenced === seen
         );
       }),
     );
@@ -40,7 +46,10 @@ describe(`${clause("core 9.3")} the evaluation time of a proof`, () => {
 
   it(`${clause("core 9.1")} counts for nothing when dated more than 300 seconds after its evidence`, () => {
     expect(CLOCK_SKEW).toBe(300n * 1_000_000_000n);
-    expect(proofTime(at(300), at(0))).toEqual({ ok: true, value: { seen: at(0), time: at(300) } });
+    expect(proofTime(at(300), at(0))).toStrictEqual({
+      ok: true,
+      value: { seen: at(0), time: at(300), evidenced: at(0) },
+    });
     expect(proofTime(at(300.000000001), at(0))).toMatchObject({
       ok: false,
       issues: [{ clause: "core 9.3" }],
@@ -57,31 +66,47 @@ describe(`${clause("core 9.3")} the evaluation time of a proof`, () => {
 
 describe(`${clause("core 9.5")} the evaluation time of an identity event`, () => {
   it("is the latest of its date, its evidence and the time of the event before it", () => {
-    expect(eventTime(at(10), at(20))).toEqual({ ok: true, value: { seen: at(20), time: at(20) } });
-    expect(eventTime(at(20), at(10))).toEqual({ ok: true, value: { seen: at(10), time: at(20) } });
-    expect(eventTime(at(10), at(20), at(30))).toEqual({
+    const evaluation = (seen: number, time: number, evidenced = seen) => ({
       ok: true,
-      value: { seen: at(20), time: at(30) },
+      value: { seen: at(seen), time: at(time), evidenced: at(evidenced) },
     });
-    expect(eventTime(at(10), at(20), at(15))).toEqual({
-      ok: true,
-      value: { seen: at(20), time: at(20) },
+    expect(eventTime(at(10), at(20))).toStrictEqual(evaluation(20, 20));
+    // Dated after its evidence: it takes effect when it says, and the evidence shows no more than it did.
+    expect(eventTime(at(20), at(10))).toStrictEqual(evaluation(10, 20));
+    // Never before the event it follows. What the evidence shows goes on from
+    // what it showed for that event, and leaves out the date its signer wrote.
+    const before = (time: number, evidenced: number) => ({
+      time: at(time),
+      evidenced: at(evidenced),
     });
+    expect(eventTime(at(10), at(20), before(30, 30))).toStrictEqual(evaluation(20, 30, 30));
+    expect(eventTime(at(10), at(20), before(30, 25))).toStrictEqual(evaluation(20, 30, 25));
+    expect(eventTime(at(40), at(20), before(30, 30))).toStrictEqual(evaluation(20, 40, 30));
+    expect(eventTime(at(10), at(20), before(15, 15))).toStrictEqual(evaluation(20, 20));
+    expect(eventTime(at(10), at(20), before(25, 15))).toStrictEqual(evaluation(20, 25, 20));
     fc.assert(
       fc.property(
         instants,
         instants,
-        fc.option(instants, { nil: undefined }),
-        (created, seen, previous) => {
+        fc.option(fc.tuple(instants, instants), { nil: undefined }),
+        (created, seen, before) => {
+          // What the evidence showed for the event before is never after its evaluation time.
+          const previous =
+            before === undefined
+              ? undefined
+              : {
+                  time: before[0] > before[1] ? before[0] : before[1],
+                  evidenced: before[0] > before[1] ? before[1] : before[0],
+                };
           const time = eventTime(created, seen, previous);
           if (created > seen + CLOCK_SKEW) return !time.ok;
+          const latest = (...times: bigint[]) => times.reduce((a, b) => (b > a ? b : a));
           return (
             time.ok &&
             time.value.seen === seen &&
-            time.value.time >= created &&
-            time.value.time >= seen &&
-            (previous === undefined || time.value.time >= previous) &&
-            [created, seen, previous].includes(time.value.time)
+            time.value.time === latest(created, seen, ...(previous ? [previous.time] : [])) &&
+            time.value.evidenced === latest(seen, ...(previous ? [previous.evidenced] : [])) &&
+            time.value.evidenced <= time.value.time
           );
         },
       ),
@@ -94,7 +119,7 @@ describe(`${clause("core 9.5")} the evaluation time of an identity event`, () =>
       ok: false,
       issues: [{ clause: "core 9.5" }],
     });
-    expect(eventTime(at(10), undefined, at(5))).toMatchObject({
+    expect(eventTime(at(10), undefined, { time: at(5), evidenced: at(5) })).toMatchObject({
       ok: false,
       issues: [{ clause: "core 9.5" }],
     });

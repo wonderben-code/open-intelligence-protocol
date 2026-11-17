@@ -33,6 +33,13 @@ export interface Evaluation {
   readonly seen: Instant;
   /** The evaluation time (core 9.3, 9.5): every rule about time is judged at it. */
   readonly time: Instant;
+  /**
+   * The evaluation time as evidence alone gives it: `τ`, and for an identity
+   * event never before what the evidence gives for the event it follows. No
+   * signer's own date is part of it. A log that is asked about this
+   * evaluation must be known up to this time (core 9.4).
+   */
+  readonly evidenced: Instant;
 }
 
 const later = (a: Instant, b: Instant): Instant => (a > b ? a : b);
@@ -55,7 +62,7 @@ export function proofTime(created: Instant, seen: Instant | undefined): Validati
       "core 9.3",
     );
   }
-  return ok({ seen, time: later(created, seen) });
+  return ok({ seen, time: later(created, seen), evidenced: seen });
 }
 
 /**
@@ -65,12 +72,12 @@ export function proofTime(created: Instant, seen: Instant | undefined): Validati
  *
  * @param created - The event's own `created`.
  * @param seen - `τ(e)`: the earliest evidence that the event existed.
- * @param previous - The evaluation time of the event before it in the log.
+ * @param previous - The evaluation of the event before it in the log.
  */
 export function eventTime(
   created: Instant,
   seen: Instant | undefined,
-  previous?: Instant,
+  previous?: Pick<Evaluation, "time" | "evidenced">,
 ): Validation<Evaluation> {
   if (seen === undefined) {
     return no("no evidence is held of when this event existed", "core 9.5");
@@ -82,7 +89,18 @@ export function eventTime(
     );
   }
   const time = later(created, seen);
-  return ok({ seen, time: previous === undefined ? time : later(time, previous) });
+  if (previous === undefined) return ok({ seen, time, evidenced: seen });
+  return ok({ seen, time: later(time, previous.time), evidenced: later(seen, previous.evidenced) });
+}
+
+/**
+ * Layer 1, 4.2: whether an event is dated before the event it follows. Both
+ * dates are their signers' own claims, so this is a rule of form and orders
+ * nothing in time. It is kept here, with the only other code that compares a
+ * `created`.
+ */
+export function datedBefore(created: Instant, previous: Instant): boolean {
+  return created < previous;
 }
 
 /**
@@ -90,6 +108,13 @@ export function eventTime(
  * event. It keeps the earliest time it is told, so telling it again later
  * changes nothing. It holds everything in memory; a service keeps the same
  * facts in an append-only table.
+ *
+ * It believes what it is told. Evidence for an identity event is evidence
+ * that the event existed with proofs that make it valid (core 9.5), and an
+ * event's content ID does not cover its proofs: recording the time an
+ * unsigned or wrongly signed copy was seen would let anyone who later signs
+ * it claim that time. `witnessLog` and `witnessRecord` record only what has
+ * verified. Use them for everything that arrives from outside.
  */
 export class FirstSeen implements EvidenceView {
   readonly #proofs = new Map<string, Instant>();
@@ -100,7 +125,13 @@ export class FirstSeen implements EvidenceView {
     return keepEarliest(this.#proofs, digest, at);
   }
 
-  /** Records that an identity event was seen at a time. Returns the earliest time now held for it. */
+  /**
+   * Records that an identity event was seen, with proofs that make it valid
+   * (core 9.5), at a time. Returns the earliest time now held for it.
+   *
+   * Call it only for an event that has verified in its log, or whose time a
+   * witness the verifier trusts has given. `witnessLog` does the first.
+   */
   sawEvent(contentId: string, at: Instant): Instant {
     return keepEarliest(this.#events, contentId, at);
   }

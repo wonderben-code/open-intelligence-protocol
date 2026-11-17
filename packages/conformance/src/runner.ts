@@ -510,12 +510,16 @@ export const POSITIVE_CHECKS: readonly PositiveCheck[] = [
       if (countsFor === undefined) return undefined;
       const view = baselineView(vectors);
       const mismatches: string[] = [];
+      let undecided = false;
       for (const [record, author] of SIGNED_BY_THEIR_AUTHORS) {
         const answer = countsFor(namedRecord(vectors, record), addressOf(vectors, author), view);
-        if (answer === NOT_JUDGED) return undefined;
-        if (!verdict(answer)) mismatches.push(`${record} does not count for ${author}`);
+        if (answer === NOT_JUDGED) undecided = true;
+        else if (!verdict(answer)) mismatches.push(`${record} does not count for ${author}`);
       }
-      return mismatches;
+      // A wrong answer is a failure, whatever else was left unjudged: an
+      // implementation that judges one record less must not turn its
+      // failures into "not built yet".
+      return mismatches.length === 0 && undecided ? undefined : mismatches;
     },
   },
   {

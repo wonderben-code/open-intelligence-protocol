@@ -20,6 +20,15 @@ import { Validation } from '@oip/schema';
 import { VerifiedProof } from '@oip/core';
 
 // @public
+export interface AcknowledgedChild {
+    readonly child: string;
+    readonly position: number;
+}
+
+// @public
+export function childrenAt(log: VerifiedLog, position: number): string[];
+
+// @public
 export function collectiveSignedTime(judged: JudgedRecord, log: VerifiedLog, view: IdentityView): Instant | undefined;
 
 // @public
@@ -66,6 +75,7 @@ export function didDocument(log: VerifiedLog, options?: DidDocumentOptions): Val
 export interface DidDocumentMetadata {
     readonly children: readonly string[];
     readonly deactivated: boolean;
+    readonly duplicitous?: true;
     readonly members?: readonly string[];
     readonly nextKeyHashes?: readonly string[];
     readonly nextThreshold?: number;
@@ -134,6 +144,7 @@ export function entryAt(log: VerifiedLog, versionId: string): {
 
 // @public
 export interface Evaluation {
+    readonly evidenced: Instant;
     readonly seen: Instant;
     readonly time: Instant;
 }
@@ -148,7 +159,7 @@ export type EventSigner<S extends Signer = Signer> = {
 };
 
 // @public
-export function eventTime(created: Instant, seen: Instant | undefined, previous?: Instant): Validation<Evaluation>;
+export function eventTime(created: Instant, seen: Instant | undefined, previous?: Pick<Evaluation, "time" | "evidenced">): Validation<Evaluation>;
 
 // @public
 export interface EvidenceView {
@@ -177,7 +188,6 @@ export type GenesisFields = Omit<Genesis, Shared>;
 export interface IdentityState {
     readonly agreement: readonly string[];
     readonly alsoKnownAs: readonly string[];
-    readonly children: readonly string[];
     readonly controller: ControllerState;
     readonly created: Instant;
     readonly head: string;
@@ -188,7 +198,6 @@ export interface IdentityState {
     readonly mind: string;
     readonly parents: readonly Parent[];
     readonly retired: boolean;
-    readonly revoked: ReadonlyMap<string, Instant | undefined>;
     readonly seq: number;
     readonly versionId: string;
 }
@@ -207,7 +216,12 @@ export interface JudgedRecord {
 }
 
 // @public
-export function judgeRecord(record: unknown): Validation<JudgedRecord>;
+export interface JudgeOptions {
+    readonly understood?: Iterable<string>;
+}
+
+// @public
+export function judgeRecord(record: unknown, options?: JudgeOptions): Validation<JudgedRecord>;
 
 // @public
 export function latestState(log: VerifiedLog): IdentityState;
@@ -225,7 +239,9 @@ export function lineage(child: VerifiedLog, view: IdentityView, records?: readon
 // @public
 export class LogBook implements IdentityView {
     constructor(evidence: EvidenceView, options?: LogBookOptions);
+    drop(mind: string): boolean;
     readonly evidence: EvidenceView;
+    forget(): void;
     hold(events: unknown, asOf: Instant): Validation<string>;
     holdBranch(events: unknown, asOf: Instant): Validation<string>;
     log(mind: string): Validation<VerifiedLog>;
@@ -234,6 +250,7 @@ export class LogBook implements IdentityView {
 // @public
 export interface LogBookOptions {
     readonly maxEvents?: number;
+    readonly understood?: Iterable<string>;
 }
 
 // @public
@@ -242,6 +259,7 @@ export interface LogContext {
     readonly evidence: EvidenceView;
     readonly maxEvents?: number;
     readonly memberLog?: (mind: string) => Validation<VerifiedLog>;
+    readonly understood?: Iterable<string>;
 }
 
 // @public
@@ -285,7 +303,24 @@ export function proofTime(created: Instant, seen: Instant | undefined): Validati
 export function removalTime(log: VerifiedLog, position: number, key: string, set: "keys" | "invocation"): Instant | undefined;
 
 // @public
+export interface Replayed {
+    // Warning: (ae-forgotten-export) The symbol "Rejection" needs to be exported by the entry point index.d.ts
+    readonly failure: Rejection | undefined;
+    readonly log: VerifiedLog | undefined;
+}
+
+// @public
 export type RetireFields = Omit<Retire, Shared | Chain>;
+
+// @public
+export interface Revocation {
+    readonly compromisedSince: Instant | undefined;
+    readonly key: string;
+    readonly position: number;
+}
+
+// @public
+export function revokedAt(log: VerifiedLog, position: number): Map<string, Instant | undefined>;
 
 // @public
 export function signEvent<T extends Unsigned<IdentityEvent>>(event: T, signers: readonly EventSigner[], created?: string): Promise<T & {
@@ -310,13 +345,29 @@ export type UpdateFields = Omit<Update, Shared | Chain>;
 export interface VerifiedLog {
     readonly asOf: Instant;
     readonly branchTails: readonly LogEntry[];
+    readonly children: readonly AcknowledgedChild[];
     readonly duplicitous: boolean;
     readonly entries: readonly [LogEntry, ...LogEntry[]];
     readonly height: number;
     readonly mind: string;
+    readonly revocations: readonly Revocation[];
 }
 
 // @public
 export function verifyLog(events: unknown, context: LogContext): Validation<VerifiedLog>;
+
+// @public
+export function witnessLog(events: unknown, now: Instant, seen: FirstSeen, options?: WitnessOptions): Replayed;
+
+// @public
+export interface WitnessOptions {
+    readonly evidence?: EvidenceView;
+    readonly maxEvents?: number;
+    readonly memberLog?: LogContext["memberLog"];
+    readonly understood?: Iterable<string>;
+}
+
+// @public
+export function witnessRecord(judged: JudgedRecord, now: Instant, seen: FirstSeen): void;
 
 ```

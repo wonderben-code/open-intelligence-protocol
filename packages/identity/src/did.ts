@@ -5,7 +5,7 @@
 
 import type { Validation } from "@oip/schema";
 
-import { no, ok } from "./result.ts";
+import { no, ok, own } from "./result.ts";
 import {
   childrenAt,
   entryAt,
@@ -77,6 +77,13 @@ export interface DidDocumentMetadata {
   readonly members?: readonly string[];
   /** For a member-controlled mind: how many members must sign. */
   readonly threshold?: number;
+  /**
+   * Present, and true, when the mind is duplicitous for this verifier (Layer
+   * 1, 7.3). The document is then of the state before its branches part:
+   * nothing pinned to a later version, and no record of its present state,
+   * is to be accepted from it.
+   */
+  readonly duplicitous?: true;
 }
 
 /** The result of resolving an address. */
@@ -104,12 +111,17 @@ export interface DidDocumentOptions {
   readonly verifiedAliases?: readonly string[];
 }
 
-function metadata(state: IdentityState, children: readonly string[]): DidDocumentMetadata {
+function metadata(
+  state: IdentityState,
+  children: readonly string[],
+  duplicitous: boolean,
+): DidDocumentMetadata {
   const base = {
     versionId: state.versionId,
     deactivated: state.retired,
     parents: state.parents,
     children,
+    ...(duplicitous ? { duplicitous: true as const } : {}),
   };
   const controller = state.controller;
   if (controller.kind === "member") {
@@ -122,16 +134,31 @@ function metadata(state: IdentityState, children: readonly string[]): DidDocumen
   };
 }
 
+const strings = (value: unknown): value is readonly string[] | undefined =>
+  value === undefined ||
+  (Array.isArray(value) && value.every((item) => typeof (item as unknown) === "string"));
+
 /**
  * Layer 1, 5.2: the DID document of a mind, from its verified log. Control
  * keys are not listed. An alias is listed only if the caller has verified
  * it; none is verified here.
+ *
+ * For a duplicitous mind the document is of the state before its branches
+ * part, and its metadata says so (Layer 1, 7.3).
  */
 export function didDocument(
   log: VerifiedLog,
-  options: DidDocumentOptions = {},
+  options?: DidDocumentOptions,
 ): Validation<DidResolution> {
-  const { versionId, endpoints, verifiedAliases } = options;
+  const versionId = own(options, "versionId");
+  const endpoints = own(options, "endpoints");
+  const verifiedAliases = own(options, "verifiedAliases");
+  if (versionId !== undefined && typeof versionId !== "string") {
+    return no("versionId is a version identifier, a string", "L1 2.4");
+  }
+  if (!strings(endpoints) || !strings(verifiedAliases)) {
+    return no("endpoints and verified aliases are given as lists of strings", "L1 5.2");
+  }
   let state = latestState(log);
   if (versionId !== undefined) {
     const pinned = entryAt(log, versionId);
@@ -173,6 +200,6 @@ export function didDocument(
       ...(service.length === 0 ? {} : { service }),
       ...(aliases.length === 0 ? {} : { alsoKnownAs: aliases }),
     },
-    didDocumentMetadata: metadata(state, childrenAt(log, state.seq)),
+    didDocumentMetadata: metadata(state, childrenAt(log, state.seq), log.duplicitous),
   });
 }

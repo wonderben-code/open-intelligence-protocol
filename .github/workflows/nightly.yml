@@ -16,8 +16,8 @@ on:
         description: Generated cases per differential property
         default: "200000"
       logs:
-        description: Generated identity logs of key-controlled minds per job (half as many collectives and records again)
-        default: "170000"
+        description: Generated identity logs of key-controlled minds per job (the other campaigns in proportion)
+        default: "105000"
 
 permissions:
   contents: read
@@ -46,19 +46,21 @@ jobs:
       - name: Differential testing against the Python checker
         run: pnpm test:differential
 
-  # BUILD.md, M2: a million generated identity logs each night. Four jobs of
-  # 255,000 logs each (170,000 of key-controlled minds and 85,000 of
-  # collectives), and 85,000 signed records. Each job draws its own seed.
+  # BUILD.md, M2: a million generated identity logs each night. Six jobs of
+  # 170,625 logs each (105,000 of key-controlled minds, 52,500 of collectives
+  # and 13,125 of collectives with collectives as members), with 78,750
+  # signed records and 13,125 lineages. Each job draws its own seed, and each
+  # test names the number of cases it ran.
   identity-logs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     env:
       OIP_REQUIRE_PYTHON: "1"
-      OIP_DIFFERENTIAL_LOGS: ${{ inputs.logs || '170000' }}
+      OIP_DIFFERENTIAL_LOGS: ${{ inputs.logs || '105000' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

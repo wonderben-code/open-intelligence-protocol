@@ -23,6 +23,7 @@ import {
 } from "../src/index.ts";
 import {
   agreementKey,
+  at,
   bookOf,
   Collective,
   KeyMind,
@@ -1009,6 +1010,15 @@ describe(`${clause("L1 4.8")} every event is a well-formed record`, () => {
     }
   });
 
+  it(`${clause("L1 3.7", "L1 19")} refuses an event that revokes more than 80 keys`, () => {
+    const revoking = (count: number) =>
+      new KeyMind("ada").raw(10, "Update", {
+        revoked: Array.from({ length: count }, (_, n) => ({ key: signer(`old/${n}`).publicKey })),
+      });
+    expect(verifyEvents(revoking(80).events).ok).toBe(true);
+    expect(refused(revoking(81))).toMatchObject({ path: "/1/revoked" });
+  });
+
   it("applies the rules of core to each event: the JSON profile, the size, the proof set", () => {
     const ada = new KeyMind("ada").update(10);
     const context = { evidence: witness([ada.events]), asOf: LATER };
@@ -1163,3 +1173,269 @@ describe("a log is judged, never trusted", () => {
 });
 
 const parse = (timestamp: string) => parseTimestamp(timestamp);
+
+describe(`${clause("core 8.3")} an event that depends on an extension the verifier does not implement`, () => {
+  const extension = { ext: { "com.example.recovery": { v: 1 } } };
+  const critical = { ...extension, critical: ["com.example.recovery"] };
+
+  it("is not treated as valid, so its log is rejected", () => {
+    const genesis = rawGenesis("ada", critical);
+    const evidence = witness([[genesis]]);
+    expect(refusal(verifyLog([genesis], { evidence, asOf: LATER }))).toMatchObject({
+      clause: "core 8.3",
+      path: "/0/critical",
+    });
+    // In a later event, whose keys would otherwise be the mind's.
+    const bea = new KeyMind("bea").raw(10, "Update", {
+      ...critical,
+      keys: [{ key: signer("thief").publicKey }],
+    });
+    expect(refused(bea)).toMatchObject({ clause: "core 8.3", path: "/1/critical" });
+    // An extension that is not critical changes nothing (core 8.4).
+    expect(verifyEvents([rawGenesis("ada", extension)]).ok).toBe(true);
+  });
+
+  it("is accepted by a verifier that says it implements the extension, and by no other", () => {
+    const genesis = rawGenesis("ada", critical);
+    const evidence = witness([[genesis]]);
+    const verify = (understood: unknown) =>
+      verifyLog([genesis], { evidence, asOf: LATER, understood: understood as string[] }).ok;
+    expect(verify(["com.example.recovery"])).toBe(true);
+    expect(verify(new Set(["com.example.other", "com.example.recovery"]))).toBe(true);
+    expect(verify(["com.example.other"])).toBe(false);
+    expect(verify([])).toBe(false);
+    // What is no list of names names nothing.
+    for (const junk of [5, "com.example.recovery".length, null, { length: 1 }, [["x"]]]) {
+      expect(verify(junk)).toBe(false);
+    }
+    const book = new LogBook(evidence, { understood: ["com.example.recovery"] });
+    book.hold([genesis], LATER);
+    expect(book.log(`did:oip:${contentId(genesis)}`).ok).toBe(true);
+    const strict = new LogBook(evidence);
+    strict.hold([genesis], LATER);
+    expect(refusal(strict.log(`did:oip:${contentId(genesis)}`)).clause).toBe("core 8.3");
+  });
+});
+
+describe(`${clause("core 9.3", "core 9.6")} the proofs on an event are judged at the event's time`, () => {
+  it("does not count a proof dated more than 300 seconds after the evidence for its event", () => {
+    const ada = new KeyMind("ada");
+    const update = draftUpdate(ada.head, T(10), { controller: ada.controller(1) });
+    const dated = (seconds: number) =>
+      rawSign(update, [{ control: ada.control(1) }], { created: T(seconds) });
+    // The event was seen at 10. A proof dated 310 is at the limit; one a nanosecond later is past it.
+    expect(verifyEvents([ada.events[0], dated(310)]).ok).toBe(true);
+    expect(refusal(verifyEvents([ada.events[0], dated(310.000000001)]))).toMatchObject({
+      clause: "L1 4.3",
+      path: "/1/proof",
+    });
+    // A member's proof likewise.
+    const [a, b] = [new KeyMind("a"), new KeyMind("b")];
+    const club = new Collective("club", [a, b], 2);
+    const change = draftUpdate(club.head, T(10));
+    const signed = (seconds: number) => [
+      ...club.events,
+      {
+        ...change,
+        proof: [
+          ...rawSign(change, [a.asMember()]).proof,
+          ...rawSign(change, [b.asMember()], { created: T(seconds) }).proof,
+        ],
+      },
+    ];
+    const verify = (events: readonly unknown[]) => {
+      const book = bookOf([a, b]);
+      return verifyLog(events, {
+        evidence: witness([events as JsonObject[]]),
+        asOf: LATER,
+        memberLog: (mind) => book.log(mind),
+      });
+    };
+    expect(verify(signed(310)).ok).toBe(true);
+    expect(refusal(verify(signed(310.000000001)))).toMatchObject({
+      clause: "L1 4.4",
+      path: "/1/proof",
+    });
+  });
+
+  it("refuses an event evaluated more than 300 seconds after it expires", () => {
+    const expiring = (expires: number) => rawGenesis("ada", { expires: T(expires) }, 1000);
+    // Seen when it was made, at 1000.
+    expect(verifyEvents([expiring(2000)]).ok).toBe(true);
+    expect(verifyEvents([expiring(700)]).ok).toBe(true);
+    expect(refusal(verifyEvents([expiring(699.999999999)]))).toMatchObject({
+      clause: "core 9.6",
+      path: "/0/expires",
+    });
+    // The time is the evidence's, not the one the signer wrote.
+    const genesis = rawGenesis("ada", { expires: T(100) });
+    const seenAt = (seconds: number) => {
+      const evidence = new FirstSeen();
+      evidence.sawEvent(contentId(genesis), at(seconds));
+      return verifyLog([genesis], { evidence, asOf: LATER });
+    };
+    expect(seenAt(400).ok).toBe(true);
+    expect(refusal(seenAt(400.000000001))).toMatchObject({
+      clause: "core 9.6",
+      path: "/0/expires",
+    });
+    // A later event that expires does not take the log's earlier events with it, but the log is refused.
+    const bea = new KeyMind("bea").raw(1000, "Update", { expires: T(600) });
+    expect(refused(bea)).toMatchObject({ clause: "core 9.6", path: "/1/expires" });
+  });
+});
+
+describe(`${clause("L1 6.4", "core 9.4")} whose proof counts on a collective's event`, () => {
+  const people = () =>
+    ["a", "b", "c"].map((name) => new KeyMind(name)) as [KeyMind, KeyMind, KeyMind];
+
+  it("is not a proof that names an authority: that one is made for another", () => {
+    const [a, b, c] = people();
+    const club = new Collective("club", [a, b, c], 2);
+    const change = draftUpdate(club.head, T(10));
+    const authority = [`${b.address}/${contentId(b.events[0])}`];
+    const forItself = b.sign(change, { by: b.invocation() });
+    const forAnother = b.sign(change, { by: b.invocation(), more: { authority } });
+    const verify = (event: object) => {
+      const tried = new Collective("club", [a, b, c], 2);
+      tried.events.push(a.sign(event, { by: a.invocation() }) as never);
+      return bookOf([tried, a, b, c]).log(tried.address);
+    };
+    expect(verify(forItself).ok).toBe(true);
+    expect(refusal(verify(forAnother))).toMatchObject({ clause: "L1 6.4", path: "/1/proof/0" });
+  });
+
+  it("asks for each member's log once, however many proofs the member has made", () => {
+    const [a, b, c] = people();
+    const club = new Collective("club", [a, b, c], 2).update(10, [a, b]).update(20, [a, b, c]);
+    const book = bookOf([a, b, c]);
+    const asked: string[] = [];
+    const result = verifyLog(club.events, {
+      evidence: witness([club.events]),
+      asOf: LATER,
+      memberLog: (mind) => {
+        asked.push(mind);
+        return book.log(mind);
+      },
+    });
+    expect(result.ok).toBe(true);
+    expect([...asked].sort()).toStrictEqual([a.address, b.address, c.address].sort());
+  });
+
+  it("stops at the first member whose log does not verify, and gives that reason", () => {
+    const [a, b, c] = people();
+    const draft = new Collective("club", [a, b, c], 2).events[0]!;
+    // Four proofs by a, then b's and c's.
+    const genesis = rawSign(draft, [
+      a.asMember(),
+      a.asMember(),
+      a.asMember(),
+      a.asMember(),
+      b.asMember(),
+      c.asMember(),
+    ]);
+    const book = bookOf([c]);
+    const asked: string[] = [];
+    const result = verifyLog([genesis], {
+      evidence: witness([[genesis]]),
+      asOf: LATER,
+      memberLog: (mind) => {
+        asked.push(mind);
+        return book.log(mind);
+      },
+    });
+    const issue = refusal(result);
+    expect(issue).toMatchObject({ clause: "L1 6.3", path: "/0/proof/0" });
+    expect(issue.message).toContain(`the proof by member ${a.address} does not count`);
+    // One member's log was asked for, once: neither a's again, nor b's, which is not held either.
+    expect(asked).toStrictEqual([a.address]);
+  });
+
+  it("needs the member's log known as far as the evidence for the event before goes", () => {
+    const [a, b, c] = people();
+    const club = new Collective("club", [a, b, c], 2, 5).update(6, [a, b]).update(7, [a, c]);
+    const [genesis, first, second] = club.events.map((event) => contentId(event));
+    // The first update was seen at 30, and the second, which follows it, at 10 by another source.
+    const evidence = witness([a.events, b.events, c.events]);
+    evidence.sawEvent(genesis!, at(5));
+    evidence.sawEvent(first!, at(30));
+    evidence.sawEvent(second!, at(10));
+    const verify = (cAsOf: number, cLog: KeyMind = c) => {
+      const book = new LogBook(evidence);
+      book.hold(a.events, LATER);
+      book.hold(b.events, LATER);
+      book.hold(cLog.events, at(cAsOf));
+      book.hold(club.events, LATER);
+      return book.log(club.address);
+    };
+    const fresh = verify(30);
+    expect(fresh.ok && fresh.value.entries.map((entry) => entry.time)).toStrictEqual([
+      at(5),
+      at(30),
+      at(30),
+    ]);
+    // Known to 15: after the second update's own evidence, and before the time it takes effect.
+    expect(refusal(verify(29.999999999))).toMatchObject({ clause: "core 9.4", path: "/2/proof/1" });
+    expect(refusal(verify(15))).toMatchObject({ clause: "core 9.4", path: "/2/proof/1" });
+    // What the stale copy hid: c removed the key at 20, before the update took effect.
+    const removed = new KeyMind("c").update(20, { invocation: [] });
+    evidence.sawEvent(contentId(removed.events[1]), at(20));
+    expect(refusal(verify(30, removed))).toMatchObject({ clause: "L1 6.4", path: "/2/proof/1" });
+  });
+});
+
+describe("what a verifier is told about time", () => {
+  it(`${clause("core 9.4")} refuses a log known up to something that is not a time`, () => {
+    const ada = new KeyMind("ada");
+    const evidence = witness([ada.events]);
+    for (const notATime of [5, "2026-01-01T00:00:00Z", null, undefined, {}]) {
+      const result = verifyLog(ada.events, { evidence, asOf: notATime as never });
+      expect(refusal(result)).toMatchObject({ clause: "core 9.4", path: "" });
+      const book = new LogBook(evidence);
+      expect(refusal(book.hold(ada.events, notATime as never)).clause).toBe("core 9.4");
+      expect(refusal(book.holdBranch(ada.events, notATime as never)).clause).toBe("core 9.4");
+      expect(refusal(book.log(ada.address)).clause).toBe("L1 6.3");
+    }
+  });
+});
+
+describe("what a verified log is", () => {
+  it("is frozen, with everything in it: what is handed out is also what is kept", () => {
+    const [a, b] = [new KeyMind("a"), new KeyMind("b")];
+    const club = new Collective("club", [a, b], 2).update(10, [a, b], {
+      homes: ["https://club.example"],
+    });
+    const log = verified(club, [a, b]);
+    const frozen = (value: unknown): boolean =>
+      typeof value !== "object" ||
+      value === null ||
+      (Object.isFrozen(value) && Object.values(value).every(frozen));
+    expect(frozen(log)).toBe(true);
+    expect(() => {
+      (log.entries as unknown as unknown[]).push({});
+    }).toThrow(TypeError);
+    expect(() => {
+      (latestState(log).homes as string[]).push("https://thief.example");
+    }).toThrow(TypeError);
+    expect(() => {
+      (events(log)[0] as { kind: string }).kind = "human";
+    }).toThrow(TypeError);
+    // The copy of the book is the one it gave out, unchanged.
+    const book = bookOf([club, a, b]);
+    expect(book.log(club.address)).toBe(book.log(club.address));
+  });
+
+  it("reads each event it is given once", () => {
+    const ada = new KeyMind("ada").update(10).update(20);
+    const reads = new Map<string, number>();
+    const counting = new Proxy(ada.events, {
+      get(target, name, receiver) {
+        if (typeof name === "string") reads.set(name, (reads.get(name) ?? 0) + 1);
+        return Reflect.get(target, name, receiver) as unknown;
+      },
+    });
+    expect(verifyLog(counting, { evidence: witness([ada.events]), asOf: LATER }).ok).toBe(true);
+    expect(reads.get("length")).toBe(1);
+    expect([reads.get("0"), reads.get("1"), reads.get("2")]).toStrictEqual([1, 1, 1]);
+  });
+});

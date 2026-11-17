@@ -37,7 +37,7 @@ export function report(recordIsWellFormed: (record: unknown) => boolean): string
 This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the 13 malformed records it should have rejected:
 
 ```
-my implementation: 20 passed, 13 failed, 130 pending
+my implementation: 20 passed, 13 failed, 155 pending
 FAIL negative packet-short-nonce: must be rejected. A packet nonce has 8 to 64 characters.
 FAIL negative delegation-to-self: must be rejected. A delegation's delegate must differ from its author.
 FAIL negative proof-entry-not-an-object: must be rejected. Every entry of `proof` is an object (core 5.1). A proof that does not verify never counts and does not make the record malformed (core 5.5); an entry that is not an object at all does.
@@ -88,18 +88,31 @@ An adapter method answers; it does not throw. The suite fails any case on which 
 | `controls`            | hold                                                                                           |
 | `negative`            | not hold, except for `status` and `assurance` cases, whose `expect` is already the safe result |
 
+## The reference adapter is a test harness
+
+`referenceAdapter` answers each kind of case with the reference implementation. It does so under the convention of the vectors: where a case gives no evidence, every proof and identity event is taken as seen at its own `created`, and every log as known in full. That convention is what makes a file of fixed cases possible. It is also the one assumption a verifier must never make about anything that arrives from outside (core 9.2). Use the adapter in conformance and differential tests, and nowhere else; a verifier uses `@oip/identity` with its own evidence.
+
 ## Differential testing
 
 `PythonJudge` keeps the Python checker open as one process and asks it for a verdict on any case in the vectors' format. `compareVerdicts` judges a case both ways and returns the disagreement, if any.
 
 ```
-pnpm test:differential                             # a short campaign
-OIP_DIFFERENTIAL_RUNS=200000 pnpm test:differential   # a long one
+pnpm test:differential                                    # every differential test, a short campaign of each
+OIP_DIFFERENTIAL_RUNS=200000 pnpm test:differential       # a long campaign of records and JSON texts
+OIP_DIFFERENTIAL_LOGS=6700 pnpm test:differential:logs    # the identity campaign, as every pull request runs it
 ```
 
 It needs Python 3 with the `cryptography` package. Without them the tests are skipped, unless `OIP_REQUIRE_PYTHON` is set, as it is in CI.
 
-At M0 the generated cases are mutated records, compared under the rule "no laxer": whatever the schemas accept, the Python checker's structural checks accept. From M2 the cases are generated identity logs, compared under the rule "same".
+At M0 the generated cases are mutated records, compared under the rule "no laxer": whatever the schemas accept, the Python checker's structural checks accept. From M2 they are also identity cases, compared under the rule "same":
+
+- logs of key-controlled minds, of collectives, and of collectives that have collectives as members, each with something done to it: an event moved or dropped, a member changed with or without signing again, a key that was not committed to, a proof or evidence of another time;
+- records signed by a mind's own keys, records pinned to one of two or three branches of a log, and records signed under a collective's threshold while its members change;
+- lineages, acknowledged by a `Fork` event, by a `Lineage` record, or not at all.
+
+For one case in four the two implementations also resolve the DID document of the mind the case is about, and the documents must be equal, so a state replayed wrongly shows even where both accept the log.
+
+`pnpm run ci` runs the identity campaign at 6,700: 10,888 logs, 5,025 records and 838 lineages. The nightly workflow runs a million logs. The name of each test gives the number of cases it ran, and the test fails if another number ran.
 
 ## In this repository
 

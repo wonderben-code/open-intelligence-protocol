@@ -10,21 +10,47 @@ export function isJsonObject(value: JsonValue): value is Readonly<Record<string,
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** A rejection: the reasons there is no value. */
+export type Rejection = Extract<Validation<never>, { readonly ok: false }>;
+
+/**
+ * Freezes a value and everything it holds, and returns it. What this package
+ * hands out it also keeps, so none of it may be changed by whoever reads it.
+ * A part that is already frozen was frozen here, with everything in it.
+ */
+export function deepFreeze<T>(value: T): T {
+  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const inner of Object.values(value)) deepFreeze(inner);
+  return value;
+}
+
+/**
+ * A member of an options object, if it is the object's own. Options arrive
+ * from callers that TypeScript does not check, and a member found on a
+ * prototype was not given by anyone.
+ */
+export function own(options: unknown, name: string): unknown {
+  return typeof options === "object" && options !== null && Object.hasOwn(options, name)
+    ? (options as Readonly<Record<string, unknown>>)[name]
+    : undefined;
+}
+
 /** A success. */
 export function ok<T>(value: T): Validation<T> {
   return { ok: true, value };
 }
 
 /** A rejection for one reason. */
-export function no<T>(message: string, clause: string, path = ""): Validation<T> {
+export function no(message: string, clause: string, path = ""): Rejection {
   return { ok: false, issues: [{ path, message, clause }] };
 }
 
 /** A rejection for the reasons of another, with its paths under `path`. */
-export function under<T>(
+export function under(
   path: string,
   rejection: { readonly issues: readonly [Issue, ...Issue[]] },
-): Validation<T> {
+): Rejection {
   const [first, ...rest] = rejection.issues;
   return {
     ok: false,

@@ -103,6 +103,8 @@ describe(`${clause("L1 8.3")} a Lineage record`, () => {
       other.sign(lineageBy(parent, child.address, 10)),
       // Signed by someone else, in their own name.
       other.sign(lineageBy(other, child.address, 10)),
+      // Signed by the parent, in someone else's name.
+      parent.sign(lineageBy(other, child.address, 10)),
       // By the parent, for another child.
       parent.sign(lineageBy(parent, stranger.address, 10)),
       // By the parent, and not a Lineage record.

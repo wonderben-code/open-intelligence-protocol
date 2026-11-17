@@ -16,7 +16,7 @@ revision: # the specification revision that adopted the change; empty until Fina
 
 ## Summary
 
-Writing `@oip/identity`, the package of the reference implementation that verifies identity logs and judges whether a key may sign, showed seven places where Layer 1 (revision 2026-11-17, with OEP-0001) allows two readings, sets no rule, or sets a rule that does not do what the text beside it says. This proposal settles each one. Six choose the reading both existing implementations already follow or make an informal term exact. One closes a gap: a retired mind's keys could go on signing. No address, content ID or proof in the test vectors changes. It concerns anyone writing a verifier of identity logs or of signatures.
+Writing `@oip/identity`, the package of the reference implementation that verifies identity logs and judges whether a key may sign, showed seven places where Layer 1 (revision 2026-11-17, with OEP-0001) allows two readings, sets no rule, or sets a rule that does not do what the text beside it says. Two independent reviews of that package then found eleven more, in Layer 1 and in core Sections 8 and 9. This proposal settles each one. Most choose one of two readings, or make an informal term exact. Five close gaps that protect someone: a retired mind's keys could go on signing (item 6); a log or a record with a critical extension nobody implements was treated as valid (item 8); a duplicitous collective went on signing with the members it had before its branches parted (item 9); a conflicting branch was passed over if any later event of it was invalid (item 10); and a member's proof made as a delegate counted as the member's own on an identity event (item 12). No address, content ID or proof in the test vectors changes. It concerns anyone writing a verifier of identity logs or of signatures.
 
 ## Motivation
 
@@ -29,6 +29,20 @@ A mind's address is the content ID of its `Genesis`. Two verifiers that disagree
 5. **Where is `recovery` reserved?** Section 3.12 rejects "an event that contains it". An event contains a great deal: an extension block, `inherits`, `terms`. Both implementations reject the name as a member of the event itself and nowhere else.
 6. **A retired mind's keys go on signing.** A `Retire` leaves a mind's keys in their sets. Section 6.1 asks that the key be in the operational keys of the state at the version the proof pins (item 2), and that no _later_ event removed it or retired the mind before the proof's evaluation time (item 3). A proof that pins the `Retire` event itself meets both: the key is in the state, and no event follows. So the holder of a retired mind's operational key could sign new records in its name for ever, against Section 3.10 ("after a `Retire`, the mind's keys can sign nothing"). Section 6.4 has the same shape, so a retired member's invocation key could go on signing a collective's identity events. The Python checker accepted both. A test of the reference implementation found it.
 7. **May a container carry `created`?** core 7 requires `created` "in every record except the containers and `Sealed`". It does not say whether one may be present there, or what a reader does with it.
+
+The reviews of `@oip/identity` (recorded in `reviews/build/M2-identity.md`) found the rest. In each of items 8 to 13 both implementations gave the same answer, and it was not the one the text gives or needs, which is where comparing two implementations shows nothing.
+
+8. **A critical extension on an identity event or a record.** core 8.3 says an implementation that does not understand a namespace listed in `critical` "MUST NOT act on it or treat it as valid for any decision". Section 4.8 said which sections of core an event satisfies and left out Section 8. Both implementations verified a log whose `Update` listed a critical extension and replaced the mind's keys, and counted a record with a critical extension for its author.
+9. **A duplicitous collective.** When evidence cannot separate two branches, Section 7.3 lets only the events before the divergence stand, and says that records "pinned to versions" after it are not accepted. A record signed under a collective's threshold pins no version of the collective: it is judged against "the state at T" (9.5). On a log that stops before the divergence, that state is the last one before it, for every later T, for ever. So a collective that was retired in one branch, and had a member removed in the other, went on signing with its old members for a verifier that held both branches, though it signed nothing for a verifier that held either. 7.3 says duplicity "never revives a key"; here it revived a member.
+10. **A branch with an event that does not verify.** 7.1 defines duplicity by two events at one position, each valid against the same predecessor, and 7.3 gives the position to the event with the earlier evidence. Both implementations verified each branch as a whole and threw away a branch that failed anywhere. A valid conflicting event followed by one invalid event therefore vanished, and the other branch won although its event was seen later. The same happened to a branch longer than a verifier is set to read (4.7).
+11. **Which times is "the earliest time T" of 9.5 taken over?** Both implementations tried the evaluation times of the proofs. A record signed by two minds, one of which becomes a member later, is by the text signed from the moment the membership changes; the implementations said never, unless some proof happened to be dated after the change. 9.5 also left open whether a `Hello`, which 6.1 lists with `Location` and `Participant`, can be signed under a threshold; core 11 gives it to the author's own key, and the implementations counted a threshold for it.
+12. **A member's proof that names an `authority`.** Under 9.5 a proof that names an authority does not count towards a collective's threshold on a record: it acts for that principal. 6.4, for identity events, did not say so, and 9.4 says a delegate of a member cannot sign for it there.
+13. **The dates and the expiry of an identity event.** core 9.3 says a proof whose `created` is more than 300 seconds after `τ(p)` "MUST NOT count for anything", and core 9.6 that a proof evaluated more than 300 seconds after its record's `expires` does not count. For a proof on an identity event neither implementation read the proof's `created`, or the event's `expires`, at all.
+14. **What is evidence for an identity event?** core 9.5 says `τ(e)` is evidence that `e` existed "with proofs meeting Layer 1, Section 4". An event's content ID does not cover its proofs. An implementation that records the time it first saw an event's content, signed or not, later judges a signature made with a removed key at that early time. The text was right and easy to implement wrongly.
+15. **Which logs must a verifier hold, and as of when?** core 9.4 requires the log of the mind whose key signed, as served no earlier than `τ(p)`. Whether the signer is still a member is read from the collective's log, which 9.4 does not name. And an identity event takes effect no earlier than the event before it (9.5), which may be later than its own evidence.
+16. **May an entry of `revoked` or of `parents` carry other members?** Item 3 closed controllers and key entries. An entry of `revoked` carries `compromisedSince`, which withdraws signatures; a misspelt one was ignored in silence.
+17. **3.13 said "a host and an optional port"** and both implementations apply a character set. A reader of the text alone could require a host.
+18. **The DID document of a duplicitous mind** looked like any other.
 
 The extension mechanism (core 8) does not help: these are rules about which logs verify and which keys may sign, which every verifier must share.
 
@@ -62,13 +76,44 @@ Written against revision 2026-11-17 as amended by OEP-0001.
 
 **Layer 1, 3.13**, new, after 3.12:
 
-> **HTTPS origins.** An HTTPS origin is the string `https://` followed by a host and an optional port, written with one or more of the ASCII letters and digits and the characters `.`, `-`, `:`, `[` and `]`, and with nothing else: no user information, path, query or fragment, and no character outside ASCII. A name in another script is written in its A-label form (`xn--…`). The grammar bounds the characters, so that every implementation accepts the same strings; it does not show that the host exists.
-
-As a pattern: `^https://[A-Za-z0-9.:\[\]-]+$`.
+> **HTTPS origins.** An HTTPS origin is a string that matches `^https://[A-Za-z0-9.:\[\]-]+$` from its first character to its last: `https://` followed by one or more of the ASCII letters and digits and the characters `.`, `-`, `:`, `[` and `]`, and nothing else. It is meant to hold a host and an optional port, and it can hold no user information, path, query or fragment, no line terminator, and no character outside ASCII. A name in another script is written in its A-label form (`xn--…`). The grammar bounds the characters and nothing more, so that every implementation accepts the same strings: it does not show that the host exists, nor that what follows the scheme is a host and a port, and `https://:::` matches. A client that fetches from a home treats it as any URL it was handed by a stranger.
 
 **Layer 1, 4.8**, new, after 4.7:
 
-> **Well-formed events.** Every event is a well-formed record of its type: it satisfies core, Sections 1, 5.1 and 7, and Section 3 of this document, with every limit Section 3 sets. A log that contains an event that is not is rejected, whoever signed the event. A mind's address is the content ID of its genesis, so two verifiers that disagreed about which events are well formed would disagree about which minds exist.
+> **Well-formed events.** Every event is a well-formed record of its type: it satisfies core, Sections 1, 5.1 and 7, and Section 3 of this document, with every limit Section 3 sets. A log that contains an event that is not is rejected, whoever signed the event. A mind's address is the content ID of its genesis, so two verifiers that disagreed about which events are well formed would disagree about which minds exist. An event is also a record under core, Sections 8 and 9. A verifier that does not implement an extension that an event lists in `critical` MUST NOT treat the event as valid (core 8.3), so it rejects the log: this is the one case in which two verifiers of this revision may disagree about a log, and it is the event's author that chose it. An event that has `expires` is subject to core 9.6: evaluated more than 300 seconds after it, the event has no proof that counts, and is invalid.
+
+**Layer 1, 3.6**, the row for `parents`, and **3.7**, the description of `revoked`: each gains "with no other members".
+
+**Layer 1, 5.2**, the item on metadata, add:
+
+> When the mind is duplicitous for the resolver (Section 7.3), the document is produced from the state before the point of divergence, and the metadata also includes `duplicitous`, with the value true.
+
+**Layer 1, 6.4**, items 4 and 5. Current: "`p.proofPurpose` is `capabilityInvocation`;" and "the signature verifies (core 5.4)." Proposed:
+
+> 4. `p.proofPurpose` is `capabilityInvocation`, and `p` has no `authority`: a proof that names an authority is made for that principal, not by the member for itself;
+> 5. the signature verifies (core 5.4), and `p.created` is not more than 300 seconds after the evidence for `e` (core 9.3, 9.5).
+
+**Layer 1, 7.3**, add after "so duplicity never revives a key.":
+
+> A collective's records pin no version of the collective, so for them the rule is one of time: nothing is signed under the threshold of a duplicitous collective at or after the evaluation time of its earliest conflicting event (Section 9.5).
+>
+> A branch takes part in the resolution with the events it has that verify. An event after the point of divergence that does not verify, or that the verifier cannot judge or was not set to read, is no reason for another branch to win. But a verifier knows where a log ends only if it could verify the log to its end: if a branch that is left once the evidence has decided (the branch that won, or any of the branches that tie) holds such an event, the log does not verify for that verifier.
+
+**Layer 1, 9.5**, add after the sentence that defines when a record is signed by a collective:
+
+> The threshold can first be met when a proof is made or when an event of the collective changes its members or its threshold, so `T` ranges over the evaluation times of the proofs and of the collective's own events. A proof counts towards the threshold only if the verifier holds the collective's log as core 9.4 requires of a signer's log for that proof. For a duplicitous collective, `T` is earlier than the evaluation time of its earliest conflicting event (Section 7.3).
+
+and, before the sentence on records of the collective's current state:
+
+> A `Hello` is not signed under a threshold: it carries one proof, by a key of the author's own (Section 13.3; core 11).
+
+**core 9.4**, "Holding the evidence", add at the end:
+
+> The same is required of each log that decides whether the proof counts: the log of a collective under whose threshold the proof is counted (Layer 1, Section 9.5), held as served no earlier than `τ(p)`; and, for a member's proof on an identity event `e`, the member's log, held as served no earlier than the latest `τ` among `e` and the events before it in its log, since `e` takes effect no earlier than they do (9.5).
+
+**core 9.5**, add after "Members' proofs on a collective's identity events are judged at the event's evaluation time (Layer 1, Section 6.4).":
+
+> Evidence for an event is evidence for the proofs it stood with, and for no proof added to it later: a verifier or a witness records its first sight of an event only once the event has verified, never on sight of its content alone, which the content ID names with or without valid proofs. For a proof on an identity event, `τ(p)` is `τ(e)`: a proof there whose `created` is more than 300 seconds after `τ(e)` does not count (9.3), and one evaluated more than 300 seconds after the event's `expires` does not count (9.6).
 
 **Layer 1, 6.1**, item 2. Current: "`K` is in the operational keys of the state at `V`;". Proposed:
 
@@ -84,7 +129,7 @@ As a pattern: `^https://[A-Za-z0-9.:\[\]-]+$`.
 
 > REQUIRED in every record except the containers and `Sealed` (Section 11), which have no such member: a reader ignores one there, as it ignores any member it does not recognise (Section 1.7). The author's claimed creation time: a claim, never evidence of when the record existed (Section 9).
 
-**New names.** None. One new clause number in Section 3 (3.13) and one in Section 4 (4.8).
+**New names.** One member of DID document metadata, `duplicitous`. One new clause number in Section 3 (3.13) and one in Section 4 (4.8).
 
 ## Rationale and alternatives
 
@@ -106,13 +151,23 @@ As a pattern: `^https://[A-Za-z0-9.:\[\]-]+$`.
 
 **`created` on a container.** The alternative is to reject it. A container is assembled by whoever serves it and signed by nobody, so a stray member there harms no one, and core 1.7 already says what a reader does.
 
-Doing nothing leaves items 1 to 5 and 7 to each implementer's reading and leaves item 6 open. None of these can be an extension: they define which logs verify.
+**A critical extension on an identity event (item 8).** Two answers were weighed. Forbidding `critical` in identity events would keep every verifier in agreement about every log. But core 8.5 makes `critical` the one safe way to add a member that must not be ignored, and this proposal itself sends future changes to identity events to `ext`; a later profile for key recovery would need exactly this. So core 8.3 applies as it is written: a verifier that does not implement the extension does not treat the event as valid, and for an identity event that means the log. The author of such an event chooses to exist only for verifiers that implement the extension.
+
+**A duplicitous collective (item 9).** The alternative is to apply every branch's removals and retirements member by member: a member counts at `T` only if every branch still has it. That is more work to state, and it leaves a threshold whose size differs between branches undefined. Refusing everything from the first conflicting event on is one condition, it never revives a member, and a collective whose members signed two events for one position has forfeited being heard until a verifier's evidence separates them.
+
+**A branch that does not verify to its end (item 10).** Three answers were weighed. Dropping the branch (what both implementations did) lets anyone who can append one junk event to a copy of a log make the other branch win. Treating the events that verify as the whole branch is right for an event that is invalid for everyone, and wrong for one that this verifier merely cannot judge (it holds no evidence for it, or it is past the length the verifier reads): such an event may be a removal. The rule chosen keeps the branch in the contest with what verifies, and refuses the log if the contest leaves a branch whose end the verifier does not know. A verifier that takes logs from outside keeps only what it could verify, so a junk event appended in transit costs it nothing.
+
+**The times of 9.5 (item 11).** The alternative is to say in 9.5 that `T` ranges over the proofs alone. Then whether two signers' proofs complete a threshold after a membership change depends on whether either happened to be dated after the change, which is no rule anyone would choose. The text as written is the consistent one, so the implementations follow it.
+
+**The dates and expiry of an identity event (item 13).** Forbidding `expires` on identity events was weighed. core 7 allows it on every record and core 9.6 already says what it does; an exception would be a new rule where applying the existing one suffices.
+
+Doing nothing leaves items 1 to 5, 7, 11 and 14 to 18 to each implementer's reading and leaves items 6, 8, 9, 10, 12 and 13 open. None of these can be an extension: they define which logs verify.
 
 ## Backwards compatibility
 
 A rule change, in the sense that a verifier of the unamended revision may accept logs and proofs that this proposal rejects.
 
-- **Does any record or identity log that is valid today become invalid, or the reverse?** Under one reading of today's text, yes: a log with an event that breaks Section 3, a log with an event whose `homes` holds a string outside 3.13, and a proof pinned to a `Retire`. No such log or proof is known outside test suites: both implementations already rejected everything in items 1 to 5 where they checked it, except that the Python checker did not apply Section 3 to each event. Nothing becomes valid that was invalid under both readings.
+- **Does any record or identity log that is valid today become invalid, or the reverse?** Under one reading of today's text, yes: a log with an event that breaks Section 3, a log with an event whose `homes` holds a string outside 3.13, and a proof pinned to a `Retire`; and, from items 8 to 13 and 16, a log or record with a critical extension the verifier does not implement, a record signed by a duplicitous collective after its branches part, a record pinned to a branch that wins only because the other could not be read, a member's proof with an `authority` on an identity event, an identity event with a proof dated more than 300 seconds after its evidence or evaluated after its `expires`, and an entry of `revoked` or `parents` with another member. No such log or proof is known outside test suites. One thing becomes valid that both implementations refused: a record whose signers complete a collective's threshold when its membership changes (item 11), which the text of 9.5 already said.
 - **Does any golden value change?** No. `vectors.json` gains cases and loses none; every existing value is byte for byte what it was.
 - **What does an implementation of the earlier revision do with a record that uses the change?** There is nothing to use: the change removes readings, and adds no member, type or name.
 - **What must existing minds, hosts, resolvers, indexers and gateways do, and by when?** Nothing, unless a mind has published an event that breaks Section 3, in which case its log does not verify under this proposal and never verified under the schemas.
@@ -123,6 +178,15 @@ Item 6 is a security fix. Before it, retiring a mind did not stop its operationa
 
 Item 1 removes a way to split verifiers: an attacker with a mind's control key could publish a genesis that some verifiers accept and others reject, and so a mind that exists for some and not for others. Item 3 removes a quieter version of the same split.
 
+Items 8, 9, 10 and 12 are security fixes too.
+
+- _Item 8._ `critical` exists so that a record can depend on a rule that must not be ignored. A verifier that ignored it on an identity event would apply the event's keys without the rule the event's author made them depend on.
+- _Item 9._ A past majority of a collective's members can always sign a second event for an old position. A verifier with no witness that obtains both branches at once records the same first sight for both, and cannot separate them. Before this change that verifier accepted records from members the collective had removed, and from a collective that had been retired.
+- _Item 10._ Before this change, appending one junk event to a copy of the honest branch was enough to make a verifier that held both take the other branch, and count records pinned to it.
+- _Item 12._ A delegate of a member cannot sign a collective's identity events for it (9.4). The condition is now in the rule that decides it.
+
+Item 14 states what evidence for an event is. An implementation that gets it wrong reopens the attack of Layer 1, 9.6: a thief with a removed invocation key signs an event whose content was shown to a verifier before the removal. The reference implementation records first sight only through an operation that has verified the event first.
+
 Item 2 bounds what a home may contain. A home is fetched by clients, so a string with a user part, a path or characters that render as another host is a phishing aid; the character set excludes them. It does not make a home trustworthy: a client still treats what a home serves as untrusted until verified.
 
 No item changes what a record reveals about anyone.
@@ -131,23 +195,38 @@ No item changes what a record reveals about anyone.
 
 Added to `vectors.json` by `oip_vectors.py`, and accepted or rejected by both implementations:
 
-| Case                                    | Kind        | Section                           | Item |
-| --------------------------------------- | ----------- | --------------------------------- | ---- |
-| `genesis-with-nine-homes`               | `log`       | negative, with a control of eight | 1    |
-| `event-with-malformed-expires`          | `log`       | negative, with a control          | 1    |
-| `home-with-a-path`                      | `log`       | negative, with a control          | 2    |
-| `controller-with-an-unknown-member`     | `log`       | negative, with a control          | 3    |
-| `key-added-by-a-fork`                   | `countsFor` | must accept                       | 4    |
-| `recovery-inside-another-member`        | `log`       | must accept                       | 5    |
-| `proof-pinned-to-a-retire`              | `countsFor` | negative, with a control          | 6    |
-| `retired-member-signs-for-a-collective` | `log`       | negative, with a control          | 6    |
-| `container-with-created`                | `record`    | must accept                       | 7    |
+| Case                                                     | Kind        | Section                                       | Item |
+| -------------------------------------------------------- | ----------- | --------------------------------------------- | ---- |
+| `genesis-with-nine-homes`                                | `log`       | negative, with a control of eight             | 1    |
+| `event-with-malformed-expires`                           | `log`       | negative, with a control                      | 1    |
+| `home-with-a-path`                                       | `log`       | negative, with a control                      | 2    |
+| `controller-with-an-unknown-member`                      | `log`       | negative, with a control                      | 3    |
+| `key-added-by-a-fork`                                    | `countsFor` | must accept                                   | 4    |
+| `recovery-inside-another-member`                         | `log`       | must accept                                   | 5    |
+| `proof-pinned-to-a-retire`                               | `countsFor` | negative, with a control                      | 6    |
+| `retired-member-signs-for-a-collective`                  | `log`       | negative, with a control                      | 6    |
+| `container-with-created`                                 | `record`    | must accept                                   | 7    |
+| `event-with-a-critical-extension`                        | `log`       | negative, with a control                      | 8    |
+| `record-with-a-critical-extension`                       | `countsFor` | negative, with a control                      | 8    |
+| `duplicitous-collective-signs-after-the-divergence`      | `countsFor` | negative, with a control                      | 9    |
+| `branch-ending-in-an-invalid-event-is-not-passed-over`   | `countsFor` | negative, with a control                      | 10   |
+| `collective-threshold-not-met-before-its-members-change` | `countsFor` | negative; its control is the must-accept case | 11   |
+| `member-proof-names-an-authority`                        | `log`       | negative, with a control                      | 12   |
+| `event-proof-dated-after-the-evidence`                   | `log`       | negative, with a control at 300 seconds       | 13   |
+| `event-evaluated-after-it-expires`                       | `log`       | negative, with a control at 300 seconds       | 13   |
+| `revoked-entry-with-an-unknown-member`                   | `log`       | negative, with a control                      | 16   |
+| `event-revoking-81-keys`                                 | `log`       | negative, with a control of 80                | 16   |
+| `parent-with-an-unknown-member`                          | `log`       | negative, with a control                      | 16   |
+| `collective-event-with-a-null-controller`                | `log`       | negative, with a control                      | 3    |
+| `home-that-is-no-host`                                   | `log`       | must accept                                   | 17   |
+
+Items 14 and 15 concern what a verifier holds and when it obtained it. The vectors state evidence for each case and take every log as complete, so no case can show them; the reference implementation's own tests do.
 
 The differential tests compare the two implementations on generated logs, each with something done to it (an event moved, a member changed with or without signing again, the wrong key, evidence of another time), under the rule that the verdicts are the same.
 
 ## Reference implementation
 
-`@oip/identity` (BUILD.md, M2) and the Python checker `spec/test-vectors/oip_vectors.py` implement every item. The schemas of `@oip/schema` carry the pattern of 3.13. The checker now applies the shape of Section 3 to every event of a log (`event_ok`), which it did not before.
+`@oip/identity` (BUILD.md, M2) and the Python checker `spec/test-vectors/oip_vectors.py` implement every item, except that the checker takes every log as complete and so has nothing to do for item 15. The schemas of `@oip/schema` carry the pattern of 3.13 and the closed entries of item 16. The checker now applies the shape of Section 3 to every event of a log (`event_ok`), which it did not before, and reads a member whose value is `null` as present. Neither implementation implements any extension, so each refuses every critical one; `@oip/identity` takes the namespaces its caller implements as a parameter.
 
 ## Open questions
 

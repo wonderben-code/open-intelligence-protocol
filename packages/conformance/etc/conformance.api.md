@@ -317,7 +317,7 @@ export interface Verdict {
     readonly kind: string | null;
     // (undocumented)
     readonly name: string | null;
-    readonly value?: string;
+    readonly value?: unknown;
 }
 
 // @public

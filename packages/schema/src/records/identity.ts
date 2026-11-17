@@ -68,11 +68,18 @@ export const AgreementKeyEntry = define(
 );
 export type AgreementKeyEntry = Static<typeof AgreementKeyEntry>;
 
-/** Layer 1, 3.7: a key that can never be added again. */
-export const RevokedKey = Type.Object({
-  key: Ed25519Multikey,
-  compromisedSince: Type.Optional(Timestamp),
-});
+/**
+ * Layer 1, 3.7: a key that can never be added again. It has no other
+ * members: `compromisedSince` withdraws signatures, and one that is misspelt
+ * must not be ignored in silence.
+ */
+export const RevokedKey = Type.Object(
+  {
+    key: Ed25519Multikey,
+    compromisedSince: Type.Optional(Timestamp),
+  },
+  closed,
+);
 export type RevokedKey = Static<typeof RevokedKey>;
 
 /** Members that replace the identity state's values when present (Layer 1, 4.5). */
@@ -95,7 +102,7 @@ export const Genesis = Type.Object(
     controller: Controller,
     ...stateFields,
     parents: Type.Optional(
-      Type.Array(Type.Object({ mind: MindAddress, at: VersionId }), { maxItems: 16 }),
+      Type.Array(Type.Object({ mind: MindAddress, at: VersionId }, closed), { maxItems: 16 }),
     ),
     inherits: Type.Optional(JsonObject),
     height: Type.Optional(Type.Integer({ minimum: 1, maximum: 4 })),
@@ -133,7 +140,8 @@ const laterEvent = {
   prev: ContentId,
   controller: Type.Optional(Controller),
   ...stateFields,
-  revoked: Type.Optional(Type.Array(RevokedKey)),
+  // 3.7: at most 80, which is every operational and invocation key a state can hold.
+  revoked: Type.Optional(Type.Array(RevokedKey, { maxItems: 80 })),
 };
 
 // 3.6: no event after a genesis has `height`.

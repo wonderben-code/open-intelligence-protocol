@@ -73,15 +73,17 @@ const CREATED_COMPARED = {
     "`created` is the signer's claim, never evidence (core 9.2). Compare evaluation times: proofTime and eventTime of @oip/identity.",
 };
 
-// The three places that may compare a `created`: the two formulas themselves,
-// the rule that a log's dates do not run backwards (Layer 1, 4.2), and the
-// rule that a proof is not dated before its record (core 5.7). None of them
-// decides whether a key may sign.
-const MAY_COMPARE_CREATED = [
-  "packages/identity/src/evidence.ts",
-  "packages/identity/src/log.ts",
-  "packages/core/src/proof.ts",
-];
+// The two places that may compare a `created`. `evidence.ts` holds the two
+// formulas and the rule that a log's dates do not run backwards (Layer 1,
+// 4.2); `proof.ts` the rule that a proof is not dated before its record (core
+// 5.7). None of them decides whether a key may sign. The file that judges
+// members' proofs, `log.ts`, is not among them.
+//
+// This is a tripwire, not a proof. It catches the spelling a tired author
+// writes first, `proof.created < removed`. A renamed local, a subtraction or
+// a helper that takes the value pass it; the review of every change to these
+// packages is what stands behind it (ADR-0008).
+const MAY_COMPARE_CREATED = ["packages/identity/src/evidence.ts", "packages/core/src/proof.ts"];
 
 export default tseslint.config(
   {

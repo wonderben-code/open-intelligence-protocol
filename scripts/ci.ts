@@ -47,8 +47,10 @@ const STEPS: readonly Step[] = [
   { name: "Golden vectors, by case kind", command: "pnpm test:vectors" },
   {
     // BUILD.md, M2: 10,000 generated identity logs on every pull request. This
-    // runs 6,700 logs of key-controlled minds and 3,350 of collectives, and
-    // 3,350 records signed by a mind's own keys.
+    // runs 6,700 logs of key-controlled minds, 3,350 of collectives and 838
+    // of collectives with collectives as members; 5,025 signed records, by a
+    // mind's own keys, pinned to a branch and under a collective's
+    // threshold; and 838 lineages. Each test names the number it ran.
     name: "Differential tests: 10,000 generated identity logs",
     command: "OIP_DIFFERENTIAL_LOGS=6700 pnpm test:differential:logs",
   },

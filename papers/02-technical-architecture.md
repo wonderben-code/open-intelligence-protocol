@@ -376,7 +376,7 @@ Its content ID, and therefore Amina's address, is `did:oip:bciqmwrzo6zt2xnoga2rk
 
 The reference checker performs exactly these steps. Its negative test vectors include a rotation signed correctly by a key whose hash was never committed, which pre-rotation alone rejects, and a 2-of-3 rotation that lists one key twice, which the distinct-keys rule rejects.
 
-**Duplicity.** Two valid events with different content IDs at the same position of a log are **duplicity**. Because thresholds are majorities, every such pair has a signer who signed both, so the pair is self-proving evidence of misuse. Resolvers keep the first valid event they saw at each position, record when they saw it, and publish any conflicting event as evidence. A verifier never chooses between branches by length or by recency, since an attacker can always make a branch longer: the branch whose event at the point of divergence has the earlier evidence (first seen by the verifier or by a witness it trusts, or anchored) wins. If the evidence cannot separate them, the mind is duplicitous for that verifier, which accepts nothing pinned to a version after the divergence; records pinned to earlier versions stay valid, and every branch's key removals apply to them, so duplicity never revives a key. Minds publish identity events to at least two independent witnesses so that first-seen evidence exists. This is KERI's first-seen rule, and it makes showing different histories to different people detectable rather than silent. The test vectors include a duplicity resolved by first-seen evidence and one that evidence cannot resolve.
+**Duplicity.** Two valid events with different content IDs at the same position of a log are **duplicity**. Because thresholds are majorities, every such pair has a signer who signed both, so the pair is self-proving evidence of misuse. Resolvers keep the first valid event they saw at each position, record when they saw it, and publish any conflicting event as evidence. A verifier never chooses between branches by length or by recency, since an attacker can always make a branch longer: the branch whose event at the point of divergence has the earlier evidence (first seen by the verifier or by a witness it trusts, or anchored) wins. If the evidence cannot separate them, the mind is duplicitous for that verifier, which accepts nothing pinned to a version after the divergence; records pinned to earlier versions stay valid, and every branch's key removals apply to them, so duplicity never revives a key. A collective's records pin no version of the collective, so for a duplicitous collective the rule is one of time: nothing is signed under its threshold from its first conflicting event on. A branch takes part in the contest with the events it has that verify, so appending an invalid event to the honest branch does not hand the position to the other; but a verifier that cannot verify the winning branch to its end does not know where the log ends, and rejects the log. Minds publish identity events to at least two independent witnesses so that first-seen evidence exists. This is KERI's first-seen rule, and it makes showing different histories to different people detectable rather than silent. The test vectors include a duplicity resolved by first-seen evidence and one that evidence cannot resolve.
 
 ### 5.3 Time, key changes and compromise
 
@@ -438,7 +438,7 @@ A collective needs its own address, so that it can receive packets, make commitm
 - **The address is derived the same way** as any other mind's, so a collective is a mind in every respect. In the test vectors, a 2-of-3 collective of Amina, the Lexis agent and a research agent has the address `did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i`.
 - **Changes need a majority.** Later identity events need signatures from at least the threshold number of current members, which must be more than half, and anyone being added must also sign.
 - **Members' signatures are judged at the event's time.** A member's signature on a collective's identity event counts only if it is by an invocation key the member held at the version the signature names, and the member had not removed that key, or retired, by the event's evaluation time. A removed invocation key can therefore append nothing, even pinned to an old version. A member's claim that its key was compromised long ago does not reach back into the collective's log, so no member can unmake a collective by disowning its old keys; that claim withdraws only the member's own records.
-- **Acting as one.** A record counts for a collective at the earliest time when members of the collective's membership at that time, signing with their own operational keys, reach its threshold. A record that describes the collective's present, such as its location record, needs a majority of its latest membership, so members who leave can no longer keep a record of theirs current. A member holding a role in the charter in force at the time also signs for the collective within the role's powers, with a signature that names the charter in its `authority`, so acting for the collective is always a stated choice. Roles and their powers are defined in the collective's charter, the Layer 2 `Collective` object (Section 6.2), and work like standing delegations.
+- **Acting as one.** A record counts for a collective at the earliest time when members of the collective's membership at that time, signing with their own operational keys, reach its threshold. That time is when a signature is made or when the collective's membership changes, whichever completes the threshold. A record that describes the collective's present, such as its location record, needs a majority of its latest membership, so members who leave can no longer keep a record of theirs current. A member holding a role in the charter in force at the time also signs for the collective within the role's powers, with a signature that names the charter in its `authority`, so acting for the collective is always a stated choice. Roles and their powers are defined in the collective's charter, the Layer 2 `Collective` object (Section 6.2), and work like standing delegations.
 - **Collectives of collectives.** A member can itself be a collective, signing with invocation and operational keys it authorises through its own threshold. A collective's height (how deeply it nests) is fixed by its genesis, at most four, and every member must be lower, so a member collective can never grow in a way that invalidates the collectives it belongs to, and no collective can contain itself. A collective that expects to admit other collectives later declares a larger height at genesis. Having a member collective's own members sign directly inside another collective is reserved.
 
 **Keeping a collective verifiable.** A control key signs once and is destroyed, so a stolen control key is useless after its event. A member's invocation key signs many events and cannot be destroyed that way, and the order of an event in the member's log and an event in the collective's log can only be known from evidence. Collectives therefore depend on witnesses and anchors in a way key-controlled minds do not: once a member has removed an invocation key, a verifier counts the events it signed only with evidence that they came first, and a verifier without that evidence rejects them, because it cannot tell them from forgeries made later with the removed key. Resolvers serve first-seen times for exactly this purpose, and collectives should anchor their identity events in their feeds, so that any verifier, including a resolver that meets the collective for the first time, can check its whole history. The test vectors include a takeover attempt with removed invocation keys, rejected when first seen after the removals and accepted, as a control, when evidence shows it came before them.
@@ -1143,10 +1143,17 @@ t(r, p):                                   # when proof p on record r counts as 
 eventTime(e):                              # identity events take effect at their evaluation time
     τ = earliest evidence that e existed, valid   # a trusted witness's first-seen time or an anchor
     require e.created ≤ τ + 300 s
-    return max(e.created, τ, eventTime(previous event))
+    t = max(e.created, τ, eventTime(previous event))
+    require t ≤ e.expires + 300 s when e has expires   # past it, no proof on e counts
+    return t
+    # a proof on e counts only if its own created ≤ τ + 300 s
+    # first sight of e is recorded only once e has verified: its content ID does not
+    # cover its proofs, so sight of the content is not evidence of a signed event
 
 # Before counting a proof by a key of X, hold X's log as a trusted witness served it
 # after τ(p), and date X's events by the earliest evidence, never by a later own sight.
+# The same for the log of a collective under whose threshold the proof is counted, and,
+# for a member's proof on an event e, the member's log as far as the latest τ up to e.
 ```
 
 **A.4 Verifying an identity log**
@@ -1155,6 +1162,7 @@ eventTime(e):                              # identity events take effect at thei
 verifyLog(events):
     g = events[0]
     require every event is a well-formed record of its type
+    require no event lists in critical an extension this verifier does not implement
     require g.type == "Genesis" and g has no mind, seq or prev, and no event has a member "recovery"
     if g.controller has keys:                                    # key-controlled
         require keys distinct (1–16); next distinct (0–16); 1 ≤ nextThreshold ≤ |next|
@@ -1186,7 +1194,9 @@ verifyLog(events):
         record compromisedSince; record Fork children; Retire ends the log
     return the state after each event, with each event's eventTime
     # two valid branches: the earlier-evidenced event at the divergence wins; if evidence
-    # cannot separate them, keep only the common prefix, with every branch's removals
+    # cannot separate them, keep only the common prefix, with every branch's removals.
+    # A branch takes part with the events it has that verify. If a branch that is left
+    # (the winner, or those that tie) does not verify to its end, the log is rejected.
 ```
 
 **A.5 Valid keys**
@@ -1206,7 +1216,7 @@ validKey(r, p, X):                           # p is by an operational key of min
 memberSigns(e, p, M):                        # member proofs on another mind's identity event
     (M', V, K) = parse(p.verificationMethod); require M' == M
     require K ∈ (state of M at version V).invocation and V is not a Retire
-    require p.proofPurpose == capabilityInvocation
+    require p.proofPurpose == capabilityInvocation and p has no authority
     if a later event E of M removes K from its invocation keys or retires M:
         require eventTime(e) < eventTime(E)  # a removed key can append nothing
     return verifyProof(e, p, K)              # compromise claims do not reach other minds' logs
@@ -1216,11 +1226,14 @@ memberSigns(e, p, M):                        # member proofs on another mind's i
 
 ```
 signedTime(r, P):                            # earliest time r counts for P, or none
+    if r lists in critical an extension this verifier does not implement: return none
     T = {}
     for p in r.proof: if validKey(r, p, P): add t(r, p) to T                  # own key
     if P is a collective:                                                      # threshold
-        use only proofs without authority, by valid own keys of members
-        for each proof time u in ascending order:
+        use only proofs without authority, by valid own keys of members; never for a Hello
+        for each time u in ascending order,          # when a proof was made, or when an
+                among the proof times and the eventTimes of P's own events:   # event changed P
+            if P is duplicitous and u ≥ the eventTime of its earliest conflicting event: stop
             S = latest state of P if r describes P's present (Location, Participant),
                 else the state of P at u (after the last event with eventTime ≤ u)
             if |{members of S with such a proof made by u}| ≥ S.threshold

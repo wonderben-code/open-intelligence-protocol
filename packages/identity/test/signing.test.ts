@@ -34,8 +34,8 @@ import {
 
 type Signed = object & { proof: Proof[] };
 
-function judged(record: unknown) {
-  const result = judgeRecord(record);
+function judged(record: unknown, understood?: readonly string[]) {
+  const result = judgeRecord(record, understood === undefined ? undefined : { understood });
   if (!result.ok) throw new Error(JSON.stringify(result.issues));
   return result.value;
 }
@@ -508,10 +508,8 @@ describe(`${clause("L1 9.1", "L1 9.4", "L1 9.5")} a collective acts as one`, () 
     expect(signedAt(a.sign(d.sign(intentBy(club, 10)), { created: T(26) }), club, all)).toBe(
       at(26),
     );
-    // Before the collective existed, nothing is signed by it.
-    expect(
-      signedAt(a.sign(b.sign(intentBy(club, 1)), { created: T(2) }), club, all),
-    ).toBeUndefined();
+    // Proofs made before the collective existed count from the moment it does, and no earlier.
+    expect(signedAt(a.sign(b.sign(intentBy(club, 1)), { created: T(2) }), club, all)).toBe(at(5));
   });
 
   it("needs the threshold of the latest state for a record that describes the present", () => {
@@ -659,6 +657,228 @@ describe("judging a record", () => {
       ext: { "com.example": { v: 1 } },
       critical: ["com.example"],
     });
-    expect(signedAt(custom, ada)).toBe(at(10));
+    const book = bookOf([ada], [custom]);
+    expect(ownSignedTime(judged(custom, ["com.example"]), ada.address, book)).toBe(at(10));
+  });
+});
+
+describe(`${clause("L1 9.5", "L1 7.3", "core 9.4")} what a collective's threshold rests on`, () => {
+  const people = () =>
+    [new KeyMind("a"), new KeyMind("b"), new KeyMind("c"), new KeyMind("d")] as const;
+
+  it("is first met when a proof is made, or when the collective's members change", () => {
+    const [a, b, c, d] = people();
+    const club = new Collective("club", [a, b, c], 2, 5);
+    // At 20, d takes b's place.
+    club.update(20, [a, b, d], {
+      controller: { members: [a.address, c.address, d.address], threshold: 2 },
+    });
+    const all = [club, a, b, c, d];
+    // a and d both signed at 10. Until 20 only a is a member; from 20 both are.
+    expect(signedAt(a.sign(d.sign(intentBy(club, 10))), club, all)).toBe(at(20));
+    // b and d were never members together.
+    expect(signedAt(b.sign(d.sign(intentBy(club, 10))), club, all)).toBeUndefined();
+  });
+
+  it("takes the state after an event from the event's own time on, to the nanosecond", () => {
+    const [a, b, c, d] = people();
+    const club = new Collective("club", [a, b, c], 2, 5);
+    // At 20, d takes c's place.
+    club.update(20, [a, b, d], {
+      controller: { members: [a.address, b.address, d.address], threshold: 2 },
+    });
+    const all = [club, a, b, c, d];
+    const byAAndC = (seconds: number) =>
+      a.sign(c.sign(intentBy(club, 10), { created: T(seconds) }), { created: T(seconds) });
+    expect(signedAt(byAAndC(19.999999999), club, all)).toBe(at(19.999999999));
+    // "At or before T": at 20 exactly, c is no member any more.
+    expect(signedAt(byAAndC(20), club, all)).toBeUndefined();
+  });
+
+  it("is not met by a member since removed, against a copy of the collective's log older than the proof", () => {
+    const [a, b, c, d] = people();
+    const club = new Collective("club", [a, b, c], 2, 5);
+    const genesis = [...club.events];
+    // c leaves at 20.
+    club.update(20, [a, b], { controller: { members: [a.address, b.address], threshold: 2 } });
+    const late = b.sign(c.sign(intentBy(club, 30)));
+    const early = b.sign(c.sign(intentBy(club, 12)));
+    const view = (clubLog: readonly object[], asOf: Instant): LogBook => {
+      const book = new LogBook(
+        witness([club.events, ...[a, b, c, d].map((m) => m.events)], [late, early]),
+      );
+      for (const member of [a, b, c, d]) book.hold(member.events, LATER);
+      book.hold(clubLog, asOf);
+      return book;
+    };
+    const signed = (record: Signed, book: LogBook) =>
+      ownSignedTime(judged(record), club.address, book);
+    // The verifier's copy is the genesis, obtained at 15. The members' logs are fresh.
+    expect(signed(late, view(genesis, at(15)))).toBeUndefined();
+    expect(signed(late, view(genesis, at(29.999999999)))).toBeUndefined();
+    // What was signed while the copy was current counts.
+    expect(signed(early, view(genesis, at(15)))).toBe(at(12));
+    expect(signed(early, view(genesis, at(12)))).toBe(at(12));
+    expect(signed(early, view(genesis, at(11.999999999)))).toBeUndefined();
+    // With the whole log, c is seen to have left.
+    expect(signed(late, view(club.events, LATER))).toBeUndefined();
+    expect(signed(early, view(club.events, LATER))).toBe(at(12));
+  });
+
+  describe("of a duplicitous collective", () => {
+    const [a, b, c, d] = people();
+    // {a, b, c}, threshold 2. One branch retires it at 20. The other, at 20, puts d in c's place.
+    const retired = new Collective("club", [a, b, c], 2, 5).retire(20, [a, b]);
+    const changed = new Collective("club", [a, b, c], 2, 5).update(20, [a, b, d], {
+      controller: { members: [a.address, b.address, d.address], threshold: 2 },
+    });
+    const mind = retired.address;
+    const records = {
+      after: b.sign(c.sign(intentBy(retired, 30))),
+      atTheDivergence: b.sign(c.sign(intentBy(retired, 20))),
+      before: b.sign(c.sign(intentBy(retired, 10))),
+      present: a.sign(b.sign(locationBy(retired, 10))),
+    };
+    const view = (branches: readonly (readonly object[])[]): LogBook => {
+      const book = new LogBook(
+        witness(
+          [retired.events, changed.events, ...[a, b, c, d].map((m) => m.events)],
+          Object.values(records),
+        ),
+      );
+      for (const member of [a, b, c, d]) book.hold(member.events, LATER);
+      for (const branch of branches) book.holdBranch(branch, LATER);
+      return book;
+    };
+    const signed = (record: Signed, book: LogBook) => ownSignedTime(judged(record), mind, book);
+    const both = view([retired.events, changed.events]);
+
+    it("is what the verifier has: two events at one position that its evidence cannot separate", () => {
+      const log = both.log(mind);
+      expect(log.ok && log.value.duplicitous).toBe(true);
+      expect(log.ok && log.value.entries).toHaveLength(1);
+    });
+
+    it("signs nothing from its first conflicting event on: its members from then on are not known", () => {
+      // With either branch alone the record does not count, so it must not count with both.
+      expect(signed(records.after, view([retired.events]))).toBeUndefined();
+      expect(signed(records.after, view([changed.events]))).toBeUndefined();
+      expect(signed(records.after, both)).toBeUndefined();
+      expect(signed(records.atTheDivergence, both)).toBeUndefined();
+    });
+
+    it("keeps what it signed before the branches part", () => {
+      expect(signed(records.before, both)).toBe(at(10));
+    });
+
+    it("says nothing of its present", () => {
+      expect(signed(records.present, view([changed.events]))).toBe(at(10));
+      expect(signed(records.present, both)).toBeUndefined();
+    });
+  });
+
+  it("needs the threshold of the latest state for a record of the present, when only the threshold changed", () => {
+    const [a, b, c] = people();
+    const club = new Collective("club", [a, b, c], 2, 5);
+    const byTwo = a.sign(b.sign(locationBy(club, 10)));
+    const byThree = c.sign(a.sign(b.sign(locationBy(club, 10))));
+    const intent = a.sign(b.sign(intentBy(club, 10)));
+    expect(signedAt(byTwo, club, [club, a, b, c])).toBe(at(10));
+    // The same members, and now all three must sign.
+    club.update(20, [a, b], {
+      controller: { members: [a.address, b.address, c.address], threshold: 3 },
+    });
+    const all = [club, a, b, c];
+    expect(signedAt(byTwo, club, all)).toBeUndefined();
+    expect(signedAt(byThree, club, all)).toBe(at(10));
+    expect(signedAt(intent, club, all)).toBe(at(10));
+  });
+});
+
+describe(`${clause("L1 6.1")} item 6: a Hello describes the present`, () => {
+  const hello = (author: KeyMind, seconds: number) =>
+    author.sign(
+      { oip: "1", type: "Hello", author: author.address, created: T(seconds) },
+      { more: { challenge: "q8xG3kZ2pV7mT0wR5nY1aB", domain: "https://host.example" } },
+    );
+
+  it("counts only while its key is in the latest state known, as a Location does", () => {
+    const ada = new KeyMind("ada");
+    const greeting = hello(ada, 10);
+    const intent = ada.sign(intentBy(ada, 10));
+    expect(signedAt(greeting, ada)).toBe(at(10));
+    // At 20 the key is replaced. What it signed stands; what it said of the present does not.
+    ada.update(20, { keys: [{ key: ada.operational(1).publicKey }] });
+    expect(signedAt(intent, ada)).toBe(at(10));
+    expect(signedAt(greeting, ada)).toBeUndefined();
+    expect(signedAt(hello(ada, 30), ada)).toBeUndefined();
+    const current = ada.sign(
+      { oip: "1", type: "Hello", author: ada.address, created: T(30) },
+      { key: 1, more: { challenge: "q8xG3kZ2pV7mT0wR5nY1aB", domain: "https://host.example" } },
+    );
+    expect(signedAt(current, ada)).toBe(at(30));
+  });
+
+  it(`${clause("core 11", "L1 9.5")} is signed by the author's own key, never under a collective's threshold`, () => {
+    const [a, b] = [new KeyMind("a"), new KeyMind("b")];
+    const proofOptions = { challenge: "q8xG3kZ2pV7mT0wR5nY1aB", domain: "https://host.example" };
+    for (const [members, threshold] of [
+      [[a], 1],
+      [[a, b], 2],
+    ] as const) {
+      const club = new Collective("club", members, threshold, 5);
+      const all = [club, a, b];
+      const greeting = { oip: "1", type: "Hello", author: club.address, created: T(10) };
+      // Every member signs, each with its own key: that is a threshold, and no key of the collective's.
+      let byMembers: object = greeting;
+      for (const member of members) byMembers = member.sign(byMembers, { more: proofOptions });
+      expect(signedAt(byMembers as Signed, club, all)).toBeUndefined();
+      // The same members sign an Intent for the collective, and a Location.
+      let intent: object = intentBy(club, 10);
+      let location: object = locationBy(club, 10);
+      for (const member of members) {
+        intent = member.sign(intent);
+        location = member.sign(location);
+      }
+      expect(signedAt(intent as Signed, club, all)).toBe(at(10));
+      expect(signedAt(location as Signed, club, all)).toBe(at(10));
+      // A key the collective authorised for itself signs its Hello.
+      expect(signedAt(club.sign(greeting, { more: proofOptions }), club, all)).toBe(at(10));
+    }
+  });
+});
+
+describe(`${clause("core 8.3")} a record that depends on an extension the verifier does not implement`, () => {
+  it("is not judged, so nothing on it counts", () => {
+    const ada = new KeyMind("ada");
+    const escrow = ada.sign(
+      intentBy(ada, 10, {
+        ext: { "com.example.escrow": { v: 1 } },
+        critical: ["com.example.escrow"],
+      }),
+    );
+    expect(judgeRecord(escrow)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "core 8.3", path: "/critical" }],
+    });
+    expect(judgeRecord(escrow, {})).toMatchObject({ ok: false });
+    expect(judgeRecord(escrow, { understood: ["com.example.other"] })).toMatchObject({ ok: false });
+    expect(judgeRecord(escrow, null as never)).toMatchObject({ ok: false });
+    // A verifier that implements it judges the record as any other.
+    const book = bookOf([ada], [escrow]);
+    expect(ownSignedTime(judged(escrow, ["com.example.escrow"]), ada.address, book)).toBe(at(10));
+    // An extension that is not critical is no obstacle (core 8.4).
+    const plain = ada.sign(intentBy(ada, 10, { ext: { "com.example.escrow": { v: 1 } } }));
+    expect(signedAt(plain, ada)).toBe(at(10));
+  });
+
+  it("gives out what it judged frozen", () => {
+    const ada = new KeyMind("ada");
+    const record = judged(ada.sign(intentBy(ada, 10)));
+    const frozen = (value: unknown): boolean =>
+      typeof value !== "object" ||
+      value === null ||
+      (Object.isFrozen(value) && Object.values(value).every(frozen));
+    expect(frozen(record)).toBe(true);
   });
 });

@@ -65,6 +65,7 @@ export interface IdentityState {
 
 /** A child that a `Fork` event acknowledges (Layer 1, 3.8), and the position of that event. */
 export interface AcknowledgedChild {
+  /** The position in the log of the `Fork` event that acknowledges the child. */
   readonly position: number;
   /** The child's address. */
   readonly child: string;
@@ -72,6 +73,7 @@ export interface AcknowledgedChild {
 
 /** One entry of an event's `revoked` (Layer 1, 3.7), and the position of that event. */
 export interface Revocation {
+  /** The position in the log of the event that revokes the key. */
   readonly position: number;
   /** The key, which can never be added again. */
   readonly key: string;

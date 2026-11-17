@@ -99,8 +99,10 @@
           "compromisedSince": {
             "$ref": "urn:oip:schema:def:timestamp"
           }
-        }
-      }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 80
     },
     "type": {
       "type": "string",

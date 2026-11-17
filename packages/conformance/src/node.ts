@@ -31,8 +31,12 @@ export interface Verdict {
   readonly kind: string | null;
   /** Whether the case's claim holds, as `claimHolds` defines it. */
   readonly holds: boolean;
-  /** For `status` and `assurance` cases: the value computed. */
-  readonly value?: string;
+  /**
+   * For `status` and `assurance` cases: the value computed. For the two
+   * questions the checker also answers, `didDocument` and `lineage`: the
+   * resolution or the lineage of the mind named.
+   */
+  readonly value?: unknown;
   /** Set when the checker could not process the input at all. `holds` is then false. */
   readonly error?: string;
 }

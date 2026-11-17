@@ -8,6 +8,7 @@
 
 import {
   checkSize,
+  CLOCK_SKEW,
   contentId,
   formatVersionId,
   type Instant,
@@ -17,6 +18,7 @@ import {
   mindAddress,
   parseTimestamp,
   type PlacedProof,
+  unsupportedCritical,
   verifyProofs,
 } from "@oip/core";
 import {
@@ -28,8 +30,14 @@ import {
   validateRecord,
 } from "@oip/schema";
 
-import { type Evaluation, type EvidenceView, eventTime } from "./evidence.ts";
-import { isJsonObject, no, ok, under } from "./result.ts";
+import {
+  datedBefore,
+  type Evaluation,
+  type EvidenceView,
+  eventTime,
+  proofTime,
+} from "./evidence.ts";
+import { deepFreeze, isJsonObject, no, ok, own, type Rejection, under } from "./result.ts";
 import {
   type ControllerState,
   type AcknowledgedChild,
@@ -70,13 +78,52 @@ export interface LogContext {
   readonly memberLog?: (mind: string) => Validation<VerifiedLog>;
   /** The longest log to read. Default `MAX_LOG_EVENTS`. A limit below 1,000 is read as 1,000 (Layer 1, 4.7). */
   readonly maxEvents?: number;
+  /**
+   * core 8.3: the extension namespaces the caller implements. An event that
+   * lists any other in `critical` may not be treated as valid, so its log is
+   * rejected. Default: none.
+   */
+  readonly understood?: Iterable<string>;
 }
 
-function maxEventsOf(context: LogContext): number {
-  const given: unknown = Object.hasOwn(context, "maxEvents") ? context.maxEvents : undefined;
+/** The longest log to read, from what a caller gave for it. */
+export function maxEventsOf(given: unknown): number {
   return typeof given === "number" && Number.isSafeInteger(given) && given >= 0
     ? Math.max(given, MIN_ACCEPTED_LOG_EVENTS)
     : MAX_LOG_EVENTS;
+}
+
+/** The namespaces a caller says it implements. One that says nothing readable implements none. */
+export function understoodOf(given: unknown): ReadonlySet<string> {
+  const understood = new Set<string>();
+  try {
+    for (const namespace of (given ?? []) as Iterable<unknown>) {
+      if (typeof namespace === "string") understood.add(namespace);
+    }
+  } catch {
+    // Not a list of names: nothing more is understood than was read.
+  }
+  return understood;
+}
+
+/** One verification of one log. */
+interface Replay {
+  readonly context: LogContext;
+  readonly understood: ReadonlySet<string>;
+  /**
+   * Each member's log, as it was first answered. A log is verified against
+   * one answer for each member, and each member is asked for once.
+   */
+  readonly members: Map<string, Validation<VerifiedLog>>;
+}
+
+function memberLog(mind: string, replay: Replay): Validation<VerifiedLog> {
+  const known = replay.members.get(mind);
+  if (known !== undefined) return known;
+  const held =
+    replay.context.memberLog?.(mind) ?? no(`no identity log is held for ${mind}`, "L1 6.3");
+  replay.members.set(mind, held);
+  return held;
 }
 
 /** The control keys that have a valid proof on an event, each by its own `control-key-ref` (Layer 1, 3.11). */
@@ -103,15 +150,19 @@ interface MemberSigners {
  */
 function memberProof(
   proof: PlacedProof,
-  mind: string,
+  log: VerifiedLog,
   versionId: string,
-  { seen, time: when }: Evaluation,
-  context: LogContext,
+  { evidenced, time: when }: Evaluation,
 ): Validation<number> {
-  const held = context.memberLog?.(mind) ?? no(`no identity log is held for ${mind}`, "L1 6.3");
-  if (!held.ok) return held;
-  const log = held.value;
-  if (log.asOf < seen) {
+  if (proof.proof.authority !== undefined) {
+    return no(
+      "a proof that names an authority is made for that principal, not by the member for itself",
+      "L1 6.4",
+    );
+  }
+  // The event takes effect no earlier than the event before it, so the
+  // member's log must be known as far as the evidence for either goes.
+  if (log.asOf < evidenced) {
     return no(
       "the member's log was obtained before the evidence for this event: it may lack a later event",
       "core 9.4",
@@ -137,16 +188,33 @@ function memberProof(
   return ok(log.height);
 }
 
+/** Why a proof by a member does not count, as an issue of the event it is on. */
+function refusal(proof: PlacedProof, mind: string, reason: Rejection): Issue {
+  return {
+    ...reason.issues[0],
+    path: `/proof/${proof.index}`,
+    message: `the proof by member ${mind} does not count: ${reason.issues[0].message}`,
+  };
+}
+
 /**
  * The minds among `members` that have a proof on an identity event that
  * counts (Layer 1, 6.4), judged at the event's evaluation time `when`.
+ *
+ * A rejection if the log of a member with a proof here does not verify.
+ * Every member signs the event that makes it one (Layer 1, 4.1, 4.4), so a
+ * log is asked for first by an event that cannot stand without it; stopping
+ * there keeps the work of a log that fails to one failing member.
+ *
+ * @param path - The event's place in the log.
  */
 function memberSigners(
   proofs: readonly PlacedProof[],
   members: readonly string[],
   when: Evaluation,
-  context: LogContext,
-): MemberSigners {
+  replay: Replay,
+  path: string,
+): Validation<MemberSigners> {
   const signers = new Map<string, number>();
   const refused = new Map<string, Issue>();
   for (const proof of proofs) {
@@ -154,19 +222,17 @@ function memberSigners(
     if (method.kind !== "key" || !members.includes(method.mind) || signers.has(method.mind)) {
       continue;
     }
-    const counted = memberProof(proof, method.mind, method.versionId, when, context);
+    const held = memberLog(method.mind, replay);
+    if (!held.ok) return under(path, { issues: [refusal(proof, method.mind, held)] });
+    const counted = memberProof(proof, held.value, method.versionId, when);
     if (counted.ok) {
       signers.set(method.mind, counted.value);
       refused.delete(method.mind);
     } else if (!refused.has(method.mind)) {
-      refused.set(method.mind, {
-        ...counted.issues[0],
-        path: `/proof/${proof.index}`,
-        message: `the proof by member ${method.mind} does not count: ${counted.issues[0].message}`,
-      });
+      refused.set(method.mind, refusal(proof, method.mind, counted));
     }
   }
-  return { signers, refused };
+  return ok({ signers, refused });
 }
 
 /** Why a member that had to sign did not: its proof was refused, or it has none. */
@@ -277,7 +343,7 @@ function found(
   created: Instant,
   proofs: readonly PlacedProof[],
   when: Evaluation,
-  context: LogContext,
+  replay: Replay,
 ): Validation<Step> {
   if (event.type !== "Genesis") {
     return no("the first event of a log is a Genesis", "L1 4.1", "/0/type");
@@ -287,7 +353,9 @@ function found(
   let height = 0;
   if ("members" in controller) {
     // A genesis cannot list its own address, which is the hash of the genesis.
-    const { signers, refused } = memberSigners(proofs, controller.members, when, context);
+    const signed = memberSigners(proofs, controller.members, when, replay, "/0");
+    if (!signed.ok) return signed;
+    const { signers, refused } = signed.value;
     // The threshold is for later events: no mind is named a founder without its consent.
     const missing = controller.members.find((member) => !signers.has(member));
     if (missing !== undefined) return unsigned(missing, refused, "/0", "L1 4.1");
@@ -339,7 +407,7 @@ function extend(
   created: Instant,
   proofs: readonly PlacedProof[],
   when: Evaluation,
-  context: LogContext,
+  replay: Replay,
 ): Validation<Step> {
   const path = `/${position}`;
   const state = before.state;
@@ -360,7 +428,7 @@ function extend(
   if (event.prev !== state.head) {
     return no("prev is not the content ID of the event before", "L1 4.2", `${path}/prev`);
   }
-  if (created < state.created) {
+  if (datedBefore(created, state.created)) {
     return no(
       "created is earlier than the created of the event before",
       "L1 4.2",
@@ -373,7 +441,9 @@ function extend(
     if (given !== undefined && !("members" in given)) {
       return no("a member-controlled mind stays member-controlled", "L1 3.4", `${path}/controller`);
     }
-    const { signers, refused } = memberSigners(proofs, state.controller.members, when, context);
+    const signed = memberSigners(proofs, state.controller.members, when, replay, path);
+    if (!signed.ok) return signed;
+    const { signers, refused } = signed.value;
     if (signers.size < state.controller.threshold) {
       const [first] = refused.values();
       // A member's proof that was refused says more than the count does.
@@ -389,10 +459,11 @@ function extend(
     if (given !== undefined) {
       const current = state.controller.members;
       const joining = given.members.filter((member) => !current.includes(member));
-      const joined = memberSigners(proofs, joining, when, context);
-      added = joined.signers;
+      const joined = memberSigners(proofs, joining, when, replay, path);
+      if (!joined.ok) return joined;
+      added = joined.value.signers;
       const missing = joining.find((member) => !added.has(member));
-      if (missing !== undefined) return unsigned(missing, joined.refused, path, "L1 4.4");
+      if (missing !== undefined) return unsigned(missing, joined.value.refused, path, "L1 4.4");
       controller = controllerState(given);
     }
     const tall = [...signers, ...added].find(([, height]) => height >= before.height);
@@ -463,7 +534,11 @@ function extend(
 }
 
 /** One event as a well-formed record of an identity log (Layer 1, 4.6 and 4.8). */
-function readEvent(raw: unknown, path: string): Validation<IdentityEvent> {
+function readEvent(
+  raw: unknown,
+  path: string,
+  understood: ReadonlySet<string>,
+): Validation<IdentityEvent> {
   const plain = validateJson(raw);
   if (!plain.ok) return under(path, plain);
   const value = plain.value;
@@ -480,33 +555,80 @@ function readEvent(raw: unknown, path: string): Validation<IdentityEvent> {
   if (!record.ok) return under(path, record);
   const [tooLarge] = checkSize(record.value);
   if (tooLarge !== undefined) return under(path, { issues: [tooLarge] });
+  const [unsupported] = unsupportedCritical(record.value, understood);
+  if (unsupported !== undefined) {
+    return no(
+      `the event depends on an extension this verifier does not implement: ${unsupported}`,
+      "core 8.3",
+      `${path}/critical`,
+    );
+  }
   return ok(record.value as IdentityEvent);
 }
 
-function replay(events: readonly unknown[], context: LogContext): Validation<VerifiedLog> {
+/** How far a log verified. */
+export interface Replayed {
+  /** The events that verified, from the first, as a log. `undefined` if the genesis did not. */
+  readonly log: VerifiedLog | undefined;
+  /**
+   * Why the event after them did not verify, if the log has one that did
+   * not, or has more events than this verifier reads. A log with a failure
+   * is not known to end where `log` does.
+   */
+  readonly failure: Rejection | undefined;
+}
+
+const EMPTY: Rejection = {
+  ok: false,
+  issues: [
+    { path: "", message: "an identity log is an array of at least one event", clause: "L1 3.1" },
+  ],
+};
+
+function replay(events: readonly unknown[], context: LogContext): Replayed {
+  const run: Replay = {
+    context,
+    understood: understoodOf(context.understood),
+    members: new Map(),
+  };
   const entries: LogEntry[] = [];
   const children: AcknowledgedChild[] = [];
   const revocations: Revocation[] = [];
   const revoked = new Set<string>();
   let step: Step | undefined;
-  for (let i = 0; i < events.length; i++) {
+  let before: Evaluation | undefined;
+  const advance = (raw: unknown, i: number): Rejection | undefined => {
     const path = `/${i}`;
-    const read = readEvent(events[i], path);
+    const read = readEvent(raw, path, run.understood);
     if (!read.ok) return read;
     const event = read.value;
     const id = contentId(event);
-    // A proof set that cannot be judged has no verified proof, so the event
-    // then lacks its authority below.
-    const proofs = verifyProofs(event).verified;
     const created = parseTimestamp(event.created);
     if (created === undefined) return no("created is not a timestamp", "core 1.4", path);
-    const time = eventTime(created, context.evidence.eventSeen(id), entries.at(-1)?.time);
+    const time = eventTime(created, context.evidence.eventSeen(id), before);
     if (!time.ok) return under(path, time);
     const when = time.value;
+    // core 9.6, for a proof judged at its event's time (core 9.5): past the
+    // event's `expires`, no proof on it counts, so nothing authorises it.
+    const expires = event.expires === undefined ? undefined : parseTimestamp(event.expires);
+    if (expires !== undefined && when.time > expires + CLOCK_SKEW) {
+      return no(
+        "the event is evaluated more than 300 seconds after it expires, so no proof on it counts",
+        "core 9.6",
+        `${path}/expires`,
+      );
+    }
+    // A proof set that cannot be judged has no verified proof, so the event
+    // then lacks its authority below. Evidence for an event is evidence for
+    // the proofs it stood with (core 9.4), so a proof dated more than 300
+    // seconds after it counts for nothing (core 9.3).
+    const proofs = verifyProofs(event).verified.filter(
+      (proof) => proofTime(proof.created, when.seen).ok,
+    );
     const next: Validation<Step> =
       step === undefined
-        ? found(event, id, created, proofs, when, context)
-        : extend(step, event, i, id, created, proofs, when, context);
+        ? found(event, id, created, proofs, when, run)
+        : extend(step, event, i, id, created, proofs, when, run);
     if (!next.ok) return next;
     const applied = applyFields(next.value.state, event, revoked, path);
     if (!applied.ok) return applied;
@@ -517,12 +639,19 @@ function replay(events: readonly unknown[], context: LogContext): Validation<Ver
       revoked.add(revocation.key);
     }
     entries.push({ event, state: step.state, time: when.time });
+    before = when;
+    return undefined;
+  };
+  let failure: Rejection | undefined;
+  for (const [i, raw] of events.entries()) {
+    failure = advance(raw, i);
+    if (failure !== undefined) break;
   }
   const [genesis, ...later] = entries;
   if (genesis === undefined || step === undefined) {
-    return no("an identity log is an array of at least one event", "L1 3.1");
+    return { log: undefined, failure: failure ?? EMPTY };
   }
-  return ok({
+  const log: VerifiedLog = {
     mind: genesis.state.mind,
     entries: [genesis, ...later],
     children,
@@ -531,14 +660,53 @@ function replay(events: readonly unknown[], context: LogContext): Validation<Ver
     asOf: context.asOf,
     duplicitous: false,
     branchTails: [],
-  });
+  };
+  return { log: deepFreeze(log), failure };
 }
 
-const unreadable: Issue = {
-  path: "",
-  message: "the log could not be read as plain JSON data",
-  clause: "core 1.2",
+const unreadable: Rejection = {
+  ok: false,
+  issues: [
+    { path: "", message: "the log could not be read as plain JSON data", clause: "core 1.2" },
+  ],
 };
+
+/** A log as it was given, read once: its first events, and whether it has more than may be read. */
+interface Opened {
+  readonly events: readonly unknown[];
+  readonly most: number;
+  readonly tooLong: boolean;
+}
+
+/**
+ * Reads a log's events out of what was given, once, so that nothing that
+ * follows depends on the value answering the same way twice.
+ */
+function open(events: unknown, context: LogContext): Validation<Opened> {
+  if (typeof (context.asOf as unknown) !== "bigint") {
+    return no("the time up to which the log is known is not a time", "core 9.4");
+  }
+  if (!Array.isArray(events)) return EMPTY;
+  const length: unknown = events.length;
+  if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) return EMPTY;
+  const most = maxEventsOf(own(context, "maxEvents"));
+  const taken: unknown[] = [];
+  for (let i = 0; i < length && i < most; i++) taken.push(events[i]);
+  return ok({ events: taken, most, tooLong: length > most });
+}
+
+function tooLong(most: number): Rejection {
+  return {
+    ok: false,
+    issues: [
+      {
+        path: "",
+        message: `the log has more than ${most} events, the most this verifier was set to read`,
+        clause: "implementation limit",
+      },
+    ],
+  };
+}
 
 /**
  * Verifies an identity log (Layer 1, Section 4) against the evidence held of
@@ -547,23 +715,38 @@ const unreadable: Issue = {
  * The result holds the state after each event and each event's evaluation
  * time. A member-controlled log needs its members' logs, which
  * `context.memberLog` supplies; `LogBook` does that, and resolves duplicity.
+ * The result is frozen.
  *
  * It never throws.
  */
 export function verifyLog(events: unknown, context: LogContext): Validation<VerifiedLog> {
   try {
-    if (!Array.isArray(events)) {
-      return no("an identity log is an array of at least one event", "L1 3.1");
-    }
-    const most = maxEventsOf(context);
-    if (events.length > most) {
-      return no(
-        `the log has more than ${most} events, the most this verifier was set to read`,
-        "implementation limit",
-      );
-    }
-    return replay(events as readonly unknown[], context);
+    const opened = open(events, context);
+    if (!opened.ok) return opened;
+    if (opened.value.tooLong) return tooLong(opened.value.most);
+    const { log, failure } = replay(opened.value.events, context);
+    return failure ?? (log === undefined ? EMPTY : ok(log));
   } catch {
-    return { ok: false, issues: [unreadable] };
+    return unreadable;
+  }
+}
+
+/**
+ * Verifies an identity log as far as it goes: the events that verify, from
+ * the first, and why the next one does not. Where two branches of a log are
+ * weighed against each other (Layer 1, Section 7), a branch counts for the
+ * events it has that verify, even if this verifier cannot read it to its end.
+ *
+ * It never throws.
+ */
+export function verifyLogPrefix(events: unknown, context: LogContext): Replayed {
+  try {
+    const opened = open(events, context);
+    if (!opened.ok) return { log: undefined, failure: opened };
+    const replayed = replay(opened.value.events, context);
+    if (replayed.failure !== undefined || !opened.value.tooLong) return replayed;
+    return { log: replayed.log, failure: tooLong(opened.value.most) };
+  } catch {
+    return { log: undefined, failure: unreadable };
   }
 }

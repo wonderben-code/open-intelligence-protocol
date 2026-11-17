@@ -61,6 +61,7 @@ describe("the README", () => {
         "Lineage",
         "LogContext",
         "LogEntry",
+        "Replayed",
         "VerifiedLog",
       ].sort(),
     );

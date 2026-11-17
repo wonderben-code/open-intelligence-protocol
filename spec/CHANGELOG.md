@@ -40,7 +40,23 @@ Changes adopted while the reference implementation is built. They stay under thi
 - **`recovery` is reserved as a member of the event itself (Layer 1, 3.12)**, and not inside another member.
 - **A container or a `Sealed` record has no `created` (core 7).** A reader ignores one there, as it ignores any member it does not recognise.
 
-**Test vectors.** Six negative cases, six controls and three must-accept cases are added for the items above (OEP-0002 lists them).
+Two independent reviews of `@oip/identity` found the rest. In the first six, both implementations gave the same answer, and it was not the one the text gives or needs.
+
+- **A critical extension the verifier does not implement (core 8.3; Layer 1, 4.8).** An identity event that lists one is not treated as valid, so its log does not verify for that verifier; a record that lists one counts for nobody. Both implementations ignored `critical` here.
+- **A duplicitous collective signs nothing from its first conflicting event on (Layer 1, 7.3, 9.5).** A record signed under a threshold pins no version of the collective, so the rule about versions did not reach it, and the collective went on signing with the members it had before its branches parted.
+- **A branch takes part in resolving duplicity with the events it has that verify (Layer 1, 7.3).** Both implementations dropped a branch that failed anywhere, so one junk event after the honest event made the other branch win. If a branch that is left once the evidence has decided does not verify to its end, the log does not verify.
+- **The earliest time `T` of Layer 1, 9.5 ranges over the collective's own events as well as the proofs.** A record is signed from the moment a change of membership completes its threshold. A `Hello` is never signed under a threshold: core 11 gives it to the author's own key.
+- **A member's proof that names an `authority` does not count on an identity event (Layer 1, 6.4).**
+- **core 9.3 and 9.6 apply to the proofs on an identity event (core 9.5; Layer 1, 6.4, 4.8).** A proof there dated more than 300 seconds after the evidence for the event does not count, and an event evaluated more than 300 seconds after its `expires` is invalid.
+- **Evidence for an identity event is evidence of the event with valid proofs (core 9.5).** A verifier records its first sight of an event only once the event has verified. The text already said "with proofs meeting Layer 1, Section 4"; it now says what follows from it.
+- **The logs a verifier must hold (core 9.4)** include the log of a collective under whose threshold a proof is counted, and a member's log as far as the latest evidence among an event and those before it.
+- **Entries of `revoked` and `parents` have no other members, and one event revokes at most 80 keys (Layer 1, 3.6, 3.7, 19).** A misspelt `compromisedSince` was ignored in silence, and `revoked` was the one set in an event with no limit.
+- **The grammar of an HTTPS origin is the pattern (Layer 1, 3.13).** The text said "a host and an optional port" where both implementations bound the characters only.
+- **The DID document of a duplicitous mind says so (Layer 1, 5.2)**, with `duplicitous` in its metadata, and is produced from the state before the divergence.
+
+**The Python checker** also read a `controller` whose value is `null` as absent on a collective's event; it now rejects it, as the schemas do.
+
+**Test vectors.** For the items above (OEP-0002 lists them): 18 negative cases, 18 controls and four must-accept cases. The vectors now hold 21 must-accept cases, 98 negative cases and 48 controls.
 
 ## Revision 2026-11-17 (Draft)
 

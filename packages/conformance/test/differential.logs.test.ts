@@ -12,6 +12,11 @@
  * without signing again, the wrong key, evidence of another time. Most of
  * what is generated does not verify, and some does; what matters is that the
  * two verdicts agree on every case.
+ *
+ * Verdicts are not all that is compared. For the mind each case is about,
+ * the two implementations also resolve its DID document, now and at one
+ * earlier version, and those must be equal: a state replayed wrongly shows
+ * there even where both happen to accept the log.
  */
 
 import { contentId, formatTimestamp, proofDigest } from "@oip/core";
@@ -21,6 +26,7 @@ import {
   Collective,
   intentBy,
   KeyMind,
+  lineageBy,
   locationBy,
   type Mind,
   rawSign,
@@ -32,22 +38,24 @@ import fc from "fast-check";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  compareVerdicts,
+  claimHolds,
   type JsonObject,
   loadVectors,
   PythonJudge,
   pythonJudgeUnavailable,
   referenceAdapter,
   type VectorCase,
+  viewFor,
 } from "../src/index.ts";
 
 const unavailable = pythonJudgeUnavailable();
 const required = process.env["OIP_REQUIRE_PYTHON"] !== undefined;
-// A short campaign with the ordinary tests; `pnpm test:differential` runs the
-// 10,000 that BUILD.md asks of every pull request, and the nightly job more.
+// A short campaign with the ordinary tests. `pnpm run ci` sets 6,700, which
+// is more than the 10,000 logs BUILD.md asks of every pull request, and the
+// nightly job a million. Each test says in its name how many cases it ran.
 const RUNS = Number(process.env["OIP_DIFFERENTIAL_LOGS"] ?? 300);
-// About 25 ms a case; ten times that, so a slow runner does not fail the campaign.
-const TIMEOUT = Math.max(120_000, RUNS * 250);
+// About 40 ms a case with its DID documents; ten times that, so a slow runner does not fail the campaign.
+const TIMEOUT = Math.max(120_000, RUNS * 400);
 
 const vectors = loadVectors();
 
@@ -210,13 +218,48 @@ const RAW_CHANGES: readonly JsonObject[] = [
   { note: "a member no reader of this revision knows" },
   { oip: "2" },
   { proof: [] },
+  // A member that is present with the value null is not absent.
+  { controller: null },
+  { homes: null },
+  { keys: null },
+  { invocation: null },
+  { revoked: null },
+  { expires: null },
+  { ext: null },
+  { critical: null },
+  { critical: [] },
+  // An event evaluated before, at and after it expires (core 9.6).
+  { expires: T(50) },
+  { expires: T(3000) },
+  { expires: T(100_000) },
+  { revoked: [{ key: signer("extra").publicKey, compromisedsince: T(0) }] },
+  {
+    parents: [
+      {
+        mind: "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        at: "0-bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      },
+    ],
+  },
+  {
+    parents: [
+      {
+        mind: "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        at: "0-bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        terms: "everything",
+      },
+    ],
+  },
+  { homes: ["https://:::"] },
+  { homes: ["https://a.example\n"] },
 ];
 
 type Twist =
   | { readonly kind: "none" | "swap" | "drop" | "repeat" | "truncate" | "wrong key" | "no proofs" }
   | { readonly kind: "unsigned"; readonly member: JsonObject }
   | { readonly kind: "raw"; readonly member: JsonObject }
-  | { readonly kind: "purpose" };
+  | { readonly kind: "purpose" | "intruder revealed" }
+  | { readonly kind: "proof dated"; readonly after: number };
 
 const twist: fc.Arbitrary<Twist> = fc.oneof(
   { weight: 3, arbitrary: fc.constant<Twist>({ kind: "none" }) },
@@ -230,6 +273,13 @@ const twist: fc.Arbitrary<Twist> = fc.oneof(
       { kind: "wrong key" },
       { kind: "no proofs" },
       { kind: "purpose" },
+      // A key the event before did not commit to, revealed and signing correctly (Layer 1, 4.3).
+      { kind: "intruder revealed" },
+      { kind: "intruder revealed" },
+      // The proof's own date against the evidence for its event (core 9.3).
+      { kind: "proof dated", after: 300 },
+      { kind: "proof dated", after: 301 },
+      { kind: "proof dated", after: -5 },
     ),
   },
   {
@@ -277,6 +327,19 @@ function twisted(mind: KeyMind, change: Twist, pick: number): Events {
       return replaced(
         rawSign(event, [{ control: mind.control(i) }], { purpose: "assertionMethod" }),
       );
+    case "intruder revealed": {
+      const intruder = signer(`${mind.name}/intruder`);
+      const controller = { ...(event["controller"] as JsonObject), keys: [intruder.publicKey] };
+      return replaced(rawSign(withMembers(event, { controller }), [{ control: intruder }]));
+    }
+    case "proof dated": {
+      const created = Date.parse(String(event["created"])) / 1000 + change.after;
+      return replaced(
+        rawSign(event, [{ control: mind.control(i) }], {
+          created: formatTimestamp(BigInt(Math.round(created)) * 1_000_000_000n),
+        }),
+      );
+    }
     case "unsigned":
       return replaced(withMembers(event, change.member));
     case "raw":
@@ -331,8 +394,9 @@ const keyLogCase: fc.Arbitrary<VectorCase> = fc
 const collectiveLogCase: fc.Arbitrary<VectorCase> = fc
   .record({
     size: fc.constantFrom(1, 2, 3),
-    threshold: fc.constantFrom(1, 2, 3),
-    height: fc.constantFrom(undefined, undefined, 1, 2, 5),
+    // Mostly a majority: a threshold that is not one is a single rule, and needs few cases.
+    threshold: fc.constantFrom(3, 3, 3, 3, 3, 2, 2, 1),
+    height: fc.constantFrom(undefined, undefined, undefined, undefined, 1, 1, 2, 5),
     memberSteps: fc.array(step, { maxLength: 2 }),
     memberStart: fc.constantFrom(0, 150, 400),
     updates: fc.array(
@@ -480,8 +544,370 @@ const ownKeyCase: fc.Arbitrary<VectorCase> = fc
     };
   });
 
+/** A collective, founded soundly if its members allow, and otherwise signed as it stands. */
+function founded(
+  name: string,
+  members: readonly Mind[],
+  threshold: number,
+  seconds: number,
+  fields: JsonObject = {},
+): Collective {
+  try {
+    return new Collective(name, members, threshold, seconds, fields);
+  } catch {
+    const sound = new Collective(name, members, members.length, seconds);
+    sound.events[0] = rawSign(
+      withMembers(sound.events[0] as unknown as JsonObject, {
+        ...fields,
+        controller: { members: members.map((member) => member.address), threshold },
+      }),
+      members.map((member) => member.asMember()),
+    ) as never;
+    return sound;
+  }
+}
+
+const majority = (count: number): number => Math.floor(count / 2) + 1;
+
+/**
+ * A `log` case about a collective that has collectives among its members:
+ * the heights of Layer 1, 4.7, declared or not, at the founding and when a
+ * member is admitted later.
+ */
+const nestedLogCase: fc.Arbitrary<VectorCase> = fc
+  .record({
+    innerHeight: fc.constantFrom(undefined, undefined, 1, 2, 3),
+    innerSize: fc.constantFrom(1, 2),
+    outerHeight: fc.constantFrom(undefined, undefined, 1, 2, 3, 4),
+    founders: fc.constantFrom("inner", "inner and a person", "a person", "deep"),
+    admit: fc.constantFrom(undefined, "inner", "second", "deep", "a person"),
+    secondHeight: fc.constantFrom(undefined, 2, 3, 4),
+    admitSigners: fc.constantFrom("all", "all", "not the newcomer"),
+  })
+  .map((plan) =>
+    unchecked(() => {
+      const [ada, bea, cy, dee] = ["ada", "bea", "cy", "dee"].map(
+        (name) => new KeyMind(name, 0),
+      ) as [KeyMind, KeyMind, KeyMind, KeyMind];
+      const inner = founded(
+        "inner",
+        [ada, bea].slice(0, plan.innerSize),
+        plan.innerSize,
+        100,
+        plan.innerHeight === undefined ? {} : { height: plan.innerHeight },
+      );
+      const second = founded(
+        "second",
+        [cy],
+        1,
+        100,
+        plan.secondHeight === undefined ? {} : { height: plan.secondHeight },
+      );
+      const deep = founded("deep", [inner], 1, 150);
+      const pick: Record<string, Mind> = { inner, second, deep, "a person": dee };
+      const first: Mind[] =
+        plan.founders === "inner and a person"
+          ? [inner, dee]
+          : plan.founders === "a person"
+            ? [cy]
+            : [plan.founders === "deep" ? deep : inner];
+      const outer = founded(
+        "outer",
+        first,
+        first.length,
+        200,
+        plan.outerHeight === undefined ? {} : { height: plan.outerHeight },
+      );
+      const newcomer = plan.admit === undefined ? undefined : pick[plan.admit];
+      if (newcomer !== undefined && !first.includes(newcomer)) {
+        const members = [...first, newcomer];
+        try {
+          outer.update(300, plan.admitSigners === "all" ? members : first, {
+            controller: {
+              members: members.map((member) => member.address),
+              threshold: majority(members.length),
+            },
+          });
+        } catch {
+          // An event that cannot be drafted is not written.
+        }
+      }
+      return {
+        kind: "log",
+        name: "generated",
+        log: outer.events,
+        extraLogs: [ada, bea, cy, dee, inner, second, deep].map(
+          (mind) => mind.events as unknown as Events,
+        ),
+      };
+    }),
+  );
+
+/**
+ * A `countsFor` case about a mind whose log the verifier holds in two or
+ * three branches (Layer 1, Section 7): they share some events and then part.
+ * One branch may end in an event that does not verify. The evidence for the
+ * events where they part ties them or separates them, and the record is
+ * pinned to an event of one of them.
+ */
+/** Changes that leave a log valid whatever came before, and one that removes the first key. */
+const CALM = [
+  "nothing",
+  "homes",
+  "aliases",
+  "another agreement key",
+  "a second operational key",
+  "no operational key",
+] as const;
+
+const calmStep: fc.Arbitrary<Step> = fc.record({
+  kind: fc.constantFrom("update", "update", "update", "update", "fork"),
+  gap: fc.constantFrom(1, 60, 3600),
+  change: fc.constantFrom(...CALM),
+});
+
+const branchCase: fc.Arbitrary<VectorCase> = fc
+  .record({
+    name: names,
+    shared: fc.array(calmStep, { maxLength: 2 }),
+    // The branches part with events of one date, so that only evidence can tell them apart.
+    partAfter: fc.constantFrom(1, 60, 3600),
+    tails: fc.array(
+      fc.record({
+        kind: fc.constantFrom("update", "update", "update", "retire"),
+        change: fc.constantFrom(...CALM),
+        then: fc.array(calmStep, { maxLength: 1 }),
+      }),
+      { minLength: 2, maxLength: 3 },
+    ),
+    junk: fc.constantFrom(undefined, undefined, undefined, undefined, 0, 1),
+    seenAfter: fc.array(fc.constantFrom(0, 0, 0, 0, 1, 7, 200), { minLength: 3, maxLength: 3 }),
+    branch: fc.nat(2),
+    position: fc.nat(6),
+    key: fc.constantFrom(0, 0, 0, 1),
+    type: fc.constantFrom("Intent", "Intent", "Location"),
+    created: fc.constantFrom(150, 170, 3800, 9000, 20_000),
+  })
+  .map((plan) =>
+    unchecked(() => {
+      const branches = plan.tails.map(({ kind, change, then }) =>
+        live(plan.name, [
+          ...plan.shared,
+          { kind, gap: plan.partAfter, change },
+          // Nothing follows a Retire.
+          ...(kind === "retire" ? [] : then),
+        ]),
+      );
+      const fork = 1 + plan.shared.length;
+      const seen: Record<string, string> = {};
+      branches.forEach((branch, n) => {
+        const event = branch.events[fork] as unknown as JsonObject | undefined;
+        if (event === undefined) return;
+        const created = BigInt(Date.parse(String(event["created"]))) * 1_000_000n;
+        seen[contentId(event)] = formatTimestamp(
+          created + BigInt(plan.seenAfter[n] ?? 0) * 1_000_000_000n,
+        );
+      });
+      const signer = branches[plan.branch % branches.length]!;
+      const base =
+        plan.type === "Intent" ? intentBy(signer, plan.created) : locationBy(signer, plan.created);
+      const record = signer.sign(base, {
+        key: plan.key,
+        position: plan.position % signer.events.length,
+      });
+      // Signed before the junk is added: an event that does not verify is no version to pin.
+      if (plan.junk !== undefined) branches[plan.junk]?.raw(30_000, "Merge");
+      const [first, ...others] = branches.map((branch) => branch.events as unknown as Events);
+      return {
+        kind: "countsFor",
+        name: "generated",
+        record,
+        mind: signer.address,
+        extraLogs: [first ?? []],
+        branches: others,
+        seen,
+      };
+    }),
+  );
+
+const CLUB_CHANGES = ["nothing", "expel", "admit", "tighten", "retire"] as const;
+
+/** A collective of ada, bea and cy that lives through some changes, each signed by everyone it needs. */
+function club(
+  people: readonly KeyMind[],
+  threshold: number,
+  changes: readonly { readonly gap: number; readonly change: (typeof CLUB_CHANGES)[number] }[],
+): Collective {
+  const group = new Collective("club", people.slice(0, 3), threshold, 200);
+  let current = people.slice(0, 3);
+  let when = 200;
+  for (const { gap, change } of changes) {
+    when += gap;
+    try {
+      if (change === "retire") {
+        group.retire(when, current);
+      } else if (change === "nothing") {
+        group.update(when, current, { homes: ["https://club.example"] });
+      } else {
+        const next =
+          change === "expel" && current.length > 1
+            ? current.slice(0, -1)
+            : change === "admit"
+              ? [...new Set([...current, people[3]!])]
+              : current;
+        group.update(when, [...new Set([...current, ...next])], {
+          controller: {
+            members: next.map((member) => member.address),
+            threshold: change === "tighten" ? next.length : majority(next.length),
+          },
+        });
+        current = next;
+      }
+    } catch {
+      // An event that cannot be drafted is not written.
+    }
+  }
+  return group;
+}
+
+/**
+ * A `countsFor` case about a record signed under a collective's threshold
+ * (Layer 1, 9.5): some of four people sign it, at one time or at two, while
+ * the collective's members and threshold change, or it retires. The verifier
+ * may hold a second event for the collective's last position (Layer 1, 7.3).
+ */
+const collectiveSignedCase: fc.Arbitrary<VectorCase> = fc
+  .record({
+    threshold: fc.constantFrom(2, 2, 2, 3),
+    changes: fc.array(
+      fc.record({
+        gap: fc.constantFrom(10, 100, 1000),
+        change: fc.constantFrom(...CLUB_CHANGES),
+      }),
+      { maxLength: 2 },
+    ),
+    other: fc.constantFrom(undefined, undefined, ...CLUB_CHANGES),
+    otherSeenAfter: fc.constantFrom(0, 0, 60),
+    signers: fc.subarray([0, 1, 2, 3], { minLength: 1 }),
+    created: fc.constantFrom(150, 205, 210, 250, 300, 310, 1200, 1300, 5000),
+    stagger: fc.constantFrom(0, 0, 0, 10, 100, 1100),
+    type: fc.constantFrom("Intent", "Intent", "Intent", "Location"),
+    expires: fc.constantFrom(undefined, undefined, undefined, 50),
+  })
+  .map((plan) =>
+    unchecked(() => {
+      const people = ["ada", "bea", "cy", "dee"].map((name) => new KeyMind(name, 0));
+      const group = club(people, plan.threshold, plan.changes);
+      const seen: Record<string, string> = {};
+      const branches: Events[] = [];
+      const last = plan.changes.at(-1);
+      if (plan.other !== undefined && last !== undefined) {
+        // The same history, with another event in the place of the last one.
+        const alternative = club(people, plan.threshold, [
+          ...plan.changes.slice(0, -1),
+          { gap: last.gap, change: plan.other },
+        ]);
+        const event = alternative.events.at(-1) as unknown as JsonObject;
+        const created = BigInt(Date.parse(String(event["created"]))) * 1_000_000n;
+        seen[contentId(event)] = formatTimestamp(
+          created + BigInt(plan.otherSeenAfter) * 1_000_000_000n,
+        );
+        branches.push(alternative.events);
+      }
+      const base =
+        plan.type === "Intent" ? intentBy(group, plan.created) : locationBy(group, plan.created);
+      let record: object =
+        plan.expires === undefined ? base : { ...base, expires: T(plan.created + plan.expires) };
+      plan.signers.forEach((n, order) => {
+        record = people[n]!.sign(record, {
+          created: T(plan.created + (order === 0 ? 0 : plan.stagger)),
+        });
+      });
+      return {
+        kind: "countsFor",
+        name: "generated",
+        record: record as JsonObject,
+        mind: group.address,
+        extraLogs: [group, ...people].map((mind) => mind.events as unknown as Events),
+        branches,
+        seen,
+      };
+    }),
+  );
+
+/**
+ * A lineage (Layer 1, Section 8): a child that names a version of its parent,
+ * and a parent that acknowledges it with a `Fork` event, with a `Lineage`
+ * record, with a record somebody else signed, or not at all.
+ */
+const lineageQuestion = fc
+  .record({
+    name: names,
+    steps: fc.array(step, { maxLength: 2 }),
+    at: fc.nat(4),
+    acknowledged: fc.constantFrom("not", "by a fork", "by a record", "by a stranger's record"),
+    again: fc.array(step, { maxLength: 1 }),
+  })
+  .map((plan) =>
+    unchecked(() => {
+      const parent = live(plan.name, plan.steps);
+      const child = new KeyMind("kid", 50, {
+        parents: [{ mind: parent.address, at: parent.versionId(plan.at % parent.events.length) }],
+      });
+      const stranger = new KeyMind("stranger", 0);
+      const records: object[] = [];
+      if (plan.acknowledged === "by a fork") parent.fork(20_000, { child: child.address });
+      if (plan.acknowledged === "by a record") {
+        records.push(parent.sign(lineageBy(parent, child.address, 20_000)));
+      }
+      if (plan.acknowledged === "by a stranger's record") {
+        records.push(stranger.sign(lineageBy(parent, child.address, 20_000)));
+      }
+      // The parent's log may go on afterwards, and remove the key that signed.
+      let seconds = 30_000;
+      for (const { kind, gap, change } of plan.again) {
+        seconds += gap;
+        if (kind === "retire") parent.retire(seconds, fieldsFor(parent, change, seconds));
+        else parent.update(seconds, fieldsFor(parent, change, seconds));
+      }
+      return {
+        kind: "lineage",
+        name: "generated",
+        mind: child.address,
+        extraLogs: [parent, child, stranger].map((mind) => mind.events as unknown as Events),
+        extraRecords: records as JsonObject[],
+      };
+    }),
+  );
+
+/** The mind a case is about, and the logs a verifier must hold to resolve it. */
+function subjectOf(
+  vectorCase: VectorCase,
+): { mind: string; logs: Events[]; own: Events } | undefined {
+  try {
+    if (vectorCase.kind === "log") {
+      const own = vectorCase.log as Events;
+      return {
+        mind: `did:oip:${contentId(own[0] ?? {})}`,
+        logs: [...((vectorCase.extraLogs ?? []) as Events[]), own],
+        own,
+      };
+    }
+    if (vectorCase.kind === "countsFor") {
+      const logs = (vectorCase.extraLogs ?? []) as Events[];
+      const own = logs.find((log) => `did:oip:${contentId(log[0] ?? {})}` === vectorCase.mind);
+      return own === undefined ? undefined : { mind: vectorCase.mind, logs, own };
+    }
+  } catch {
+    // A first event with no content ID names no mind.
+  }
+  return undefined;
+}
+
 describe.skipIf(unavailable !== undefined && !required)("differential: identity logs", () => {
   let judge: PythonJudge;
+  /** What was compared, by generator: how many cases, and how many both implementations accepted. */
+  const tally = new Map<string, { cases: number; accepted: number; documents: number }>();
 
   beforeAll(() => {
     if (unavailable !== undefined) throw new Error(unavailable);
@@ -490,85 +916,172 @@ describe.skipIf(unavailable !== undefined && !required)("differential: identity 
 
   afterAll(async () => {
     await judge.close();
-  });
-
-  async function compare(vectorCase: VectorCase): Promise<void> {
-    const disagreement = await compareVerdicts(
-      referenceAdapter,
-      judge,
-      vectors,
-      vectorCase,
-      "same",
-    );
-    // Shown small: a case holds whole logs.
-    expect(
-      disagreement === undefined
-        ? undefined
-        : {
-            implementation: disagreement.implementation,
-            judge: disagreement.judge,
-            judgeError: disagreement.judgeError,
-            case: JSON.stringify(vectorCase).slice(0, 6000),
-          },
-    ).toBeUndefined();
-  }
-
-  it("generates logs that verify and logs that do not, of every kind", () => {
-    const sample = fc.sample(fc.oneof(keyLogCase, collectiveLogCase, ownKeyCase), {
-      numRuns: 300,
-      seed: 7,
-    });
-    const verdicts = sample.map((vectorCase) => {
-      const answer =
-        vectorCase.kind === "log"
-          ? referenceAdapter.logVerifies?.(vectorCase.log, {
-              logs: [],
-              extraLogs: vectorCase.extraLogs ?? [],
-              branches: [],
-              records: [],
-              extraRecords: [],
-              seen: vectorCase.seen,
-            })
-          : vectorCase.kind === "countsFor"
-            ? referenceAdapter.countsFor?.(vectorCase.record, vectorCase.mind, {
-                logs: [],
-                extraLogs: vectorCase.extraLogs ?? [],
-                branches: [],
-                records: [],
-                extraRecords: [],
-                seen: vectorCase.seen,
-              })
-            : undefined;
-      return `${vectorCase.kind} ${String(answer)}`;
-    });
-    // Neither verdict is rare: a campaign of rejections alone would show nothing.
-    for (const outcome of ["log true", "log false", "countsFor true", "countsFor false"]) {
-      expect(verdicts.filter((verdict) => verdict === outcome).length, outcome).toBeGreaterThan(15);
+    for (const [generator, { cases, accepted, documents }] of tally) {
+      // For the log of the run: the numbers that ran, whatever was asked for.
+      process.stdout.write(
+        `differential, ${generator}: ${cases} cases compared, ${accepted} accepted by both; ${documents} DID documents resolved by both and equal\n`,
+      );
     }
   });
 
-  it(
-    `agrees with the Python checker on ${RUNS} generated logs of key-controlled minds`,
-    async () => {
-      await fc.assert(fc.asyncProperty(keyLogCase, compare), { numRuns: RUNS });
-    },
-    TIMEOUT,
-  );
+  // Shown small: a case holds whole logs.
+  const shown = (value: unknown): string => JSON.stringify(value).slice(0, 6000);
+
+  /** The DID document of a case's mind, now or at one version, must be the same for both. */
+  async function sameDocument(vectorCase: VectorCase, pick: number | undefined): Promise<boolean> {
+    const subject = subjectOf(vectorCase);
+    if (subject === undefined) return false;
+    let versionId: string | undefined;
+    if (pick !== undefined) {
+      const position = pick % subject.own.length;
+      try {
+        versionId = `${position}-${contentId(subject.own[position] ?? {})}`;
+      } catch {
+        return false;
+      }
+    }
+    const question = {
+      kind: "didDocument",
+      name: "generated",
+      mind: subject.mind,
+      ...(versionId === undefined ? {} : { versionId }),
+      extraLogs: subject.logs,
+      branches: vectorCase.branches ?? [],
+      seen: vectorCase.seen,
+    };
+    const ours = referenceAdapter.didDocument?.(subject.mind, versionId, {
+      ...viewFor(vectors, vectorCase),
+      extraLogs: subject.logs,
+    });
+    const theirs = await judge.judge(question);
+    expect(
+      // A document compares as JSON: the checker's answer has been through it.
+      JSON.parse(JSON.stringify(ours ?? null)),
+      `the DID document${versionId === undefined ? "" : ` at ${versionId}`} of ${shown(question)}`,
+    ).toStrictEqual(theirs.error === undefined ? theirs.value : null);
+    return ours !== undefined;
+  }
+
+  /**
+   * @param document - Which DID document to compare as well: 0 the current
+   *   one, 1 the one at a version chosen by `pick`, anything else none. A
+   *   document costs as much as the verdict, so one case in four has one.
+   */
+  async function compare(
+    generator: string,
+    vectorCase: VectorCase,
+    pick: number,
+    document: number,
+  ): Promise<void> {
+    const ours = claimHolds(referenceAdapter, vectors, vectorCase);
+    // Every case generated here is one the reference implementation judges.
+    expect(ours, `not judged: ${shown(vectorCase)}`).toBeDefined();
+    const theirs = await judge.judge(vectorCase);
+    expect(
+      { implementation: ours, judge: theirs.holds, judgeError: theirs.error },
+      shown(vectorCase),
+    ).toMatchObject({ implementation: theirs.holds });
+    const counted = tally.get(generator) ?? { cases: 0, accepted: 0, documents: 0 };
+    tally.set(generator, counted);
+    counted.cases++;
+    if (ours === true) counted.accepted++;
+    if (document > 1) return;
+    if (await sameDocument(vectorCase, document === 0 ? undefined : pick)) counted.documents++;
+  }
+
+  const cases = (generator: fc.Arbitrary<VectorCase>) => fc.tuple(generator, fc.nat(8), fc.nat(7));
+
+  it("generates cases that hold and cases that do not, of every kind", () => {
+    const generators = {
+      keyLogCase,
+      collectiveLogCase,
+      nestedLogCase,
+      ownKeyCase,
+      branchCase,
+      collectiveSignedCase,
+    };
+    for (const [name, generator] of Object.entries(generators)) {
+      const sample = fc.sample(generator, { numRuns: 60, seed: 7 });
+      const held = sample.filter((vectorCase) => claimHolds(referenceAdapter, vectors, vectorCase));
+      // Neither verdict is rare: a campaign of rejections alone would show nothing.
+      expect(held.length, `${name}: accepted`).toBeGreaterThan(3);
+      expect(sample.length - held.length, `${name}: rejected`).toBeGreaterThan(3);
+    }
+  });
+
+  it("reaches the rules it is there for", () => {
+    // Duplicity that evidence cannot separate, for a mind and for a collective.
+    const duplicitous = (generator: fc.Arbitrary<VectorCase>) =>
+      fc.sample(generator, { numRuns: 60, seed: 11 }).filter((vectorCase) => {
+        const subject = subjectOf(vectorCase);
+        const resolved = referenceAdapter.didDocument?.(subject?.mind ?? "", undefined, {
+          ...viewFor(vectors, vectorCase),
+          extraLogs: subject?.logs ?? [],
+        }) as { didDocumentMetadata?: { duplicitous?: boolean } } | undefined;
+        return resolved?.didDocumentMetadata?.duplicitous === true;
+      }).length;
+    expect(duplicitous(branchCase)).toBeGreaterThan(3);
+    expect(duplicitous(collectiveSignedCase)).toBeGreaterThan(2);
+    // Lineage of each status.
+    const statuses = fc.sample(lineageQuestion, { numRuns: 60, seed: 11 }).map((question) =>
+      Object.values(
+        referenceAdapter.lineage?.(question.mind, {
+          ...viewFor(vectors, { kind: "log", name: "generated", log: [] }),
+          extraLogs: question.extraLogs,
+          extraRecords: question.extraRecords,
+        }) ?? {},
+      ).join(),
+    );
+    expect(statuses.filter((status) => status === "acknowledged").length).toBeGreaterThan(5);
+    expect(statuses.filter((status) => status === "claimed").length).toBeGreaterThan(5);
+  });
+
+  const campaigns: [name: string, generator: fc.Arbitrary<VectorCase>, runs: number][] = [
+    ["logs of key-controlled minds", keyLogCase, RUNS],
+    ["logs of collectives", collectiveLogCase, Math.ceil(RUNS / 2)],
+    ["logs of collectives that have collectives as members", nestedLogCase, Math.ceil(RUNS / 8)],
+    ["records signed by a mind's own keys", ownKeyCase, Math.ceil(RUNS / 4)],
+    ["records pinned to a branch of a log", branchCase, Math.ceil(RUNS / 4)],
+    ["records signed under a collective's threshold", collectiveSignedCase, Math.ceil(RUNS / 4)],
+  ];
+
+  for (const [name, generator, runs] of campaigns) {
+    it(
+      `agrees with the Python checker on ${runs} generated ${name}`,
+      async () => {
+        await fc.assert(
+          fc.asyncProperty(cases(generator), ([vectorCase, pick, document]) =>
+            compare(name, vectorCase, pick, document),
+          ),
+          { numRuns: runs },
+        );
+        // The number in this test's name is the number that ran, and a
+        // campaign of any size has cases both implementations accept.
+        const counted = tally.get(name);
+        expect(counted?.cases).toBe(runs);
+        if (runs >= 100) expect(counted?.accepted).toBeGreaterThan(0);
+      },
+      TIMEOUT,
+    );
+  }
 
   it(
-    `agrees with it on ${Math.ceil(RUNS / 2)} generated logs of collectives`,
+    `agrees with it on ${Math.ceil(RUNS / 8)} generated lineages`,
     async () => {
-      await fc.assert(fc.asyncProperty(collectiveLogCase, compare), {
-        numRuns: Math.ceil(RUNS / 2),
-      });
-    },
-    TIMEOUT,
-  );
-
-  it(
-    `agrees with it on ${Math.ceil(RUNS / 2)} generated records signed by a mind's own keys`,
-    async () => {
-      await fc.assert(fc.asyncProperty(ownKeyCase, compare), { numRuns: Math.ceil(RUNS / 2) });
+      await fc.assert(
+        fc.asyncProperty(lineageQuestion, async (question) => {
+          const ours = referenceAdapter.lineage?.(question.mind, {
+            ...viewFor(vectors, { kind: "log", name: "generated", log: [] }),
+            extraLogs: question.extraLogs,
+            extraRecords: question.extraRecords,
+          });
+          const theirs = await judge.judge(question);
+          expect(ours ?? {}, shown(question)).toStrictEqual(
+            theirs.error === undefined ? theirs.value : {},
+          );
+        }),
+        { numRuns: Math.ceil(RUNS / 8) },
+      );
     },
     TIMEOUT,
   );

@@ -10,10 +10,20 @@ import {
   didDocument,
   type DidResolution,
   latestState,
+  LogBook,
   revokedAt,
   type VerifiedLog,
 } from "../src/index.ts";
-import { agreementKey, bookOf, Collective, intentBy, KeyMind, type Mind } from "@oip/testkit/minds";
+import {
+  agreementKey,
+  bookOf,
+  Collective,
+  intentBy,
+  KeyMind,
+  LATER,
+  type Mind,
+  witness,
+} from "@oip/testkit/minds";
 
 function logOf(mind: Mind, others: readonly Mind[] = []): VerifiedLog {
   const log = bookOf([mind, ...others]).log(mind.address);
@@ -199,5 +209,62 @@ describe(`${clause("L1 2.4")} resolution with versionId`, () => {
         issues: [{ clause: "L1 2.4" }],
       });
     }
+  });
+});
+
+describe(`${clause("L1 5.2", "L1 7.3")} the document of a duplicitous mind`, () => {
+  it("is of the state before its branches part, and says that the mind is duplicitous", () => {
+    const left = new KeyMind("ada").update(20, { keys: [] });
+    const right = new KeyMind("ada").update(20, { homes: ["https://ada.example"] });
+    const book = new LogBook(witness([left.events, right.events]));
+    book.holdBranch(left.events, LATER);
+    book.holdBranch(right.events, LATER);
+    const log = book.log(left.address);
+    if (!log.ok) throw new Error(JSON.stringify(log.issues));
+    const { didDocument: document, didDocumentMetadata: metadata } = resolve(log.value);
+    expect(metadata.duplicitous).toBe(true);
+    expect(metadata.versionId).toBe(left.versionId(0));
+    expect(document.assertionMethod).toStrictEqual([
+      `${left.address}#${left.operational().publicKey}`,
+    ]);
+    expect("service" in document).toBe(false);
+    // Neither conflicting version can be resolved.
+    for (const versionId of [left.versionId(1), right.versionId(1)]) {
+      expect(didDocument(log.value, { versionId })).toMatchObject({
+        ok: false,
+        issues: [{ clause: "L1 2.4" }],
+      });
+    }
+    expect(
+      resolve(log.value, { versionId: left.versionId(0) }).didDocumentMetadata.duplicitous,
+    ).toBe(true);
+    // A mind in good standing carries no such member.
+    expect("duplicitous" in resolve(logOf(left)).didDocumentMetadata).toBe(false);
+  });
+});
+
+describe("what a document is asked for with", () => {
+  it("answers and does not throw for options that are not what they should be", () => {
+    const ada = new KeyMind("ada", 0, { homes: ["https://ada.example"] });
+    const log = logOf(ada);
+    const plain = resolve(log);
+    for (const nothing of [undefined, null, 5, "options"]) {
+      expect(resolve(log, nothing as never)).toStrictEqual(plain);
+    }
+    expect(didDocument(log, { versionId: 5 as never })).toMatchObject({
+      ok: false,
+      issues: [{ clause: "L1 2.4" }],
+    });
+    for (const notList of ["https://ada.example/oip", 5, {}, [5], [null]]) {
+      for (const name of ["endpoints", "verifiedAliases"]) {
+        expect(didDocument(log, { [name]: notList })).toMatchObject({
+          ok: false,
+          issues: [{ clause: "L1 5.2" }],
+        });
+      }
+    }
+    // A member that an options object inherits was given by nobody.
+    const inherited = Object.create({ versionId: "0-nothing" }) as object;
+    expect(resolve(log, inherited)).toStrictEqual(plain);
   });
 });

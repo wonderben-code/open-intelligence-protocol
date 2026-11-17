@@ -332,6 +332,14 @@ describe("the positive checks", () => {
           : (referenceAdapter.countsFor?.(record, mind, view) ?? false),
     });
     expect(partly?.outcome).toBe("pending");
+    // One that gets the others wrong has failed it, whatever it left unjudged.
+    const wrongAndPartly = check({
+      name: "wrong, and one short",
+      countsFor: (record) => (record === intent ? NOT_JUDGED : false),
+    });
+    expect(wrongAndPartly?.outcome).toBe("fail");
+    expect(wrongAndPartly?.detail?.split("; ")).toHaveLength(18);
+    expect(wrongAndPartly?.detail).not.toContain("intent does not count for amina");
   });
 
   it("fail an implementation whose DID documents differ", () => {

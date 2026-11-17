@@ -156,7 +156,8 @@ export abstract class Mind {
     return formatVersionId(position, contentId(this.events[position]));
   }
 
-  protected get head() {
+  /** What the next event is drafted from: the address, the latest position and its content ID. */
+  get head() {
     const seq = this.events.length - 1;
     return { mind: this.address, seq, head: contentId(this.events[seq]) };
   }

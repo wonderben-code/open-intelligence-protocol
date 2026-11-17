@@ -59,6 +59,7 @@ export {
   MAX_HEIGHT,
   MAX_LOG_EVENTS,
   MIN_ACCEPTED_LOG_EVENTS,
+  type Replayed,
   verifyLog,
 } from "./log.ts";
 export {
@@ -66,6 +67,7 @@ export {
   type CountedProof,
   CURRENT_STATE_TYPES,
   type JudgedRecord,
+  type JudgeOptions,
   judgeRecord,
   operationalProofs,
   operationalProofTime,
@@ -87,3 +89,4 @@ export {
   stateAt,
   type VerifiedLog,
 } from "./state.ts";
+export { witnessLog, type WitnessOptions, witnessRecord } from "./witness.ts";

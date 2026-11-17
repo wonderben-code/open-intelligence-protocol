@@ -20,7 +20,7 @@ export interface CompiledValidator {
   errors?: readonly ValidatorError[] | null;
 }
 
-const schema19 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:oip:schema:Genesis","title":"Genesis","description":"The first event of an identity log (Layer 1, 3.6). Its content ID is the mind's address.","type":"object","required":["oip","created","proof","type","kind","controller"],"properties":{"oip":{"type":"string","const":"1"},"expires":{"$ref":"urn:oip:schema:def:timestamp"},"ext":{"$ref":"urn:oip:schema:def:ext"},"critical":{"type":"array","items":{"type":"string"}},"created":{"$ref":"urn:oip:schema:def:timestamp"},"proof":{"$ref":"urn:oip:schema:def:proofSet"},"type":{"type":"string","const":"Genesis"},"kind":{"type":"string","minLength":1,"maxLength":64},"controller":{"$ref":"urn:oip:schema:def:controller"},"keys":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":64},"invocation":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":16},"agreement":{"type":"array","items":{"$ref":"urn:oip:schema:def:agreementKeyEntry"},"maxItems":16},"homes":{"type":"array","items":{"$ref":"urn:oip:schema:def:httpsOrigin"},"maxItems":8},"alsoKnownAs":{"type":"array","items":{"type":"string"},"maxItems":16},"parents":{"type":"array","items":{"type":"object","required":["mind","at"],"properties":{"mind":{"$ref":"urn:oip:schema:def:mindAddress"},"at":{"$ref":"urn:oip:schema:def:versionId"}}},"maxItems":16},"inherits":{"type":"object"},"height":{"type":"integer","minimum":1,"maximum":4}},"not":{"anyOf":[{"required":["mind"]},{"required":["seq"]},{"required":["prev"]},{"required":["recovery"]}]},"allOf":[{"if":{"properties":{"kind":{"const":"collective"}},"required":["kind"]},"then":{"properties":{"controller":{"required":["members"]}}}},{"if":{"properties":{"controller":{"required":["keys"]}},"required":["controller"]},"then":{"not":{"required":["height"]}}}]};
+const schema19 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:oip:schema:Genesis","title":"Genesis","description":"The first event of an identity log (Layer 1, 3.6). Its content ID is the mind's address.","type":"object","required":["oip","created","proof","type","kind","controller"],"properties":{"oip":{"type":"string","const":"1"},"expires":{"$ref":"urn:oip:schema:def:timestamp"},"ext":{"$ref":"urn:oip:schema:def:ext"},"critical":{"type":"array","items":{"type":"string"}},"created":{"$ref":"urn:oip:schema:def:timestamp"},"proof":{"$ref":"urn:oip:schema:def:proofSet"},"type":{"type":"string","const":"Genesis"},"kind":{"type":"string","minLength":1,"maxLength":64},"controller":{"$ref":"urn:oip:schema:def:controller"},"keys":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":64},"invocation":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":16},"agreement":{"type":"array","items":{"$ref":"urn:oip:schema:def:agreementKeyEntry"},"maxItems":16},"homes":{"type":"array","items":{"$ref":"urn:oip:schema:def:httpsOrigin"},"maxItems":8},"alsoKnownAs":{"type":"array","items":{"type":"string"},"maxItems":16},"parents":{"type":"array","items":{"type":"object","required":["mind","at"],"properties":{"mind":{"$ref":"urn:oip:schema:def:mindAddress"},"at":{"$ref":"urn:oip:schema:def:versionId"}},"additionalProperties":false},"maxItems":16},"inherits":{"type":"object"},"height":{"type":"integer","minimum":1,"maximum":4}},"not":{"anyOf":[{"required":["mind"]},{"required":["seq"]},{"required":["prev"]},{"required":["recovery"]}]},"allOf":[{"if":{"properties":{"kind":{"const":"collective"}},"required":["kind"]},"then":{"properties":{"controller":{"required":["members"]}}}},{"if":{"properties":{"controller":{"required":["keys"]}},"required":["controller"]},"then":{"not":{"required":["height"]}}}]};
 const schema20 = {"$id":"urn:oip:schema:def:timestamp","type":"string","pattern":"^(?:[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8]))|(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29)T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?Z$","maxLength":30};
 const func1 = codePointLength;
 const pattern3 = new RegExp("^(?:[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8]))|(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29)T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?Z$", "u");
@@ -1627,28 +1627,38 @@ validate52.errors = [{instancePath:instancePath+"/parents/" + i6,schemaPath:"#/p
 return false;
 }
 else {
-if(data24.mind !== undefined){
 const _errs56 = errors;
+for(const key0 in data24){
+if(!((key0 === "mind") || (key0 === "at"))){
+validate52.errors = [{instancePath:instancePath+"/parents/" + i6,schemaPath:"#/properties/parents/items/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
+return false;
+break;
+}
+}
+if(_errs56 === errors){
+if(data24.mind !== undefined){
+const _errs57 = errors;
 if(!(validate68(data24.mind, {instancePath:instancePath+"/parents/" + i6+"/mind",parentData:data24,parentDataProperty:"mind",rootData,dynamicAnchors}))){
 vErrors = vErrors === null ? validate68.errors : vErrors.concat(validate68.errors);
-errors = vErrors.length;
-}
-var valid17 = _errs56 === errors;
-}
-else {
-var valid17 = true;
-}
-if(valid17){
-if(data24.at !== undefined){
-const _errs57 = errors;
-if(!(validate83(data24.at, {instancePath:instancePath+"/parents/" + i6+"/at",parentData:data24,parentDataProperty:"at",rootData,dynamicAnchors}))){
-vErrors = vErrors === null ? validate83.errors : vErrors.concat(validate83.errors);
 errors = vErrors.length;
 }
 var valid17 = _errs57 === errors;
 }
 else {
 var valid17 = true;
+}
+if(valid17){
+if(data24.at !== undefined){
+const _errs58 = errors;
+if(!(validate83(data24.at, {instancePath:instancePath+"/parents/" + i6+"/at",parentData:data24,parentDataProperty:"at",rootData,dynamicAnchors}))){
+vErrors = vErrors === null ? validate83.errors : vErrors.concat(validate83.errors);
+errors = vErrors.length;
+}
+var valid17 = _errs58 === errors;
+}
+else {
+var valid17 = true;
+}
 }
 }
 }
@@ -1678,12 +1688,12 @@ var valid9 = true;
 if(valid9){
 if(data.inherits !== undefined){
 let data27 = data.inherits;
-const _errs58 = errors;
+const _errs59 = errors;
 if(!(data27 && typeof data27 == "object" && !Array.isArray(data27))){
 validate52.errors = [{instancePath:instancePath+"/inherits",schemaPath:"#/properties/inherits/type",keyword:"type",params:{type: "object"},message:"must be object"}];
 return false;
 }
-var valid9 = _errs58 === errors;
+var valid9 = _errs59 === errors;
 }
 else {
 var valid9 = true;
@@ -1691,12 +1701,12 @@ var valid9 = true;
 if(valid9){
 if(data.height !== undefined){
 let data28 = data.height;
-const _errs60 = errors;
+const _errs61 = errors;
 if(!(((typeof data28 == "number") && (!(data28 % 1) && !isNaN(data28))) && (isFinite(data28)))){
 validate52.errors = [{instancePath:instancePath+"/height",schemaPath:"#/properties/height/type",keyword:"type",params:{type: "integer"},message:"must be integer"}];
 return false;
 }
-if(errors === _errs60){
+if(errors === _errs61){
 if((typeof data28 == "number") && (isFinite(data28))){
 if(data28 > 4 || isNaN(data28)){
 validate52.errors = [{instancePath:instancePath+"/height",schemaPath:"#/properties/height/maximum",keyword:"maximum",params:{comparison: "<=", limit: 4},message:"must be <= 4"}];
@@ -1710,7 +1720,7 @@ return false;
 }
 }
 }
-var valid9 = _errs60 === errors;
+var valid9 = _errs61 === errors;
 }
 else {
 var valid9 = true;
@@ -1745,7 +1755,7 @@ return errors === 0;
 validate52.evaluated = {"dynamicProps":true,"dynamicItems":false};
 
 
-const schema34 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:oip:schema:Update","title":"Update","description":"Rotates control keys or changes a mind's keys, homes or aliases (Layer 1, 3.7).","type":"object","required":["oip","created","proof","mind","seq","prev","type"],"properties":{"oip":{"type":"string","const":"1"},"expires":{"$ref":"urn:oip:schema:def:timestamp"},"ext":{"$ref":"urn:oip:schema:def:ext"},"critical":{"type":"array","items":{"type":"string"}},"created":{"$ref":"urn:oip:schema:def:timestamp"},"proof":{"$ref":"urn:oip:schema:def:proofSet"},"mind":{"$ref":"urn:oip:schema:def:mindAddress"},"seq":{"type":"integer","minimum":1,"maximum":9007199254740991},"prev":{"$ref":"urn:oip:schema:def:contentId"},"controller":{"$ref":"urn:oip:schema:def:controller"},"keys":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":64},"invocation":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":16},"agreement":{"type":"array","items":{"$ref":"urn:oip:schema:def:agreementKeyEntry"},"maxItems":16},"homes":{"type":"array","items":{"$ref":"urn:oip:schema:def:httpsOrigin"},"maxItems":8},"alsoKnownAs":{"type":"array","items":{"type":"string"},"maxItems":16},"revoked":{"type":"array","items":{"type":"object","required":["key"],"properties":{"key":{"$ref":"urn:oip:schema:def:ed25519Multikey"},"compromisedSince":{"$ref":"urn:oip:schema:def:timestamp"}}}},"type":{"type":"string","const":"Update"}},"not":{"anyOf":[{"required":["height"]},{"required":["recovery"]}]}};
+const schema34 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:oip:schema:Update","title":"Update","description":"Rotates control keys or changes a mind's keys, homes or aliases (Layer 1, 3.7).","type":"object","required":["oip","created","proof","mind","seq","prev","type"],"properties":{"oip":{"type":"string","const":"1"},"expires":{"$ref":"urn:oip:schema:def:timestamp"},"ext":{"$ref":"urn:oip:schema:def:ext"},"critical":{"type":"array","items":{"type":"string"}},"created":{"$ref":"urn:oip:schema:def:timestamp"},"proof":{"$ref":"urn:oip:schema:def:proofSet"},"mind":{"$ref":"urn:oip:schema:def:mindAddress"},"seq":{"type":"integer","minimum":1,"maximum":9007199254740991},"prev":{"$ref":"urn:oip:schema:def:contentId"},"controller":{"$ref":"urn:oip:schema:def:controller"},"keys":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":64},"invocation":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":16},"agreement":{"type":"array","items":{"$ref":"urn:oip:schema:def:agreementKeyEntry"},"maxItems":16},"homes":{"type":"array","items":{"$ref":"urn:oip:schema:def:httpsOrigin"},"maxItems":8},"alsoKnownAs":{"type":"array","items":{"type":"string"},"maxItems":16},"revoked":{"type":"array","items":{"type":"object","required":["key"],"properties":{"key":{"$ref":"urn:oip:schema:def:ed25519Multikey"},"compromisedSince":{"$ref":"urn:oip:schema:def:timestamp"}},"additionalProperties":false},"maxItems":80},"type":{"type":"string","const":"Update"}},"not":{"anyOf":[{"required":["height"]},{"required":["recovery"]}]}};
 
 function validate85(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="urn:oip:schema:Update" */;
@@ -2182,6 +2192,11 @@ let data21 = data.revoked;
 const _errs37 = errors;
 if(errors === _errs37){
 if(Array.isArray(data21)){
+if(data21.length > 80){
+validate85.errors = [{instancePath:instancePath+"/revoked",schemaPath:"#/properties/revoked/maxItems",keyword:"maxItems",params:{limit: 80},message:"must NOT have more than 80 items"}];
+return false;
+}
+else {
 var valid9 = true;
 const len6 = data21.length;
 for(let i6=0; i6<len6; i6++){
@@ -2195,28 +2210,38 @@ validate85.errors = [{instancePath:instancePath+"/revoked/" + i6,schemaPath:"#/p
 return false;
 }
 else {
-if(data22.key !== undefined){
 const _errs41 = errors;
+for(const key0 in data22){
+if(!((key0 === "key") || (key0 === "compromisedSince"))){
+validate85.errors = [{instancePath:instancePath+"/revoked/" + i6,schemaPath:"#/properties/revoked/items/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
+return false;
+break;
+}
+}
+if(_errs41 === errors){
+if(data22.key !== undefined){
+const _errs42 = errors;
 if(!(validate62(data22.key, {instancePath:instancePath+"/revoked/" + i6+"/key",parentData:data22,parentDataProperty:"key",rootData,dynamicAnchors}))){
 vErrors = vErrors === null ? validate62.errors : vErrors.concat(validate62.errors);
-errors = vErrors.length;
-}
-var valid10 = _errs41 === errors;
-}
-else {
-var valid10 = true;
-}
-if(valid10){
-if(data22.compromisedSince !== undefined){
-const _errs42 = errors;
-if(!(validate53(data22.compromisedSince, {instancePath:instancePath+"/revoked/" + i6+"/compromisedSince",parentData:data22,parentDataProperty:"compromisedSince",rootData,dynamicAnchors}))){
-vErrors = vErrors === null ? validate53.errors : vErrors.concat(validate53.errors);
 errors = vErrors.length;
 }
 var valid10 = _errs42 === errors;
 }
 else {
 var valid10 = true;
+}
+if(valid10){
+if(data22.compromisedSince !== undefined){
+const _errs43 = errors;
+if(!(validate53(data22.compromisedSince, {instancePath:instancePath+"/revoked/" + i6+"/compromisedSince",parentData:data22,parentDataProperty:"compromisedSince",rootData,dynamicAnchors}))){
+vErrors = vErrors === null ? validate53.errors : vErrors.concat(validate53.errors);
+errors = vErrors.length;
+}
+var valid10 = _errs43 === errors;
+}
+else {
+var valid10 = true;
+}
 }
 }
 }
@@ -2229,6 +2254,7 @@ return false;
 var valid9 = _errs39 === errors;
 if(!valid9){
 break;
+}
 }
 }
 }
@@ -2245,7 +2271,7 @@ var valid2 = true;
 if(valid2){
 if(data.type !== undefined){
 let data25 = data.type;
-const _errs43 = errors;
+const _errs44 = errors;
 if(typeof data25 !== "string"){
 validate85.errors = [{instancePath:instancePath+"/type",schemaPath:"#/properties/type/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
@@ -2254,7 +2280,7 @@ if("Update" !== data25){
 validate85.errors = [{instancePath:instancePath+"/type",schemaPath:"#/properties/type/const",keyword:"const",params:{allowedValue: "Update"},message:"must be equal to constant"}];
 return false;
 }
-var valid2 = _errs43 === errors;
+var valid2 = _errs44 === errors;
 }
 else {
 var valid2 = true;
@@ -2288,7 +2314,7 @@ return errors === 0;
 validate85.evaluated = {"props":{"oip":true,"expires":true,"ext":true,"critical":true,"created":true,"proof":true,"mind":true,"seq":true,"prev":true,"controller":true,"keys":true,"invocation":true,"agreement":true,"homes":true,"alsoKnownAs":true,"revoked":true,"type":true},"dynamicProps":false,"dynamicItems":false};
 
 
-const schema35 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:oip:schema:Fork","title":"Fork","description":"Records in the parent's identity log that a child mind was forked from it (Layer 1, 3.8).","type":"object","required":["oip","created","proof","mind","seq","prev","type","child"],"properties":{"oip":{"type":"string","const":"1"},"expires":{"$ref":"urn:oip:schema:def:timestamp"},"ext":{"$ref":"urn:oip:schema:def:ext"},"critical":{"type":"array","items":{"type":"string"}},"created":{"$ref":"urn:oip:schema:def:timestamp"},"proof":{"$ref":"urn:oip:schema:def:proofSet"},"mind":{"$ref":"urn:oip:schema:def:mindAddress"},"seq":{"type":"integer","minimum":1,"maximum":9007199254740991},"prev":{"$ref":"urn:oip:schema:def:contentId"},"controller":{"$ref":"urn:oip:schema:def:controller"},"keys":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":64},"invocation":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":16},"agreement":{"type":"array","items":{"$ref":"urn:oip:schema:def:agreementKeyEntry"},"maxItems":16},"homes":{"type":"array","items":{"$ref":"urn:oip:schema:def:httpsOrigin"},"maxItems":8},"alsoKnownAs":{"type":"array","items":{"type":"string"},"maxItems":16},"revoked":{"type":"array","items":{"type":"object","required":["key"],"properties":{"key":{"$ref":"urn:oip:schema:def:ed25519Multikey"},"compromisedSince":{"$ref":"urn:oip:schema:def:timestamp"}}}},"type":{"type":"string","const":"Fork"},"child":{"$ref":"urn:oip:schema:def:mindAddress"},"terms":{"type":"object"}},"not":{"anyOf":[{"required":["height"]},{"required":["recovery"]}]}};
+const schema35 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:oip:schema:Fork","title":"Fork","description":"Records in the parent's identity log that a child mind was forked from it (Layer 1, 3.8).","type":"object","required":["oip","created","proof","mind","seq","prev","type","child"],"properties":{"oip":{"type":"string","const":"1"},"expires":{"$ref":"urn:oip:schema:def:timestamp"},"ext":{"$ref":"urn:oip:schema:def:ext"},"critical":{"type":"array","items":{"type":"string"}},"created":{"$ref":"urn:oip:schema:def:timestamp"},"proof":{"$ref":"urn:oip:schema:def:proofSet"},"mind":{"$ref":"urn:oip:schema:def:mindAddress"},"seq":{"type":"integer","minimum":1,"maximum":9007199254740991},"prev":{"$ref":"urn:oip:schema:def:contentId"},"controller":{"$ref":"urn:oip:schema:def:controller"},"keys":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":64},"invocation":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":16},"agreement":{"type":"array","items":{"$ref":"urn:oip:schema:def:agreementKeyEntry"},"maxItems":16},"homes":{"type":"array","items":{"$ref":"urn:oip:schema:def:httpsOrigin"},"maxItems":8},"alsoKnownAs":{"type":"array","items":{"type":"string"},"maxItems":16},"revoked":{"type":"array","items":{"type":"object","required":["key"],"properties":{"key":{"$ref":"urn:oip:schema:def:ed25519Multikey"},"compromisedSince":{"$ref":"urn:oip:schema:def:timestamp"}},"additionalProperties":false},"maxItems":80},"type":{"type":"string","const":"Fork"},"child":{"$ref":"urn:oip:schema:def:mindAddress"},"terms":{"type":"object"}},"not":{"anyOf":[{"required":["height"]},{"required":["recovery"]}]}};
 
 function validate99(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="urn:oip:schema:Fork" */;
@@ -2725,6 +2751,11 @@ let data21 = data.revoked;
 const _errs37 = errors;
 if(errors === _errs37){
 if(Array.isArray(data21)){
+if(data21.length > 80){
+validate99.errors = [{instancePath:instancePath+"/revoked",schemaPath:"#/properties/revoked/maxItems",keyword:"maxItems",params:{limit: 80},message:"must NOT have more than 80 items"}];
+return false;
+}
+else {
 var valid9 = true;
 const len6 = data21.length;
 for(let i6=0; i6<len6; i6++){
@@ -2738,28 +2769,38 @@ validate99.errors = [{instancePath:instancePath+"/revoked/" + i6,schemaPath:"#/p
 return false;
 }
 else {
-if(data22.key !== undefined){
 const _errs41 = errors;
+for(const key0 in data22){
+if(!((key0 === "key") || (key0 === "compromisedSince"))){
+validate99.errors = [{instancePath:instancePath+"/revoked/" + i6,schemaPath:"#/properties/revoked/items/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
+return false;
+break;
+}
+}
+if(_errs41 === errors){
+if(data22.key !== undefined){
+const _errs42 = errors;
 if(!(validate62(data22.key, {instancePath:instancePath+"/revoked/" + i6+"/key",parentData:data22,parentDataProperty:"key",rootData,dynamicAnchors}))){
 vErrors = vErrors === null ? validate62.errors : vErrors.concat(validate62.errors);
-errors = vErrors.length;
-}
-var valid10 = _errs41 === errors;
-}
-else {
-var valid10 = true;
-}
-if(valid10){
-if(data22.compromisedSince !== undefined){
-const _errs42 = errors;
-if(!(validate53(data22.compromisedSince, {instancePath:instancePath+"/revoked/" + i6+"/compromisedSince",parentData:data22,parentDataProperty:"compromisedSince",rootData,dynamicAnchors}))){
-vErrors = vErrors === null ? validate53.errors : vErrors.concat(validate53.errors);
 errors = vErrors.length;
 }
 var valid10 = _errs42 === errors;
 }
 else {
 var valid10 = true;
+}
+if(valid10){
+if(data22.compromisedSince !== undefined){
+const _errs43 = errors;
+if(!(validate53(data22.compromisedSince, {instancePath:instancePath+"/revoked/" + i6+"/compromisedSince",parentData:data22,parentDataProperty:"compromisedSince",rootData,dynamicAnchors}))){
+vErrors = vErrors === null ? validate53.errors : vErrors.concat(validate53.errors);
+errors = vErrors.length;
+}
+var valid10 = _errs43 === errors;
+}
+else {
+var valid10 = true;
+}
 }
 }
 }
@@ -2772,6 +2813,7 @@ return false;
 var valid9 = _errs39 === errors;
 if(!valid9){
 break;
+}
 }
 }
 }
@@ -2788,7 +2830,7 @@ var valid2 = true;
 if(valid2){
 if(data.type !== undefined){
 let data25 = data.type;
-const _errs43 = errors;
+const _errs44 = errors;
 if(typeof data25 !== "string"){
 validate99.errors = [{instancePath:instancePath+"/type",schemaPath:"#/properties/type/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
@@ -2797,19 +2839,19 @@ if("Fork" !== data25){
 validate99.errors = [{instancePath:instancePath+"/type",schemaPath:"#/properties/type/const",keyword:"const",params:{allowedValue: "Fork"},message:"must be equal to constant"}];
 return false;
 }
-var valid2 = _errs43 === errors;
+var valid2 = _errs44 === errors;
 }
 else {
 var valid2 = true;
 }
 if(valid2){
 if(data.child !== undefined){
-const _errs45 = errors;
+const _errs46 = errors;
 if(!(validate68(data.child, {instancePath:instancePath+"/child",parentData:data,parentDataProperty:"child",rootData,dynamicAnchors}))){
 vErrors = vErrors === null ? validate68.errors : vErrors.concat(validate68.errors);
 errors = vErrors.length;
 }
-var valid2 = _errs45 === errors;
+var valid2 = _errs46 === errors;
 }
 else {
 var valid2 = true;
@@ -2817,12 +2859,12 @@ var valid2 = true;
 if(valid2){
 if(data.terms !== undefined){
 let data27 = data.terms;
-const _errs46 = errors;
+const _errs47 = errors;
 if(!(data27 && typeof data27 == "object" && !Array.isArray(data27))){
 validate99.errors = [{instancePath:instancePath+"/terms",schemaPath:"#/properties/terms/type",keyword:"type",params:{type: "object"},message:"must be object"}];
 return false;
 }
-var valid2 = _errs46 === errors;
+var valid2 = _errs47 === errors;
 }
 else {
 var valid2 = true;
@@ -2858,7 +2900,7 @@ return errors === 0;
 validate99.evaluated = {"props":{"oip":true,"expires":true,"ext":true,"critical":true,"created":true,"proof":true,"mind":true,"seq":true,"prev":true,"controller":true,"keys":true,"invocation":true,"agreement":true,"homes":true,"alsoKnownAs":true,"revoked":true,"type":true,"child":true,"terms":true},"dynamicProps":false,"dynamicItems":false};
 
 
-const schema36 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:oip:schema:Retire","title":"Retire","description":"Ends an identity log. No event may follow it (Layer 1, 3.10).","type":"object","required":["oip","created","proof","mind","seq","prev","type"],"properties":{"oip":{"type":"string","const":"1"},"expires":{"$ref":"urn:oip:schema:def:timestamp"},"ext":{"$ref":"urn:oip:schema:def:ext"},"critical":{"type":"array","items":{"type":"string"}},"created":{"$ref":"urn:oip:schema:def:timestamp"},"proof":{"$ref":"urn:oip:schema:def:proofSet"},"mind":{"$ref":"urn:oip:schema:def:mindAddress"},"seq":{"type":"integer","minimum":1,"maximum":9007199254740991},"prev":{"$ref":"urn:oip:schema:def:contentId"},"controller":{"$ref":"urn:oip:schema:def:controller"},"keys":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":64},"invocation":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":16},"agreement":{"type":"array","items":{"$ref":"urn:oip:schema:def:agreementKeyEntry"},"maxItems":16},"homes":{"type":"array","items":{"$ref":"urn:oip:schema:def:httpsOrigin"},"maxItems":8},"alsoKnownAs":{"type":"array","items":{"type":"string"},"maxItems":16},"revoked":{"type":"array","items":{"type":"object","required":["key"],"properties":{"key":{"$ref":"urn:oip:schema:def:ed25519Multikey"},"compromisedSince":{"$ref":"urn:oip:schema:def:timestamp"}}}},"type":{"type":"string","const":"Retire"},"successor":{"$ref":"urn:oip:schema:def:mindAddress"},"reason":{"type":"string"}},"not":{"anyOf":[{"required":["height"]},{"required":["recovery"]}]},"if":{"properties":{"controller":{"required":["keys"]}},"required":["controller"]},"then":{"properties":{"controller":{"properties":{"next":{"maxItems":0}}}}}};
+const schema36 = {"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"urn:oip:schema:Retire","title":"Retire","description":"Ends an identity log. No event may follow it (Layer 1, 3.10).","type":"object","required":["oip","created","proof","mind","seq","prev","type"],"properties":{"oip":{"type":"string","const":"1"},"expires":{"$ref":"urn:oip:schema:def:timestamp"},"ext":{"$ref":"urn:oip:schema:def:ext"},"critical":{"type":"array","items":{"type":"string"}},"created":{"$ref":"urn:oip:schema:def:timestamp"},"proof":{"$ref":"urn:oip:schema:def:proofSet"},"mind":{"$ref":"urn:oip:schema:def:mindAddress"},"seq":{"type":"integer","minimum":1,"maximum":9007199254740991},"prev":{"$ref":"urn:oip:schema:def:contentId"},"controller":{"$ref":"urn:oip:schema:def:controller"},"keys":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":64},"invocation":{"type":"array","items":{"$ref":"urn:oip:schema:def:signingKeyEntry"},"maxItems":16},"agreement":{"type":"array","items":{"$ref":"urn:oip:schema:def:agreementKeyEntry"},"maxItems":16},"homes":{"type":"array","items":{"$ref":"urn:oip:schema:def:httpsOrigin"},"maxItems":8},"alsoKnownAs":{"type":"array","items":{"type":"string"},"maxItems":16},"revoked":{"type":"array","items":{"type":"object","required":["key"],"properties":{"key":{"$ref":"urn:oip:schema:def:ed25519Multikey"},"compromisedSince":{"$ref":"urn:oip:schema:def:timestamp"}},"additionalProperties":false},"maxItems":80},"type":{"type":"string","const":"Retire"},"successor":{"$ref":"urn:oip:schema:def:mindAddress"},"reason":{"type":"string"}},"not":{"anyOf":[{"required":["height"]},{"required":["recovery"]}]},"if":{"properties":{"controller":{"required":["keys"]}},"required":["controller"]},"then":{"properties":{"controller":{"properties":{"next":{"maxItems":0}}}}}};
 
 function validate114(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 /*# sourceURL="urn:oip:schema:Retire" */;
@@ -3398,6 +3440,11 @@ let data24 = data.revoked;
 const _errs43 = errors;
 if(errors === _errs43){
 if(Array.isArray(data24)){
+if(data24.length > 80){
+validate114.errors = [{instancePath:instancePath+"/revoked",schemaPath:"#/properties/revoked/maxItems",keyword:"maxItems",params:{limit: 80},message:"must NOT have more than 80 items"}];
+return false;
+}
+else {
 var valid13 = true;
 const len6 = data24.length;
 for(let i6=0; i6<len6; i6++){
@@ -3411,28 +3458,38 @@ validate114.errors = [{instancePath:instancePath+"/revoked/" + i6,schemaPath:"#/
 return false;
 }
 else {
-if(data25.key !== undefined){
 const _errs47 = errors;
+for(const key0 in data25){
+if(!((key0 === "key") || (key0 === "compromisedSince"))){
+validate114.errors = [{instancePath:instancePath+"/revoked/" + i6,schemaPath:"#/properties/revoked/items/additionalProperties",keyword:"additionalProperties",params:{additionalProperty: key0},message:"must NOT have additional properties"}];
+return false;
+break;
+}
+}
+if(_errs47 === errors){
+if(data25.key !== undefined){
+const _errs48 = errors;
 if(!(validate62(data25.key, {instancePath:instancePath+"/revoked/" + i6+"/key",parentData:data25,parentDataProperty:"key",rootData,dynamicAnchors}))){
 vErrors = vErrors === null ? validate62.errors : vErrors.concat(validate62.errors);
-errors = vErrors.length;
-}
-var valid14 = _errs47 === errors;
-}
-else {
-var valid14 = true;
-}
-if(valid14){
-if(data25.compromisedSince !== undefined){
-const _errs48 = errors;
-if(!(validate53(data25.compromisedSince, {instancePath:instancePath+"/revoked/" + i6+"/compromisedSince",parentData:data25,parentDataProperty:"compromisedSince",rootData,dynamicAnchors}))){
-vErrors = vErrors === null ? validate53.errors : vErrors.concat(validate53.errors);
 errors = vErrors.length;
 }
 var valid14 = _errs48 === errors;
 }
 else {
 var valid14 = true;
+}
+if(valid14){
+if(data25.compromisedSince !== undefined){
+const _errs49 = errors;
+if(!(validate53(data25.compromisedSince, {instancePath:instancePath+"/revoked/" + i6+"/compromisedSince",parentData:data25,parentDataProperty:"compromisedSince",rootData,dynamicAnchors}))){
+vErrors = vErrors === null ? validate53.errors : vErrors.concat(validate53.errors);
+errors = vErrors.length;
+}
+var valid14 = _errs49 === errors;
+}
+else {
+var valid14 = true;
+}
 }
 }
 }
@@ -3445,6 +3502,7 @@ return false;
 var valid13 = _errs45 === errors;
 if(!valid13){
 break;
+}
 }
 }
 }
@@ -3461,7 +3519,7 @@ var valid6 = true;
 if(valid6){
 if(data.type !== undefined){
 let data28 = data.type;
-const _errs49 = errors;
+const _errs50 = errors;
 if(typeof data28 !== "string"){
 validate114.errors = [{instancePath:instancePath+"/type",schemaPath:"#/properties/type/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
@@ -3470,31 +3528,31 @@ if("Retire" !== data28){
 validate114.errors = [{instancePath:instancePath+"/type",schemaPath:"#/properties/type/const",keyword:"const",params:{allowedValue: "Retire"},message:"must be equal to constant"}];
 return false;
 }
-var valid6 = _errs49 === errors;
+var valid6 = _errs50 === errors;
 }
 else {
 var valid6 = true;
 }
 if(valid6){
 if(data.successor !== undefined){
-const _errs51 = errors;
+const _errs52 = errors;
 if(!(validate68(data.successor, {instancePath:instancePath+"/successor",parentData:data,parentDataProperty:"successor",rootData,dynamicAnchors}))){
 vErrors = vErrors === null ? validate68.errors : vErrors.concat(validate68.errors);
 errors = vErrors.length;
 }
-var valid6 = _errs51 === errors;
+var valid6 = _errs52 === errors;
 }
 else {
 var valid6 = true;
 }
 if(valid6){
 if(data.reason !== undefined){
-const _errs52 = errors;
+const _errs53 = errors;
 if(typeof data.reason !== "string"){
 validate114.errors = [{instancePath:instancePath+"/reason",schemaPath:"#/properties/reason/type",keyword:"type",params:{type: "string"},message:"must be string"}];
 return false;
 }
-var valid6 = _errs52 === errors;
+var valid6 = _errs53 === errors;
 }
 else {
 var valid6 = true;

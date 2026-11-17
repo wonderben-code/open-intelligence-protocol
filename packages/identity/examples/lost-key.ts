@@ -11,7 +11,6 @@ import {
   keyHash,
   mindAddress,
   parseTimestamp,
-  proofDigest,
   signerFromPrivateKey,
   withProofs,
 } from "@oip/core";
@@ -23,6 +22,8 @@ import {
   LogBook,
   ownSignedTime,
   signEventSync,
+  witnessLog,
+  witnessRecord,
 } from "@oip/identity";
 
 const at = (timestamp: string): Instant => parseTimestamp(timestamp) ?? 0n;
@@ -78,16 +79,23 @@ export function example(
     [{ control: second }],
   );
 
-  /** What a verifier says that first saw the proof at a given time, and holds the whole log. */
-  const verdict = (proofSeen: string): string => {
+  /**
+   * What a verifier says that followed the log as it was published, and
+   * first obtained the Intent at a given time.
+   */
+  const verdict = (obtained: string): string => {
     const seen = new FirstSeen();
-    seen.sawEvent(contentId(genesis), at("2026-11-17T09:00:01Z"));
-    seen.sawEvent(contentId(update), at("2026-11-17T11:00:01Z"));
-    seen.sawProof(proofDigest(proof), at(proofSeen));
+    // It obtained each event a second after it was made. An event is
+    // recorded as seen only once it has verified, never on sight of its content.
+    witnessLog([genesis], at("2026-11-17T09:00:01Z"), seen);
+    witnessLog([genesis, update], at("2026-11-17T11:00:01Z"), seen);
+    const record = judgeRecord(intent);
+    if (!record.ok) return "is not well formed";
+    // Likewise the proofs on the record: those that verify, when it was obtained.
+    witnessRecord(record.value, at(obtained), seen);
     const book = new LogBook(seen);
     book.hold([genesis, update], at("2026-11-17T13:00:00Z"));
-    const record = judgeRecord(intent);
-    const time = record.ok ? ownSignedTime(record.value, mind, book) : undefined;
+    const time = ownSignedTime(record.value, mind, book);
     return time === undefined ? "does not count" : `counts from ${formatTimestamp(time)}`;
   };
 

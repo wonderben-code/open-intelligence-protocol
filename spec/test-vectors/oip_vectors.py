@@ -689,6 +689,7 @@ class Log:
         self.height = height        # 0 for key-controlled minds
         self.duplicitous = False
         self.branch_tails = []      # [(time, state, event)] after divergence
+        self.failed = None          # why a prefix verified no further
 
     @property
     def latest(self) -> State:
@@ -857,7 +858,8 @@ def event_ok(ev: dict) -> bool:
             return False
         parents = ev.get("parents", [])
         if not isinstance(parents, list) or len(parents) > 16 or not all(
-                isinstance(q, dict) and isinstance(q.get("mind"), str) and
+                isinstance(q, dict) and set(q) == {"mind", "at"} and
+                isinstance(q.get("mind"), str) and
                 ADDR_RE.fullmatch(q["mind"]) and
                 isinstance(q.get("at"), str) and
                 VERSION_RE.fullmatch(q["at"]) for q in parents):
@@ -871,13 +873,16 @@ def event_ok(ev: dict) -> bool:
            not isinstance(ev.get("prev"), str) or \
            not CID_RE.fullmatch(ev["prev"]):
             return False
-        if ctl is not None and not _controller_ok(ctl, ev["mind"]):
+        # A member that is present with the value null is not absent.
+        if "controller" in ev and not _controller_ok(ctl, ev["mind"]):
             return False
         revoked = ev.get("revoked", [])
-        if not isinstance(revoked, list) or not all(
-                isinstance(r, dict) and isinstance(r.get("key"), str) and
+        if not isinstance(revoked, list) or len(revoked) > 80 or not all(
+                isinstance(r, dict) and
+                not set(r) - {"key", "compromisedSince"} and
+                isinstance(r.get("key"), str) and
                 ED_MK_RE.fullmatch(r["key"]) for r in revoked):
-            return False
+            return False                    # 3.7: no other members
         for r in revoked:
             if "compromisedSince" in r:
                 ts(r["compromisedSince"])
@@ -916,25 +921,56 @@ def event_ok(ev: dict) -> bool:
         all(isinstance(a, str) for a in aka)
 
 
-def _control_signed(event, mk) -> bool:
-    """True if control key mk has a valid capabilityInvocation proof."""
+def _dated_within(p, tau) -> bool:
+    """core 9.3: a proof dated more than 300 seconds after the evidence
+    that it existed counts for nothing. Evidence for an identity event is
+    evidence for the proofs it stood with (core 9.4), so tau is the
+    event's."""
+    try:
+        return ts(p.get("created")) <= tau + SKEW_NS
+    except (TypeError, ValueError):
+        return False
+
+
+def _control_signed(event, mk, tau) -> bool:
+    """True if control key mk has a valid capabilityInvocation proof, not
+    dated more than 300 seconds after the event's evidence tau."""
     for p in event.get("proof", []):
         if isinstance(p, dict) and \
            parse_control_ref(p.get("verificationMethod")) == mk and \
            p.get("verificationMethod") == did_key_vm(mk) and \
            p.get("proofPurpose") == "capabilityInvocation" and \
-           verify_proof(event, p, mk):
+           _dated_within(p, tau) and verify_proof(event, p, mk):
             return True
     return False
 
 
-def verify_log(events, verifier, depth=0) -> Log:
+def verify_log(events, verifier, depth=0, prefix=False) -> Log:
     """Verify an identity log (Layer 1, Section 4). Raises ValueError.
     Each event's evaluation time is fixed first (core 9.5); members' proofs
-    on a collective's events are judged at that time (Layer 1, 6.4)."""
+    on a collective's events are judged at that time (Layer 1, 6.4).
+
+    With `prefix`, a log whose genesis verifies is returned as far as it
+    verifies, with `failed` set to the reason the next event does not:
+    where branches are weighed against each other (Layer 1, 7.3), a branch
+    counts for the events it has that verify."""
+    done = {"states": [], "times": [], "height": 0}
+    try:
+        return _replay_log(events, verifier, depth, done)
+    except ValueError as e:
+        states = done["states"]
+        if not prefix or not states:
+            raise
+        log = Log(states[0].mind, events[:len(states)], states,
+                  done["times"], done["height"])
+        log.failed = e
+        return log
+
+
+def _replay_log(events, verifier, depth, done) -> Log:
     if not isinstance(events, list) or not events:
         raise ValueError("empty log")
-    st, states, times, height = State(), [], [], 0
+    st, states, times, height = State(), done["states"], done["times"], 0
     for i, ev in enumerate(events):
         if not isinstance(ev, dict) or ev.get("oip") != OIP_VERSION:
             raise ValueError("unknown oip version")
@@ -951,6 +987,9 @@ def verify_log(events, verifier, depth=0) -> Log:
         if not record_ok(ev):
             raise ValueError("an event is a well-formed record of its type "
                              "(Layer 1, 4.8)")
+        if ev.get("critical"):
+            raise ValueError("the event depends on an extension this "
+                             "verifier does not implement (core 8.3)")
         created = ts(ev.get("created"))
         proofs = ev.get("proof")
         if not isinstance(proofs, list) or not proofs or \
@@ -958,8 +997,13 @@ def verify_log(events, verifier, depth=0) -> Log:
            not all(isinstance(p, dict) for p in proofs):
             raise ValueError("bad proof set")   # core 5.1
         when = verifier.event_time(ev)
+        tau = verifier.evidence(ev)
         if times:
             when = max(when, times[-1])     # never before its predecessor
+        if "expires" in ev and when > ts(ev["expires"]) + SKEW_NS:
+            raise ValueError("the event is evaluated more than 300 seconds "
+                             "after it expires, so no proof on it counts "
+                             "(core 9.6)")
         ctl = ev.get("controller")
         if i == 0:
             if etype != "Genesis" or any(k in ev for k in
@@ -996,7 +1040,7 @@ def verify_log(events, verifier, depth=0) -> Log:
                                      "height")
                 st.next_threshold = _check_key_controller(ctl)
                 for mk in ctl["keys"]:
-                    if not _control_signed(ev, mk):
+                    if not _control_signed(ev, mk, tau):
                         raise ValueError("genesis not signed by its keys")
                 st.controller, st.next = "key", list(ctl["next"])
             if kind == "collective" and st.controller != "member":
@@ -1045,7 +1089,7 @@ def verify_log(events, verifier, depth=0) -> Log:
                     if key_hash(mk) not in st.next:
                         raise ValueError("control key not committed by the "
                                          "previous event (pre-rotation)")
-                    if not _control_signed(ev, mk):
+                    if not _control_signed(ev, mk, tau):
                         raise ValueError("control key did not sign")
                 if etype == "Retire" and ctl["next"]:
                     raise ValueError("a Retire commits to no next keys")
@@ -1090,6 +1134,7 @@ def verify_log(events, verifier, depth=0) -> Log:
         st.created = created
         states.append(st.copy())
         times.append(when)
+        done["height"] = height
     return Log(st.mind, events, states, times, height)
 
 # ---------------------------------------------------------------- policies
@@ -1456,11 +1501,22 @@ class Verifier:
         cands = []
         for events in branches:
             try:
-                cands.append(verify_log(events, self, depth))
+                cands.append(verify_log(events, self, depth, prefix=True))
             except ValueError:
-                pass                            # an invalid branch is no event
+                pass                # a branch with no valid genesis is none
         if not cands:
             raise ValueError("no branch of the log verifies")
+
+        def settled(left, log):
+            """The branches that are left when evidence has decided must
+            each have verified to its end. One that did not may hold a
+            later event this verifier could not judge, a removal among
+            them, so what is left is not known to be the whole log."""
+            for lg in left:
+                if lg.failed is not None:
+                    raise ValueError("a branch that is left does not verify "
+                                     f"to its end: {lg.failed}")
+            return log
         k = 0
         while True:
             heads = {}
@@ -1468,7 +1524,7 @@ class Verifier:
                 if k < len(lg.events):
                     heads.setdefault(content_id(lg.events[k]), []).append(lg)
             if not heads:
-                return cands[0]
+                return settled(cands, cands[0])
             if len(heads) == 1:
                 cands = next(iter(heads.values()))    # prefixes are not forks
                 k += 1
@@ -1487,7 +1543,7 @@ class Verifier:
             out.branch_tails = [(lg.times[j], lg.states[j], lg.events[j])
                                 for lg in cands
                                 for j in range(k, len(lg.events))]
-            return out
+            return settled(cands, out)
 
     def resolve(self, ref):
         if isinstance(ref, dict):
@@ -1547,6 +1603,11 @@ class Verifier:
         if i is None or log.states[i].retired:
             return False        # Layer 1, 6.1 item 2: not the Retire itself
         if identity_at is not None:
+            # A proof that names an authority is made for that principal,
+            # not by the member for itself (6.4); and core 9.3.
+            if "authority" in p or \
+               not _dated_within(p, self.evidence(record)):
+                return False
             if mk not in log.states[i].invocation:
                 return False
             removed = log.removal_time(i, mk, "invocation")
@@ -1589,6 +1650,8 @@ class Verifier:
         or None if it never does."""
         if not record_ok(record):
             return None
+        if record.get("critical"):
+            return None     # core 8.3: this verifier implements no extension
         proofs = record.get("proof")
         if not isinstance(proofs, list) or not proofs or \
            len(proofs) > MAX_PROOFS:
@@ -1621,7 +1684,15 @@ class Verifier:
         proofs without `authority` count towards a threshold: a proof that
         names an authority acts for that principal. A current-state record
         needs the threshold of the collective's latest state (Layer 2,
-        7.1 item 3)."""
+        7.1 item 3).
+
+        The threshold can first be met when a proof is made or when an
+        event of the collective changes its members or its threshold, so T
+        ranges over both (Layer 1, 9.5). A duplicitous collective signs
+        nothing from its first conflicting event on: its state from then on
+        is not known (Layer 1, 7.3)."""
+        if record.get("type") == "Hello":
+            return None         # core 11: by the author's own key, never a threshold
         current = record.get("type") in CURRENT_STATE_TYPES
         if current and (log.latest.retired or log.duplicitous):
             return None
@@ -1634,7 +1705,13 @@ class Verifier:
             if ref and ref[0] in everyone and \
                self.valid_key(record, p, ref[0], depth + 1):
                 cands.append((self.t_of(record, p), ref[0]))
-        for t, _ in sorted(cands):
+        if not cands:
+            return None
+        unknown_from = min((when for when, _, _ in log.branch_tails),
+                           default=None)
+        for t in sorted({t for t, _ in cands} | set(log.times)):
+            if unknown_from is not None and t >= unknown_from:
+                return None
             st = log.latest if current else log.state_at(t)
             if st is None or st.retired:
                 continue
@@ -2084,6 +2161,8 @@ def did_document(V, mind, version=None) -> dict:
                           for n, h in enumerate(st.homes)]
     meta = {"versionId": st.version, "deactivated": st.retired,
             "parents": st.parents, "children": st.children}
+    if log.duplicitous:
+        meta["duplicitous"] = True      # Layer 1, 5.2 and 7.3
     if st.controller == "key":
         meta["nextKeyHashes"] = st.next
         if st.next:
@@ -3685,6 +3764,203 @@ def build():
             "2 refuses, so the collective has no founder that signed.",
             [founded_by(m_retire)], extra_logs=[[m_gen, m_retire]])
 
+    # --- OEP-0002, after the review of M2 -------------------------------
+    # core 8.3: an extension nobody implements, listed in `critical`.
+    def extended_update(critical):
+        fields = {"keys": [{"key": o_op2.mk, "label": o_op2.label}],
+                  "ext": {"com.example.recovery": {"v": "1"}}}
+        if critical:
+            fields["critical"] = ["com.example.recovery"]
+        return control_event("Update", oep2, o_gen, "2026-10-30T10:00:00Z",
+                             [o_c1], [], fields=fields)
+
+    bad_log("event-with-a-critical-extension",
+            "An implementation that does not understand an extension "
+            "listed in `critical` must not treat the record as valid for "
+            "any decision (core 8.3). For an identity event the decision "
+            "is whether the log verifies (Layer 1, 4.8): it does not, so "
+            "the key this Update adds is no key of the mind. No verifier "
+            "of this revision implements `com.example.recovery`.",
+            [o_gen, extended_update(True)])
+
+    def extended_intent(critical):
+        doc = {"oip": OIP_VERSION, "type": "Intent", "author": oep2,
+               "created": "2026-10-30T11:00:00Z", "want": "A second opinion.",
+               "ext": {"com.example.escrow": {"v": "1"}}}
+        if critical:
+            doc["critical"] = ["com.example.escrow"]
+        return signed(doc, o_op, op_vm(oep2, o_gen, o_op.mk))
+
+    bad_sig("record-with-a-critical-extension",
+            "The record is well formed and its proof verifies. It lists an "
+            "extension in `critical` that no verifier of this revision "
+            "implements, so it may be stored and passed on, and counts for "
+            "nobody (core 8.3).", extended_intent(True), oep2,
+            extra_logs=[[o_gen]])
+
+    # Layer 1, 7.3 and 9.5: a collective whose members signed two events
+    # for one position.
+    two_of_three = [(a_inv, amina_inv), (t_inv, agent_inv)]
+    c_retire = member_event("Retire", collective, coll,
+                            "2026-10-30T22:00:00Z", two_of_three)
+    c_shrink = member_event("Update", collective, coll,
+                            "2026-10-30T22:00:00Z", two_of_three,
+                            {"controller": {"members": [amina, lexis],
+                                            "threshold": 2}})
+
+    def signed_by_two(created):
+        doc = {"oip": OIP_VERSION, "type": "Intent", "author": collective,
+               "created": created,
+               "want": "Hire a second reviewer for Swahili leases."}
+        return sign(doc, *[create_proof(doc, key, vm, "assertionMethod",
+                                        created)
+                           for key, vm in ((r_op, res_vm),
+                                           (a_op1, amina_vm1))])
+
+    bad_sig("duplicitous-collective-signs-after-the-divergence",
+            "At 22:00 two members retired the collective, and the same two "
+            "signed another event for the same position that removes the "
+            "researcher. Evidence cannot separate the two, so the "
+            "collective is duplicitous. With either event alone, a record "
+            "signed at 23:00 by Amina and the researcher does not count; "
+            "holding both must not make it count. From its first "
+            "conflicting event on, a duplicitous collective's members are "
+            "not known, and nothing is signed under its threshold (Layer "
+            "1, 7.3 and 9.5).", signed_by_two("2026-10-30T23:00:00Z"),
+            collective, extra_logs=[[coll, c_retire]],
+            branches=[[coll, c_shrink]])
+
+    # Layer 1, 7.3: a branch counts for the events it has that verify.
+    alt_intent = signed(variant(intent, created="2026-10-30T11:30:00Z"),
+                        a_op1, op_vm(amina, a_upd_alt, a_op1.mk))
+    a_junk = control_event("Update", amina, a_upd, "2026-10-30T12:00:00Z",
+                           [attacker], [k("attacker-next")])
+    bad_sig("branch-ending-in-an-invalid-event-is-not-passed-over",
+            "Two valid events sit at position 1 of Amina's log. The one "
+            "first seen at 09:05 wins, whatever follows it. In the copy "
+            "this verifier holds, an event that does not verify follows "
+            "it, so the verifier does not know where the log ends, and "
+            "the log does not verify for it. The other branch does not "
+            "win by default: a record pinned to its event, first seen at "
+            "11:00, does not count.", alt_intent, amina,
+            extra_logs=[[a_gen, a_upd, a_junk]],
+            branches=[[a_gen, a_upd_alt]],
+            seen={content_id(a_upd): "2026-10-30T09:05:00Z",
+                  content_id(a_upd_alt): "2026-10-30T11:00:00Z"})
+
+    # Layer 1, 9.5: the earliest time T ranges over the collective's own
+    # events as well as the proofs.
+    coll3 = coll_genesis(3, founders, created="2026-10-30T09:25:00Z")
+    collective3 = did(content_id(coll3))
+    c3_shrink = member_event(
+        "Update", collective3, coll3, "2026-10-31T00:00:00Z", founders,
+        {"controller": {"members": [amina, researcher], "threshold": 2}})
+    two_of_all = {"oip": OIP_VERSION, "type": "Intent",
+                  "author": collective3, "created": "2026-10-30T23:00:00Z",
+                  "want": "Hire a second reviewer for Swahili leases."}
+    two_of_all = sign(two_of_all, *[
+        create_proof(two_of_all, key, vm, "assertionMethod",
+                     "2026-10-30T23:00:00Z")
+        for key, vm in ((r_op, res_vm), (a_op1, amina_vm1))])
+    bad_sig("collective-threshold-not-met-before-its-members-change",
+            "All three members must sign for this collective, and two "
+            "have. The record is not signed by it.", two_of_all,
+            collective3, extra_logs=[[coll3]])
+
+    # Layer 1, 6.4: a member's proof that names an authority.
+    def founded_with(**extra):
+        g = {kk: v for kk, v in founded_by(m_update).items()
+             if kk != "proof"}
+        return sign(g, create_proof(g, o_inv,
+                                    op_vm(member, m_update, o_inv.mk),
+                                    "capabilityInvocation", g["created"],
+                                    **extra))
+
+    bad_log("member-proof-names-an-authority",
+            "A proof that names an `authority` is made for that "
+            "principal, not by the member for itself, so it does not "
+            "count as the member's on an identity event (Layer 1, 6.4 and "
+            "9.4). The collective has no founder that signed.",
+            [founded_with(authority=[record_ref(member, m_gen)])],
+            extra_logs=[[m_gen, m_update]])
+
+    # core 9.3 and 9.6, for the proofs on an identity event.
+    def update_proved_at(proved):
+        ev = {kk: v for kk, v in o_update.items() if kk != "proof"}
+        return sign(ev, create_proof(ev, o_c1, did_key_vm(o_c1.mk),
+                                     "capabilityInvocation", proved))
+
+    bad_log("event-proof-dated-after-the-evidence",
+            "A proof dated more than 300 seconds after the evidence that "
+            "it existed counts for nothing (core 9.3). The evidence for "
+            "an identity event is evidence for the proofs it stood with, "
+            "and this event was first seen at 10:00:00. Its only proof is "
+            "dated 10:05:01, so nothing authorises it.",
+            [o_gen, update_proved_at("2026-10-30T10:05:01Z")])
+    expiring = expiring_genesis("2026-12-01T00:00:00Z")
+    bad_log("event-evaluated-after-it-expires",
+            "A proof evaluated more than 300 seconds after its record's "
+            "`expires` does not count (core 9.6), and the proofs on an "
+            "identity event are judged at the event's evaluation time "
+            "(core 9.5). This genesis expires on 1 December and was first "
+            "seen 301 seconds after that.", [expiring],
+            seen={content_id(expiring): "2026-12-01T00:05:01Z"})
+
+    # Layer 1, 3.6 and 3.7: the entries of `parents` and `revoked` are
+    # closed, as the key entries are.
+    def revoking(**entry):
+        return control_event(
+            "Update", oep2, o_gen, "2026-10-30T10:00:00Z", [o_c1], [],
+            fields={"revoked": [{"key": o_op.mk, **entry}]})
+
+    bad_log("revoked-entry-with-an-unknown-member",
+            "An entry of `revoked` has `key`, `compromisedSince` and no "
+            "other member (Layer 1, 3.7). `compromisedSince` withdraws "
+            "signatures; a verifier that ignored a misspelt one would "
+            "disagree with one that did not about what the mind signed.",
+            [o_gen, revoking(compromisedsince="2026-10-30T09:30:00Z")])
+
+    def revoking_many(count):
+        return control_event(
+            "Update", oep2, o_gen, "2026-10-30T10:00:00Z", [o_c1], [],
+            fields={"revoked": [{"key": Key(f"oep2-revoked-{n}").mk}
+                                for n in range(count)]})
+
+    bad_log("event-revoking-81-keys",
+            "An event revokes at most 80 keys (Layer 1, 3.7): as many as "
+            "the operational and invocation keys a state can hold. Without "
+            "a limit, one event of a megabyte could name seventeen "
+            "thousand.", [o_gen, revoking_many(81)])
+
+    def child_genesis(**entry):
+        return key_controlled_genesis(
+            "service", o_c0, o_c1, [o_op], created="2026-10-30T09:10:00Z",
+            parents=[{"mind": oep2, "at": version_id(o_gen), **entry}])
+
+    bad_log("parent-with-an-unknown-member",
+            "An entry of `parents` has `mind`, `at` and no other member "
+            "(Layer 1, 3.6).", [child_genesis(terms="everything")])
+
+    # A member that is present with the value null is not absent.
+    def unchanged(**fields):
+        return member_event("Update", collective, coll,
+                            "2026-10-30T22:00:00Z", two_of_three, fields)
+
+    bad_log("collective-event-with-a-null-controller",
+            "A collective's event may leave `controller` out. One that "
+            "has it must have a controller there: `null` is a value, and "
+            "it is not a controller (Layer 1, 3.4 and 4.8).",
+            [coll, unchanged(controller=None)])
+
+    V["valid"].append({
+        "name": "home-that-is-no-host",
+        "reason": "The grammar of an HTTPS origin bounds its characters "
+                  "and nothing else (Layer 1, 3.13). It does not show that "
+                  "a host exists, or that the text after the scheme is a "
+                  "host and a port, so this string is an origin. Every "
+                  "implementation must accept the same geneses.",
+        "kind": "log", "log": [homes_genesis(["https://:::"])]})
+
     record_case(V["valid"], "container-with-created",
                 "A container has no `created` (core 7). A reader ignores "
                 "one there, as it ignores any member it does not recognise "
@@ -3770,6 +4046,33 @@ def build():
             extraLogs=[[o_gen, o_update]])
     control("retired-member-signs-for-a-collective",
             log=[founded_by(m_update)], extraLogs=[[m_gen, m_update]])
+    control("event-with-a-critical-extension",
+            log=[o_gen, extended_update(False)])
+    control("record-with-a-critical-extension", record=extended_intent(False))
+    # Signed an hour before the branches part, the record counts.
+    control("duplicitous-collective-signs-after-the-divergence",
+            record=signed_by_two("2026-10-30T21:00:00Z"))
+    # With the evidence the other way round the other event wins, and what
+    # follows the losing event does not matter.
+    control("branch-ending-in-an-invalid-event-is-not-passed-over",
+            seen={content_id(a_upd): "2026-10-30T11:00:00Z",
+                  content_id(a_upd_alt): "2026-10-30T09:05:00Z"})
+    # On 31 October the collective becomes the two who signed, with a
+    # threshold of two. The record is signed by it from that moment, though
+    # neither proof was made then (Layer 1, 9.5).
+    control("collective-threshold-not-met-before-its-members-change",
+            extraLogs=[[coll3, c3_shrink]])
+    control("member-proof-names-an-authority", log=[founded_with()])
+    control("event-proof-dated-after-the-evidence",
+            log=[o_gen, update_proved_at("2026-10-30T10:05:00Z")])
+    control("event-evaluated-after-it-expires",
+            seen={content_id(expiring): "2026-12-01T00:05:00Z"})
+    control("revoked-entry-with-an-unknown-member",
+            log=[o_gen, revoking(compromisedSince="2026-10-30T09:30:00Z")])
+    control("event-revoking-81-keys", log=[o_gen, revoking_many(80)])
+    control("parent-with-an-unknown-member", log=[child_genesis()])
+    control("collective-event-with-a-null-controller",
+            log=[coll, unchanged()])
     return V
 
 
@@ -4026,7 +4329,10 @@ def judge(c, case) -> dict:
     testing against another implementation. `holds` says whether the case's
     claim holds, as _holds() does. For `status` and `assurance` cases,
     `value` is the result computed, whatever `expect` says (and `expect`
-    may be absent). An input this checker cannot process at all is
+    may be absent). Two further kinds are questions, not cases:
+    `didDocument` gives the resolution of `mind` (at `versionId`, if
+    given) and `lineage` the lineage of `mind`, for the verifier the case
+    describes. An input this checker cannot process at all is
     reported as `error`, with `holds` false: an error is never an
     acceptance."""
     out = {"name": case.get("name"), "kind": case.get("kind")} \
@@ -4044,6 +4350,15 @@ def judge(c, case) -> dict:
                                             case["record"])
             out["holds"] = "expect" not in case or \
                 out["value"] == case["expect"]
+        elif kind == "didDocument":
+            # Not a kind of case in the vectors: a question a differential
+            # test asks, so that states are compared and not only verdicts.
+            out["value"] = did_document(_case_verifier(c, case), case["mind"],
+                                        case.get("versionId"))
+            out["holds"] = True
+        elif kind == "lineage":
+            out["value"] = _case_verifier(c, case).lineage(case["mind"])
+            out["holds"] = True
         else:
             out["holds"] = bool(_holds(c, case))
     except RecursionError:

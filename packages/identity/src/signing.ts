@@ -13,6 +13,7 @@ import {
   type Instant,
   parseTimestamp,
   type PlacedProof,
+  unsupportedCritical,
   type VerifiedProof,
   verifyProofs,
 } from "@oip/core";
@@ -27,8 +28,9 @@ import {
 } from "@oip/schema";
 
 import type { IdentityView } from "./book.ts";
-import { proofTime } from "./evidence.ts";
-import { isJsonObject, no, ok } from "./result.ts";
+import { type Evaluation, proofTime } from "./evidence.ts";
+import { understoodOf } from "./log.ts";
+import { deepFreeze, isJsonObject, no, ok, own } from "./result.ts";
 import {
   compromisedSince,
   entryAt,
@@ -58,13 +60,30 @@ export interface JudgedRecord {
   readonly expires: Instant | undefined;
 }
 
+/** What a record is judged with. */
+export interface JudgeOptions {
+  /**
+   * core 8.3: the extension namespaces the caller implements. A record that
+   * lists any other in `critical` may be stored and passed on, but not acted
+   * on, so it is not judged. Default: none.
+   */
+  readonly understood?: Iterable<string>;
+}
+
 /**
  * Validates a record and verifies each proof on it (core 5.4, 5.5). A proof
  * that does not verify is left out: it never counts, and it never makes the
- * record malformed. It never throws.
+ * record malformed.
+ *
+ * A record that depends on an extension the caller does not implement is
+ * rejected under core 8.3. It is not malformed, and may be kept and passed
+ * on; it may not be treated as valid for any decision.
+ *
+ * The result is frozen. It never throws.
  */
-export function judgeRecord(record: unknown): Validation<JudgedRecord> {
+export function judgeRecord(record: unknown, options?: JudgeOptions): Validation<JudgedRecord> {
   try {
+    const understood = understoodOf(own(options, "understood"));
     const plain = validateJson(record, "container");
     if (!plain.ok) return plain;
     const value = plain.value;
@@ -73,12 +92,22 @@ export function judgeRecord(record: unknown): Validation<JudgedRecord> {
     if (!checked.ok) return checked;
     const [first, ...rest] = checkSize(checked.value);
     if (first !== undefined) return { ok: false, issues: [first, ...rest] };
+    const [unsupported] = unsupportedCritical(checked.value, understood);
+    if (unsupported !== undefined) {
+      return no(
+        `the record depends on an extension this verifier does not implement: ${unsupported}`,
+        "core 8.3",
+        "/critical",
+      );
+    }
     const expires = (checked.value as { readonly expires?: string }).expires;
-    return ok({
-      record: checked.value,
-      proofs: verifyProofs(checked.value).verified,
-      expires: expires === undefined ? undefined : parseTimestamp(expires),
-    });
+    return ok(
+      deepFreeze({
+        record: checked.value,
+        proofs: verifyProofs(checked.value).verified,
+        expires: expires === undefined ? undefined : parseTimestamp(expires),
+      }),
+    );
   } catch {
     return no("the record could not be read as plain JSON data", "core 1.2");
   }
@@ -108,6 +137,16 @@ export function operationalProofTime(
   proof: VerifiedProof,
   view: IdentityView,
 ): Validation<Instant> {
+  const evaluated = operationalProof(type, proof, view);
+  return evaluated.ok ? ok(evaluated.value.time) : evaluated;
+}
+
+/** `operationalProofTime`, with the evidence the time rests on. */
+function operationalProof(
+  type: string,
+  proof: VerifiedProof,
+  view: IdentityView,
+): Validation<Evaluation> {
   const method = proof.method;
   if (method.kind !== "key") {
     return no("a control key signs identity events and nothing else", "L1 3.11");
@@ -117,8 +156,8 @@ export function operationalProofTime(
   const log = held.value;
   const evaluated = proofTime(proof.created, view.evidence.proofSeen(proof.digest));
   if (!evaluated.ok) return evaluated;
-  const { seen, time } = evaluated.value;
-  if (log.asOf < seen) {
+  const { evidenced, time } = evaluated.value;
+  if (log.asOf < evidenced) {
     return no(
       "the signer's log was obtained before the evidence for this proof: it may lack a later event",
       "core 9.4",
@@ -159,7 +198,7 @@ export function operationalProofTime(
       );
     }
   }
-  return ok(time);
+  return evaluated;
 }
 
 /** core 9.6: a proof evaluated more than 300 seconds after its record's `expires` does not count. */
@@ -202,11 +241,20 @@ function membersEver(log: VerifiedLog): Set<string> {
  * collective under its threshold, or `undefined` if it never is. That is the
  * earliest `T` at which the members of the collective's state at `T` that
  * have proofs on the record, without `authority` and evaluated at or before
- * `T`, number at least that state's threshold.
+ * `T`, number at least that state's threshold. The threshold can first be met
+ * when a proof is made, or when an event of the collective changes its
+ * members or its threshold.
  *
  * A record that describes the present (`Location`, `Participant`) needs the
  * threshold of the latest state known, of a collective that is neither
- * retired nor duplicitous.
+ * retired nor duplicitous. A `Hello` is never signed under a threshold: it
+ * carries one proof, by the author's own key (core 11; Layer 1, 13.3).
+ *
+ * A proof counts only if the collective's log is known up to the evidence
+ * for it (core 9.4): a member the collective has since removed must not sign
+ * for it against a copy of the log that is older than the removal. And a
+ * duplicitous collective signs nothing from its first conflicting event on:
+ * its members from then on are not known (Layer 1, 7.3).
  *
  * @param log - The collective's verified log.
  */
@@ -218,6 +266,7 @@ export function collectiveSignedTime(
   const latest = latestState(log);
   if (latest.controller.kind !== "member") return undefined;
   const type = judged.record.type;
+  if (type === "Hello") return undefined;
   const current = CURRENT_STATE_TYPES.includes(type);
   if (current && (latest.retired || log.duplicitous)) return undefined;
   const everyone = current ? new Set(latest.controller.members) : membersEver(log);
@@ -227,11 +276,21 @@ export function collectiveSignedTime(
     // A proof that names an authority acts for that principal, not under the threshold.
     if (method.kind !== "key" || proof.proof.authority !== undefined) continue;
     if (!everyone.has(method.mind)) continue;
-    const time = operationalProofTime(type, proof, view);
-    if (time.ok) candidates.push({ time: time.value, member: method.mind });
+    const counted = operationalProof(type, proof, view);
+    if (!counted.ok || log.asOf < counted.value.evidenced) continue;
+    candidates.push({ time: counted.value.time, member: method.mind });
   }
-  candidates.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
-  for (const { time } of candidates) {
+  if (candidates.length === 0) return undefined;
+  let unknownFrom: Instant | undefined;
+  for (const { time } of log.branchTails) {
+    if (unknownFrom === undefined || time < unknownFrom) unknownFrom = time;
+  }
+  const moments = [
+    ...candidates.map((candidate) => candidate.time),
+    ...log.entries.map((entry) => entry.time),
+  ].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  for (const time of moments) {
+    if (unknownFrom !== undefined && time >= unknownFrom) return undefined;
     const state = current ? latest : stateAt(log, time);
     if (state === undefined || state.retired || state.controller.kind !== "member") continue;
     const members = state.controller.members;

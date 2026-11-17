@@ -97,7 +97,8 @@
           "at": {
             "$ref": "urn:oip:schema:def:versionId"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "maxItems": 16
     },

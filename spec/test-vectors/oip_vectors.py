@@ -8,16 +8,21 @@ papers/02-technical-architecture.md:
 
   * JCS canonicalisation (RFC 8785) for OIP's restricted JSON profile
   * content IDs, key hashes and Multikeys
-  * W3C Data Integrity proofs (eddsa-jcs-2022) with proof purposes
+  * W3C Data Integrity proofs (eddsa-jcs-2022) with proof purposes, and
+    strict Ed25519 verification (core 4.4: S < L, A and R of order L)
   * did:oip identity logs: pre-rotation, majority thresholds, forks,
-    lineage, collectives, key removal, compromise and retirement
-  * evaluation times: time rules use evidence, never a signer's own claim
-  * delegation chains, policies and revocation
+    lineage, collectives and their heights, key removal, compromise,
+    retirement, and duplicity resolved by first-seen evidence
+  * evaluation times: time rules use evidence (per proof, and per event
+    for identity events), never a signer's own claim
+  * delegation chains (exactly as listed, root first), policies that fail
+    closed, revocation, and packets sent on another mind's behalf
   * collective threshold signing and charter roles
-  * Layer 2 status (Intent, Offer, Commitment)
+  * Layer 2 status (Intent, Offer, Commitment) and bridged-mind assurance
 
-It writes vectors.json, with positive cases and negative cases that every
-implementation must reject, and checks it.
+It writes vectors.json, with positive cases, cases that must be accepted,
+negative cases that every implementation must reject, and controls showing
+that each negative case fails only for its stated reason, and checks it.
 
 Run:  python3 oip_vectors.py            -> writes vectors.json and checks it
       python3 oip_vectors.py --check    -> checks an existing vectors.json
@@ -49,8 +54,8 @@ SKEW_NS = 300 * 10**9           # clock-skew tolerance (core 9.1)
 
 MAX_PROOFS = 256                # proofs per record
 MAX_CHAIN = 8                   # delegations per chain
-MAX_AUTHORITY = 16              # delegations listed in `authority`
-MAX_NESTING = 4                 # collectives within collectives
+MAX_AUTHORITY = 8               # entries in a proof's `authority`
+MAX_NESTING = 4                 # greatest collective height
 
 IDENTITY_TYPES = ("Genesis", "Update", "Fork", "Merge", "Retire")
 CURRENT_STATE_TYPES = ("Location", "Participant", "Hello")
@@ -180,6 +185,8 @@ def ed25519_pub_from_multikey(mk: str) -> Ed25519PublicKey:
     raw = b58decode(mk[1:])
     if raw[:2] != b"\xed\x01" or len(raw) != 34:
         raise ValueError("not an Ed25519 Multikey")
+    if not ed_has_order_l(raw[2:]):
+        raise ValueError("an Ed25519 key must be a point of order L (core 4.4)")
     return Ed25519PublicKey.from_public_bytes(raw[2:])
 
 
@@ -189,6 +196,94 @@ def check_x25519_multikey(mk: str):
     raw = b58decode(mk[1:])
     if raw[:2] != b"\xec\x01" or len(raw) != 34:
         raise ValueError("not an X25519 Multikey")
+
+# ---------------------------------------------------------------- Ed25519 points
+# Core 4.4 accepts a signature only if S < L and A and R canonically encode
+# points of order exactly L. OpenSSL checks S < L and the cofactorless
+# equation but accepts small-order and mixed-order points, so this checker
+# decodes A and R itself (RFC 8032 reference arithmetic) before calling it.
+
+ED_P = 2**255 - 19
+ED_L = 2**252 + 27742317777372353535851937790883648493
+ED_D = -121665 * pow(121666, ED_P - 2, ED_P) % ED_P
+ED_SQRT_M1 = pow(2, (ED_P - 1) // 4, ED_P)
+ED_IDENTITY = (0, 1, 1, 0)
+
+
+def ed_add(P, Q):
+    """Point addition in extended coordinates (RFC 8032, 5.1.4)."""
+    x1, y1, z1, t1 = P
+    x2, y2, z2, t2 = Q
+    a = (y1 - x1) * (y2 - x2) % ED_P
+    b = (y1 + x1) * (y2 + x2) % ED_P
+    c = 2 * t1 * t2 * ED_D % ED_P
+    d = 2 * z1 * z2 % ED_P
+    e, f, g, h = b - a, d - c, d + c, b + a
+    return (e * f % ED_P, g * h % ED_P, f * g % ED_P, e * h % ED_P)
+
+
+def ed_mul(s, P):
+    Q = ED_IDENTITY
+    while s > 0:
+        if s & 1:
+            Q = ed_add(Q, P)
+        P = ed_add(P, P)
+        s >>= 1
+    return Q
+
+
+def ed_is_identity(P) -> bool:
+    x, y, z, _ = P
+    return x % ED_P == 0 and (y - z) % ED_P == 0
+
+
+def ed_decode(b):
+    """RFC 8032, 5.1.3. The point, or None if b is not the canonical
+    encoding of a curve point."""
+    if not isinstance(b, (bytes, bytearray)) or len(b) != 32:
+        return None
+    n = int.from_bytes(b, "little")
+    sign, y = n >> 255, n & ((1 << 255) - 1)
+    if y >= ED_P:
+        return None
+    u, v = (y * y - 1) % ED_P, (ED_D * y * y + 1) % ED_P
+    x = u * pow(v, 3, ED_P) * \
+        pow(u * pow(v, 7, ED_P), (ED_P - 5) // 8, ED_P) % ED_P
+    if (v * x * x - u) % ED_P == 0:
+        pass
+    elif (v * x * x + u) % ED_P == 0:
+        x = x * ED_SQRT_M1 % ED_P
+    else:
+        return None
+    if x == 0 and sign:
+        return None
+    if x & 1 != sign:
+        x = ED_P - x
+    return (x, y, 1, x * y % ED_P)
+
+
+def ed_encode(P) -> bytes:
+    x, y, z, _ = P
+    zi = pow(z, ED_P - 2, ED_P)
+    x, y = x * zi % ED_P, y * zi % ED_P
+    return (y | ((x & 1) << 255)).to_bytes(32, "little")
+
+
+ED_B = ed_decode(bytes.fromhex("58" + "66" * 31))
+_ORDER_L = {}
+
+
+def ed_has_order_l(b) -> bool:
+    """True if b canonically encodes a point of order exactly L: in the
+    prime-order subgroup and not the identity (core 4.4)."""
+    if not isinstance(b, (bytes, bytearray)):
+        return False
+    key = bytes(b)
+    if key not in _ORDER_L:
+        P = ed_decode(key)
+        _ORDER_L[key] = P is not None and not ed_is_identity(P) and \
+            ed_is_identity(ed_mul(ED_L, P))
+    return _ORDER_L[key]
 
 # ---------------------------------------------------------------- values
 
@@ -234,6 +329,9 @@ class Key:
         self.pub = self.sk.public_key().public_bytes(*RAW)
         self.mk = multikey_ed25519(self.pub)
         self.seed_hex = seed.hex()
+        h = hashlib.sha512(seed).digest()       # RFC 8032, 5.1.5
+        a = int.from_bytes(h[:32], "little")
+        self.scalar = (a & ((1 << 254) - 8)) | (1 << 254)
 
 
 class AgreementKey:
@@ -307,6 +405,9 @@ def verify_proof(doc: dict, proof, pub_multikey: str) -> bool:
         sig = b58decode(pv[1:])
         if len(sig) != 64:
             return False
+        if int.from_bytes(sig[32:], "little") >= ED_L or \
+           not ed_has_order_l(sig[:32]):
+            return False                    # core 4.4: S < L, R of order L
         unsecured = {k: v for k, v in doc.items() if k != "proof"}
         config = {k: v for k, v in proof.items() if k != "proofValue"}
         hash_data = hashlib.sha256(jcs(config)).digest() + \
@@ -397,12 +498,17 @@ class State:
 
 
 class Log:
-    """A verified identity log: its events and the state after each."""
+    """A verified identity log: its events and the state after each. For a
+    duplicitous mind (Layer 1, 7.3) it holds only the events before the
+    divergence, plus the later events of every branch, whose removals and
+    compromise declarations all apply."""
 
     def __init__(self, mind, events, states, times, height=0):
         self.mind, self.events, self.states = mind, events, states
         self.times = times          # evaluation time of each event (ns)
         self.height = height        # 0 for key-controlled minds
+        self.duplicitous = False
+        self.branch_tails = []      # [(time, state, event)] after divergence
 
     @property
     def latest(self) -> State:
@@ -414,17 +520,21 @@ class Log:
                 return i
         return None
 
-    def removal_time(self, i, key):
+    def removal_time(self, i, key, keyset="keys"):
         """Evaluation time of the first event after position i that removes
-        the key or retires the mind (Layer 1, 6.1), or None."""
-        for j in range(i + 1, len(self.events)):
-            if self.events[j]["type"] == "Retire" or \
-               key not in self.states[j].keys:
-                return self.times[j]
-        return None
+        the key from `keyset` or retires the mind (Layer 1, 6.1 and 6.4),
+        or None. Under duplicity, removals in every branch apply (7.3)."""
+        later = [(self.times[j], self.states[j], self.events[j])
+                 for j in range(i + 1, len(self.events))]
+        found = [when for when, st, ev in later + self.branch_tails
+                 if ev["type"] == "Retire" or key not in getattr(st, keyset)]
+        return min(found) if found else None
 
     def compromised_since(self, key):
-        return self.latest.compromised.get(key)
+        found = [st.compromised[key] for st in
+                 [self.latest] + [s for _, s, _ in self.branch_tails]
+                 if key in st.compromised]
+        return min(found) if found else None
 
     def state_at(self, t):
         """State after the last event whose evaluation time is at or
@@ -515,10 +625,12 @@ def _control_signed(event, mk) -> bool:
 
 
 def verify_log(events, verifier, depth=0) -> Log:
-    """Verify an identity log (Layer 1, Section 4). Raises ValueError."""
+    """Verify an identity log (Layer 1, Section 4). Raises ValueError.
+    Each event's evaluation time is fixed first (core 9.5); members' proofs
+    on a collective's events are judged at that time (Layer 1, 6.4)."""
     if not isinstance(events, list) or not events:
         raise ValueError("empty log")
-    st, states, times, heights = State(), [], [], set()
+    st, states, times, height = State(), [], [], 0
     for i, ev in enumerate(events):
         if not isinstance(ev, dict) or ev.get("oip") != OIP_VERSION:
             raise ValueError("unknown oip version")
@@ -534,6 +646,9 @@ def verify_log(events, verifier, depth=0) -> Log:
         if not isinstance(proofs, list) or not proofs or \
            len(proofs) > MAX_PROOFS:
             raise ValueError("bad proof set")
+        when = verifier.event_time(ev)
+        if times:
+            when = max(when, times[-1])     # never before its predecessor
         ctl = ev.get("controller")
         if i == 0:
             if etype != "Genesis" or any(k in ev for k in
@@ -547,16 +662,27 @@ def verify_log(events, verifier, depth=0) -> Log:
             if isinstance(ctl, dict) and "members" in ctl:
                 _check_member_controller(ctl, st.mind)
                 signers = verifier.member_signers(ev, ctl["members"], depth,
-                                                  at_position=True)
+                                                  identity_at=when)
                 if len(signers) != len(ctl["members"]):
                     raise ValueError("every founding member must sign with "
-                                     "an invocation key")
-                heights.update(verifier.log(m, depth + 1).height
-                               for m in signers)
+                                     "an invocation key valid at the "
+                                     "event's evaluation time")
+                height = 1 + max(verifier.log(m, depth + 1).height
+                                 for m in signers)
+                declared = ev.get("height", height)
+                if not isinstance(declared, int) or \
+                   isinstance(declared, bool) or \
+                   not height <= declared <= MAX_NESTING:
+                    raise ValueError("a collective's height is at most 4 and "
+                                     "above every founding member's")
+                height = declared
                 st.controller = "member"
                 st.members, st.threshold = list(ctl["members"]), \
                     ctl["threshold"]
             else:
+                if "height" in ev:
+                    raise ValueError("only a collective's genesis has a "
+                                     "height")
                 st.next_threshold = _check_key_controller(ctl)
                 for mk in ctl["keys"]:
                     if not _control_signed(ev, mk):
@@ -576,24 +702,28 @@ def verify_log(events, verifier, depth=0) -> Log:
                 raise ValueError(f"broken chain at event {i}")
             if created < st.created:
                 raise ValueError("created must not decrease along a log")
+            if "height" in ev:
+                raise ValueError("height is fixed by the genesis")
             if st.controller == "member":
                 signers = verifier.member_signers(ev, st.members, depth,
-                                                  at_position=True)
+                                                  identity_at=when)
                 if len(signers) < st.threshold:
                     raise ValueError("collective event lacks the threshold "
                                      "of current members")
-                heights.update(verifier.log(m, depth + 1).height
-                               for m in signers)
+                new = set()
                 if ctl is not None:
                     _check_member_controller(ctl, st.mind)
                     added = [m for m in ctl["members"] if m not in st.members]
                     if added:
                         new = verifier.member_signers(ev, added, depth,
-                                                      at_position=True)
+                                                      identity_at=when)
                         if len(new) != len(added):
                             raise ValueError("added members must sign")
-                        heights.update(verifier.log(m, depth + 1).height
-                                       for m in new)
+                if any(verifier.log(m, depth + 1).height >= height
+                       for m in signers | new):
+                    raise ValueError("a member's height must be below the "
+                                     "collective's (Layer 1, 4.7)")
+                if ctl is not None:
                     st.members, st.threshold = list(ctl["members"]), \
                         ctl["threshold"]
             else:
@@ -648,11 +778,7 @@ def verify_log(events, verifier, depth=0) -> Log:
         st.version = f"{st.seq}-{st.head}"
         st.created = created
         states.append(st.copy())
-        when = verifier.event_time(ev)
-        times.append(max(when, times[-1]) if times else when)
-    height = 1 + max(heights, default=0) if st.controller == "member" else 0
-    if height > MAX_NESTING:
-        raise ValueError("collectives nest at most 4 deep")
+        times.append(when)
     return Log(st.mind, events, states, times, height)
 
 # ---------------------------------------------------------------- policies
@@ -721,11 +847,17 @@ def policy_valid(policy) -> bool:
         all(statement_valid(s) for s in policy)
 
 
+class PolicyError(Exception):
+    """A statement that cannot be evaluated (Layer 1, 11.3): a selector
+    that does not resolve, an ordering on a non-decimal, or a quantifier
+    over a non-array. Any error makes the whole policy fail."""
+
+
 def _compare(op, got, val) -> bool:
     a, b = as_decimal(got), as_decimal(val)
     if op in ORDERING_OPS:
         if a is None or b is None:
-            return False
+            raise PolicyError("ordering compares decimals only")
         return {"<": a < b, "<=": a <= b, ">": a > b, ">=": a >= b}[op]
     if a is not None and b is not None:
         eq = a == b
@@ -733,36 +865,44 @@ def _compare(op, got, val) -> bool:
         try:
             eq = jcs(got) == jcs(val)
         except (TypeError, ValueError):
-            return False
+            raise PolicyError("value has no canonical form")
     return eq if op == "==" else not eq
 
 
 def statement_holds(s, obj) -> bool:
+    """Evaluate a statement in full, without short-circuiting, so that an
+    error anywhere is raised (and fails the policy) rather than skipped."""
     op = s[0]
     if op == "not":
         return not statement_holds(s[1], obj)
-    if op == "and":
-        return all(statement_holds(x, obj) for x in s[1])
-    if op == "or":
-        return any(statement_holds(x, obj) for x in s[1])
+    if op in ("and", "or"):
+        results = [statement_holds(x, obj) for x in s[1]]
+        return all(results) if op == "and" else any(results)
     got = _select(obj, s[1])
+    if got is _MISSING:
+        raise PolicyError(f"{s[1]} does not resolve")
     if op in ("all", "any"):
         if not isinstance(got, list):
-            return False
-        test = all if op == "all" else any
-        return test(statement_holds(s[2], item) for item in got)
-    return got is not _MISSING and _compare(op, got, s[2])
+            raise PolicyError(f"{s[1]} is not an array")
+        results = [statement_holds(s[2], item) for item in got]
+        return all(results) if op == "all" else any(results)
+    return _compare(op, got, s[2])
 
 
 def policy_ok(policy, record) -> bool:
     """Every statement must hold for the record without its proofs
     (Layer 1, 11.3). Ordering compares decimals only; equality compares
-    decimals numerically and other values by canonical form."""
+    decimals numerically and other values by canonical form. An error
+    anywhere fails the policy, so negation and disjunction cannot turn a
+    missing or malformed value into a pass."""
     if not policy_valid(policy):
         return False
     obj = {k: v for k, v in record.items() if k != "proof"} \
         if isinstance(record, dict) else record
-    return all(statement_holds(s, obj) for s in policy)
+    try:
+        return all([statement_holds(s, obj) for s in policy])
+    except PolicyError:
+        return False
 
 
 def command_valid(command) -> bool:
@@ -819,6 +959,13 @@ def record_ok(r) -> bool:
             if not isinstance(r["promise"], str) or \
                not isinstance(r["terms"], dict):
                 return False
+            price = r["terms"].get("price")
+            minds = {p["mind"] for p in parties}
+            if price is not None and (                 # Layer 2, 5.1
+                    price.get("payer") not in minds or
+                    price.get("payee") not in minds or
+                    price["payer"] == price["payee"]):
+                return False
         if t == "Receipt":
             o = r["outcome"]
             if o not in RECEIPT_OUTCOMES and ":" not in o:
@@ -829,6 +976,8 @@ def record_ok(r) -> bool:
             for f in ("author", "delegate", "subject"):
                 if not fullmatch(ADDR_RE, r[f]):
                     return False
+            if r["delegate"] == r["author"]:
+                return False                    # Layer 1, 11.1
             if not command_valid(r["command"]) or \
                not policy_valid(r.get("policy", [])):
                 return False
@@ -855,25 +1004,36 @@ def record_ok(r) -> bool:
 
 
 class Verifier:
-    """A verifier's view: identity logs, records it holds (for record-refs,
-    revocations and charters) and its evidence of when it first saw
-    records. With no evidence for a record, this generator assumes the
-    verifier obtained each proof at the proof's own `created` time (the
-    test vectors' convention); a live verifier uses the time it received
-    the proof."""
+    """A verifier's view: identity logs (one or more branches per mind),
+    records it holds (for record-refs, revocations and charters) and its
+    evidence (core 9.4). `seen` maps evidence to the earliest time the
+    verifier can show, whether from itself, a witness it trusts or an
+    anchor: a proof's digest (Layer 1, 10.1) for a proof on a record, and
+    a content ID for an identity event. With no evidence, this generator
+    assumes the verifier obtained each proof or event at its own `created`
+    time (the test vectors' convention); a live verifier uses the earliest
+    evidence it holds, which for a proof received live is its receipt."""
 
-    def __init__(self, logs=(), records=(), seen=None):
+    def __init__(self, logs=(), records=(), seen=None, branches=()):
         self.raw, self.cache, self.store = {}, {}, {}
         self.seen = dict(seen or {})
         self.apply_compromise = True
         self.visiting = set()
         for log in logs:
             self.add_log(log)
+        for log in branches:
+            self.add_branch(log)
         for r in records:
             self.add(r)
 
     def add_log(self, events):
-        self.raw[did(content_id(events[0]))] = events
+        """Hold `events` as the mind's log, replacing any held before."""
+        self.raw[did(content_id(events[0]))] = [events]
+        self.cache.clear()
+
+    def add_branch(self, events):
+        """Hold `events` as a further branch of the mind's log."""
+        self.raw.setdefault(did(content_id(events[0])), []).append(events)
         self.cache.clear()
 
     def add(self, record):
@@ -888,11 +1048,63 @@ class Verifier:
             raise ValueError("a collective cannot contain itself")
         self.visiting.add(mind)
         try:
-            log = verify_log(self.raw[mind], self, depth)
+            branches = self.raw[mind]
+            if len(branches) == 1:
+                log = verify_log(branches[0], self, depth)
+            else:
+                log = self.resolve_branches(branches, depth)
         finally:
             self.visiting.discard(mind)
         self.cache[mind] = log
         return log
+
+    # -- duplicity (Layer 1, Section 7) -------------------------------------
+    def evidence(self, event):
+        """tau(e): the earliest evidence that an identity event existed."""
+        seen = self.seen.get(content_id(event))
+        return ts(seen) if seen else ts(event["created"])
+
+    def resolve_branches(self, branches, depth) -> Log:
+        """Never by length or recency: at each point of divergence the
+        event with strictly the earliest evidence wins (7.3). If evidence
+        cannot separate them, the mind is duplicitous: only the events
+        before the divergence stand, and every branch's later removals and
+        compromise declarations apply."""
+        cands = []
+        for events in branches:
+            try:
+                cands.append(verify_log(events, self, depth))
+            except ValueError:
+                pass                            # an invalid branch is no event
+        if not cands:
+            raise ValueError("no branch of the log verifies")
+        k = 0
+        while True:
+            heads = {}
+            for lg in cands:
+                if k < len(lg.events):
+                    heads.setdefault(content_id(lg.events[k]), []).append(lg)
+            if not heads:
+                return cands[0]
+            if len(heads) == 1:
+                cands = next(iter(heads.values()))    # prefixes are not forks
+                k += 1
+                continue
+            tau = {h: self.evidence(g[0].events[k]) for h, g in heads.items()}
+            first = min(tau.values())
+            winners = [h for h, t in tau.items() if t == first]
+            if len(winners) == 1:
+                cands = heads[winners[0]]
+                k += 1
+                continue
+            base = cands[0]
+            out = Log(base.mind, base.events[:k], base.states[:k],
+                      base.times[:k], base.height)
+            out.duplicitous = True
+            out.branch_tails = [(lg.times[j], lg.states[j], lg.events[j])
+                                for lg in cands
+                                for j in range(k, len(lg.events))]
+            return out
 
     def resolve(self, ref):
         if isinstance(ref, dict):
@@ -903,28 +1115,38 @@ class Verifier:
     # -- evaluation time (core, Section 9) --------------------------------
     def t_of(self, record, p):
         """t(p) = max(p.created, tau(p)); None if the proof claims to be
-        from the future relative to the evidence."""
+        from the future relative to the evidence. Evidence is for this
+        proof (its digest): evidence that the record existed says nothing
+        about a co-signature added later (core 9.4)."""
         try:
             created = ts(p.get("created"))
-        except ValueError:
+            seen = self.seen.get(proof_digest(p))
+        except (TypeError, ValueError, AttributeError):
             return None
-        seen = self.seen.get(content_id(record))
         tau = ts(seen) if seen else created
         if created > tau + SKEW_NS:
             return None
         return max(created, tau)
 
     def event_time(self, event):
-        """Evaluation time of an identity event: max(created, evidence)."""
+        """Evaluation time of an identity event: max(created, tau(e)), where
+        tau(e) is evidence for the event as a whole (core 9.5)."""
         created = ts(event["created"])
         seen = self.seen.get(content_id(event))
-        return max(created, ts(seen)) if seen else created
+        if not seen:
+            return created
+        if created > ts(seen) + SKEW_NS:
+            raise ValueError("identity event dated after the evidence that "
+                             "it existed")
+        return max(created, ts(seen))
 
     # -- key validity (Layer 1, Section 6) ---------------------------------
-    def valid_key(self, record, p, mind, depth=0, at_position=False) -> bool:
-        """Layer 1, 6.1. With at_position (member proofs on another mind's
-        identity events, Layer 1, 6.4) the key is judged as of the version
-        it pins: later removals and compromises do not apply."""
+    def valid_key(self, record, p, mind, depth=0, identity_at=None) -> bool:
+        """Layer 1, 6.1 for operational keys. With identity_at (a member's
+        proof on another mind's identity event, Layer 1, 6.4) the key must
+        be an invocation key at the pinned version that was not removed, nor
+        the member retired, before the event's evaluation time identity_at.
+        Compromise declarations do not reach into other minds' logs."""
         if not isinstance(p, dict):
             return False
         ref = parse_key_ref(p.get("verificationMethod"))
@@ -941,9 +1163,13 @@ class Verifier:
         i = log.index(version)
         if i is None:
             return False
-        if at_position:
-            return mk in log.states[i].invocation and \
-                verify_proof(record, p, mk)
+        if identity_at is not None:
+            if mk not in log.states[i].invocation:
+                return False
+            removed = log.removal_time(i, mk, "invocation")
+            if removed is not None and identity_at >= removed:
+                return False
+            return verify_proof(record, p, mk)
         if mk not in log.states[i].keys:
             return False
         t = self.t_of(record, p)
@@ -957,19 +1183,20 @@ class Verifier:
            t >= compromised:
             return False
         if rtype in CURRENT_STATE_TYPES and \
-           (mk not in log.latest.keys or log.latest.retired):
+           (mk not in log.latest.keys or log.latest.retired or
+                log.duplicitous):
             return False
         return verify_proof(record, p, mk)
 
     def member_signers(self, record, members, depth,
-                       at_position=False) -> set:
+                       identity_at=None) -> set:
         """Distinct members with a proof by one of their own valid keys."""
         out = set()
         for p in record.get("proof", []):
             ref = parse_key_ref(p.get("verificationMethod")) \
                 if isinstance(p, dict) else None
             if ref and ref[0] in members and ref[0] not in out and \
-               self.valid_key(record, p, ref[0], depth + 1, at_position):
+               self.valid_key(record, p, ref[0], depth + 1, identity_at):
                 out.add(ref[0])
         return out
 
@@ -1007,17 +1234,25 @@ class Verifier:
 
     def collective_time(self, record, log, depth):
         """Earliest T at which the members of the collective's state at T
-        holding proofs with t(p) <= T reach that state's threshold."""
-        everyone = log.members_ever()
+        holding proofs with t(p) <= T reach that state's threshold. Only
+        proofs without `authority` count towards a threshold: a proof that
+        names an authority acts for that principal. A current-state record
+        needs the threshold of the collective's latest state (Layer 2,
+        7.1 item 3)."""
+        current = record.get("type") in CURRENT_STATE_TYPES
+        if current and (log.latest.retired or log.duplicitous):
+            return None
+        everyone = set(log.latest.members) if current else log.members_ever()
         cands = []
         for p in record.get("proof", []):
-            ref = parse_key_ref(p.get("verificationMethod")) \
-                if isinstance(p, dict) else None
+            if not isinstance(p, dict) or "authority" in p:
+                continue
+            ref = parse_key_ref(p.get("verificationMethod"))
             if ref and ref[0] in everyone and \
                self.valid_key(record, p, ref[0], depth + 1):
                 cands.append((self.t_of(record, p), ref[0]))
         for t, _ in sorted(cands):
-            st = log.state_at(t)
+            st = log.latest if current else log.state_at(t)
             if st is None or st.retired:
                 continue
             signers = {m for (u, m) in cands if u <= t and m in st.members}
@@ -1025,80 +1260,112 @@ class Verifier:
                 return t
         return None
 
-    def role_time(self, record, mind, log, depth):
+    def charter_in_force(self, mind, t, depth, also=()):
+        """Layer 2, 6.2: the charter whose signature for the collective was
+        completed most recently at or before t; on a tie, the one with the
+        lower content ID."""
+        best = None
+        known = {content_id(c): c for c in list(self.store.values()) +
+                 list(also) if isinstance(c, dict)}
+        for cid, c in sorted(known.items()):
+            if c.get("type") != "Collective" or c.get("author") != mind:
+                continue
+            tc = self.signed_time(c, mind, depth)
+            if tc is not None and tc <= t and (best is None or tc > best[0]):
+                best = (tc, c)
+        return best[1] if best else None
+
+    def role_time(self, record, mind, log, depth, signer=None):
         """A member holding a role in the charter in force at t(p), whose
-        power covers the record, signs for the collective."""
+        power covers the record, signs for the collective when its proof's
+        `authority` names that charter (Layer 2, 7.1 item 4)."""
         need = "/oip/sign/" + record["type"]
-        charters = []
-        for c in list(self.store.values()):
-            if c.get("type") == "Collective" and c.get("author") == mind:
-                tc = self.signed_time(c, mind, depth)
-                if tc is not None:
-                    charters.append((tc, c))
         best = None
         for p in record.get("proof", []):
-            ref = parse_key_ref(p.get("verificationMethod")) \
-                if isinstance(p, dict) else None
-            if not ref or not self.valid_key(record, p, ref[0], depth + 1):
+            auth = p.get("authority") if isinstance(p, dict) else None
+            if not isinstance(auth, list) or len(auth) != 1:
+                continue
+            charter = self.resolve(auth[0])
+            if not isinstance(charter, dict) or \
+               charter.get("type") != "Collective" or \
+               charter.get("author") != mind:
+                continue
+            ref = parse_key_ref(p.get("verificationMethod"))
+            if not ref or (signer and ref[0] != signer) or \
+               not self.valid_key(record, p, ref[0], depth + 1):
                 continue
             member, t = ref[0], self.t_of(record, p)
             st = log.state_at(t)
             if st is None or st.retired or member not in st.members:
                 continue
-            in_force = [x for x in charters if x[0] <= t]
-            if not in_force:
+            in_force = self.charter_in_force(mind, t, depth, [charter])
+            if in_force is None or \
+               content_id(in_force) != content_id(charter):
                 continue
-            charter = max(in_force, key=lambda x: x[0])[1]
             roles = {a.get("role") for a in charter.get("assignments", [])
-                     if a.get("mind") == member}
+                     if isinstance(a, dict) and a.get("mind") == member}
             for role in roles:
-                for power in charter.get("roles", {}).get(role, {}) \
-                                    .get("powers", []):
+                spec = charter.get("roles", {}).get(role)
+                for power in (spec or {}).get("powers", []):
                     if command_valid(power.get("command")) and \
                        command_covers(power["command"], need) and \
                        policy_ok(power.get("policy", []), record):
                         best = t if best is None else min(best, t)
         return best
 
+    def acts_for(self, record, signer, principal) -> bool:
+        """True if a proof by `signer` counts for `principal` through a
+        delegation or a charter role (the Layer 2, 5.2 author rule)."""
+        if self.delegated_time(record, principal, 0,
+                               signer=signer) is not None:
+            return True
+        try:
+            log = self.log(principal)
+        except (KeyError, ValueError):
+            return False
+        return log.latest.controller == "member" and \
+            self.role_time(record, principal, log, 0, signer) is not None
+
     # -- delegation (Layer 1, Section 11) ----------------------------------
-    def delegated_time(self, record, principal, depth):
-        """A proof by D counts for P when the delegations listed in that
-        proof's own `authority` form a valid chain from P to D. The chain
-        sits in the proof, so a delegated co-signer can sign at any time
-        without changing the record's content ID."""
-        need = "/oip/sign/" + record["type"]
+    def delegated_time(self, record, principal, depth, need=None,
+                       signer=None):
+        """A proof by D counts for P when its own `authority` lists exactly
+        a valid chain from P to D, root first (Layer 1, 11.4 and 11.6). The
+        chain sits in the proof, so a delegated co-signer can sign at any
+        time without changing the record's content ID, and one proof acts
+        for at most one principal."""
+        need = need or "/oip/sign/" + record["type"]
         best = None
         for p in record.get("proof", []):
-            ref = parse_key_ref(p.get("verificationMethod")) \
-                if isinstance(p, dict) else None
             auth = p.get("authority") if isinstance(p, dict) else None
-            if not ref or ref[0] == principal or not auth or \
+            if not isinstance(auth, list) or not 1 <= len(auth) <= MAX_CHAIN:
+                continue
+            ref = parse_key_ref(p.get("verificationMethod"))
+            if not ref or ref[0] == principal or \
+               (signer and ref[0] != signer):
+                continue
+            chain = [self.resolve(a) for a in auth]
+            if not all(isinstance(d, dict) and d.get("type") == "Delegation"
+                       for d in chain) or \
                not self.valid_key(record, p, ref[0], depth):
                 continue
-            ds = [d for d in (self.resolve(a) for a in auth)
-                  if isinstance(d, dict) and d.get("type") == "Delegation"]
             t = self.t_of(record, p)
-            for chain in self.chains(ds, principal, ref[0]):
-                if self.chain_ok(chain, record, need, t, depth):
-                    best = t if best is None else min(best, t)
-                    break
+            if self.chain_ok(chain, record, need, t, principal, ref[0],
+                             depth):
+                best = t if best is None else min(best, t)
         return best
 
-    def chains(self, ds, principal, delegate, prefix=()):
-        """Sequences d1..dn (root first) from principal to delegate."""
-        if len(prefix) >= MAX_CHAIN:
-            return
-        head = prefix[-1]["delegate"] if prefix else principal
-        for d in ds:
-            if any(d is x for x in prefix) or d.get("author") != head or \
-               d.get("subject") != principal:
-                continue
-            chain = prefix + (d,)
-            if d.get("delegate") == delegate:
-                yield chain
-            yield from self.chains(ds, principal, delegate, chain)
-
-    def chain_ok(self, chain, record, need, t, depth) -> bool:
+    def chain_ok(self, chain, record, need, t, principal, signer,
+                 depth) -> bool:
+        """Layer 1, 11.4 for the delegations exactly as listed, root first."""
+        if any(not record_ok(d) for d in chain):
+            return False
+        if chain[0]["author"] != principal or \
+           any(d["subject"] != principal for d in chain) or \
+           any(chain[i]["delegate"] != chain[i + 1]["author"]
+               for i in range(len(chain) - 1)) or \
+           chain[-1]["delegate"] != signer:
+            return False
         for i, d in enumerate(chain):
             td = self.signed_time(d, d["author"], depth)
             if td is None or td > t:
@@ -1136,6 +1403,19 @@ class Verifier:
                     best = t if best is None else min(best, t)
         return best
 
+    def sent_for(self, packet, subject) -> bool:
+        """Layer 1, 11.2: a packet counts as sent on `subject`'s behalf when
+        it names the subject in `provenance.onBehalfOf` and a proof by its
+        sender lists a chain from the subject that covers /oip/send."""
+        if not record_ok(packet) or packet.get("type") != "Packet" or \
+           not isinstance(packet.get("provenance"), dict) or \
+           packet["provenance"].get("onBehalfOf") != subject:
+            return False
+        t = self.delegated_time(packet, subject, 0, need="/oip/send",
+                                signer=packet.get("from"))
+        return t is not None and (
+            "expires" not in packet or t <= ts(packet["expires"]) + SKEW_NS)
+
     # -- lineage (Layer 1, Section 8) ---------------------------------------
     def lineage(self, child) -> dict:
         out = {}
@@ -1163,10 +1443,41 @@ class Verifier:
 
 
 def commitment_accepted(V, c) -> bool:
-    if V.signed_time(c, c.get("author")) is None:
+    """Layer 2, 7.3: counts for its author, whose author is a party or
+    signs for one (5.2), and for every required party."""
+    if not record_ok(c) or V.signed_time(c, c.get("author")) is None:
+        return False
+    minds = [p["mind"] for p in c["parties"]]
+    if c["author"] not in minds and \
+       not any(V.acts_for(c, c["author"], m) for m in minds):
         return False
     return all(V.signed_time(c, p["mind"]) is not None
                for p in c["parties"] if p.get("required"))
+
+
+def bridge_assurance(V, participant) -> str:
+    """Layer 0, 1.3: `bridged` only if the mind's genesis and profile name
+    the same gateway, and the gateway's own feed entry for that genesis,
+    named in the profile, counts for the gateway; `claimed` for any other
+    `oip.bridge` block; otherwise `native`."""
+    block = (participant.get("ext") or {}).get("oip.bridge")
+    if block is None:
+        return "native"
+    mind, gateway = participant.get("author"), block.get("gateway")
+    try:
+        genesis = V.log(mind).events[0]
+    except (KeyError, ValueError):
+        return "claimed"
+    declared = (genesis.get("ext") or {}).get("oip.bridge") or {}
+    entry = V.resolve(block.get("attestation"))
+    if V.signed_time(participant, mind) is None or \
+       declared.get("gateway") != gateway or not isinstance(entry, dict) or \
+       entry.get("type") != "Entry" or entry.get("author") != gateway or \
+       entry.get("object") != content_id(genesis) or \
+       entry.get("objectType") != "Genesis" or \
+       V.signed_time(entry, gateway) is None:
+        return "claimed"
+    return "bridged"
 
 
 ALLOWED_STATUS = {"Intent": ("satisfied", "withdrawn"),
@@ -1407,9 +1718,12 @@ def build():
                  "X25519 keys from SHA-256('oip-test-vector-x25519:'+label). "
                  "Never use these keys for anything real.",
          "assumption": "Unless a case gives `seen` times, a verifier is "
-                       "taken to have obtained each proof at that proof's "
-                       "`created` time.",
-         "keys": {}, "cases": {}, "valid": [], "negative": []}
+                       "taken to have obtained each proof and identity "
+                       "event at its own `created` time. `seen` maps a "
+                       "proof's digest, or an identity event's content ID, "
+                       "to the earliest evidence that it existed.",
+         "keys": {}, "cases": {}, "valid": [], "negative": [],
+         "controls": []}
 
     def k(label):
         key = Key(label)
@@ -1494,11 +1808,17 @@ def build():
     founders = [(a_inv, amina_inv), (t_inv, agent_inv), (r_inv, res_inv)]
 
     def coll_genesis(threshold, signers, members=(amina, lexis, researcher),
-                     created="2026-10-30T09:20:00Z"):
+                     created="2026-10-30T09:20:00Z", height=None,
+                     invocation=None):
         g = {"oip": OIP_VERSION, "type": "Genesis", "kind": "collective",
              "created": created,
              "controller": {"members": list(members),
                             "threshold": threshold}}
+        if height is not None:
+            g["height"] = height
+        if invocation:
+            g["invocation"] = [{"key": key.mk, "label": key.label}
+                               for key in invocation]
         return sign(g, *[create_proof(g, key, vm, "capabilityInvocation",
                                       created) for key, vm in signers])
 
@@ -1525,19 +1845,58 @@ def build():
     assistant = did(content_id(asst_gen))
     asst_vm = op_vm(assistant, asst_gen, s_op.mk)
 
+    # --- A gateway and an MCP server it bridges (Layer 0, Section 1) ---
+    gw_c0, gw_c1, gw_op = k("gateway-control-0"), k("gateway-control-1"), \
+        k("gateway-ops")
+    gw_gen = key_controlled_genesis("service", gw_c0, gw_c1, [gw_op],
+                                    created="2026-10-30T08:00:00Z",
+                                    homes=["https://gateway.example"])
+    gateway = did(content_id(gw_gen))
+    gw_vm = op_vm(gateway, gw_gen, gw_op.mk)
+    br_c0, br_c1, br_op = k("bridged-control-0"), k("bridged-control-1"), \
+        k("bridged-ops")
+    bridge_block = {"protocol": "mcp", "endpoint": "https://tools.example/mcp",
+                    "gateway": gateway, "assurance": "bridged"}
+    br_gen = key_controlled_genesis("service", br_c0, br_c1, [br_op],
+                                    created="2026-10-30T08:10:00Z",
+                                    extra={"ext": {"oip.bridge":
+                                                   bridge_block}})
+    bridged = did(content_id(br_gen))
+    br_vm = op_vm(bridged, br_gen, br_op.mk)
+    gw_entry = signed({"oip": OIP_VERSION, "type": "Entry",
+                       "author": gateway, "seq": 0,
+                       "created": "2026-10-30T08:11:00Z",
+                       "object": content_id(br_gen), "objectType": "Genesis",
+                       "proofs": [proof_digest(p) for p in br_gen["proof"]]},
+                      gw_op, gw_vm)
+    br_participant = signed({
+        "oip": OIP_VERSION, "type": "Participant", "author": bridged,
+        "created": "2026-10-30T08:12:00Z", "name": "Example MCP tools",
+        "kind": "service",
+        "summary": "An MCP server, bridged into OIP by its gateway.",
+        "ext": {"oip.bridge": {**bridge_block,
+                               "attestation": record_ref(gateway,
+                                                         gw_entry)}}},
+        br_op, br_vm)
+
     logs = {"amina_log": [a_gen, a_upd], "lexis_ltd_log": [ltd_gen],
             "lexis_agent_log": [agent_gen, fork_ev],
             "lexis_fork_log": [child_gen], "lexis_fork2_log": [child2_gen],
             "researcher_log": [res_gen, res_upd], "collective_log": [coll],
-            "multi_log": [m_gen, m_upd], "assistant_log": [asst_gen]}
+            "multi_log": [m_gen, m_upd], "assistant_log": [asst_gen],
+            "gateway_log": [gw_gen], "bridged_log": [br_gen]}
 
     # --- Delegations ---------------------------------------------------
+    # Lexis Ltd lets its agent commit the firm to work it is paid for, up
+    # to 500 USD a commitment, and never to a deal with the agent itself.
     usd_500 = [["==", ".terms.price.currency", "USD"],
                ["<=", ".terms.price.amount", "500"]]
+    ltd_policy = usd_500 + [["==", ".terms.price.payee", lexis_ltd],
+                            ["all", ".parties", ["!=", ".mind", lexis]]]
     deleg = signed({"oip": OIP_VERSION, "type": "Delegation",
                     "author": lexis_ltd, "created": "2026-10-30T09:30:00Z",
                     "delegate": lexis, "subject": lexis_ltd,
-                    "command": "/oip/sign/Commitment", "policy": usd_500,
+                    "command": "/oip/sign/Commitment", "policy": ltd_policy,
                     "expires": "2026-11-30T09:30:00Z",
                     "nonce": "6c1f0e9d2b8a4735"}, l_op, ltd_vm)
     deleg_ref = record_ref(lexis_ltd, deleg)
@@ -1545,23 +1904,35 @@ def build():
                         "author": lexis, "created": "2026-10-30T09:45:00Z",
                         "delegate": child, "subject": lexis_ltd,
                         "command": "/oip/sign/Commitment",
-                        "policy": usd_500 + [["<=", ".terms.price.amount",
-                                              "200"]],
+                        "policy": ltd_policy + [
+                            ["<=", ".terms.price.amount", "200"],
+                            ["all", ".parties", ["!=", ".mind", child]]],
                         "expires": "2026-11-15T00:00:00Z",
                         "nonce": "9e4b2a7c1d3f5086"}, t_op, agent_vm)
     sub_ref = record_ref(lexis, sub_deleg)
+    # Amina lets her assistant commit her to pay up to 150 USD, only in
+    # deals between her and Lexis Ltd.
     amina_deleg = signed({
         "oip": OIP_VERSION, "type": "Delegation", "author": amina,
         "created": "2026-10-30T09:35:00Z", "delegate": assistant,
         "subject": amina, "command": "/oip/sign/Commitment",
         "policy": [["==", ".terms.price.currency", "USD"],
                    ["<=", ".terms.price.amount", "150"],
+                   ["==", ".terms.price.payer", amina],
                    ["all", ".parties",
                     ["or", [["==", ".mind", amina],
                             ["==", ".mind", lexis_ltd]]]]],
         "expires": "2026-11-30T09:00:00Z", "nonce": "3b7e1f9a0c5d2e84"},
         a_op2, amina_vm2)
     amina_deleg_ref = record_ref(amina, amina_deleg)
+    send_deleg = signed({
+        "oip": OIP_VERSION, "type": "Delegation", "author": amina,
+        "created": "2026-10-30T09:36:00Z", "delegate": assistant,
+        "subject": amina, "command": "/oip/send",
+        "policy": [["==", ".provenance.onBehalfOf", amina]],
+        "expires": "2026-11-30T09:00:00Z", "nonce": "2f8c4a6e1b3d5079"},
+        a_op2, amina_vm2)
+    send_ref = record_ref(amina, send_deleg)
 
     # --- Layer 2: intent -> offer -> commitment -> receipt -------------
     intent = signed({"oip": OIP_VERSION, "type": "Intent", "author": amina,
@@ -1596,6 +1967,31 @@ def build():
                              constraints__budget={"max": "200",
                                                   "currency": "USD"}),
                   a_op2, amina_vm2)
+    offer_withdrawal = signed(variant_of(offer,
+                                         created="2026-10-30T10:15:00Z",
+                                         supersedes=offer_ref,
+                                         status="withdrawn"),
+                              t_op, agent_vm)
+    offer_edit = signed(variant_of(offer, created="2026-10-30T10:16:00Z",
+                                   supersedes=offer_ref,
+                                   terms__summary="110 USD, delivered by 1 "
+                                                  "Nov 18:00 UTC.",
+                                   terms__price={"amount": "110",
+                                                 "currency": "USD"}),
+                        t_op, agent_vm)
+    offer_glossary = signed({
+        "oip": OIP_VERSION, "type": "Offer", "author": lexis_ltd,
+        "created": "2026-10-30T10:50:00Z", "expires": "2026-11-06T10:50:00Z",
+        "provides": "A certified glossary of the lease's legal terms, in "
+                    "Swahili and English.",
+        "terms": {"summary": "150 USD for one glossary, by 3 Nov.",
+                  "price": {"amount": "150", "currency": "USD"},
+                  "quantity": 1}}, l_op, ltd_vm)
+    glossary_ref = record_ref(lexis_ltd, offer_glossary)
+
+    def usd(amount, payer=amina, payee=lexis_ltd):
+        return {"amount": amount, "currency": "USD", "payer": payer,
+                "payee": payee}
 
     commit = {"oip": OIP_VERSION, "type": "Commitment", "author": lexis,
               "created": "2026-10-30T10:20:00Z",
@@ -1607,7 +2003,7 @@ def build():
                          "the lease by 1 Nov 2026 18:00 UTC; Amina will pay "
                          "120 USD on delivery.",
               "terms": {"deadline": "2026-11-01T18:00:00Z",
-                        "price": {"amount": "120", "currency": "USD"}},
+                        "price": usd("120")},
               "resolves": [intent_ref, offer_ref], "closesIntent": True}
     p_agent = create_proof(commit, t_op, agent_vm, "assertionMethod",
                            commit["created"], authority=[deleg_ref])
@@ -1627,8 +2023,40 @@ def build():
                                     "digest": sha256_digest(
                                         b"example deliverable")}]},
                      a_op1, amina_vm1)
+    receipt_by_debtor = signed({
+        "oip": OIP_VERSION, "type": "Receipt", "author": lexis_ltd,
+        "created": "2026-11-01T16:00:00Z", "about": commit_ref,
+        "outcome": "fulfilled", "statement": "Translation delivered."},
+        l_op, ltd_vm)
+    receipt_broken = signed({
+        "oip": OIP_VERSION, "type": "Receipt", "author": amina,
+        "created": "2026-11-01T18:30:00Z", "about": commit_ref,
+        "outcome": "broken",
+        "statement": "Nothing had been delivered by the deadline."},
+        a_op1, amina_vm1)
+    cancel_amina = signed({
+        "oip": OIP_VERSION, "type": "Receipt", "author": amina,
+        "created": "2026-10-31T09:00:00Z", "about": commit_ref,
+        "outcome": "cancelled", "statement": "Cancelled by agreement."},
+        a_op1, amina_vm1)
+    cancel_ltd = signed({
+        "oip": OIP_VERSION, "type": "Receipt", "author": lexis_ltd,
+        "created": "2026-10-31T09:05:00Z", "about": commit_ref,
+        "outcome": "cancelled", "statement": "Cancelled by agreement."},
+        l_op, ltd_vm)
 
     # --- Two agents strike a deal, each for its principal --------------
+    sent = signed({"oip": OIP_VERSION, "type": "Packet", "from": assistant,
+                   "to": [lexis], "created": "2026-10-30T10:35:00Z",
+                   "expires": "2026-10-31T10:35:00Z",
+                   "nonce": "c4e2a9f7d1b8306e",
+                   "purpose": {"verb": "request",
+                               "goal": "Ask for rush delivery"},
+                   "content": {"mediaType": "text/plain",
+                               "body": "Could the translation be ready "
+                                       "twelve hours early?"},
+                   "provenance": {"onBehalfOf": amina}},
+                  s_op, asst_vm, authority=[send_ref])
     rush = {"oip": OIP_VERSION, "type": "Commitment", "author": lexis,
             "created": "2026-10-30T10:40:00Z",
             "parties": [{"mind": lexis_ltd, "role": "debtor",
@@ -1639,7 +2067,7 @@ def build():
                        "06:00 UTC, twelve hours early; Amina will pay a "
                        "30 USD rush fee on delivery.",
             "terms": {"deadline": "2026-11-01T06:00:00Z",
-                      "price": {"amount": "30", "currency": "USD"}}}
+                      "price": usd("30")}}
     rush_agent = create_proof(rush, t_op, agent_vm, "assertionMethod",
                               rush["created"], authority=[deleg_ref])
     rush_asst = create_proof(rush, s_op, asst_vm, "assertionMethod",
@@ -1649,6 +2077,8 @@ def build():
     assert content_id(sign(rush, rush_agent)) == content_id(rush_accepted)
 
     # --- The collective's charter, and a commitment by its steward -----
+    steward_policy = usd_500 + [["==", ".terms.price.payee", collective],
+                                ["all", ".parties", ["!=", ".mind", lexis]]]
     charter = {"oip": OIP_VERSION, "type": "Collective", "author": collective,
                "created": "2026-10-30T09:25:00Z",
                "name": "Open Translation Cell",
@@ -1656,36 +2086,44 @@ def build():
                "roles": {"steward": {"purpose": "Accept routine work",
                                      "powers": [{"command":
                                                  "/oip/sign/Commitment",
-                                                 "policy": usd_500}]}},
+                                                 "policy": steward_policy}]}},
                "assignments": [{"mind": lexis, "role": "steward"}]}
     charter = sign(charter,
                    create_proof(charter, a_op1, amina_vm1, "assertionMethod",
                                 charter["created"]),
                    create_proof(charter, r_op, res_vm, "assertionMethod",
                                 charter["created"]))
-    steward_commit = signed(
-        {"oip": OIP_VERSION, "type": "Commitment", "author": lexis,
-         "created": "2026-10-30T10:30:00Z",
-         "parties": [{"mind": collective, "role": "debtor", "required": True},
-                     {"mind": amina, "role": "creditor", "required": True}],
-         "promise": "The Open Translation Cell will review the English "
-                    "translation of the lease by 2 Nov 2026 12:00 UTC for "
-                    "300 USD.",
-         "terms": {"deadline": "2026-11-02T12:00:00Z",
-                   "price": {"amount": "300", "currency": "USD"}}},
-        t_op, agent_vm)
+    charter_ref = record_ref(collective, charter)
+    steward_doc = {
+        "oip": OIP_VERSION, "type": "Commitment", "author": lexis,
+        "created": "2026-10-30T10:30:00Z",
+        "parties": [{"mind": collective, "role": "debtor", "required": True},
+                    {"mind": amina, "role": "creditor", "required": True}],
+        "promise": "The Open Translation Cell will review the English "
+                   "translation of the lease by 2 Nov 2026 12:00 UTC for "
+                   "300 USD.",
+        "terms": {"deadline": "2026-11-02T12:00:00Z",
+                  "price": usd("300", payee=collective)}}
+    steward_commit = signed(steward_doc, t_op, agent_vm,
+                            authority=[charter_ref])
 
     # --- A commitment signed through the two-step delegation chain -----
-    chain_commit = signed(
-        {"oip": OIP_VERSION, "type": "Commitment", "author": child,
-         "created": "2026-10-30T11:00:00Z",
-         "parties": [{"mind": lexis_ltd, "role": "debtor", "required": True},
-                     {"mind": amina, "role": "creditor", "required": True}],
-         "promise": "Lexis Ltd will produce a certified glossary for the "
-                    "lease by 3 Nov 2026 for 150 USD.",
-         "terms": {"deadline": "2026-11-03T12:00:00Z",
-                   "price": {"amount": "150", "currency": "USD"}}},
-        f_op, child_vm, authority=[deleg_ref, sub_ref])
+    chain_doc = {
+        "oip": OIP_VERSION, "type": "Commitment", "author": child,
+        "created": "2026-10-30T11:00:00Z",
+        "parties": [{"mind": lexis_ltd, "role": "debtor", "required": True},
+                    {"mind": amina, "role": "creditor", "required": True}],
+        "promise": "Lexis Ltd will produce a certified glossary for the "
+                   "lease by 3 Nov 2026; Amina will pay 150 USD.",
+        "terms": {"deadline": "2026-11-03T12:00:00Z", "price": usd("150")},
+        "resolves": [glossary_ref]}
+    chain_commit = sign(chain_doc,
+                        create_proof(chain_doc, f_op, child_vm,
+                                     "assertionMethod", chain_doc["created"],
+                                     authority=[deleg_ref, sub_ref]),
+                        create_proof(chain_doc, a_op1, amina_vm1,
+                                     "assertionMethod",
+                                     "2026-10-30T11:05:00Z"))
 
     # --- Context packet carrying the session and the offer -------------
     session = {"oip": OIP_VERSION, "type": "Session",
@@ -1772,10 +2210,18 @@ def build():
 
     records = {"delegation": deleg, "delegation_sub": sub_deleg,
                "delegation_amina": amina_deleg,
+               "delegation_send": send_deleg,
                "intent": intent, "intent_withdrawal": withdrawal,
                "intent_edit": edit, "offer": offer,
+               "offer_withdrawal": offer_withdrawal, "offer_edit": offer_edit,
+               "offer_glossary": offer_glossary,
                "commitment_proposed": commit_proposed,
                "commitment_accepted": commit_accepted, "receipt": receipt,
+               "receipt_by_debtor": receipt_by_debtor,
+               "receipt_broken": receipt_broken,
+               "receipt_cancel_amina": cancel_amina,
+               "receipt_cancel_ltd": cancel_ltd,
+               "packet_on_behalf": sent,
                "commitment_agents": rush_accepted,
                "collective_charter": charter,
                "commitment_by_steward": steward_commit,
@@ -1783,14 +2229,16 @@ def build():
                "session": session, "packet": packet, "ack": ack,
                "hello": hello, "participant": participant,
                "location": location, "feed_entry": entry,
-               "feed_entry_1": entry1, "checkpoint": checkpoint}
+               "feed_entry_1": entry1, "checkpoint": checkpoint,
+               "gateway_entry": gw_entry,
+               "bridged_participant": br_participant}
     dv = Verifier(logs=logs.values())
     V["cases"] = {
         **logs, **records,
         "amina": amina, "lexis_ltd": lexis_ltd, "lexis_agent": lexis,
         "lexis_fork": child, "lexis_fork2": child2,
         "researcher": researcher, "collective": collective, "multi": multi,
-        "assistant": assistant,
+        "assistant": assistant, "gateway": gateway, "bridged": bridged,
         "did_document_amina": did_document(dv, amina),
         "did_document_amina_at_genesis": did_document(
             dv, amina, version_id(a_gen)),
@@ -1825,7 +2273,33 @@ def build():
              "records": ["commitment_accepted", "receipt"],
              "expect": "fulfilled"},
             {"of": "commitment_agents", "at": "2026-10-31T12:00:00Z",
-             "records": ["commitment_agents"], "expect": "accepted"}],
+             "records": ["commitment_agents"], "expect": "accepted"},
+            {"of": "intent", "at": "2026-10-31T12:00:00Z",
+             "records": ["intent"], "expect": "expired"},
+            {"of": "offer", "at": "2026-10-30T12:00:00Z",
+             "records": ["offer", "offer_withdrawal"], "expect": "withdrawn"},
+            {"of": "offer", "at": "2026-10-30T12:00:00Z",
+             "records": ["offer", "offer_edit"], "expect": "superseded"},
+            {"of": "offer_glossary", "at": "2026-10-30T12:00:00Z",
+             "records": ["offer_glossary"], "expect": "open"},
+            {"of": "offer_glossary", "at": "2026-10-30T12:00:00Z",
+             "records": ["offer_glossary", "commitment_via_chain"],
+             "expect": "exhausted"},
+            {"of": "commitment_accepted", "at": "2026-11-01T17:00:00Z",
+             "records": ["commitment_accepted", "receipt_by_debtor"],
+             "expect": "claimed-fulfilled"},
+            {"of": "commitment_accepted", "at": "2026-11-01T19:00:00Z",
+             "records": ["commitment_accepted", "receipt_broken"],
+             "expect": "broken"},
+            {"of": "commitment_accepted", "at": "2026-11-01T19:00:00Z",
+             "records": ["commitment_accepted", "receipt_by_debtor",
+                         "receipt_broken"], "expect": "disputed"},
+            {"of": "commitment_accepted", "at": "2026-10-31T12:00:00Z",
+             "records": ["commitment_accepted", "receipt_cancel_amina"],
+             "expect": "accepted"},
+            {"of": "commitment_accepted", "at": "2026-10-31T12:00:00Z",
+             "records": ["commitment_accepted", "receipt_cancel_amina",
+                         "receipt_cancel_ltd"], "expect": "cancelled"}],
         "content_ids": {n: content_id(o) for n, o in [
             ("amina_genesis", a_gen), ("amina_update", a_upd),
             ("delegation", deleg), ("delegation_sub", sub_deleg),
@@ -1833,7 +2307,8 @@ def build():
             ("offer", offer), ("commitment", commit),
             ("commitment_agents", rush), ("receipt", receipt),
             ("collective_charter", charter), ("session", session),
-            ("packet", packet), ("checkpoint", checkpoint)]},
+            ("packet", packet), ("checkpoint", checkpoint),
+            ("bridged_genesis", br_gen)]},
         "jcs_example": {"input": {"b": 2, "a": [1, "x"], "é": True},
                         "output": jcs({"b": 2, "a": [1, "x"],
                                        "é": True}).decode()},
@@ -1847,10 +2322,13 @@ def build():
                              "compromisedSince": "2026-10-30T09:00:00Z"}]})
     V["valid"].append({
         "name": "collective-survives-member-compromise-claim",
-        "reason": "On 2 Nov Amina declares her invocation key compromised "
-                  "since 30 Oct 09:00, before the collective's genesis. "
-                  "Identity events are judged at their position, so the "
-                  "collective's log still verifies.",
+        "reason": "On 2 Nov Amina removes her invocation key and declares it "
+                  "compromised since 30 Oct 09:00, before the collective's "
+                  "genesis. Her proof on the genesis is judged at the "
+                  "genesis's evaluation time (30 Oct 09:20, before the "
+                  "removal), and compromise declarations do not reach into "
+                  "other minds' logs, so the collective's log still "
+                  "verifies.",
         "kind": "log", "log": [coll],
         "extraLogs": [[a_gen, a_upd, a_inv_claim]]})
     late_removal = control_event(
@@ -1881,28 +2359,67 @@ def build():
                   "not void a commitment first seen on 5 Nov.",
         "kind": "countsFor", "record": nov5, "mind": lexis_ltd,
         "extraRecords": [backdated_rev],
-        "seen": {content_id(backdated_rev): "2026-11-10T00:00:00Z"}})
+        "seen": {proof_digest(backdated_rev["proof"][0]):
+                 "2026-11-10T00:00:00Z"}})
+    # Duplicity: Amina's first control key, which she failed to destroy,
+    # signs a second event at position 1 (Layer 1, Section 7).
+    a_upd_alt = control_event(
+        "Update", amina, a_gen, "2026-10-30T09:05:30Z", [a_c1],
+        [k("amina-control-2b")],
+        fields={"keys": [{"key": a_op1.mk, "label": a_op1.label},
+                         {"key": k("amina-tablet").mk,
+                          "label": "amina-tablet"}]})
+    V["valid"].append({
+        "name": "duplicity-resolved-by-first-seen",
+        "reason": "Two valid events sit at position 1 of Amina's log. The "
+                  "one first seen at 09:05 wins over the one first seen at "
+                  "11:00, whichever is longer or newer, so her Intent "
+                  "pinned to the winning version counts.",
+        "kind": "countsFor", "record": intent, "mind": amina,
+        "branches": [[a_gen, a_upd_alt]],
+        "seen": {content_id(a_upd): "2026-10-30T09:05:00Z",
+                 content_id(a_upd_alt): "2026-10-30T11:00:00Z"}})
+    early_vm = op_vm(amina, a_gen, a_op1.mk)
+    early = signed(variant_of(intent, created="2026-10-30T09:50:00Z"),
+                   a_op1, early_vm)
+    tie = {content_id(a_upd): "2026-10-30T09:05:00Z",
+           content_id(a_upd_alt): "2026-10-30T09:05:00Z"}
+    V["valid"].append({
+        "name": "duplicity-keeps-earlier-versions",
+        "reason": "Evidence cannot separate the two events at position 1, "
+                  "so Amina is duplicitous, but a record pinned to her "
+                  "genesis, before the divergence, still counts.",
+        "kind": "countsFor", "record": early, "mind": amina,
+        "branches": [[a_gen, a_upd_alt]], "seen": tie})
 
     # ------------------------------------------------------------ negatives
     neg = V["negative"]
 
-    def bad_log(name, reason, log, extra_logs=()):
-        case = {"name": name, "reason": reason, "kind": "log", "log": log}
+    def context(case, extra_logs, records, seen, branches):
         if extra_logs:
             case["extraLogs"] = list(extra_logs)
-        neg.append(case)
-
-    def bad_sig(name, reason, record, mind, extra_logs=(), records=(),
-                seen=None):
-        case = {"name": name, "reason": reason, "kind": "countsFor",
-                "record": record, "mind": mind}
-        if extra_logs:
-            case["extraLogs"] = list(extra_logs)
+        if branches:
+            case["branches"] = list(branches)
         if records:
             case["extraRecords"] = list(records)
         if seen:
             case["seen"] = seen
         neg.append(case)
+
+    def bad_log(name, reason, log, extra_logs=(), seen=None):
+        context({"name": name, "reason": reason, "kind": "log", "log": log},
+                extra_logs, (), seen, ())
+
+    def bad_sig(name, reason, record, mind, extra_logs=(), records=(),
+                seen=None, branches=(), kind="countsFor"):
+        context({"name": name, "reason": reason, "kind": kind,
+                 "record": record, "mind": mind},
+                extra_logs, records, seen, branches)
+
+    def seen_at(record, when):
+        """Evidence that the verifier first obtained every proof on
+        `record` at `when`."""
+        return {proof_digest(p): when for p in record["proof"]}
 
     variant = variant_of
 
@@ -2052,13 +2569,14 @@ def build():
              "' 400 ' is not a decimal string."),
             ("policy-not-decimal-fullwidth", "４００", "USD",
              "Full-width digits are not decimal digits.")):
-        doc = variant(commit, terms__price={"amount": amount,
+        doc = variant(commit, terms__price={**usd("0"), "amount": amount,
                                             "currency": currency})
         bad_sig(name, why, signed(doc, t_op, agent_vm, authority=[deleg_ref]),
                 lexis_ltd)
     third = variant(rush, parties=[
         {"mind": researcher, "role": "debtor", "required": True},
-        {"mind": amina, "role": "creditor", "required": True}])
+        {"mind": amina, "role": "creditor", "required": True}],
+        terms__price=usd("30", payee=researcher))
     bad_sig("policy-counterparty",
             "Amina's assistant may commit her only to deals whose parties "
             "are Amina and Lexis Ltd; a deal with the researcher is outside "
@@ -2077,7 +2595,7 @@ def build():
             "Amina removed her phone key on 2 Nov. A record signed with it "
             "and dated 1 Nov, first seen on 3 Nov, is evaluated at 3 Nov.",
             late_intent, amina, extra_logs=[[a_gen, a_upd, a_rm]],
-            seen={content_id(late_intent): "2026-11-03T08:00:00Z"})
+            seen=seen_at(late_intent, "2026-11-03T08:00:00Z"))
     a_cmp = control_event("Update", amina, a_upd, "2026-11-02T08:00:00Z",
                           [a_c2], [a_c3], fields={
                               "keys": [{"key": a_op2.mk,
@@ -2092,20 +2610,20 @@ def build():
             "The phone key is compromised since 31 Oct 00:00. A record "
             "dated 30 Oct but first seen on 1 Nov is evaluated at 1 Nov.",
             early_intent, amina, extra_logs=[[a_gen, a_upd, a_cmp]],
-            seen={content_id(early_intent): "2026-11-01T00:00:00Z"})
+            seen=seen_at(early_intent, "2026-11-01T00:00:00Z"))
     exp_commit = signed(variant(commit, created="2026-11-29T00:00:00Z"),
                         t_op, agent_vm, authority=[deleg_ref])
     bad_sig("expired-delegation-backdated",
             "The delegation expires on 30 Nov. A commitment dated 29 Nov but "
             "first seen on 5 Dec is evaluated at 5 Dec.", exp_commit,
-            lexis_ltd, seen={content_id(exp_commit): "2026-12-05T00:00:00Z"})
+            lexis_ltd, seen=seen_at(exp_commit, "2026-12-05T00:00:00Z"))
     rev_commit = signed(variant(commit, created="2026-11-05T00:00:00Z"),
                         t_op, agent_vm, authority=[deleg_ref])
     bad_sig("revoked-delegation",
             "The delegation was revoked on 10 Nov. A commitment dated 5 Nov "
             "but first seen on 12 Nov comes after the revocation.",
             rev_commit, lexis_ltd, records=[revocation],
-            seen={content_id(rev_commit): "2026-11-12T00:00:00Z"})
+            seen=seen_at(rev_commit, "2026-11-12T00:00:00Z"))
     c_rm = member_event("Update", collective, coll, "2026-10-31T00:00:00Z",
                         founders[:2],
                         {"controller": {"members": [amina, lexis],
@@ -2122,13 +2640,13 @@ def build():
             "a record dated 30 Oct but first seen on 1 Nov does not count, "
             "so the 2-of-2 threshold is not met.", coll_intent, collective,
             extra_logs=[[coll, c_rm]],
-            seen={content_id(coll_intent): "2026-11-01T00:00:00Z"})
+            seen=seen_at(coll_intent, "2026-11-01T00:00:00Z"))
     future = signed(variant(intent), a_op2, amina_vm2,
                     created="2026-10-30T10:30:00Z")
     bad_sig("proof-from-the-future",
             "The proof claims a time more than 300 seconds after the "
             "evidence that it existed.", future, amina,
-            seen={content_id(future): "2026-10-30T10:00:00Z"})
+            seen=seen_at(future, "2026-10-30T10:00:00Z"))
     stale = signed(variant(intent), a_op2, amina_vm2,
                    created="2026-10-31T11:00:00Z")
     bad_sig("proof-after-record-expiry",
@@ -2143,7 +2661,7 @@ def build():
                         {"mind": child, "role": "creditor",
                          "required": True}],
             "promise": "The researcher will translate a lease for the fork.",
-            "terms": {"price": {"amount": "1", "currency": "USD"}},
+            "terms": {"price": usd("1", payer=child, payee=researcher)},
             "resolves": [intent_ref], "closesIntent": True}
     sock = sign(sock,
                 create_proof(sock, r_op, res_vm, "assertionMethod",
@@ -2176,7 +2694,310 @@ def build():
                 "kind": "record",
                 "record": signed(variant(packet, nonce="p1"), t_op,
                                  agent_vm)})
+
+    # collectives: members' proofs judged at the event's evaluation time
+    a_inv_gone = control_event(
+        "Update", amina, a_upd, "2026-11-02T08:00:00Z", [a_c2], [a_c3],
+        fields={"invocation": [],
+                "revoked": [{"key": a_inv.mk,
+                             "compromisedSince": "2026-11-01T00:00:00Z"}]})
+    r_inv_gone = control_event(
+        "Update", researcher, res_upd, "2026-11-02T09:00:00Z", [r_c2],
+        [k("researcher-control-3")],
+        fields={"invocation": [], "revoked": [{"key": r_inv.mk}]})
+    takeover = member_event("Update", collective, coll,
+                            "2026-11-01T12:00:00Z",
+                            [(a_inv, amina_inv), (r_inv, res_inv)],
+                            {"keys": [{"key": k("thief-ops").mk,
+                                       "label": "ops"}]})
+    bad_log("collective-update-with-removed-invocation-keys",
+            "Amina and the researcher removed their invocation keys on "
+            "2 Nov. An Update to the collective signed with those keys, "
+            "dated 1 Nov but first seen on 1 Dec, is evaluated at 1 Dec, "
+            "after both removals, so it lacks the threshold and cannot give "
+            "the collective a key of the thief's.", [coll, takeover],
+            extra_logs=[[a_gen, a_upd, a_inv_gone],
+                        [res_gen, res_upd, r_inv_gone]],
+            seen={content_id(takeover): "2026-12-01T00:00:00Z"})
+    bad_log("collective-genesis-seen-after-founder-key-removal",
+            "Amina removed the invocation key that signed the collective's "
+            "genesis on 2 Nov. A verifier whose earliest evidence of the "
+            "genesis is from 3 Nov cannot tell it from a forgery made later "
+            "with that key, so the log fails for that verifier. Witnesses "
+            "and anchors supply the earlier evidence (Layer 1, 9.6).",
+            [coll], extra_logs=[[a_gen, a_upd, a_inv_gone]],
+            seen={content_id(coll): "2026-11-03T00:00:00Z"})
+    c2_inv = k("subcollective-invocation")
+    c2_gen = coll_genesis(2, [(a_inv, amina_inv), (r_inv, res_inv)],
+                          members=(amina, researcher),
+                          created="2026-10-30T09:30:00Z",
+                          invocation=[c2_inv])
+    c2 = did(content_id(c2_gen))
+    c2_inv_vm = op_vm(c2, c2_gen, c2_inv.mk)
+
+    def join_c2(base):
+        return member_event("Update", did(content_id(base)), base,
+                            "2026-10-31T00:00:00Z",
+                            [(a_inv, amina_inv), (r_inv, res_inv),
+                             (c2_inv, c2_inv_vm)],
+                            {"controller": {"members": [amina, lexis,
+                                                        researcher, c2],
+                                            "threshold": 3}})
+    bad_log("collective-member-height",
+            "A collective's height is fixed by its genesis and every "
+            "member's height must be below it. The 2-of-3 collective has "
+            "height 1, so another collective cannot join it. A member "
+            "collective can therefore never grow taller than the "
+            "collectives it belongs to allow.",
+            [coll, join_c2(coll)], extra_logs=[[c2_gen]])
+
+    # evidence is per proof
+    p_late = create_proof(commit, a_op1, amina_vm1, "assertionMethod",
+                          "2026-10-30T10:25:00Z")
+    bad_sig("late-cosignature-backdated",
+            "The verifier saw the proposed commitment on 30 Oct. A proof by "
+            "Amina's phone key dated 30 Oct but added on 5 Nov, after she "
+            "declared the key compromised since 31 Oct, is evaluated at "
+            "5 Nov: evidence that a record existed is not evidence for a "
+            "co-signature added to it later.",
+            sign(commit_proposed, p_late), amina,
+            extra_logs=[[a_gen, a_upd, a_cmp]],
+            seen={proof_digest(p_agent): "2026-10-30T10:20:00Z",
+                  proof_digest(p_late): "2026-11-05T00:00:00Z"})
+
+    # Ed25519 edge cases (core 4.4)
+    identity_mk = multikey_ed25519(ed_encode(ED_IDENTITY))
+    idg = {"oip": OIP_VERSION, "type": "Genesis", "kind": "agent",
+           "created": T0,
+           "controller": {"keys": [identity_mk],
+                          "next": [key_hash(k("identity-point-next").mk)],
+                          "nextThreshold": 1}}
+    idg = sign(idg, forged_proof(idg, did_key_vm(identity_mk),
+                                 "capabilityInvocation", T0,
+                                 lambda msg: ed_raw_sign(
+                                     0, ed_encode(ED_IDENTITY), msg,
+                                     nonce=7)))
+    bad_log("identity-point-control-key",
+            "The identity point is in the prime-order subgroup but has "
+            "order 1, so anyone can sign any message for it. Core 4.4 "
+            "accepts only keys of order exactly L.", [idg])
+    mixed = ed_add(ed_mul(k("mixed-order-key").scalar, ED_B),
+                   ed_decode((ED_P - 1).to_bytes(32, "little")))
+    bad_log("mixed-order-operational-key",
+            "A public key with a small-order component verifies some "
+            "signatures under OpenSSL's cofactorless check and not under "
+            "core 4.4, so such keys are rejected wherever they appear.",
+            [key_controlled_genesis(
+                "agent", k("mixed-order-control-0"),
+                k("mixed-order-control-1"), [],
+                extra={"keys": [{"key": multikey_ed25519(ed_encode(mixed)),
+                                 "label": "mixed-order"}]})])
+    s_doc = variant(intent, created="2026-10-30T10:01:00Z")
+    s_ok = signed(s_doc, a_op2, amina_vm2)["proof"][0]
+    sig = b58decode(s_ok["proofValue"][1:])
+    s_big = sig[:32] + (int.from_bytes(sig[32:], "little") +
+                        ED_L).to_bytes(32, "little")
+    bad_sig("signature-s-not-reduced",
+            "Adding the group order L to S gives another signature that "
+            "satisfies the verification equation. Core 4.4 requires S < L, "
+            "so a third party cannot alter a valid signature.",
+            sign(s_doc, {**s_ok, "proofValue": "z" + b58encode(s_big)}),
+            amina)
+    r_doc = variant(intent, created="2026-10-30T10:02:00Z")
+    bad_sig("signature-r-identity",
+            "A signer that knows its private key can make a signature whose "
+            "R is the identity point. OpenSSL accepts it; core 4.4 requires "
+            "R to have order L, so every verifier rejects it.",
+            sign(r_doc, forged_proof(
+                r_doc, amina_vm2, "assertionMethod", r_doc["created"],
+                lambda msg: ed_raw_sign(a_op2.scalar, a_op2.pub, msg,
+                                        r_point=ED_IDENTITY))), amina)
+
+    # delegation chains are exact
+    bad_sig("chain-out-of-order",
+            "A proof's `authority` lists exactly its delegation chain, root "
+            "first. The same two delegations in the other order are not a "
+            "chain, and verifiers do not search for one.",
+            signed(variant(chain_commit), f_op, child_vm,
+                   authority=[sub_ref, deleg_ref]), lexis_ltd)
+    neg.append({"name": "delegation-to-self",
+                "reason": "A delegation's delegate must differ from its "
+                          "author.",
+                "kind": "record",
+                "record": signed(variant(deleg, delegate=lexis_ltd,
+                                         nonce="5e7a9c1b3d0f2846"),
+                                 l_op, ltd_vm)})
+
+    # who a proof acts for, and for what
+    bad_sig("role-without-charter",
+            "A member signs for its collective under a charter role only "
+            "when its proof's `authority` names the charter, so the "
+            "steward's plain signature binds only the steward.",
+            signed(steward_doc, t_op, agent_vm), collective)
+    self_deal = {"oip": OIP_VERSION, "type": "Commitment", "author": lexis,
+                 "created": "2026-10-30T12:00:00Z",
+                 "parties": [{"mind": lexis_ltd, "role": "debtor",
+                              "required": True},
+                             {"mind": lexis, "role": "creditor",
+                              "required": True}],
+                 "promise": "Lexis Ltd will translate a contract for its own "
+                            "agent, which will pay 500 USD.",
+                 "terms": {"price": usd("500", payer=lexis)}}
+    bad_sig("policy-self-dealing",
+            "Lexis Ltd's delegation excludes its own agent as a party, so "
+            "the agent cannot bind the firm to a deal with itself.",
+            signed(self_deal, t_op, agent_vm, authority=[deleg_ref]),
+            lexis_ltd)
+    bad_sig("policy-payee",
+            "Lexis Ltd's delegation lets its agent commit the firm only to "
+            "deals in which the firm is paid. In this commitment Lexis Ltd "
+            "pays, so it is outside the delegation.",
+            signed(variant(commit, terms__price=usd("120", payer=lexis_ltd,
+                                                    payee=amina)),
+                   t_op, agent_vm, authority=[deleg_ref]), lexis_ltd)
+    d_not = signed({"oip": OIP_VERSION, "type": "Delegation",
+                    "author": lexis_ltd, "created": "2026-10-30T09:33:00Z",
+                    "delegate": lexis, "subject": lexis_ltd,
+                    "command": "/oip/sign/Commitment",
+                    "policy": [["not", ["==", ".terms.price.currency",
+                                        "BTC"]]],
+                    "expires": "2026-11-30T09:30:00Z",
+                    "nonce": "4a6c8e0b2d1f3957"}, l_op, ltd_vm)
+    unpriced = {"oip": OIP_VERSION, "type": "Commitment", "author": lexis,
+                "created": "2026-10-30T12:00:00Z",
+                "parties": [{"mind": lexis_ltd, "role": "debtor",
+                             "required": True},
+                            {"mind": amina, "role": "creditor",
+                             "required": True}],
+                "promise": "Lexis Ltd will translate a second lease for "
+                           "Amina, at a price to be agreed.",
+                "terms": {"deadline": "2026-11-10T18:00:00Z"}}
+    bad_sig("policy-negation-of-missing-member",
+            "The policy says 'not priced in BTC'. This commitment has no "
+            "price, so the comparison is an error, and an error fails the "
+            "whole policy instead of being negated into a pass.",
+            signed(unpriced, t_op, agent_vm, authority=[d_not]), lexis_ltd)
+    c_loc = {"oip": OIP_VERSION, "type": "Location", "author": collective,
+             "seq": MAX_SAFE_INT, "created": "2026-10-30T23:00:00Z",
+             "ttl": 900, "status": "active", "endpoints": []}
+    c_loc = sign(c_loc, *[create_proof(c_loc, key, vm, "assertionMethod",
+                                       c_loc["created"])
+                          for key, vm in ((a_op1, amina_vm1),
+                                          (r_op, res_vm))])
+    bad_sig("collective-location-after-member-left",
+            "A location record signed under a collective's threshold counts "
+            "only while its signers meet the threshold of the collective's "
+            "latest state. Once the researcher has left, the record it "
+            "signed with Amina is no longer current, however high its seq.",
+            c_loc, collective, extra_logs=[[coll, c_rm]])
+    outsider = {"oip": OIP_VERSION, "type": "Commitment",
+                "author": researcher, "created": "2026-10-30T12:00:00Z",
+                "parties": [{"mind": lexis_ltd, "role": "debtor",
+                             "required": True},
+                            {"mind": amina, "role": "creditor",
+                             "required": True}],
+                "promise": "Lexis Ltd will translate a second lease; Amina "
+                           "will pay 100 USD.",
+                "terms": {"price": usd("100")}}
+    outsider = sign(outsider, *[
+        create_proof(outsider, key, vm, "assertionMethod",
+                     outsider["created"])
+        for key, vm in ((r_op, res_vm), (l_op, ltd_vm), (a_op1, amina_vm1))])
+    neg.append({"name": "commitment-author-not-a-party",
+                "reason": "A Commitment's author must be one of its parties "
+                          "or sign for one. Signed by both parties but "
+                          "authored by an outsider, it is never accepted.",
+                "kind": "status", "of": outsider, "records": [outsider],
+                "at": "2026-10-30T13:00:00Z", "expect": "proposed"})
+    bad_sig("packet-on-behalf-without-delegation",
+            "The packet names Amina in `provenance.onBehalfOf`, but its "
+            "proof lists no delegation covering /oip/send, so it was not "
+            "sent on her behalf.",
+            signed(variant(sent), s_op, asst_vm), amina, kind="sentFor")
+    self_entry = signed({"oip": OIP_VERSION, "type": "Entry",
+                         "author": bridged, "seq": 0,
+                         "created": "2026-10-30T08:11:00Z",
+                         "object": content_id(br_gen),
+                         "objectType": "Genesis"}, br_op, br_vm)
+    neg.append({"name": "bridge-self-attested",
+                "reason": "A mind is bridged only when its gateway attests "
+                          "it in the gateway's own feed. An attestation by "
+                          "the bridged mind itself leaves the label "
+                          "`claimed`.",
+                "kind": "assurance",
+                "record": signed(variant(br_participant, ext={
+                    "oip.bridge": {**bridge_block,
+                                   "attestation": record_ref(bridged,
+                                                             self_entry)}}),
+                    br_op, br_vm),
+                "extraRecords": [self_entry], "expect": "claimed"})
+    bad_sig("duplicity-unresolved",
+            "Evidence cannot separate the two events at position 1 of "
+            "Amina's log, so she is duplicitous: her Intent, pinned to a "
+            "version after the divergence, does not count.",
+            intent, amina, branches=[[a_gen, a_upd_alt]], seen=tie)
+
+    # Controls: each negative case above, changed only in the respect its
+    # reason names, must be accepted, so it fails for that reason alone.
+    by_name = {case["name"]: case for case in neg}
+
+    def control(name, **changes):
+        case = {kk: v for kk, v in by_name[name].items() if kk != "reason"}
+        for kk, v in changes.items():
+            if v is None:
+                case.pop(kk, None)
+            else:
+                case[kk] = v
+        V["controls"].append(case)
+
+    control("removed-key-backdated",
+            seen=seen_at(late_intent, "2026-11-01T08:00:05Z"))
+    control("compromised-key-backdated",
+            seen=seen_at(early_intent, "2026-10-30T23:00:10Z"))
+    control("expired-delegation-backdated",
+            seen=seen_at(exp_commit, "2026-11-29T00:00:05Z"))
+    control("revoked-delegation",
+            seen=seen_at(rev_commit, "2026-11-05T00:00:05Z"))
+    control("removed-member-backdated",
+            seen=seen_at(coll_intent, "2026-10-30T23:00:05Z"))
+    control("collective-update-with-removed-invocation-keys",
+            seen={content_id(takeover): "2026-11-01T12:00:05Z"})
+    control("collective-genesis-seen-after-founder-key-removal", seen=None)
+    taller = coll_genesis(2, founders, height=2)
+    control("collective-member-height", log=[taller, join_c2(taller)])
+    control("late-cosignature-backdated",
+            seen={proof_digest(p_agent): "2026-10-30T10:20:00Z",
+                  proof_digest(p_late): "2026-10-30T10:25:05Z"})
+    control("policy-negation-of-missing-member",
+            record=signed(variant(unpriced, terms__price=usd("120")),
+                          t_op, agent_vm, authority=[d_not]))
+    control("collective-location-after-member-left", extraLogs=None)
     return V
+
+
+def forged_proof(doc, vm, purpose, created, sign_raw) -> dict:
+    """A proof whose 64-byte signature comes from sign_raw(hashData), for
+    Ed25519 edge cases that ordinary libraries refuse to produce."""
+    config = {"type": "DataIntegrityProof", "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": vm, "proofPurpose": purpose,
+              "created": created}
+    unsecured = {k: v for k, v in doc.items() if k != "proof"}
+    msg = hashlib.sha256(jcs(config)).digest() + \
+        hashlib.sha256(jcs(unsecured)).digest()
+    return {**config, "proofValue": "z" + b58encode(sign_raw(msg))}
+
+
+def ed_raw_sign(scalar, pub: bytes, msg: bytes, nonce=None, r_point=None):
+    """Ed25519 signing from a scalar (TEST VECTORS ONLY): R = [nonce]B, or
+    r_point with its discrete log taken as 0 (the identity), and
+    S = r + k * scalar mod L."""
+    if r_point is not None:
+        r, R = 0, ed_encode(r_point)
+    else:
+        r = nonce % ED_L
+        R = ed_encode(ed_mul(r, ED_B))
+    k = int.from_bytes(hashlib.sha512(R + pub + msg).digest(), "little") % ED_L
+    return R + ((r + k * scalar) % ED_L).to_bytes(32, "little")
 
 
 def variant_of(base, **changes):
@@ -2196,25 +3017,34 @@ def variant_of(base, **changes):
 
 LOG_NAMES = ("amina_log", "lexis_ltd_log", "lexis_agent_log",
              "lexis_fork_log", "lexis_fork2_log", "researcher_log",
-             "collective_log", "multi_log", "assistant_log")
-RECORD_NAMES = ("delegation", "delegation_sub", "delegation_amina", "intent",
-                "offer", "commitment_accepted", "receipt",
-                "commitment_agents", "collective_charter",
-                "commitment_by_steward", "commitment_via_chain", "lineage",
-                "participant", "location", "feed_entry", "feed_entry_1",
-                "checkpoint", "packet", "ack", "hello")
+             "collective_log", "multi_log", "assistant_log", "gateway_log",
+             "bridged_log")
+RECORD_NAMES = ("delegation", "delegation_sub", "delegation_amina",
+                "delegation_send", "intent", "offer", "offer_glossary",
+                "commitment_accepted", "receipt", "commitment_agents",
+                "collective_charter", "commitment_by_steward",
+                "commitment_via_chain", "lineage", "participant", "location",
+                "feed_entry", "feed_entry_1", "checkpoint", "packet", "ack",
+                "hello", "gateway_entry", "bridged_participant")
 MINDS = (("amina_log", "amina"), ("lexis_ltd_log", "lexis_ltd"),
          ("lexis_agent_log", "lexis_agent"), ("lexis_fork_log", "lexis_fork"),
          ("lexis_fork2_log", "lexis_fork2"), ("researcher_log", "researcher"),
          ("collective_log", "collective"), ("multi_log", "multi"),
-         ("assistant_log", "assistant"))
+         ("assistant_log", "assistant"), ("gateway_log", "gateway"),
+         ("bridged_log", "bridged"))
+STATUS_FN = {"Intent": lambda *a: intent_status(*a),
+             "Offer": lambda *a: offer_status(*a),
+             "Commitment": lambda *a: commitment_status(*a)}
 
 
-def verifier_for(c, extra_logs=(), records=(), seen=None) -> Verifier:
+def verifier_for(c, extra_logs=(), records=(), seen=None,
+                 branches=()) -> Verifier:
     V = Verifier(logs=[c[n] for n in LOG_NAMES],
                  records=[c[n] for n in RECORD_NAMES], seen=seen)
     for log in extra_logs:
         V.add_log(log)
+    for log in branches:
+        V.add_branch(log)
     for r in records:
         V.add(r)
     return V
@@ -2252,7 +3082,7 @@ def check(VEC) -> list:
     assert V.log(c["collective"]).height == 1
     done.append("identity logs verify; addresses derive from genesis")
     ids = set()
-    _all_ids([VEC["cases"], VEC["valid"]], ids)
+    _all_ids([VEC["cases"], VEC["valid"], VEC["controls"]], ids)
     assert ids and all(CID_RE.fullmatch(i) for i in ids), \
         [i for i in ids if not CID_RE.fullmatch(i)]
     done.append(f"all {len(ids)} content IDs use the canonical spelling")
@@ -2262,17 +3092,21 @@ def check(VEC) -> list:
     assert V.lineage(c["lexis_fork2"]) == {c["lexis_agent"]: "acknowledged"}
     done.append("lineage acknowledged by a Fork event and by a Lineage record")
     for name, mind in (("intent", "amina"), ("offer", "lexis_agent"),
+                       ("offer_glossary", "lexis_ltd"),
                        ("receipt", "amina"), ("packet", "lexis_agent"),
                        ("ack", "amina"), ("hello", "lexis_agent"),
                        ("delegation", "lexis_ltd"),
                        ("delegation_sub", "lexis_agent"),
                        ("delegation_amina", "amina"),
+                       ("delegation_send", "amina"),
                        ("participant", "lexis_agent"),
                        ("location", "lexis_agent"),
                        ("feed_entry", "lexis_agent"),
                        ("feed_entry_1", "lexis_agent"),
                        ("checkpoint", "lexis_agent"),
-                       ("lineage", "lexis_agent")):
+                       ("lineage", "lexis_agent"),
+                       ("gateway_entry", "gateway"),
+                       ("bridged_participant", "bridged")):
         assert V.counts_for(c[name], c[mind]), name
     done.append("signatures count for their authors (purpose and key checks)")
     for name, mind, version in (("did_document_amina", "amina", None),
@@ -2296,9 +3130,13 @@ def check(VEC) -> list:
     assert c["packet"]["content"]["parts"][0]["body"] == c["session"]
     assert c["packet"]["session"] == content_id(c["session"])
     done.append("packet opens its session; Ack names the packet")
+    assert V.sent_for(c["packet_on_behalf"], c["amina"])
+    assert not V.sent_for(c["packet_on_behalf"], c["lexis_ltd"])
+    done.append("packet sent on Amina's behalf under a /oip/send delegation")
     assert content_id(acc) == content_id(prop)
     assert V.counts_for(acc, c["amina"]) and V.counts_for(acc, c["lexis_ltd"])
     assert not V.counts_for(prop, c["amina"])
+    assert commitment_accepted(V, acc) and not commitment_accepted(V, prop)
     done.append("co-signing keeps the content ID; delegated party proof")
     rush = c["commitment_agents"]
     assert V.counts_for(rush, c["lexis_ltd"]) and \
@@ -2307,38 +3145,36 @@ def check(VEC) -> list:
         content_id(rush)
     done.append("two agents sign for their principals, in either order")
     agent_key = Key("lexis-agent-i1")
+    price = prop["terms"]["price"]
     for amount, expected in (("120", True), ("500", True), ("500.01", False),
                              ("900", False)):
-        doc = resign(prop, agent_key, terms__price={"amount": amount,
-                                                    "currency": "USD"})
+        doc = resign(prop, agent_key, terms__price={**price,
+                                                    "amount": amount})
         assert V.counts_for(doc, c["lexis_agent"])
         assert V.counts_for(doc, c["lexis_ltd"]) is expected, amount
     done.append("delegation policy enforced (120, 500 ok; 500.01, 900 not)")
     chain = c["commitment_via_chain"]
     assert V.counts_for(chain, c["lexis_ltd"])
+    assert commitment_accepted(V, chain)
     over = resign(chain, Key("lexis-fork-i1"),
-                  terms__price={"amount": "300", "currency": "USD"})
+                  terms__price={**chain["terms"]["price"], "amount": "300"})
     assert not V.counts_for(over, c["lexis_ltd"])
     done.append("two-step delegation chain (150 ok; 300 beyond the sub-limit)")
     assert V.counts_for(c["collective_charter"], c["collective"])
     assert V.counts_for(c["commitment_by_steward"], c["collective"])
     done.append("collective signs by 2-of-3 threshold and by a charter role")
-    names = {"intent": c["intent"], "offer": c["offer"],
-             "intent_withdrawal": c["intent_withdrawal"],
-             "intent_edit": c["intent_edit"],
-             "commitment_proposed": prop, "commitment_accepted": acc,
-             "commitment_agents": rush, "receipt": c["receipt"]}
-    fn = {"intent": intent_status, "offer": offer_status,
-          "intent_withdrawal": intent_status, "intent_edit": intent_status,
-          "commitment_proposed": commitment_status,
-          "commitment_accepted": commitment_status,
-          "commitment_agents": commitment_status}
+    assert bridge_assurance(V, c["bridged_participant"]) == "bridged"
+    assert bridge_assurance(V, c["participant"]) == "native"
+    done.append("a bridged mind, attested in its gateway's feed")
+    states = set()
     for s in c["status"]:
-        got = fn[s["of"]](V, names[s["of"]], [names[n] for n in s["records"]],
-                          ts(s["at"]))
+        rec = c[s["of"]]
+        got = STATUS_FN[rec["type"]](V, rec, [c[n] for n in s["records"]],
+                                     ts(s["at"]))
         assert got == s["expect"], (s, got)
-    done.append("Layer 2 status (satisfied, withdrawn, superseded, open, "
-                "expired, proposed, accepted, overdue, fulfilled)")
+        states.add(f"{rec['type']} {got}")
+    done.append(f"Layer 2 status ({len(states)} states of Intent, Offer and "
+                "Commitment)")
     assert jcs(c["jcs_example"]["input"]).decode() == \
         c["jcs_example"]["output"]
     done.append("JCS example")
@@ -2347,66 +3183,69 @@ def check(VEC) -> list:
 
 def _case_verifier(c, case):
     return verifier_for(c, case.get("extraLogs", ()),
-                        case.get("extraRecords", ()), case.get("seen"))
+                        case.get("extraRecords", ()), case.get("seen"),
+                        case.get("branches", ()))
+
+
+def _holds(c, case) -> bool:
+    """Whether a case's claim holds: the log verifies, the record counts
+    for (or was sent for) the mind, the status or assurance is `expect`,
+    or the record is well formed."""
+    V = _case_verifier(c, case)
+    kind = case["kind"]
+    if kind == "log":
+        try:
+            verify_log(case["log"], V)
+            return True
+        except ValueError:
+            return False
+    if kind == "countsFor":
+        return V.counts_for(case["record"], case["mind"])
+    if kind == "sentFor":
+        return V.sent_for(case["record"], case["mind"])
+    if kind == "status":
+        rec = case["of"]
+        return STATUS_FN[rec["type"]](V, rec, case["records"],
+                                      ts(case["at"])) == case["expect"]
+    if kind == "assurance":
+        return bridge_assurance(V, case["record"]) == case["expect"]
+    if kind == "record":
+        return record_ok(case["record"])
+    raise ValueError(f"unknown case kind {kind}")
 
 
 def check_valid(VEC) -> list:
     """Cases that look suspicious but must be accepted."""
     c, done = VEC["cases"], []
     for case in VEC["valid"]:
-        V = _case_verifier(c, case)
-        if case["kind"] == "log":
-            verify_log(case["log"], V)
-        else:
-            assert V.counts_for(case["record"], case["mind"]), case["name"]
+        assert _holds(c, case), f"rejected: {case['name']}"
         done.append(case["name"])
     return done
 
 
 def check_negative(VEC) -> list:
-    """Every negative case must be rejected."""
+    """Every negative case must be rejected: its log fails, its record does
+    not count, or its status or assurance is `expect` (not what an attacker
+    wanted)."""
     c, done = VEC["cases"], []
     for case in VEC["negative"]:
-        V = _case_verifier(c, case)
-        kind = case["kind"]
-        if kind == "log":
-            try:
-                verify_log(case["log"], V)
-                raise AssertionError(f"accepted: {case['name']}")
-            except ValueError:
-                pass
-        elif kind == "countsFor":
-            assert not V.counts_for(case["record"], case["mind"]), \
-                f"accepted: {case['name']}"
-        elif kind == "status":
-            fn = {"Intent": intent_status, "Offer": offer_status,
-                  "Commitment": commitment_status}[case["of"]["type"]]
-            got = fn(V, case["of"], case["records"], ts(case["at"]))
-            assert got == case["expect"], (case["name"], got)
-        elif kind == "record":
-            assert not record_ok(case["record"]), case["name"]
+        if case["kind"] in ("status", "assurance"):
+            assert _holds(c, case), f"wrong result: {case['name']}"
+        else:
+            assert not _holds(c, case), f"accepted: {case['name']}"
         done.append(case["name"])
     return done
 
 
-def check_controls(VEC):
-    """The time-based negative cases fail for the stated reason: the same
-    records pass when first seen in time."""
-    c = VEC["cases"]
-    by = {n["name"]: n for n in VEC["negative"]}
-    for name, ok_seen in (("removed-key-backdated", "2026-11-01T08:00:05Z"),
-                          ("compromised-key-backdated",
-                           "2026-10-30T23:00:10Z"),
-                          ("expired-delegation-backdated",
-                           "2026-11-29T00:00:05Z"),
-                          ("revoked-delegation", "2026-11-05T00:00:05Z"),
-                          ("removed-member-backdated",
-                           "2026-10-30T23:00:05Z")):
-        case = dict(by[name])
-        case["seen"] = {content_id(case["record"]): ok_seen}
-        assert _case_verifier(c, case).counts_for(case["record"],
-                                                  case["mind"]), name
-    return "time-based negatives pass when first seen in time (controls)"
+def check_controls(VEC) -> list:
+    """Each control is a negative case changed only in the respect its
+    reason names, and must be accepted: the negative fails for that reason
+    alone."""
+    c, done = VEC["cases"], []
+    for case in VEC["controls"]:
+        assert _holds(c, case), f"control rejected: {case['name']}"
+        done.append(case["name"])
+    return done
 
 
 if __name__ == "__main__":
@@ -2419,4 +3258,5 @@ if __name__ == "__main__":
         print("ok -", line)
     print(f"ok - {len(check_valid(vectors))} must-accept cases accepted")
     print(f"ok - {len(check_negative(vectors))} negative cases rejected")
-    print("ok -", check_controls(vectors))
+    print(f"ok - {len(check_controls(vectors))} controls accepted (each "
+          "negative fails only for its stated reason)")

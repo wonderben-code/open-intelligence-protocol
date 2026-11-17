@@ -17,6 +17,9 @@
       "type": "string",
       "const": "1"
     },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
     "ext": {
       "$ref": "urn:oip:schema:def:ext"
     },
@@ -35,9 +38,6 @@
     },
     "author": {
       "$ref": "urn:oip:schema:def:mindAddress"
-    },
-    "expires": {
-      "$ref": "urn:oip:schema:def:timestamp"
     },
     "supersedes": {
       "$ref": "urn:oip:schema:def:recordRef"

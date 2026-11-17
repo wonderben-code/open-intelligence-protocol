@@ -20,6 +20,9 @@
       "type": "string",
       "const": "1"
     },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
     "ext": {
       "$ref": "urn:oip:schema:def:ext"
     },
@@ -90,9 +93,6 @@
           }
         }
       ]
-    },
-    "expires": {
-      "$ref": "urn:oip:schema:def:timestamp"
     },
     "nonce": {
       "$ref": "urn:oip:schema:def:nonce"

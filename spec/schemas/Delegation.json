@@ -6,6 +6,7 @@
   "type": "object",
   "required": [
     "oip",
+    "expires",
     "created",
     "proof",
     "type",
@@ -13,13 +14,15 @@
     "delegate",
     "subject",
     "command",
-    "expires",
     "nonce"
   ],
   "properties": {
     "oip": {
       "type": "string",
       "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
     },
     "ext": {
       "$ref": "urn:oip:schema:def:ext"
@@ -74,9 +77,6 @@
       "$ref": "urn:oip:schema:Policy"
     },
     "notBefore": {
-      "$ref": "urn:oip:schema:def:timestamp"
-    },
-    "expires": {
       "$ref": "urn:oip:schema:def:timestamp"
     },
     "nonce": {

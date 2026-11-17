@@ -218,15 +218,30 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@24.19.2)(@vitest/coverage-v8@5.1.0)(vite@8.3.7(@types/node@24.19.2)(yaml@2.9.1))
 
+  packages/conformance:
+    dependencies:
+      '@oip/schema':
+        specifier: workspace:*
+        version: link:../schema
+    devDependencies:
+      '@oip/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+
   packages/schema:
     dependencies:
       typebox:
         specifier: ^1.4.6
         version: 1.4.6
     devDependencies:
+      '@oip/testkit':
+        specifier: workspace:*
+        version: link:../testkit
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
+
+  packages/testkit: {}
 
 packages:
 

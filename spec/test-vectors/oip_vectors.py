@@ -26,6 +26,9 @@ that each negative case fails only for its stated reason, and checks it.
 
 Run:  python3 oip_vectors.py            -> writes vectors.json and checks it
       python3 oip_vectors.py --check    -> checks an existing vectors.json
+      python3 oip_vectors.py --judge    -> reads cases in the vectors' format
+                                           on standard input and prints one
+                                           verdict per case (see judge())
 
 Requires only the `cryptography` package. Licensed Apache-2.0.
 STATUS: DRAFT. Tracks the spec revision in REVISION and may change.
@@ -931,7 +934,8 @@ def record_ok(r) -> bool:
         t = r.get("type")
         if not isinstance(t, str):
             return False
-        if t not in ("Bundle", "Sealed"):
+        if t not in ("Bundle", "LogPage", "FeedPage", "DuplicityEvidence",
+                     "Sealed"):
             ts(r["created"])
         if "expires" in r:
             ts(r["expires"])
@@ -1722,6 +1726,8 @@ def build():
                        "event at its own `created` time. `seen` maps a "
                        "proof's digest, or an identity event's content ID, "
                        "to the earliest evidence that it existed.",
+         "baseline": {"logs": list(LOG_NAMES),
+                      "records": list(RECORD_NAMES)},
          "keys": {}, "cases": {}, "valid": [], "negative": [],
          "controls": []}
 
@@ -3074,6 +3080,8 @@ def resign(record, key, **changes):
 def check(VEC) -> list:
     """Re-verify every positive case. Returns the names of the checks."""
     c = VEC["cases"]
+    assert VEC["baseline"] == {"logs": list(LOG_NAMES),
+                               "records": list(RECORD_NAMES)}
     V = verifier_for(c)
     done = []
     for log, mind in MINDS:
@@ -3214,6 +3222,55 @@ def _holds(c, case) -> bool:
     raise ValueError(f"unknown case kind {kind}")
 
 
+def judge(c, case) -> dict:
+    """The verdict on one case in the vectors' format, for differential
+    testing against another implementation. `holds` says whether the case's
+    claim holds, as _holds() does. For `status` and `assurance` cases,
+    `value` is the result computed, whatever `expect` says (and `expect`
+    may be absent). An input this checker cannot process at all is
+    reported as `error`, with `holds` false: an error is never an
+    acceptance."""
+    out = {"name": case.get("name"), "kind": case.get("kind")} \
+        if isinstance(case, dict) else {"name": None, "kind": None}
+    try:
+        kind = case["kind"]
+        if kind == "status":
+            rec = case["of"]
+            out["value"] = STATUS_FN[rec["type"]](
+                _case_verifier(c, case), rec, case["records"], ts(case["at"]))
+            out["holds"] = "expect" not in case or \
+                out["value"] == case["expect"]
+        elif kind == "assurance":
+            out["value"] = bridge_assurance(_case_verifier(c, case),
+                                            case["record"])
+            out["holds"] = "expect" not in case or \
+                out["value"] == case["expect"]
+        else:
+            out["holds"] = bool(_holds(c, case))
+    except RecursionError:
+        out.pop("value", None)
+        out["holds"], out["error"] = False, "RecursionError"
+    except Exception as e:               # malformed input is a rejection
+        out.pop("value", None)
+        out["holds"], out["error"] = False, f"{type(e).__name__}: {e}"
+    return out
+
+
+def judge_stream(c, lines, write):
+    """Judge one JSON case per input line, writing one verdict per line and
+    flushing, so that a caller can keep this process open and judge
+    millions of cases."""
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            verdict = judge(c, json.loads(line))
+        except ValueError as e:
+            verdict = {"name": None, "kind": None, "holds": False,
+                       "error": f"not JSON: {e}"}
+        write(json.dumps(verdict, ensure_ascii=False) + "\n")
+
+
 def check_valid(VEC) -> list:
     """Cases that look suspicious but must be accepted."""
     c, done = VEC["cases"], []
@@ -3250,6 +3307,24 @@ def check_controls(VEC) -> list:
 
 if __name__ == "__main__":
     out = Path(__file__).with_name("vectors.json")
+    if "--judge" in sys.argv:
+        # Cases are judged against the existing vectors.json. With --lines,
+        # standard input holds one case per line and verdicts are written
+        # as they are reached. Otherwise it holds one case, or an array of
+        # cases, as a single JSON value.
+        cases = json.loads(out.read_text(encoding="utf-8"))["cases"]
+
+        def emit(text):
+            sys.stdout.write(text)
+            sys.stdout.flush()
+
+        if "--lines" in sys.argv:
+            judge_stream(cases, sys.stdin, emit)
+        else:
+            given = json.loads(sys.stdin.read())
+            for one in given if isinstance(given, list) else [given]:
+                emit(json.dumps(judge(cases, one), ensure_ascii=False) + "\n")
+        sys.exit(0)
     if "--check" not in sys.argv:
         out.write_text(json.dumps(build(), indent=2, ensure_ascii=False) +
                        "\n", encoding="utf-8")

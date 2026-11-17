@@ -22,6 +22,8 @@ export const ProofSet = define(
 /** Members of every record. */
 export const everyRecord = {
   oip: Type.Literal("1"),
+  // core 7: any record may carry `expires`.
+  expires: Type.Optional(Timestamp),
   ext: Type.Optional(Ext),
   critical: Type.Optional(Critical),
 };

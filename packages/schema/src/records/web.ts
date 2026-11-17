@@ -70,7 +70,6 @@ export type Evidence = Static<typeof Evidence>;
 const layer2 = {
   ...signedRecord,
   author: MindAddress,
-  expires: Type.Optional(Timestamp),
   supersedes: Type.Optional(RecordRef),
   status: Type.Optional(Type.String({ minLength: 1 })),
   links: Type.Optional(Type.Array(Type.Object({ rel: Type.String(), ref: Type.String() }))),

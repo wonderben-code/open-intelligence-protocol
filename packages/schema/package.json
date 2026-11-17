@@ -50,6 +50,7 @@
     "typebox": "^1.4.6"
   },
   "devDependencies": {
+    "@oip/testkit": "workspace:*",
     "ajv": "^8.20.0"
   }
 }

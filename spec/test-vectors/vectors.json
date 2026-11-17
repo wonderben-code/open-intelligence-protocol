@@ -3,6 +3,47 @@
   "status": "draft",
   "note": "Ed25519 keys derive from SHA-256('oip-test-vector:'+label); X25519 keys from SHA-256('oip-test-vector-x25519:'+label). Never use these keys for anything real.",
   "assumption": "Unless a case gives `seen` times, a verifier is taken to have obtained each proof and identity event at its own `created` time. `seen` maps a proof's digest, or an identity event's content ID, to the earliest evidence that it existed.",
+  "baseline": {
+    "logs": [
+      "amina_log",
+      "lexis_ltd_log",
+      "lexis_agent_log",
+      "lexis_fork_log",
+      "lexis_fork2_log",
+      "researcher_log",
+      "collective_log",
+      "multi_log",
+      "assistant_log",
+      "gateway_log",
+      "bridged_log"
+    ],
+    "records": [
+      "delegation",
+      "delegation_sub",
+      "delegation_amina",
+      "delegation_send",
+      "intent",
+      "offer",
+      "offer_glossary",
+      "commitment_accepted",
+      "receipt",
+      "commitment_agents",
+      "collective_charter",
+      "commitment_by_steward",
+      "commitment_via_chain",
+      "lineage",
+      "participant",
+      "location",
+      "feed_entry",
+      "feed_entry_1",
+      "checkpoint",
+      "packet",
+      "ack",
+      "hello",
+      "gateway_entry",
+      "bridged_participant"
+    ]
+  },
   "keys": {
     "amina-control-0": {
       "seed_hex": "f9f2f8b1abb4fc761b6efe14995e6fd4783a1faf3d56c94695abbf0312dca02b",

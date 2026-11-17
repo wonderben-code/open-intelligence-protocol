@@ -167,7 +167,6 @@ export const Packet = Type.Object(
     type: Type.Literal("Packet"),
     from: MindAddress,
     to: PacketTo,
-    expires: Type.Optional(Timestamp),
     nonce: Nonce,
     session: Type.Optional(ContentId),
     seq: Type.Optional(Count),

@@ -122,9 +122,16 @@ function validatorsSource(): string {
     throw new Error("could not find every exported validator in Ajv's output");
   }
 
-  return [
+  // The two lines below are the generated file's header, not this file's.
+  // REUSE-IgnoreStart
+  const licence = [
     "// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors",
     "// SPDX-License-Identifier: Apache-2.0",
+  ];
+  // REUSE-IgnoreEnd
+
+  return [
+    ...licence,
     "// @ts-nocheck",
     `// ${HEADER}`,
     "",

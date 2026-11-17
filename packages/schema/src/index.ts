@@ -76,6 +76,7 @@ export {
   RECORD_TYPES,
   type RecordOf,
   type RecordType,
+  type RecordTypes,
   RESERVED_RECORD_TYPES,
   SIGNED_RECORD_TYPES,
   UNSIGNED_RECORD_TYPES,

@@ -63,14 +63,52 @@ export const recordSchemas = {
 /** Named schemas that are not records. */
 export const sharedSchemas = { Proof, Policy } as const;
 
+/** The static type of every record type, by name. */
+export interface RecordTypes {
+  Genesis: Genesis;
+  Update: Update;
+  Fork: Fork;
+  Retire: Retire;
+  Delegation: Delegation;
+  Revocation: Revocation;
+  Lineage: Lineage;
+  Collective: Collective;
+  Intent: Intent;
+  Offer: Offer;
+  Commitment: Commitment;
+  Receipt: Receipt;
+  Packet: Packet;
+  Entry: Entry;
+  Checkpoint: Checkpoint;
+  Ack: Ack;
+  QueryResult: QueryResult;
+  Forwarded: Forwarded;
+  Location: Location;
+  Participant: Participant;
+  Hello: Hello;
+  Session: Session;
+  Resume: Resume;
+  Branch: Branch;
+  Bundle: Bundle;
+  LogPage: LogPage;
+  FeedPage: FeedPage;
+  DuplicityEvidence: DuplicityEvidence;
+  Sealed: Sealed;
+}
+
+// The interface above and the schemas below must list the same types.
+type SchemaTypes = { [K in keyof typeof recordSchemas]: Static<(typeof recordSchemas)[K]> };
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
+true satisfies Same<RecordTypes, SchemaTypes>;
+
 /** The name of a record type this revision defines. */
-export type RecordType = keyof typeof recordSchemas;
+export type RecordType = keyof RecordTypes;
 
 /** The static type of the record called `K`, as it stands after validation and before verification. */
-export type RecordOf<K extends RecordType> = Static<(typeof recordSchemas)[K]>;
+export type RecordOf<K extends RecordType> = RecordTypes[K];
 
 /** Any record this revision defines. */
-export type OipRecord = { [K in RecordType]: RecordOf<K> }[RecordType];
+export type OipRecord = RecordTypes[RecordType];
 
 export const RECORD_TYPES = Object.freeze(Object.keys(recordSchemas) as RecordType[]);
 

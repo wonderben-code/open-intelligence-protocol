@@ -25,11 +25,12 @@
     "generated:check": "node scripts/spec-clauses.ts --check && pnpm --filter @oip/schema run generate --check",
     "api": "pnpm build && pnpm -r --if-present run api",
     "api:check": "pnpm build && pnpm -r --if-present run api:check",
-    "bench": "vitest bench --run",
+    "bench": "vitest bench --run --reporter=verbose",
     "docs": "typedoc",
     "changeset": "changeset"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.3",
     "@eslint/js": "^10.0.1",
     "@microsoft/api-extractor": "^7.60.1",

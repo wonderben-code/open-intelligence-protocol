@@ -13,7 +13,7 @@ export type Log = readonly JsonObject[];
 export type Seen = Readonly<Record<string, string>>;
 
 /** What every must-accept case, negative case and control has in common. */
-interface CaseBase {
+export interface CaseBase {
   readonly name: string;
   /** Why the case must be accepted or rejected. Controls have none: they are their negative case, corrected. */
   readonly reason?: string;

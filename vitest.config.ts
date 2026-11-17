@@ -10,7 +10,8 @@ const strict = { lines: 95, branches: 95, functions: 95, statements: 95 };
 
 export default defineConfig({
   test: {
-    projects: ["packages/*", "apps/*", "examples/*"],
+    // One project per workspace package that has tests.
+    projects: ["{packages,apps,examples}/*/vitest.config.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "json-summary", "html"],

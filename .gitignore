@@ -13,3 +13,6 @@ coverage/
 .env.*
 *.log
 .DS_Store
+
+# Generated API reference (pnpm docs)
+docs/api/

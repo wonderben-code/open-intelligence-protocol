@@ -3,14 +3,17 @@
 
 /** Removes build output: every package's `dist`, and the coverage and API documentation directories. */
 
-import { readdirSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { repoRoot } from "./lib/spec.ts";
 
 const targets = [join(repoRoot, "coverage"), join(repoRoot, "docs", "api")];
 for (const workspace of ["packages", "apps", "examples"]) {
-  for (const entry of readdirSync(join(repoRoot, workspace), { withFileTypes: true })) {
+  const directory = join(repoRoot, workspace);
+  // apps/ and examples/ appear with the milestones that fill them.
+  if (!existsSync(directory)) continue;
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (entry.isDirectory()) targets.push(join(repoRoot, workspace, entry.name, "dist"));
   }
 }

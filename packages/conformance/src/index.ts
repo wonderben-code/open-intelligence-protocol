@@ -35,6 +35,7 @@ export {
 export {
   type AssuranceCase,
   CASE_KINDS,
+  type CaseBase,
   type CaseKind,
   type CountsForCase,
   type ExpectedStatus,

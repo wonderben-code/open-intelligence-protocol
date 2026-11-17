@@ -5,7 +5,7 @@
 
 import { ed25519PublicKey, signEd25519 } from "./ed25519.ts";
 import { encodeEd25519Multikey } from "./multikey.ts";
-import type { Signer } from "./proof.ts";
+import type { SyncSigner } from "./proof.ts";
 
 /**
  * A signer for an Ed25519 private key held in memory. It is the simplest
@@ -17,7 +17,7 @@ import type { Signer } from "./proof.ts";
  *
  * @throws TypeError if the private key is not 32 bytes.
  */
-export function signerFromPrivateKey(privateKey: Uint8Array): Signer {
+export function signerFromPrivateKey(privateKey: Uint8Array): SyncSigner {
   const publicKey = encodeEd25519Multikey(ed25519PublicKey(privateKey));
   // A copy, so that the signer keeps working if the caller wipes its own array.
   const key = Uint8Array.from(privateKey);

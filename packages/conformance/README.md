@@ -37,22 +37,26 @@ export function report(recordIsWellFormed: (record: unknown) => boolean): string
 This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the two malformed records it should have rejected:
 
 ```
-my implementation: 1 passed, 2 failed, 87 pending
+my implementation: 1 passed, 2 failed, 89 pending
 FAIL negative packet-short-nonce: must be rejected. A packet nonce has 8 to 64 characters.
 FAIL negative delegation-to-self: must be rejected. A delegation's delegate must differ from its author.
 ```
 
 ## The adapter
 
-| Method                          | Kind of case    | Question                                                            |
-| ------------------------------- | --------------- | ------------------------------------------------------------------- |
-| `recordIsWellFormed(record)`    | `record`        | Is the value a well-formed record?                                  |
-| `logVerifies(log, view)`        | `log`           | Does the identity log verify (Layer 1, Section 4)?                  |
-| `countsFor(record, mind, view)` | `countsFor`     | Does the record count for the mind (Layer 2, 7.1)?                  |
-| `sentFor(packet, mind, view)`   | `sentFor`       | Does the packet count as sent on the mind's behalf (Layer 1, 11.2)? |
-| `status(of, records, at, view)` | `status`        | What is the record's status at that time (Layer 2, Section 8)?      |
-| `assurance(profile, view)`      | `assurance`     | What is the profile's assurance level (Layer 0, 1.3)?               |
-| `canonicalize(value)`           | positive checks | What is the canonical form of the value (core Section 2)?           |
+| Method                                     | Kind of case    | Question                                                                                     |
+| ------------------------------------------ | --------------- | -------------------------------------------------------------------------------------------- |
+| `recordIsWellFormed(record)`               | `record`        | Is the value a well-formed record?                                                           |
+| `logVerifies(log, view)`                   | `log`           | Does the identity log verify (Layer 1, Section 4)?                                           |
+| `countsFor(record, mind, view)`            | `countsFor`     | Does the record count for the mind (Layer 2, 7.1)?                                           |
+| `sentFor(packet, mind, view)`              | `sentFor`       | Does the packet count as sent on the mind's behalf (Layer 1, 11.2)?                          |
+| `status(of, records, at, view)`            | `status`        | What is the record's status at that time (Layer 2, Section 8)?                               |
+| `assurance(profile, view)`                 | `assurance`     | What is the profile's assurance level (Layer 0, 1.3)?                                        |
+| `canonicalize(value)`                      | positive checks | What is the canonical form of the value (core Section 2)?                                    |
+| `contentId(record)`                        | positive checks | What is the record's content ID (core 3.1)?                                                  |
+| `keyHash(multikey)`                        | positive checks | What is the key hash of the Multikey string (core 3.4)?                                      |
+| `createProof(record, request, privateKey)` | positive checks | What proof does this test key make on the record (core 5.3)?                                 |
+| `proofVerifies(record, proof)`             | positive checks | Does the proof verify: its members, its purpose and its signature under core 4.4 (core 5.4)? |
 
 `view` is what the verifier holds for the case:
 

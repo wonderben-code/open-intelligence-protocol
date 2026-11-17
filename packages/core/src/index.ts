@@ -72,12 +72,14 @@ export {
 } from "./multikey.ts";
 export {
   createProof,
+  createProofSync,
   MAX_PROOFS,
   proofDigest,
   proofHashData,
   type ProofOptions,
   purposeFor,
   type Signer,
+  type SyncSigner,
   type VerifiedProof,
   verifyProof,
   verifyProofs,

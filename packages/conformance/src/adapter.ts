@@ -65,6 +65,36 @@ export interface ConformanceAdapter {
 
   /** The canonical form of a JSON value, as a string (core Section 2). */
   canonicalize?(value: unknown): string;
+
+  /** The content ID of a record (core 3.1). */
+  contentId?(record: JsonObject): string;
+
+  /** The key hash of a Multikey string (core 3.4). */
+  keyHash?(multikey: string): string;
+
+  /**
+   * A proof on the record, made with an Ed25519 private key (core 5.3). The
+   * result is the whole proof object, `proofValue` included. Ed25519 signing
+   * is deterministic, so the vectors' proofs reproduce byte for byte.
+   */
+  createProof?(record: JsonObject, request: ProofRequest, privateKey: Uint8Array): JsonObject;
+
+  /**
+   * Whether a proof verifies against a record: its members, its purpose, and
+   * its signature under core 4.4 by the key its verification method names
+   * (core 5.4). Whether that key may sign for anyone is another question,
+   * which `countsFor` answers.
+   */
+  proofVerifies?(record: JsonObject, proof: unknown): boolean;
+}
+
+/** What the creator of a proof chooses (core 5.2). The record's type fixes the purpose. */
+export interface ProofRequest {
+  readonly verificationMethod: string;
+  readonly created: string;
+  readonly challenge?: string;
+  readonly domain?: string;
+  readonly authority?: readonly unknown[];
 }
 
 /** The adapter method each kind of case needs. */

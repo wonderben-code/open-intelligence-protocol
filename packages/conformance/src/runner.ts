@@ -3,9 +3,17 @@
 
 /** Runs the golden vectors against an implementation, case by case. */
 
-import { type ConformanceAdapter, METHOD_FOR_KIND, type VerifierView } from "./adapter.ts";
+import { patterns } from "@oip/schema";
+
+import {
+  type ConformanceAdapter,
+  METHOD_FOR_KIND,
+  type ProofRequest,
+  type VerifierView,
+} from "./adapter.ts";
 import {
   type CaseKind,
+  type JsonObject,
   namedLog,
   namedRecord,
   positiveRecords,
@@ -135,6 +143,92 @@ export function runCase(
   return { ...base, outcome: "fail", detail: `must be ${wanted}.${reason}` };
 }
 
+const CONTENT_ID = new RegExp(patterns.contentId);
+
+/** Every string in the vectors that has the shape of a content ID, wherever it stands. */
+function contentIdsIn(value: unknown, found = new Set<string>()): Set<string> {
+  if (typeof value === "string") {
+    for (const match of value.matchAll(/\bb[a-z2-7]{55}\b/g)) found.add(match[0]);
+  } else if (Array.isArray(value)) {
+    for (const item of value) contentIdsIn(item, found);
+  } else if (typeof value === "object" && value !== null) {
+    for (const member of Object.values(value)) contentIdsIn(member, found);
+  }
+  return found;
+}
+
+const eventOf = (log: string, position: number) => (vectors: Vectors) =>
+  namedLog(vectors, log)[position] ?? {};
+const recordOf = (name: string) => (vectors: Vectors) => namedRecord(vectors, name);
+
+/** The record each name in `cases.content_ids` is the content ID of. */
+const CONTENT_ID_SOURCES: Readonly<Record<string, (vectors: Vectors) => JsonObject>> = {
+  amina_genesis: eventOf("amina_log", 0),
+  amina_update: eventOf("amina_log", 1),
+  delegation: recordOf("delegation"),
+  delegation_sub: recordOf("delegation_sub"),
+  delegation_amina: recordOf("delegation_amina"),
+  intent: recordOf("intent"),
+  offer: recordOf("offer"),
+  commitment: recordOf("commitment_proposed"),
+  commitment_agents: recordOf("commitment_agents"),
+  receipt: recordOf("receipt"),
+  collective_charter: recordOf("collective_charter"),
+  session: recordOf("session"),
+  packet: recordOf("packet"),
+  checkpoint: recordOf("checkpoint"),
+  bridged_genesis: eventOf("bridged_log", 0),
+};
+
+/** The negative cases whose record carries a proof that must not verify, whoever it is for. */
+const BAD_PROOF_CASES = ["signature-s-not-reduced", "signature-r-identity", "wrong-proof-purpose"];
+
+/** Every identity log of the positive part, by name. A log `x_log` belongs to the mind named `x`. */
+function logsOf(vectors: Vectors): [name: string, log: readonly JsonObject[]][] {
+  return Object.keys(vectors.cases)
+    .filter((name) => name.endsWith("_log"))
+    .map((name) => [name, namedLog(vectors, name)]);
+}
+
+function controllerOf(event: JsonObject | undefined): JsonObject | undefined {
+  const controller = event?.["controller"];
+  return typeof controller === "object" && controller !== null
+    ? (controller as JsonObject)
+    : undefined;
+}
+
+function proofsOf(record: JsonObject): readonly JsonObject[] {
+  const proofs = record["proof"];
+  return Array.isArray(proofs) ? (proofs as readonly JsonObject[]) : [];
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  return Uint8Array.from({ length: hex.length / 2 }, (_, i) =>
+    Number.parseInt(hex.slice(2 * i, 2 * i + 2), 16),
+  );
+}
+
+/** Whether two JSON values are equal, whatever the order of their members. */
+function sameMembers(a: unknown, b: unknown): boolean {
+  if (typeof a !== "object" || a === null || typeof b !== "object" || b === null) return a === b;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((item, i) => sameMembers(item, b[i]))
+    );
+  }
+  const names = Object.keys(a);
+  return (
+    names.length === Object.keys(b).length &&
+    names.every(
+      (name) =>
+        Object.hasOwn(b, name) && sameMembers((a as JsonObject)[name], (b as JsonObject)[name]),
+    )
+  );
+}
+
 /** One check of the positive part of the vectors: values an implementation must reproduce. */
 export interface PositiveCheck {
   readonly name: string;
@@ -176,8 +270,129 @@ export const POSITIVE_CHECKS: readonly PositiveCheck[] = [
       return got === example.output ? [] : [`expected ${example.output}, got ${got}`];
     },
   },
-  later("content IDs use the canonical spelling and reproduce", "M1"),
-  later("every proofValue reproduces from its test key", "M1"),
+  {
+    name: "content IDs use the canonical spelling and reproduce",
+    milestone: "M1",
+    run(adapter, vectors) {
+      const contentId = adapter.contentId?.bind(adapter);
+      if (contentId === undefined) return undefined;
+      const mismatches: string[] = [];
+      for (const id of contentIdsIn([vectors.cases, vectors.valid, vectors.controls])) {
+        if (!CONTENT_ID.test(id)) mismatches.push(`${id} is not in the canonical spelling`);
+      }
+      const expected = vectors.cases["content_ids"] as Readonly<Record<string, string>>;
+      for (const [name, id] of Object.entries(expected)) {
+        const source = CONTENT_ID_SOURCES[name];
+        if (source === undefined) {
+          mismatches.push(`content_ids.${name}: this suite does not know which record it names`);
+          continue;
+        }
+        const got = contentId(source(vectors));
+        if (got !== id) mismatches.push(`content_ids.${name}: expected ${id}, got ${got}`);
+      }
+      for (const [name, log] of logsOf(vectors)) {
+        const address = vectors.cases[name.slice(0, -"_log".length)];
+        const got = `did:oip:${contentId(log[0] ?? {})}`;
+        if (got !== address) mismatches.push(`${name}: the address should be ${got}`);
+        log.forEach((event, i) => {
+          const previous = log[i - 1];
+          if (previous !== undefined && event["prev"] !== contentId(previous)) {
+            mismatches.push(`${name}[${i}].prev is not the content ID of the event before it`);
+          }
+        });
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "key hashes reproduce: every revealed control key was committed to",
+    milestone: "M1",
+    run(adapter, vectors) {
+      const keyHash = adapter.keyHash?.bind(adapter);
+      if (keyHash === undefined) return undefined;
+      const mismatches: string[] = [];
+      for (const [name, log] of logsOf(vectors)) {
+        log.forEach((event, i) => {
+          const committed = controllerOf(log[i - 1])?.["next"];
+          const revealed = controllerOf(event)?.["keys"];
+          if (!Array.isArray(committed) || !Array.isArray(revealed)) return;
+          for (const key of revealed as readonly string[]) {
+            if (!committed.includes(keyHash(key))) {
+              mismatches.push(`${name}[${i}]: the hash of ${key} is not in the event before`);
+            }
+          }
+        });
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "every proofValue reproduces from its test key",
+    milestone: "M1",
+    run(adapter, vectors) {
+      const createProof = adapter.createProof?.bind(adapter);
+      if (createProof === undefined) return undefined;
+      const seeds = new Map(
+        Object.values(vectors.keys).map((key) => [key.multikey, hexToBytes(key.seed_hex)]),
+      );
+      const mismatches: string[] = [];
+      for (const { name, record } of positiveRecords(vectors)) {
+        proofsOf(record).forEach((proof, i) => {
+          const { verificationMethod, created, challenge, domain, authority } = proof as Readonly<
+            Record<string, unknown>
+          > &
+            ProofRequest;
+          const seed = seeds.get(verificationMethod.split("#")[1] ?? "");
+          if (seed === undefined) {
+            mismatches.push(`${name} proof ${i}: the vectors have no test key for it`);
+            return;
+          }
+          const request: ProofRequest = {
+            verificationMethod,
+            created,
+            ...(challenge === undefined ? {} : { challenge }),
+            ...(domain === undefined ? {} : { domain }),
+            ...(authority === undefined ? {} : { authority }),
+          };
+          const got = createProof(record, request, seed);
+          if (got["proofValue"] !== proof["proofValue"] || !sameMembers(got, proof)) {
+            mismatches.push(`${name} proof ${i} was not reproduced`);
+          }
+        });
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "proofs verify, and signatures that break core 4.4 do not",
+    milestone: "M1",
+    run(adapter, vectors) {
+      const proofVerifies = adapter.proofVerifies?.bind(adapter);
+      if (proofVerifies === undefined) return undefined;
+      const mismatches: string[] = [];
+      for (const { name, record } of positiveRecords(vectors)) {
+        proofsOf(record).forEach((proof, i) => {
+          if (!verdict(proofVerifies(record, proof))) {
+            mismatches.push(`${name} proof ${i} did not verify`);
+          }
+        });
+      }
+      for (const name of BAD_PROOF_CASES) {
+        const found = vectors.negative.find((entry) => entry.name === name);
+        const record = found !== undefined && "record" in found ? found.record : undefined;
+        if (typeof record !== "object" || record === null) {
+          mismatches.push(`the vectors have no negative case ${name}`);
+          continue;
+        }
+        proofsOf(record as JsonObject).forEach((proof, i) => {
+          if (verdict(proofVerifies(record as JsonObject, proof))) {
+            mismatches.push(`${name}: proof ${i} verified, and must not`);
+          }
+        });
+      }
+      return mismatches;
+    },
+  },
   later("identity logs verify; addresses derive from genesis", "M2"),
   later("2-of-3 pre-rotation with distinct keys", "M2"),
   later("lineage acknowledged by a Fork event and by a Lineage record", "M2"),

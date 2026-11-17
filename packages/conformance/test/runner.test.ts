@@ -12,6 +12,7 @@ import {
   namedLog,
   namedRecord,
   parseVectors,
+  POSITIVE_CHECKS,
   positiveRecords,
   referenceAdapter,
   runCase,
@@ -178,7 +179,153 @@ describe("the positive checks", () => {
     );
     expect(results.filter((result) => result.outcome === "fail")).toEqual([]);
     expect(results.find((result) => result.name.includes("well formed"))?.outcome).toBe("pass");
-    expect(results.find((result) => result.name === "JCS example")?.outcome).toBe("pending");
+    // M1: canonical form, content IDs, key hashes and proofs.
+    const m1 = [
+      "JCS example",
+      "content IDs use the canonical spelling and reproduce",
+      "key hashes reproduce: every revealed control key was committed to",
+      "every proofValue reproduces from its test key",
+      "proofs verify, and signatures that break core 4.4 do not",
+    ];
+    expect(
+      POSITIVE_CHECKS.filter((check) => check.milestone === "M1").map((check) => check.name),
+    ).toEqual(m1);
+    for (const name of m1) {
+      expect(
+        results.find((result) => result.name === name),
+        name,
+      ).toMatchObject({ outcome: "pass" });
+    }
+    expect(results.filter((result) => result.outcome === "pass")).toHaveLength(1 + m1.length);
+  });
+
+  it("leave every check pending for an adapter that has none of the methods", () => {
+    const results = runVectors({ name: "nothing yet" }, vectors).filter(
+      (result) => result.section === "positive",
+    );
+    expect(results.every((result) => result.outcome === "pending")).toBe(true);
+    expect(results).toHaveLength(POSITIVE_CHECKS.length);
+  });
+
+  it("fail an implementation whose content IDs or addresses are wrong", () => {
+    const check = (adapter: ConformanceAdapter) =>
+      runVectors(adapter, vectors).find((result) => result.name.startsWith("content IDs"));
+    const constant = check({ name: "constant", contentId: () => `bciqa${"a".repeat(51)}` });
+    expect(constant?.outcome).toBe("fail");
+    expect(constant?.detail).toContain("content_ids.amina_genesis: expected bciq");
+    expect(constant?.detail).toContain("amina_log: the address should be did:oip:bciqaaaa");
+    expect(constant?.detail).toContain(
+      "amina_log[1].prev is not the content ID of the event before it",
+    );
+    // An implementation that lets the proofs into the hash gets every signed record wrong.
+    const withProofs = check({
+      name: "hashes proof",
+      contentId: (record) =>
+        referenceAdapter.contentId?.(
+          Array.isArray(record["proof"]) ? { ...record, proofs: record["proof"] } : record,
+        ) ?? "",
+    });
+    expect(withProofs?.outcome).toBe("fail");
+    expect(withProofs?.detail).toContain("content_ids.intent");
+    expect(withProofs?.detail).not.toContain("content_ids.session");
+  });
+
+  it("fail when the vectors name a content ID this suite cannot place, or spell one wrongly", () => {
+    const changed = structuredClone(vectors) as unknown as {
+      cases: { content_ids: Record<string, string>; amina: string };
+    };
+    changed.cases.content_ids["mystery"] = changed.cases.content_ids["intent"] ?? "";
+    changed.cases.amina = `${changed.cases.amina.slice(0, -1)}b`;
+    const result = runVectors(referenceAdapter, changed as unknown as typeof vectors).find(
+      (entry) => entry.name.startsWith("content IDs"),
+    );
+    expect(result?.outcome).toBe("fail");
+    expect(result?.detail).toContain("is not in the canonical spelling");
+    expect(result?.detail).toContain(
+      "content_ids.mystery: this suite does not know which record it names",
+    );
+    expect(result?.detail).toContain("amina_log: the address should be");
+  });
+
+  it("fail an implementation whose key hashes are wrong", () => {
+    const result = runVectors({ name: "constant", keyHash: () => "bciq" }, vectors).find((entry) =>
+      entry.name.startsWith("key hashes"),
+    );
+    expect(result?.outcome).toBe("fail");
+    expect(result?.detail).toMatch(
+      /amina_log\[1\]: the hash of z6Mk\w+ is not in the event before/,
+    );
+  });
+
+  it("fail an implementation that does not reproduce a proof", () => {
+    const check = (createProof: NonNullable<ConformanceAdapter["createProof"]>) =>
+      runVectors({ name: "signer", createProof }, vectors).find((result) =>
+        result.name.startsWith("every proofValue"),
+      );
+    const reference = referenceAdapter.createProof?.bind(referenceAdapter);
+    if (reference === undefined) throw new Error("the reference adapter creates proofs");
+    expect(check(reference)?.outcome).toBe("pass");
+    // The wrong signature.
+    const wrongValue = check((record, request, key) => ({
+      ...reference(record, request, key),
+      proofValue: "z1",
+    }));
+    expect(wrongValue?.detail).toContain("amina_log[0] proof 0 was not reproduced");
+    // The right signature in a proof with another member.
+    const extra = check((record, request, key) => ({
+      ...reference(record, request, key),
+      id: "x",
+    }));
+    expect(extra?.outcome).toBe("fail");
+    // A member dropped: the proofs that carry authority no longer match.
+    const dropped = check((record, request, key) => {
+      const { authority: _authority, ...rest } = reference(record, request, key);
+      return rest;
+    });
+    expect(dropped?.outcome).toBe("fail");
+    expect(dropped?.detail).not.toContain("amina_log[0]");
+    // Members in another order are the same proof.
+    const reordered = check((record, request, key) =>
+      Object.fromEntries(Object.entries(reference(record, request, key)).reverse()),
+    );
+    expect(reordered?.outcome).toBe("pass");
+    // A key the vectors do not have.
+    const noKeys = structuredClone(vectors) as unknown as { keys: Record<string, unknown> };
+    noKeys.keys = {};
+    const missing = runVectors(referenceAdapter, noKeys as unknown as typeof vectors).find(
+      (result) => result.name.startsWith("every proofValue"),
+    );
+    expect(missing?.detail).toContain("the vectors have no test key for it");
+  });
+
+  it("fail an implementation that accepts a signature core 4.4 forbids, or rejects a good one", () => {
+    const check = (proofVerifies: NonNullable<ConformanceAdapter["proofVerifies"]>) =>
+      runVectors({ name: "verifier", proofVerifies }, vectors).find((result) =>
+        result.name.startsWith("proofs verify"),
+      );
+    const lax = check(() => true);
+    expect(lax?.outcome).toBe("fail");
+    for (const name of ["signature-s-not-reduced", "signature-r-identity", "wrong-proof-purpose"]) {
+      expect(lax?.detail).toContain(`${name}: proof 0 verified, and must not`);
+    }
+    expect(lax?.detail).not.toContain("did not verify");
+    const strict = check(() => false);
+    expect(strict?.outcome).toBe("fail");
+    expect(strict?.detail).toContain("intent proof 0 did not verify");
+    expect(strict?.detail).not.toContain("must not");
+    // An answer that is not a boolean is not an answer.
+    const vague = check(() => "yes" as unknown as boolean);
+    expect(vague).toMatchObject({
+      outcome: "fail",
+      detail: "threw the adapter answered a string, not true or false",
+    });
+    expect(check(() => undefined as unknown as boolean)?.outcome).toBe("fail");
+    const without = structuredClone(vectors) as unknown as { negative: { name: string }[] };
+    without.negative = without.negative.filter((entry) => entry.name !== "signature-r-identity");
+    const missing = runVectors(referenceAdapter, without as unknown as typeof vectors).find(
+      (result) => result.name.startsWith("proofs verify"),
+    );
+    expect(missing?.detail).toBe("the vectors have no negative case signature-r-identity");
   });
 
   it("fail an implementation that rejects a positive record or canonicalises wrongly", () => {

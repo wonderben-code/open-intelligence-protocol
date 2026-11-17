@@ -33,7 +33,7 @@ import { canonicalBytesOf, canonicalText } from "./jcs.ts";
 import { decodeEd25519Multikey } from "./multikey.ts";
 import { parseVerificationMethod, type VerificationMethod } from "./refs.ts";
 import { no, ok, under } from "./result.ts";
-import { type Instant, instantOf } from "./time.ts";
+import { type Instant, instantOf, parseTimestamp } from "./time.ts";
 
 /** core 5.1: the most proofs a record carries. */
 export const MAX_PROOFS = 256;
@@ -248,6 +248,11 @@ export interface Signer {
   sign(message: Uint8Array): Uint8Array | Promise<Uint8Array>;
 }
 
+/** A signer that answers at once, such as one that holds its key in memory. */
+export interface SyncSigner extends Signer {
+  sign(message: Uint8Array): Uint8Array;
+}
+
 /** What the creator of a proof decides. Everything else is fixed by core 5.2 and the record. */
 export interface ProofOptions {
   /**
@@ -256,7 +261,10 @@ export interface ProofOptions {
    * (core 6.2).
    */
   readonly verificationMethod: string;
-  /** When the proof is made, as a timestamp. The caller reads the clock. */
+  /**
+   * When the proof is made, as a timestamp. The caller reads the clock. It
+   * is not earlier than the record's own `created` (core 5.7).
+   */
   readonly created: string;
   /** Only in `authentication` proofs (Layer 1, 13.3). */
   readonly challenge?: string;
@@ -270,31 +278,27 @@ function invalidProof(issues: readonly [Issue, ...Issue[]]): OipError {
   return errorFrom({ issues }, "invalid-proof");
 }
 
-/**
- * Creates a proof on a record (core 5.3). The purpose is the one the
- * record's type requires (core 5.6), and `@context` is copied from the
- * record if it has one. The record is not changed; add the proof with
- * `withProofs`.
- *
- * The finished proof is verified before it is returned, so a wrong option, a
- * verification method that names another key, or a faulty signer is caught
- * here and not by the first receiver.
- *
- * @throws OipError `invalid-record` if the record is not a JSON object within
- * the profile, and `invalid-proof` if the proof would not verify.
- */
-export async function createProof(
-  record: unknown,
-  options: ProofOptions,
-  signer: Signer,
-): Promise<Proof> {
+/** A proof that lacks only its signature. */
+interface Draft {
+  readonly record: JsonObject;
+  readonly config: JsonObject;
+  readonly hashData: Uint8Array;
+}
+
+/** Everything that is checked before a signer is asked to sign. */
+function prepare(record: unknown, options: ProofOptions, publicKey: string): Draft {
   const subject = jsonObject(record, "a record");
   const type = subject["type"];
   if (typeof type !== "string") {
     throw new OipError("invalid-record", "type must name a record type", { clause: "core 7" });
   }
+  if ((UNSIGNED_RECORD_TYPES as readonly string[]).includes(type)) {
+    throw new OipError("invalid-proof", `a ${type} record is unsigned: it carries no proof`, {
+      clause: "core 5.1",
+    });
+  }
   const method = parseVerificationMethod(options.verificationMethod);
-  if (method?.key !== signer.publicKey) {
+  if (method?.key !== publicKey) {
     throw new OipError(
       "invalid-proof",
       "the verification method must be a key reference that names the signer's own key",
@@ -316,15 +320,65 @@ export async function createProof(
   // with a placeholder where the signature will go.
   const draft = validateProof({ ...config, proofValue: `z${"1".repeat(64)}` });
   if (!draft.ok) throw invalidProof(draft.issues);
-  const signature = await signer.sign(proofHashData(subject, config));
+  const { proofValue: _placeholder, ...checked } = draft.value as Proof & JsonObject;
+  const recordCreated = parseTimestamp(subject["created"]);
+  if (recordCreated !== undefined && instantOf(options.created) < recordCreated) {
+    throw new OipError(
+      "invalid-proof",
+      "a proof's created should not be earlier than its record's created: sign with the later of the two times",
+      { clause: "core 5.7" },
+    );
+  }
+  return {
+    record: subject,
+    config: checked,
+    hashData: hashDataOf(checked, documentHashOf(subject)),
+  };
+}
+
+/** Attaches the signature and checks that the finished proof verifies. */
+function finish(draft: Draft, signature: unknown): Proof {
   if (!(signature instanceof Uint8Array) || signature.length !== SIGNATURE_LENGTH) {
     throw new OipError("invalid-proof", "the signer did not return a signature of 64 bytes", {
       clause: "core 5.2",
     });
   }
-  const verified = verifyProof(subject, { ...config, proofValue: `z${base58.encode(signature)}` });
+  const proof = { ...draft.config, proofValue: `z${base58.encode(signature)}` };
+  const verified = verifyProof(draft.record, proof);
   if (!verified.ok) throw invalidProof(verified.issues);
   return verified.value.proof;
+}
+
+/**
+ * Creates a proof on a record (core 5.3). The purpose is the one the
+ * record's type requires (core 5.6), and `@context` is copied from the
+ * record if it has one. The record is not changed; add the proof with
+ * `withProofs`.
+ *
+ * The options are checked before the signer is asked for anything, and the
+ * finished proof is verified before it is returned. A wrong option, a
+ * verification method that names another key, or a faulty signer is caught
+ * here and not by the first receiver.
+ *
+ * @throws OipError `invalid-record` if the record is not a JSON object within
+ * the profile, and `invalid-proof` if the proof would not verify.
+ */
+export async function createProof(
+  record: unknown,
+  options: ProofOptions,
+  signer: Signer,
+): Promise<Proof> {
+  const draft = prepare(record, options, signer.publicKey);
+  return finish(draft, await signer.sign(draft.hashData));
+}
+
+/**
+ * As `createProof`, for a signer that answers at once. Tools and tests that
+ * hold a key in memory need no promise.
+ */
+export function createProofSync(record: unknown, options: ProofOptions, signer: SyncSigner): Proof {
+  const draft = prepare(record, options, signer.publicKey);
+  return finish(draft, signer.sign(draft.hashData));
 }
 
 /**

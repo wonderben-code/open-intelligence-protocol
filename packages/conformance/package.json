@@ -43,6 +43,7 @@
     "provenance": true
   },
   "dependencies": {
+    "@oip/core": "workspace:*",
     "@oip/schema": "workspace:*"
   },
   "devDependencies": {

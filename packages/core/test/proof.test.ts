@@ -15,6 +15,7 @@ import {
   canonicalize,
   contentId,
   createProof,
+  createProofSync,
   documentHash,
   formatControlKeyRef,
   MAX_PROOFS,
@@ -57,6 +58,10 @@ const laptop = signerFromPrivateKey(
 );
 const laptopMethod = phoneMethod.replace(phone, laptop.publicKey);
 
+/** When the Intent's own proof was made, and a later time. Neither is before the Intent's `created`. */
+const WHEN = intentProof["created"] as string;
+const LATER = "2026-10-31T00:00:00Z";
+
 const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest();
 
 /** A proof with exactly the options given and an honest signature over them, valid or not. */
@@ -70,7 +75,7 @@ const baseOptions = (record: JsonObject, method = phoneMethod): AnyProof => ({
   cryptosuite: "eddsa-jcs-2022",
   verificationMethod: method,
   proofPurpose: purposeFor(record["type"] as string),
-  created: "2026-10-30T09:30:00Z",
+  created: WHEN,
 });
 
 function issueOf(result: Validation<unknown>) {
@@ -196,18 +201,18 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
     const { proof: _proof, ...unsigned } = intent;
     const first = await createProof(
       unsigned,
-      { verificationMethod: phoneMethod, created: "2026-10-30T09:30:00Z" },
+      { verificationMethod: phoneMethod, created: WHEN },
       phoneSigner,
     );
     const second = await createProof(
       unsigned,
-      { verificationMethod: laptopMethod, created: "2026-10-30T09:31:00Z" },
+      { verificationMethod: laptopMethod, created: LATER },
       laptop,
     );
     // The second signer signs the record with or without the first proof on it: the same proof.
     const afterFirst = await createProof(
       withProofs(unsigned, [first]),
-      { verificationMethod: laptopMethod, created: "2026-10-30T09:31:00Z" },
+      { verificationMethod: laptopMethod, created: LATER },
       laptop,
     );
     expect(afterFirst).toEqual(second);
@@ -254,7 +259,7 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
     };
     const proof = await createProof(
       withContext,
-      { verificationMethod: phoneMethod, created: "2026-10-30T09:30:00Z" },
+      { verificationMethod: phoneMethod, created: WHEN },
       phoneSigner,
     );
     expect(Object.keys(proof)).toEqual([
@@ -271,7 +276,7 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
     expect(verifyProof(withContext, proof).ok).toBe(true);
     const plain = await createProof(
       intent,
-      { verificationMethod: phoneMethod, created: "2026-10-30T09:30:00Z" },
+      { verificationMethod: phoneMethod, created: WHEN },
       phoneSigner,
     );
     expect(Object.hasOwn(plain, "@context")).toBe(false);
@@ -298,11 +303,7 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
   it("does not change the record it signs", async () => {
     const frozen = Object.freeze(copy(intent));
     const before = JSON.stringify(frozen);
-    await createProof(
-      frozen,
-      { verificationMethod: phoneMethod, created: "2026-10-30T09:30:00Z" },
-      phoneSigner,
-    );
+    await createProof(frozen, { verificationMethod: phoneMethod, created: WHEN }, phoneSigner);
     expect(JSON.stringify(frozen)).toBe(before);
   });
 
@@ -325,7 +326,7 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
   });
 
   it("refuses to make a proof that would not verify, and says why", async () => {
-    const options = { verificationMethod: phoneMethod, created: "2026-10-30T09:30:00Z" };
+    const options = { verificationMethod: phoneMethod, created: WHEN };
     const failure = async (run: Promise<unknown>) => {
       try {
         await run;
@@ -394,21 +395,63 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
     await expect(
       createProof(
         intent,
-        { verificationMethod: phoneMethod, created: "2026-10-30T09:30:00Z", domain: "d" },
+        { verificationMethod: phoneMethod, created: WHEN, domain: "d" },
         counting,
       ),
     ).rejects.toThrow(OipError);
     expect(asked).toBe(0);
-    await createProof(
-      intent,
-      { verificationMethod: phoneMethod, created: "2026-10-30T09:30:00Z" },
-      counting,
-    );
+    await createProof(intent, { verificationMethod: phoneMethod, created: WHEN }, counting);
     expect(asked).toBe(1);
   });
 
+  it("does not ask the signer to sign a record of an unsigned type", async () => {
+    let asked = 0;
+    const counting: Signer = {
+      publicKey: phone,
+      sign: (message) => {
+        asked++;
+        return signEd25519(message, phoneKey);
+      },
+    };
+    for (const type of ["Session", "Bundle", "Sealed"]) {
+      await expect(
+        createProof(
+          { ...session, type },
+          { verificationMethod: phoneMethod, created: LATER },
+          counting,
+        ),
+      ).rejects.toMatchObject({
+        code: "invalid-proof",
+        clause: "core 5.1",
+        detail: `a ${type} record is unsigned: it carries no proof`,
+      });
+    }
+    expect(asked).toBe(0);
+  });
+
+  it("creates the same proof at once, for a signer that answers at once", async () => {
+    const options = { verificationMethod: phoneMethod, created: WHEN };
+    const proof = createProofSync(intent, options, phoneSigner);
+    expect(proof).toEqual(intentProof);
+    expect(proof).toEqual(await createProof(intent, options, phoneSigner));
+    expect(() => createProofSync(intent, { ...options, created: "never" }, phoneSigner)).toThrow(
+      OipError,
+    );
+    expect(() => createProofSync(session, options, phoneSigner)).toThrow(
+      "a Session record is unsigned: it carries no proof",
+    );
+    // A signer that answers later is not one that answers at once.
+    const later = {
+      publicKey: phone,
+      sign: (message: Uint8Array) => Promise.resolve(signEd25519(message, phoneKey)),
+    };
+    expect(() => createProofSync(intent, options, later as never)).toThrow(
+      "the signer did not return a signature of 64 bytes",
+    );
+  });
+
   it("catches a faulty signer before anyone else does", async () => {
-    const options = { verificationMethod: phoneMethod, created: "2026-10-30T09:30:00Z" };
+    const options = { verificationMethod: phoneMethod, created: WHEN };
     const faulty = (sign: Signer["sign"]): Signer => ({ publicKey: phone, sign });
     const cases: [string, Signer["sign"], string][] = [
       ["too short", () => new Uint8Array(63), "core 5.2"],
@@ -452,6 +495,71 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
     }
     expect(() => proofHashData(intent, [])).toThrow("a proof's options is a JSON object");
     expect(() => proofHashData([], {})).toThrow("a record is a JSON object");
+  });
+});
+
+describe(`${clause("core 5.7")} a proof is not dated before its record`, () => {
+  const created = intent["created"] as string;
+  const before = "2026-10-30T09:59:59.999999999Z";
+
+  it("holds for every proof in the vectors", () => {
+    for (const { name, record } of signedRecords) {
+      for (const proof of record["proof"] as AnyProof[]) {
+        expect((proof["created"] as string) >= (record["created"] as string), name).toBe(true);
+      }
+    }
+  });
+
+  it("is followed when a proof is created", async () => {
+    expect(created).toBe("2026-10-30T10:00:00Z");
+    await expect(
+      createProof(intent, { verificationMethod: phoneMethod, created: before }, phoneSigner),
+    ).rejects.toMatchObject({
+      code: "invalid-proof",
+      clause: "core 5.7",
+      detail:
+        "a proof's created should not be earlier than its record's created: sign with the later of the two times",
+    });
+    expect(() =>
+      createProofSync(intent, { verificationMethod: phoneMethod, created: before }, phoneSigner),
+    ).toThrow(OipError);
+    // The same instant, and any later one, are fine. Instants are compared, not strings.
+    for (const when of [
+      created,
+      "2026-10-30T10:00:00.000Z",
+      "2026-10-30T10:00:00.000000001Z",
+      LATER,
+    ]) {
+      const proof = createProofSync(
+        intent,
+        { verificationMethod: phoneMethod, created: when },
+        phoneSigner,
+      );
+      expect(proof.created, when).toBe(when);
+    }
+  });
+
+  it("is advice to signers, not a rule for verifiers: an earlier proof still verifies", () => {
+    const early = handSigned(intent, { ...baseOptions(intent), created: before });
+    expect(verifyProof(intent, early).ok).toBe(true);
+  });
+
+  it("does not apply to a record that carries no created of its own", () => {
+    const { created: _created, ...undated } = intent;
+    const proof = createProofSync(
+      undated,
+      { verificationMethod: phoneMethod, created: "2020-01-01T00:00:00Z" },
+      phoneSigner,
+    );
+    expect(verifyProof(undated, proof).ok).toBe(true);
+    const odd = { ...intent, created: "not a time" };
+    expect(
+      createProofSync(
+        odd,
+        { verificationMethod: phoneMethod, created: "2020-01-01T00:00:00Z" },
+        phoneSigner,
+      ).created,
+    ).toBe("2020-01-01T00:00:00Z");
   });
 });
 
@@ -503,7 +611,7 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
     );
   });
 
-  it("requires exactly the members 5.2 allows", () => {
+  it(`${clause("core 5.2")} requires exactly the members 5.2 allows`, () => {
     for (const extra of ["id", "previousProof", "nonce", "expires", "proofValue2", "ext"]) {
       const proof = handSigned(intent, { ...baseOptions(intent), [extra]: "x" });
       expect(clauseOf(verifyProof(intent, proof)), extra).toBe("core 5.2");
@@ -529,7 +637,7 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
     }
   });
 
-  it("requires the type and the cryptosuite of this revision", () => {
+  it(`${clause("core 5.2")} requires the type and the cryptosuite of this revision`, () => {
     for (const [member, value] of [
       ["type", "Ed25519Signature2020"],
       ["type", "dataIntegrityProof"],
@@ -542,7 +650,7 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
     }
   });
 
-  it("requires @context on the proof exactly when the record has it, with the same value", () => {
+  it(`${clause("core 5.2")} requires @context on the proof exactly when the record has it, with the same value`, () => {
     const context = ["https://www.w3.org/ns/credentials/v2", { b: 1, a: [true] }];
     const withContext = { ...intent, "@context": context };
     const signedWith = (record: JsonObject, value?: unknown) =>
@@ -614,7 +722,7 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
     expect(clauseOf(verifyProof(intent, control))).toBe("accepted");
   });
 
-  it("requires proofValue to be z and the base58btc form of 64 bytes", () => {
+  it(`${clause("core 5.2")} requires proofValue to be z and the base58btc form of 64 bytes`, () => {
     const signature = base58.decode((intentProof["proofValue"] as string).slice(1));
     const withValue = (proofValue: unknown) => verifyProof(intent, { ...intentProof, proofValue });
     expect(clauseOf(withValue(`z${base58.encode(signature)}`))).toBe("accepted");
@@ -873,7 +981,7 @@ describe("the proof set of a record", () => {
   const { proof: _proof, ...unsigned } = intent;
   const other = handSigned(intent, {
     ...baseOptions(intent),
-    created: "2026-10-30T09:31:00Z",
+    created: LATER,
   }) as unknown as Proof;
   const first = intentProof as unknown as Proof;
 

@@ -10,10 +10,12 @@ import {
   bytesToHex,
   codePointLength,
   decodeUtf8,
+  ed25519PublicKey,
   hexToBytes,
   isWellFormed,
   signerFromPrivateKey,
   utf8,
+  verifyEd25519,
 } from "../src/index.ts";
 import { keys } from "./vectors.ts";
 
@@ -156,12 +158,13 @@ describe("a signer that holds its key in memory", () => {
   const key = keys["amina-phone"];
   const privateKey = hexToBytes(key?.seed_hex ?? "");
 
-  it("names its public key and signs with the private one", async () => {
+  it("names its public key and signs with the private one", () => {
     const signer = signerFromPrivateKey(privateKey);
     expect(signer.publicKey).toBe(key?.multikey);
-    const signature = await signer.sign(utf8("message"));
+    const signature = signer.sign(utf8("message"));
     expect(signature).toHaveLength(64);
-    expect(await signer.sign(utf8("message"))).toEqual(signature);
+    expect(signer.sign(utf8("message"))).toEqual(signature);
+    expect(verifyEd25519(signature, utf8("message"), ed25519PublicKey(privateKey))).toBe(true);
   });
 
   it("shows nothing of the private key", () => {
@@ -176,12 +179,12 @@ describe("a signer that holds its key in memory", () => {
     expect(JSON.stringify(signer)).toBe(JSON.stringify({ publicKey: key?.multikey }));
   });
 
-  it("keeps working when the caller wipes its own copy of the key", async () => {
+  it("keeps working when the caller wipes its own copy of the key", () => {
     const mine = Uint8Array.from(privateKey);
     const signer = signerFromPrivateKey(mine);
-    const before = await signer.sign(utf8("message"));
+    const before = signer.sign(utf8("message"));
     mine.fill(0);
-    expect(await signer.sign(utf8("message"))).toEqual(before);
+    expect(signer.sign(utf8("message"))).toEqual(before);
   });
 
   it("refuses a private key of the wrong length without repeating it", () => {

@@ -3,6 +3,15 @@
 
 /** The adapter for this repository's implementation. It grows with each milestone. */
 
+import {
+  canonicalize,
+  contentId,
+  createProofSync,
+  keyHash,
+  type ProofOptions,
+  signerFromPrivateKey,
+  verifyProof,
+} from "@oip/core";
 import { validateRecord } from "@oip/schema";
 
 import type { ConformanceAdapter } from "./adapter.ts";
@@ -14,4 +23,10 @@ import type { ConformanceAdapter } from "./adapter.ts";
 export const referenceAdapter: ConformanceAdapter = {
   name: "OIP reference implementation (TypeScript)",
   recordIsWellFormed: (record) => validateRecord(record).ok,
+  canonicalize,
+  contentId,
+  keyHash,
+  createProof: (record, request, privateKey) =>
+    createProofSync(record, request as ProofOptions, signerFromPrivateKey(privateKey)),
+  proofVerifies: (record, proof) => verifyProof(record, proof).ok,
 };

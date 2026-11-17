@@ -223,6 +223,9 @@ importers:
 
   packages/conformance:
     dependencies:
+      '@oip/core':
+        specifier: workspace:*
+        version: link:../core
       '@oip/schema':
         specifier: workspace:*
         version: link:../schema

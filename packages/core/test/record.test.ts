@@ -8,16 +8,23 @@ import { describe, expect, it } from "vitest";
 
 import {
   canonicalBytes,
+  canonicalize,
   checkSize,
+  contentId,
+  createProofSync,
   MAX_RECORD_BYTES,
   MAX_SEALED_BYTES,
   MAX_TEXT_LENGTH,
   MIN_ACCEPTED_RECORD_BYTES,
   parseRecord,
+  signerFromPrivateKey,
+  understandsCritical,
+  unsupportedCritical,
   type Validation,
   verifyProofs,
+  withProofs,
 } from "../src/index.ts";
-import { named, negative, positiveVectorRecords } from "./vectors.ts";
+import { named, negative, positiveVectorRecords, privateKeyOf } from "./vectors.ts";
 
 const utf8 = (text: string) => new TextEncoder().encode(text);
 const clauseOf = (result: Validation<unknown>) =>
@@ -118,6 +125,150 @@ describe("reading a record from text", () => {
       return verdicts.ok ? verdicts.value.filter((verdict) => verdict.ok).length : -1;
     });
     expect(proofs).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe(`${clause("core 7")} the members every record shares`, () => {
+  const sample = (type: string) => sampleRecords[type] ?? {};
+
+  it("requires oip to be the string 1", () => {
+    for (const oip of ["2", "1.0", "01", " 1", "", 1, true, null, ["1"]]) {
+      const parsed = parseRecord(JSON.stringify({ ...sample("Intent"), oip }));
+      expect(!parsed.ok && parsed.issues[0], JSON.stringify(oip)).toMatchObject({
+        path: "/oip",
+        clause: "core 7",
+      });
+    }
+    const { oip: _oip, ...without } = sample("Intent");
+    expect(clauseOf(parseRecord(JSON.stringify(without)))).toBe("core 7");
+  });
+
+  it("requires type to name a record type", () => {
+    for (const type of [1, null, true, ["Intent"], { name: "Intent" }]) {
+      const parsed = parseRecord(JSON.stringify({ ...sample("Intent"), type }));
+      expect(!parsed.ok && parsed.issues[0], JSON.stringify(type)).toMatchObject({
+        path: "/type",
+        clause: "core 7",
+      });
+    }
+    const { type: _type, ...without } = sample("Intent");
+    expect(clauseOf(parseRecord(JSON.stringify(without)))).toBe("core 7");
+    for (const type of ["intent", "INTENT", "Intent ", "Unknown", ""]) {
+      expect(parseRecord(JSON.stringify({ ...sample("Intent"), type })).ok, type).toBe(false);
+    }
+  });
+
+  it("requires created in every record except the containers and Sealed", () => {
+    const optional = ["Bundle", "LogPage", "FeedPage", "DuplicityEvidence", "Sealed"];
+    for (const [type, record] of Object.entries(sampleRecords)) {
+      const { created: _created, ...without } = record;
+      expect(parseRecord(JSON.stringify(without)).ok, type).toBe(optional.includes(type));
+      expect(Object.hasOwn(record, "created"), type).toBe(!optional.includes(type));
+    }
+    const badTime = parseRecord(
+      JSON.stringify({ ...sample("Intent"), created: "2026-02-30T00:00:00Z" }),
+    );
+    expect(!badTime.ok && badTime.issues[0]).toMatchObject({
+      path: "/created",
+      clause: "core 1.4",
+    });
+  });
+
+  it("checks expires, when present, as a timestamp", () => {
+    expect(
+      parseRecord(JSON.stringify({ ...sample("Intent"), expires: "2027-01-01T00:00:00Z" })).ok,
+    ).toBe(true);
+    const parsed = parseRecord(JSON.stringify({ ...sample("Intent"), expires: "tomorrow" }));
+    expect(!parsed.ok && parsed.issues[0]).toMatchObject({ path: "/expires", clause: "core 1.4" });
+  });
+});
+
+describe(`${clause("core 1.7")} members a reader does not recognise`, () => {
+  const { proof: _proof, ...unsigned } = named("intent");
+  const extended = {
+    ...unsigned,
+    futureMember: { nested: [1, "two", null], flag: true },
+    anotherOne: "x",
+  };
+  const proofOf = (record: object) => {
+    const first = (
+      named("intent")["proof"] as { verificationMethod: string; created: string }[]
+    )[0];
+    const method = first?.verificationMethod ?? "";
+    return createProofSync(
+      record,
+      { verificationMethod: method, created: first?.created ?? "" },
+      signerFromPrivateKey(privateKeyOf(method.split("#")[1] ?? "")),
+    );
+  };
+
+  it("are preserved: a record read and written again keeps its content ID and its proofs", () => {
+    const signed = withProofs(extended, [proofOf(extended)]);
+    const parsed = parseRecord(JSON.stringify(signed));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value).toEqual(signed);
+    expect(canonicalize(parsed.value)).toBe(canonicalize(signed));
+    expect(contentId(parsed.value)).toBe(contentId(extended));
+    const again = parseRecord(canonicalize(parsed.value));
+    const verdicts = again.ok ? verifyProofs(again.value) : again;
+    expect(verdicts.ok && verdicts.value.map((verdict) => verdict.ok)).toEqual([true]);
+  });
+
+  it("are covered by the proofs: dropping one breaks the signature", () => {
+    const signed = withProofs(extended, [proofOf(extended)]);
+    const { futureMember: _dropped, ...stripped } = signed;
+    const verdicts = verifyProofs(stripped);
+    expect(verdicts.ok && verdicts.value.map((verdict) => verdict.ok)).toEqual([false]);
+    expect(contentId(stripped)).not.toBe(contentId(signed));
+  });
+
+  it("are otherwise ignored: they do not make a record malformed", () => {
+    for (const [type, record] of Object.entries(sampleRecords)) {
+      const withUnknown = { ...record, someFutureMember: [{ a: 1 }], x: null };
+      expect(parseRecord(JSON.stringify(withUnknown)).ok, type).toBe(true);
+    }
+  });
+});
+
+describe(`${clause("core 8.2")} an extension block may give its own version`, () => {
+  it("accepts a block with v, of any JSON type, and a block without", () => {
+    const sample = sampleRecords["Intent"] ?? {};
+    for (const block of [
+      { v: 1 },
+      { v: "2.0" },
+      { v: null },
+      { v: { major: 1 } },
+      {},
+      { other: true },
+    ]) {
+      const record = { ...sample, ext: { "com.example.escrow": block } };
+      expect(parseRecord(JSON.stringify(record)).ok, JSON.stringify(block)).toBe(true);
+    }
+    // A block is an object.
+    for (const block of [1, "v1", null, [], true]) {
+      const record = { ...sample, ext: { "com.example.escrow": block } };
+      expect(clauseOf(parseRecord(JSON.stringify(record))), JSON.stringify(block)).toBe("core 8.1");
+    }
+  });
+});
+
+describe(`${clause("core 8.5")} members added by later revisions`, () => {
+  it("lets a reader of this revision accept a record with an optional member it does not know", () => {
+    const sample = sampleRecords["Offer"] ?? {};
+    const later = { ...sample, addedInALaterRevision: { anything: 1 } };
+    expect(parseRecord(JSON.stringify(later)).ok).toBe(true);
+    expect(understandsCritical(later)).toBe(true);
+  });
+
+  it("stops a reader that does not know an oip extension a record lists as critical", () => {
+    const sample = sampleRecords["Offer"] ?? {};
+    const unsafe = { ...sample, ext: { "oip.escrow": { v: 1 } }, critical: ["oip.escrow"] };
+    const parsed = parseRecord(JSON.stringify(unsafe));
+    expect(parsed.ok).toBe(true);
+    expect(understandsCritical(unsafe)).toBe(false);
+    expect(unsupportedCritical(unsafe)).toEqual(["oip.escrow"]);
+    expect(understandsCritical(unsafe, ["oip.escrow"])).toBe(true);
   });
 });
 

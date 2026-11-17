@@ -217,7 +217,11 @@ function clauseOf(error: ValidatorError, name: string, defining: string): string
   }
   // A proof has a `type` too, and core 5.2 defines it, not core 7.
   if (name === "Proof") return defining;
-  return COMMON_MEMBER_CLAUSE[error.instancePath] ?? defining;
+  // The common member the error is in or under: "/ext/com.example/v" is about "/ext".
+  const member = `/${error.instancePath.split("/")[1] ?? ""}`;
+  return Object.hasOwn(COMMON_MEMBER_CLAUSE, member)
+    ? (COMMON_MEMBER_CLAUSE[member] ?? defining)
+    : defining;
 }
 
 const depthOf = (path: string) => path.split("/").length;

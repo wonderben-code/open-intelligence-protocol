@@ -9,7 +9,12 @@
  * @packageDocumentation
  */
 
-export { type ConformanceAdapter, METHOD_FOR_KIND, type VerifierView } from "./adapter.ts";
+export {
+  type ConformanceAdapter,
+  METHOD_FOR_KIND,
+  type ProofRequest,
+  type VerifierView,
+} from "./adapter.ts";
 export { type Agreement, compareVerdicts, type Disagreement, type Judge } from "./differential.ts";
 export {
   loadVectors,

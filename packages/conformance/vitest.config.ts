@@ -3,10 +3,11 @@
 
 import { defineProject } from "vitest/config";
 
+import { sourceAliases } from "../../scripts/lib/source-aliases.ts";
+
 export default defineProject({
   // Tests run against each package's source, so nothing needs building first.
-  resolve: { conditions: ["@oip/source"] },
-  ssr: { resolve: { conditions: ["@oip/source"] } },
+  resolve: { alias: sourceAliases },
   test: {
     name: "@oip/conformance",
     environment: "node",

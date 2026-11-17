@@ -15,7 +15,7 @@ all while staying fully connected to everything on today's internet.
 
 It was created by **Ekram Alam** on 30 October 2026.
 
-**Status:** specification revision 2026-11-17 (Draft); both papers are published on Zenodo. The reference implementation is being built to the plan in [BUILD.md](BUILD.md): the foundations (M0) are in place, and [PROGRESS.md](PROGRESS.md) says what comes next.
+**Status:** specification revision 2026-11-17 (Draft); both papers are published on Zenodo. The reference implementation is being built to the plan in [BUILD.md](BUILD.md): the foundations (M0) and the core rules (M1: parsing, canonical form, content IDs, signatures) are built, and [PROGRESS.md](PROGRESS.md) says what comes next.
 
 ## The stack
 

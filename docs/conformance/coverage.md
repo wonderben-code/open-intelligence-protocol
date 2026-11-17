@@ -80,7 +80,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 1.6 | MUST | M1 | 18 | tested | Size. The canonical form (Section 2) of a record, with its `proof` member, MUST NOT exceed 1 Mi… |
 | core 1.7 | MUST | M1 | 4 | tested | Field names use camelCase. Implementations MUST preserve fields they do not recognise when stor… |
 | core 1.8 |  | M1 | 3 | tested | String lengths ("at most N characters") are counted in Unicode code points. |
-| core 1.9 | MUST | M1 | 19 | tested | Depth. The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is… |
+| core 1.9 | MUST | M1 | 22 | tested | Depth. The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is… |
 | core 2.1 |  | M1 | 10 | tested | The canonical form of a JSON value is its serialisation under the JSON Canonicalization Scheme,… |
 | core 2.2 |  | M1 | 3 | tested | Because Section 1.2 restricts numbers to safe integers, JCS number serialisation reduces to the… |
 | core 3.1 |  | M1 | 9 | tested | The content ID of a record `r` is: ``` contentId(r) = "b" + base32lower( 0x12 ‖ 0x20 ‖ SHA-256(… |
@@ -102,7 +102,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 6.2 | MUST | M2 | 3 | tested in part (due M2) | A proof by a mind's operational key MUST use a `key-ref`, which pins the version of the mind's… |
 | core 6.3 | MUST | M1 | 5 | tested | A `record-ref` names a record by its content ID and says which mind's records to fetch it from.… |
 | core 6.4 | MUST | M1 | 1 | tested | User interfaces MAY abbreviate addresses for display. Abbreviated forms MUST NOT be used in rec… |
-| core 7 | MUST | M1 | 17 | tested | Common fields (table) |
+| core 7 | MUST | M1 | 19 | tested | Common fields (table) |
 | core 8.1 |  | M1 | 6 | tested | `ext` is an object whose member names are namespaces and whose values are objects. A namespace… |
 | core 8.2 | MAY | M1 | 1 | tested | An extension block MAY contain a member `v` giving its own version. |
 | core 8.3 | MUST | M1 | 10 | tested | `critical` is an array of namespaces, each of which MUST also appear in `ext`. Naming a namespa… |

@@ -9,7 +9,7 @@
 
 import { type ValidatorError, validators } from "./generated/validators.ts";
 import { containerParts, depthOf } from "./containers.ts";
-import { type Issue, quote, shown, type Validation } from "./issue.ts";
+import { type Issue, pointerDepth, quote, shown, type Validation } from "./issue.ts";
 import { patterns } from "./primitives.ts";
 import type { Proof } from "./proof.ts";
 import type { ExtensionRecord } from "./records/extension.ts";
@@ -344,8 +344,6 @@ function clauseOf(error: ValidatorError, name: string, defining: string): string
     : defining;
 }
 
-const pathDepth = (path: string) => path.split("/").length;
-
 function schemaIssues(name: string, defining: string): Issue[] {
   const errors = validators[name]?.errors ?? [];
   const issues = errors
@@ -357,7 +355,7 @@ function schemaIssues(name: string, defining: string): Issue[] {
       clause: clauseOf(error, name, defining),
     }));
   // The deepest value at fault first: it is the most specific thing to fix.
-  return issues.sort((a, b) => pathDepth(b.path) - pathDepth(a.path));
+  return issues.sort((a, b) => pointerDepth(b.path) - pointerDepth(a.path));
 }
 
 const UNREADABLE: Issue = {

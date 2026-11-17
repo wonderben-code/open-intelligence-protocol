@@ -128,6 +128,8 @@ const NOT_JSON: Issue = {
   clause: "core 1.2",
 };
 
+const NOT_AN_OBJECT: Issue = { path: "", message: "a record is a JSON object", clause: "core 1.1" };
+
 const TOO_DEEP: Issue = {
   path: "",
   message: `arrays and objects nest more than ${MAX_DEPTH} deep`,
@@ -445,8 +447,9 @@ export function validateJson(
  * exactly.
  */
 function recordCopy(value: unknown, limits?: Limits) {
+  // Asked before the copy is made: a large array is not copied to be refused.
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return { issue: { path: "", message: "a record is a JSON object", clause: "core 1.1" } };
+    return { issue: NOT_AN_OBJECT };
   }
   return plainCopy(value, MAX_CONTAINER_DEPTH, valueBudget(limits));
 }
@@ -502,7 +505,7 @@ function validateKnown<K extends RecordType>(
 /** The type a plain copy names, if it is a record at all. */
 function typeOf(value: JsonValue): Validation<string> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return fail({ path: "", message: "a record is a JSON object", clause: "core 1.1" });
+    return fail(NOT_AN_OBJECT);
   }
   const { oip, type } = value as { readonly oip?: unknown; readonly type?: unknown };
   if (oip !== "1") {
@@ -560,11 +563,8 @@ export function validateParsedExtensionRecord(
 
 type Copied = { readonly issue: Issue } | { readonly value: JsonValue; readonly deepest: number };
 
-/** What a parser built, as the copy of it would be. */
+/** What a parser built, as the copy of it would be. Whether it is an object is asked with its type. */
 function parsed(value: JsonValue, deepest: number): Copied {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return { issue: { path: "", message: "a record is a JSON object", clause: "core 1.1" } };
-  }
   return deepest > MAX_CONTAINER_DEPTH ? { issue: TOO_DEEP } : { value, deepest };
 }
 

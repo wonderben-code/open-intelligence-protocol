@@ -29,6 +29,10 @@ export default {
     "!packages/**/*.d.ts",
   ],
   coverageAnalysis: "perTest",
+  // Nothing type-checks the copies, so no file needs a `@ts-nocheck` put at
+  // its head. Tests that compare a file with what a README quotes of it read
+  // the copy, and would find the line.
+  disableTypeChecks: false,
   ignoreStatic: false,
   thresholds: { high: 95, low: 90, break: 85 },
   reporters: ["clear-text", "progress", "json", "html"],

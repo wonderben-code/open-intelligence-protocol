@@ -22,6 +22,7 @@ import {
   parseVersionId,
   recordRefMatches,
 } from "../src/index.ts";
+import { contentIdIfAny } from "../src/content-id.ts";
 import { cases, keys, named, show, signedRecords, strings } from "./vectors.ts";
 
 const CID = "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna";
@@ -212,7 +213,8 @@ describe(`${clause("core 6.1")} the grammar of references`, () => {
     expect(() => formatKeyRef(MIND, OTHER, KEY)).toThrow(
       new TypeError("a key reference pins a version of the identity"),
     );
-    for (const bad of ["", "z", KEY.slice(1), `${KEY}#`, `${KEY}0`, null]) {
+    // Nothing may come before the Multikey or after it: the reference is written from it as given.
+    for (const bad of ["", "z", KEY.slice(1), `${KEY}#`, `${KEY}0`, `x${KEY}`, `#${KEY}`, null]) {
       expect(() => formatKeyRef(MIND, `2-${OTHER}`, bad!)).toThrow(
         new TypeError("a key reference names a Multikey"),
       );
@@ -409,6 +411,18 @@ describe(`${clause("core 6.3")} a record-ref matches by content ID alone`, () =>
       expect(recordRefMatches(`${MIND}/${id}`, notRecord)).toBe(false);
     }
     expect(recordRefMatches(`${MIND}/${id}`, { a: 0.5 })).toBe(false);
+  });
+
+  it(`${clause("core 3.1")} gives no content ID to a value that is not an object`, () => {
+    // Taken apart member by member, a string or an array looks like an object
+    // with numbered members. It must not be given that object's content ID.
+    const numbered = { 0: "a", 1: "b" };
+    const reference = `${MIND}/${contentId(numbered)}`;
+    expect(recordRefMatches(reference, numbered)).toBe(true);
+    for (const notObject of ["ab", ["a", "b"], 7, true, null]) {
+      expect(contentIdIfAny(notObject), show(notObject)).toBeUndefined();
+      expect(recordRefMatches(reference, notObject), show(notObject)).toBe(false);
+    }
   });
 
   it("resolves the references between records of the vectors", () => {

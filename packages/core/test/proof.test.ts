@@ -1292,6 +1292,43 @@ describe("judging with the stack all but spent", () => {
   });
 });
 
+describe("judging while nothing can be serialised", () => {
+  it("answers and does not throw, and is right again afterwards", () => {
+    // Other code in the process has put a toJSON on a prototype. No canonical
+    // form can be trusted then, so no proof is accepted; but a judge still answers.
+    const reference = `${intent["author"] as string}/${contentId(intent)}`;
+    const unread = (message: string) => [{ path: "", message, clause: "core 1.2" }];
+    for (const prototype of [Object.prototype, Array.prototype] as object[]) {
+      Object.defineProperty(prototype, "toJSON", {
+        value: () => "all the same",
+        configurable: true,
+        writable: true,
+      });
+      let one, all, matches;
+      try {
+        one = verifyProof(intent, intentProof);
+        all = verifyProofs(intent);
+        matches = recordRefMatches(reference, intent);
+      } finally {
+        delete (prototype as { toJSON?: unknown }).toJSON;
+      }
+      expect(one).toEqual({
+        ok: false,
+        issues: unread("the record or the proof could not be read as plain JSON data"),
+      });
+      expect(all).toEqual({
+        verified: [],
+        rejected: [],
+        issues: unread("the record could not be read as plain JSON data"),
+      });
+      expect(matches).toBe(false);
+    }
+    expect(verifyProof(intent, intentProof).ok).toBe(true);
+    expect(verifyProofs(intent).verified).toHaveLength(1);
+    expect(recordRefMatches(reference, intent)).toBe(true);
+  });
+});
+
 describe(`${clause("core 4.4")} the Ed25519 cases of the vectors`, () => {
   it("rejects a signature whose S is not reduced, and accepts the signature it was made from", () => {
     const record = negative("signature-s-not-reduced")["record"] as JsonObject;

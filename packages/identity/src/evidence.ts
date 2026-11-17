@@ -105,10 +105,12 @@ export class FirstSeen implements EvidenceView {
     return keepEarliest(this.#events, contentId, at);
   }
 
+  /** The earliest time recorded for a proof, or `undefined`. */
   proofSeen(digest: string): Instant | undefined {
     return this.#proofs.get(digest);
   }
 
+  /** The earliest time recorded for an identity event, or `undefined`. */
   eventSeen(contentId: string): Instant | undefined {
     return this.#events.get(contentId);
   }

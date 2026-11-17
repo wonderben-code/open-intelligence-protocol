@@ -42,6 +42,7 @@ type Logs = readonly [VerifiedLog, ...VerifiedLog[]];
 
 /** Where two logs of one mind part: the position, and the event each has there. */
 export interface Divergence {
+  /** The position at which the two logs hold different events. */
   readonly position: number;
   /** The two events, in the order the logs were given. Each is valid against the same predecessor. */
   readonly events: readonly [LogEntry["event"], LogEntry["event"]];
@@ -135,6 +136,7 @@ function duplicitous(candidates: Logs, position: number): VerifiedLog {
  * 9.4), which the caller states.
  */
 export class LogBook implements IdentityView {
+  /** The evidence every log and proof is judged against. */
   readonly evidence: EvidenceView;
   readonly #maxEvents: number | undefined;
   readonly #held = new Map<string, Held>();
@@ -184,6 +186,10 @@ export class LogBook implements IdentityView {
     this.#verified.clear();
   }
 
+  /**
+   * The verified log of a mind: verified when first asked for, with its
+   * members' logs, and with duplicity resolved among the branches held.
+   */
   log(mind: string): Validation<VerifiedLog> {
     return this.#log(mind, 0);
   }

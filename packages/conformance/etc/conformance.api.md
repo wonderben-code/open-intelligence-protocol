@@ -8,6 +8,9 @@
 export type Agreement = "same" | "no-laxer";
 
 // @public
+export type Answer = boolean | typeof NOT_JUDGED;
+
+// @public
 export interface AssuranceCase extends CaseBase {
     // (undocumented)
     readonly expect: string;
@@ -61,10 +64,12 @@ export interface ConformanceAdapter {
     assurance?(profile: JsonObject, view: VerifierView): string;
     canonicalize?(value: unknown): string;
     contentId?(record: JsonObject): string;
-    countsFor?(record: JsonObject, mind: string, view: VerifierView): boolean;
+    countsFor?(record: JsonObject, mind: string, view: VerifierView): Answer;
     createProof?(record: JsonObject, request: ProofRequest, privateKey: Uint8Array): JsonObject;
+    didDocument?(mind: string, versionId: string | undefined, view: VerifierView): unknown;
     jsonIsWithinProfile?(text: string): boolean;
     keyHash?(multikey: string): string;
+    lineage?(child: string, view: VerifierView): Readonly<Record<string, LineageStatus>>;
     logVerifies?(log: Log, view: VerifierView): boolean;
     readonly name: string;
     proofVerifies?(record: JsonObject, proof: unknown): boolean;
@@ -128,6 +133,9 @@ export interface Judge {
 }
 
 // @public
+export type LineageStatus = "acknowledged" | "claimed";
+
+// @public
 export function loadVectors(file?: string): Vectors;
 
 // @public
@@ -157,6 +165,9 @@ export function namedLog(vectors: Vectors, name: string): Log;
 
 // @public
 export function namedRecord(vectors: Vectors, name: string): JsonObject;
+
+// @public
+export const NOT_JUDGED: unique symbol;
 
 // @public
 export type Outcome = "pass" | "fail" | "pending";

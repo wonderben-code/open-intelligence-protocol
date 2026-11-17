@@ -25,6 +25,7 @@ export type ControllerState =
 
 /** A parent a genesis names (Layer 1, 8.1). */
 export interface Parent {
+  /** The parent's address. */
   readonly mind: string;
   /** The version of the parent the mind was forked from. */
   readonly at: string;
@@ -34,7 +35,9 @@ export interface Parent {
 export interface IdentityState {
   /** The mind's address. */
   readonly mind: string;
+  /** What the mind says it is: `human`, `agent`, `collective`, `institution`, `service` or another word. */
   readonly kind: string;
+  /** Who may extend the log. */
   readonly controller: ControllerState;
   /** Operational keys, as Multikeys: they sign the mind's everyday records. */
   readonly keys: readonly string[];
@@ -42,9 +45,11 @@ export interface IdentityState {
   readonly invocation: readonly string[];
   /** Agreement keys, for encryption. */
   readonly agreement: readonly string[];
+  /** The HTTPS origins that serve the mind's records. */
   readonly homes: readonly string[];
   /** Aliases as the log lists them. None is verified here (Layer 1, 5.3). */
   readonly alsoKnownAs: readonly string[];
+  /** The parents the genesis names (Layer 1, 8.1). */
   readonly parents: readonly Parent[];
   /** Children acknowledged by `Fork` events. */
   readonly children: readonly string[];
@@ -61,6 +66,7 @@ export interface IdentityState {
   readonly versionId: string;
   /** The latest event's own `created`. */
   readonly created: Instant;
+  /** Whether a `Retire` has closed the log. A retired mind's keys sign nothing. */
   readonly retired: boolean;
 }
 

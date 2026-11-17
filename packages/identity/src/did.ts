@@ -16,48 +16,73 @@ import {
 
 /** One key of a DID document (Layer 1, 5.2). */
 export interface DidVerificationMethod {
+  /** The address, `#` and the key. In a versioned document, the address with its `versionId`. */
   readonly id: string;
+  /** Every key is given as a Multikey (core 4.1). */
   readonly type: "Multikey";
+  /** The mind's address. */
   readonly controller: string;
+  /** The key, as a Multikey string. */
   readonly publicKeyMultibase: string;
 }
 
 /** A home or an endpoint of a mind (Layer 1, 5.2). */
 export interface DidService {
+  /** The address and `#home-<n>` or `#endpoint-<n>`, counting from 0. */
   readonly id: string;
+  /** A home serves the mind's records; an endpoint receives its packets. */
   readonly type: "OIPHome" | "OIPEndpoint";
+  /** The origin of a home, or the URL of an endpoint. */
   readonly serviceEndpoint: string;
 }
 
 /** The DID Core document of a mind (Layer 1, 5.2). */
 export interface DidDocument {
+  /** The mind's address. */
   readonly id: string;
+  /** One entry for each operational, invocation and agreement key, in that order. Control keys are not listed. */
   readonly verificationMethod: readonly DidVerificationMethod[];
+  /** The ids of the operational keys. */
   readonly authentication: readonly string[];
+  /** The ids of the operational keys. */
   readonly assertionMethod: readonly string[];
+  /** The ids of the operational keys. */
   readonly capabilityDelegation: readonly string[];
+  /** The ids of the invocation keys. */
   readonly capabilityInvocation: readonly string[];
+  /** The ids of the agreement keys. */
   readonly keyAgreement: readonly string[];
+  /** The homes, and then the endpoints of a location record if one was given. Absent when there are none. */
   readonly service?: readonly DidService[];
+  /** The aliases the caller has verified. Absent when there are none. */
   readonly alsoKnownAs?: readonly string[];
 }
 
 /** What a document does not hold about the log it came from (Layer 1, 5.2). */
 export interface DidDocumentMetadata {
+  /** The version identifier of the event the document was produced up to. */
   readonly versionId: string;
   /** True when the mind is retired. */
   readonly deactivated: boolean;
+  /** The parents the genesis names (Layer 1, 8.1). */
   readonly parents: readonly Parent[];
+  /** The children the log acknowledges with `Fork` events. */
   readonly children: readonly string[];
+  /** For a key-controlled mind: the commitments to the keys that sign the next event. */
   readonly nextKeyHashes?: readonly string[];
+  /** For a key-controlled mind that can still be extended: how many of them must sign. */
   readonly nextThreshold?: number;
+  /** For a member-controlled mind: the addresses of its members. */
   readonly members?: readonly string[];
+  /** For a member-controlled mind: how many members must sign. */
   readonly threshold?: number;
 }
 
 /** The result of resolving an address. */
 export interface DidResolution {
+  /** The DID Core document. */
   readonly didDocument: DidDocument;
+  /** What the log holds and the document does not. */
   readonly didDocumentMetadata: DidDocumentMetadata;
 }
 

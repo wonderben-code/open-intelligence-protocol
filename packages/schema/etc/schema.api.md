@@ -1073,7 +1073,7 @@ export const patterns: {
     readonly reverseDnsNamespace: "^[a-z0-9-]+(?:\\.[a-z0-9-]+)+$";
     readonly oipNamespace: "^oip\\.";
     readonly namespaced: "^[^:]+:.+$";
-    readonly httpsOrigin: "^https://[^/?#@\\s]+$";
+    readonly httpsOrigin: "^https://[A-Za-z0-9.:\\[\\]-]+$";
     readonly capabilitySubject: "^[a-z0-9_-]+(?:\\.[a-z0-9_-]+)*$";
     readonly base64url: "^[A-Za-z0-9_-]+$";
 };

@@ -90,6 +90,7 @@ export interface CountedProof {
   readonly mind: string;
   /** `t(p)`, the proof's evaluation time (core 9.3). */
   readonly time: Instant;
+  /** The proof, with its place in the record's `proof`. */
   readonly proof: PlacedProof;
 }
 

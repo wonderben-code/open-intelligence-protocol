@@ -21,10 +21,10 @@ It needs only the `cryptography` package.
 
 **Negative cases** (`negative`): 36 records or logs that every implementation must reject, each with the reason. They cover duplicate control keys, forged rotations, zero and minority thresholds, a missing founder, collective events signed with operational keys, events after `Retire`, the reserved `Merge` and `recovery`, a non-canonical content ID, a revoked key added again, wrong proof purposes, a delegate's key that is not in its log, delegations listed outside the proof, delegates signing delegations, reserved blanket commands, policy bypasses (currency, negative and non-decimal amounts, a counterparty outside the policy), backdated proofs by removed and compromised keys, an expired and a revoked delegation, a removed collective member, proofs from the future and after a record's expiry, an outsider closing someone else's Intent, a compromise claim that turns a commitment `disputed`, and a short packet nonce.
 
-Each must-accept or negative case has a `kind`:
-- `log`: the identity log in `log` must fail verification;
-- `countsFor`: `record` must not count for `mind`, given the positive logs and records, any `extraLogs` (which replace the logs of the same minds), any `extraRecords`, and any `seen` times;
-- `status`: the status of `of`, given `records` at time `at` (and any `extraLogs`), must be `expect`;
+Each case has a `kind`, evaluated with the positive logs and records plus any `extraLogs` (which replace the logs of the same minds), `extraRecords` and `seen` times:
+- `log`: the identity log in `log` must verify (must-accept) or fail verification (negative);
+- `countsFor`: `record` must count for `mind` (must-accept) or must not (negative);
+- `status`: the status of `of`, given `records` at time `at`, must be `expect`;
 - `record`: `record` is malformed.
 
 ## Evaluation times

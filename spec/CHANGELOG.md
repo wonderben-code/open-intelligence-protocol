@@ -1,6 +1,6 @@
 # Specification changelog
 
-## Revision 2026-10-31 (Draft)
+## Revision 2026-11-17 (Draft)
 
 Security and consistency fixes from two independent reviews of revision 2026-10-30, one of the technical paper and one of the specifications ([reviews/](../reviews/)). Record formats change little; most changes are clearer rules about who may sign what, and when. Every mind address in the test vectors is unchanged.
 

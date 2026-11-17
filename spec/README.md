@@ -1,6 +1,6 @@
 # OIP Specifications
 
-**Revision 2026-10-31 · Status: Draft · Licensed under CC BY 4.0**
+**Revision 2026-11-17 · Status: Draft · Licensed under CC BY 4.0**
 
 These documents are the normative specification of the Open Intelligence Protocol. The design rationale, prior art and examples are in [Paper 2: Technical Architecture](../papers/02-technical-architecture.md); where a specification and the paper disagree, the specification wins.
 

@@ -1,6 +1,6 @@
 # OIP Layer 1: the Mind Network
 
-**Revision 2026-10-31 · Status: Draft · Licensed under CC BY 4.0**
+**Revision 2026-11-17 · Status: Draft · Licensed under CC BY 4.0**
 
 This document specifies mind addresses, identity logs, lineage, collectives, delegation, feeds, packets, sessions, location records, profiles, resolution and capability routing. It depends on [core.md](core.md). Rationale is in Section 5 of the [technical architecture paper](../papers/02-technical-architecture.md). "Evaluation time" and `t(p)` are defined in core, Section 9.
 

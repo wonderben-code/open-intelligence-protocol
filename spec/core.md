@@ -1,6 +1,6 @@
 # OIP Core: Records, Identifiers and Proofs
 
-**Revision 2026-10-31 · Status: Draft · Licensed under CC BY 4.0**
+**Revision 2026-11-17 · Status: Draft · Licensed under CC BY 4.0**
 
 This document defines what every OIP record has in common, at every layer. See [README.md](README.md) for conventions.
 

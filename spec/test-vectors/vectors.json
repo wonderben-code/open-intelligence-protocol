@@ -1,5 +1,5 @@
 {
-  "spec_revision": "2026-10-31",
+  "spec_revision": "2026-11-17",
   "status": "draft",
   "note": "Ed25519 keys derive from SHA-256('oip-test-vector:'+label); X25519 keys from SHA-256('oip-test-vector-x25519:'+label). Never use these keys for anything real.",
   "assumption": "Unless a case gives `seen` times, a verifier is taken to have obtained each proof at that proof's `created` time.",

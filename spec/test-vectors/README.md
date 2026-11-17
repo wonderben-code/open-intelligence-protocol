@@ -1,6 +1,6 @@
 # OIP Test Vectors
 
-**Revision 2026-10-31 · Status: Draft**
+**Revision 2026-11-17 · Status: Draft**
 
 `vectors.json` contains deterministic records for the scenario used throughout the papers: Amina (a person) and her assistant agent, Lexis Ltd (an institution), the Lexis translation agent and two forks of it, a research agent, a 2-of-3 collective, and an institution with a 2-of-3 pre-rotation. It includes identity logs and DID documents, three delegations (two forming a chain), a `Lineage` record, a location record, a Participant profile, two feed entries and a checkpoint, a session, a context packet, its `Ack`, a `Hello`, and Intent, Offer, Commitment, Receipt and Collective records, with expected Layer 2 statuses at given times.
 

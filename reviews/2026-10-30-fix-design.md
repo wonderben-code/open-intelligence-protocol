@@ -1,6 +1,6 @@
 # Fix design for the paper review (30 October 2026)
 
-**Superseded in detail by [spec/CHANGELOG.md](../spec/CHANGELOG.md), revision 2026-10-31, which also covers the specification review.** Two designs here changed during implementation: delegations now travel in each delegated proof's own `authority` rather than in the record, and members sign collective identity events with dedicated invocation keys, judged at their position in the log.
+**Superseded in detail by [spec/CHANGELOG.md](../spec/CHANGELOG.md), revision 2026-11-17, which also covers the specification review.** Two designs here changed during implementation: delegations now travel in each delegated proof's own `authority` rather than in the record, and members sign collective identity events with dedicated invocation keys, judged at their position in the log.
 
 How each finding in [2026-10-30-paper-review.md](2026-10-30-paper-review.md) is fixed, so the paper, the specifications and the test vectors change together and stay consistent. Findings from the specification review will be added when it completes. Work happens on branch `review-fixes`.
 

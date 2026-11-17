@@ -1,6 +1,6 @@
 # OIP Layer 2: the Mind Web
 
-**Revision 2026-10-31 · Status: Draft · Licensed under CC BY 4.0**
+**Revision 2026-11-17 · Status: Draft · Licensed under CC BY 4.0**
 
 This document specifies the linked primitives through which minds coordinate: Participant, Intent, Offer, Commitment, Receipt and Collective. It depends on [core.md](core.md) and [layer-1-mind-network.md](layer-1-mind-network.md). Rationale is in Section 6 of the [technical architecture paper](../papers/02-technical-architecture.md).
 

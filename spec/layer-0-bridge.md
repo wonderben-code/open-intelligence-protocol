@@ -1,6 +1,6 @@
 # OIP Layer 0: the Bridge
 
-**Revision 2026-10-31 · Status: Draft · Licensed under CC BY 4.0**
+**Revision 2026-11-17 · Status: Draft · Licensed under CC BY 4.0**
 
 This document specifies how existing systems take part in OIP through gateways, and how OIP minds take part in existing systems. It depends on [core.md](core.md), [layer-1-mind-network.md](layer-1-mind-network.md) and [layer-2-mind-web.md](layer-2-mind-web.md). Rationale is in Section 7 of the [technical architecture paper](../papers/02-technical-architecture.md).
 

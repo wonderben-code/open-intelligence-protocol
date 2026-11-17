@@ -41,7 +41,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives import serialization
 
-REVISION = "2026-10-31"
+REVISION = "2026-11-17"
 OIP_VERSION = "1"
 MAX_SAFE_INT = 2**53 - 1
 RAW = serialization.Encoding.Raw, serialization.PublicFormat.Raw

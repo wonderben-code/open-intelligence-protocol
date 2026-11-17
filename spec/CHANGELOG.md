@@ -30,6 +30,13 @@ Security and consistency fixes from two independent reviews of revision 2026-10-
 
 **Pre-publication check.** An independent check of the fixes ([reviews/2026-11-17-fix-verification.md](../reviews/2026-11-17-fix-verification.md), of the candidate at commit `ab980a8`) confirmed 37 of the 46 earlier findings resolved and 9 partly resolved, and found ten new issues (N1–N10) and eleven minor ones (M1–M11). All are addressed in this revision as published: member proofs on collective identity events judged at the event's evaluation time instead of at their position (N1); evidence per proof (N2); fixed collective heights (N3); exact delegation chains (N4); strict Ed25519 in the checker and no identity point (N5); at most one principal per proof besides its signer, charter-naming role proofs and policies that exclude the delegate (N6); current-state records of collectives under the latest membership (N7); witness times for removals (N8); the gateway's feed attestation (N9); payer and payee (N10); and the minor items, including fail-closed policies (M1) and the checker's charter tie-break, author rule, `/oip/send` and duplicity handling (M9).
 
+**Machine-readable companions (17 November 2026, no normative change).** Added with the first milestone of the reference implementation. No specification text changed, and every value in the vectors is unchanged.
+- [`schemas/`](schemas/): a JSON Schema (2020-12) for every record type in core 11, generated from the reference implementation's `@oip/schema`. They are a convenience; the specifications remain normative.
+- [`clauses.json`](clauses.json): every numbered clause of these documents with its BCP 14 key words, extracted by `scripts/spec-clauses.ts`. Tests cite clauses by these IDs.
+- `vectors.json` gains `baseline`: the names of the identity logs and records that every case is evaluated with. Until now only the generator knew them, so another implementation could not reproduce a case's view exactly.
+- `oip_vectors.py` gains `--judge`, which reads cases in the vectors' format and prints a verdict for each, for differential testing against other implementations.
+- The generator's structural check no longer demands `created` on `LogPage`, `FeedPage` and `DuplicityEvidence`. They are containers and carry none (core 7 and 11). No vector exercised this.
+
 ## Revision 2026-10-30 (Draft)
 
 First revision: core records, identifiers and proofs; Layer 1 (Mind Network); Layer 2 (Mind Web); Layer 0 (Bridge); test vectors with an independent Python implementation.

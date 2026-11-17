@@ -22,17 +22,25 @@ This repository is the **Open Intelligence Protocol (OIP)**: a free, open protoc
 
 ## Commands
 
-Available once M0 lands:
+Node.js 24 is at `/opt/node24/bin` in the cloud container; put it first on `PATH`. pnpm switches itself to the version pinned in `package.json`.
 
 ```
 pnpm install                         # dependencies
 pnpm build | test | lint | typecheck
 pnpm test:vectors                    # the golden vectors, by case kind
-pnpm spec:coverage                   # which spec clauses have tests
+pnpm test:differential               # against the Python checker (needs python3 with `cryptography`)
+pnpm spec:coverage                   # which spec clauses have tests; writes docs/conformance/coverage.md
+pnpm schemas                         # regenerate spec/schemas and the compiled validators
+pnpm spec:clauses                    # regenerate spec/clauses.json after a spec change
+pnpm generated:check                 # both of the above are current
+pnpm api                             # build, and update the API reports (packages/*/etc)
 pnpm bench                           # performance budgets (BUILD.md 3.8)
+pnpm run docs                        # API reference (`pnpm docs` is pnpm's own command)
 ```
 
-Always available:
+Before pushing, run what CI runs: `pnpm lint && pnpm typecheck && pnpm generated:check && pnpm api:check && pnpm spec:coverage && pnpm test:coverage`.
+
+Also:
 
 ```
 python3 spec/test-vectors/oip_vectors.py --check   # needs the `cryptography` package
@@ -99,7 +107,9 @@ papers/        founding and technical papers (Markdown), PDFs as archived on Zen
 spec/          normative specifications, CHANGELOG and test vectors (with the Python checker)
 research/      research notes behind the design
 reviews/       independent reviews and the fixes they led to; build reviews go in reviews/build/
-packages/      the reference implementation (from M0)
+packages/      the reference implementation
+scripts/       build and check scripts (clause extraction, spec coverage, guard checks)
+oeps/          OIP Enhancement Proposals
 apps/          OIP Explorer (M11)
 examples/      the demo network and focused examples
 docs/          ADRs, guides, threat models, conformance coverage

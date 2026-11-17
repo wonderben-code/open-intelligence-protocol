@@ -61,6 +61,17 @@ python3 spec/test-vectors/oip_vectors.py --check   # check the vectors with the 
 
 Run all of them before you open a pull request. CI runs the same checks, and a pull request is merged only when CI is green.
 
+Some files are generated, and CI fails if they are out of date. Regenerate them and commit the result:
+
+```
+pnpm schemas          # after changing a schema: spec/schemas and the compiled validators
+pnpm spec:clauses     # after changing a specification: spec/clauses.json
+pnpm api              # after changing a public API: the API reports in packages/*/etc
+pnpm spec:coverage    # after adding tests: docs/conformance/coverage.md
+```
+
+Other commands: `pnpm test:differential` compares verdicts with the Python checker; `pnpm bench` runs the benchmarks; `pnpm run docs` builds the API reference (`pnpm docs` is pnpm's own command).
+
 ## 5. The specification is normative
 
 - **`spec/*.md` is normative.** The papers explain the design. If a paper and a specification disagree, the specification wins and the paper is corrected.
@@ -217,6 +228,7 @@ You keep the copyright in your contribution. By contributing, you license it und
 Every source file starts with an SPDX header in a comment:
 
 ```
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 ```
 

@@ -9,6 +9,7 @@
 ```
 python3 oip_vectors.py           # regenerate vectors.json and check it
 python3 oip_vectors.py --check   # check the existing vectors.json
+python3 oip_vectors.py --judge   # judge cases given on standard input (see "Judging other cases")
 ```
 
 It needs only the `cryptography` package. It applies core 4.4 itself (it decodes every key and signature point and requires order exactly L) before calling OpenSSL, which on its own accepts small-order and mixed-order points.
@@ -28,13 +29,34 @@ It needs only the `cryptography` package. It applies core 4.4 itself (it decodes
 
 **Controls** (`controls`): 11 negative cases, each changed only in the respect its reason names, which must be accepted. They show that each fails for its stated reason and nothing else: for example, the backdated proofs pass when first seen in time, the collective takeover passes when evidence shows it came before the key removals, and the collective joining passes when the collective was founded tall enough.
 
-Each case has a `kind`, evaluated with the positive logs and records plus any `extraLogs` (which replace the logs of the same minds), `branches` (further, conflicting branches of a mind's log), `extraRecords` and `seen` times:
+Each case has a `kind`, evaluated with the **baseline** (the identity logs and records that `baseline` names among the positive cases: `baseline.logs` and `baseline.records`) plus any `extraLogs` (which replace the logs of the same minds), `branches` (further, conflicting branches of a mind's log), `extraRecords` and `seen` times:
 - `log`: the identity log in `log` must verify (must-accept, control) or fail verification (negative);
 - `countsFor`: `record` must count for `mind` (must-accept, control) or must not (negative);
 - `sentFor`: the packet in `record` must not count as sent on `mind`'s behalf (negative);
 - `status`: the status of `of`, given `records` at time `at`, must be `expect`;
 - `assurance`: the assurance level (Layer 0, 1.3) of the profile in `record` must be `expect`;
 - `record`: `record` is malformed.
+
+## Judging other cases
+
+`--judge` gives this implementation's verdict on any case in the format above, so that another implementation can compare its own verdicts with it on cases it generates (differential testing). Cases are judged against the existing `vectors.json`.
+
+```
+python3 oip_vectors.py --judge < case.json           # one case, or an array of cases
+python3 oip_vectors.py --judge --lines < cases.jsonl  # one case per line; one verdict per line, as each is reached
+```
+
+Each verdict is one line of JSON:
+
+```json
+{"name": "delegation-to-self", "kind": "record", "holds": false}
+```
+
+- `holds` says whether the case's claim holds: the log verifies, the record counts for (or was sent for) the mind, the status or assurance is `expect`, or the record is well formed.
+- For `status` and `assurance` cases, `value` is the result computed, and `expect` may be left out.
+- Input this implementation cannot process at all gives `"holds": false` with an `error`. An error is never an acceptance.
+
+`record` cases use this generator's structural checks, which are the ones it relies on and not a full schema. The JSON Schemas in [`../schemas/`](../schemas/) check more.
 
 ## Evaluation times
 

@@ -143,7 +143,7 @@ OIP is governed by six principles. Every design decision in the technical specif
 3. **Transport-agnostic.** OIP runs over HTTP, WebSockets, peer-to-peer transports, existing agent standards or anything that moves bytes. It sits above the plumbing.
 4. **Verifiable by default.** Identities are self-certifying, messages are signed, commitments and receipts are tamper-evident. Trust is computed, not assumed.
 5. **Permissionless.** No central registry, no gatekeeper, no owner. Anyone can run a node, create a mind, publish an offer or build an application.
-6. **Extensible without fracture.** The core never needs to change for the network to grow. New capabilities arrive as extensions that older implementations can safely ignore.
+6. **Extensible without fracture.** The network grows mainly through extensions that older implementations can safely ignore. The core changes rarely and deliberately: the few additions that change its rules are reserved in advance and arrive as clearly marked revisions.
 
 ## 6. What becomes possible
 

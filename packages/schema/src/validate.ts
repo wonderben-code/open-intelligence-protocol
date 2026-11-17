@@ -104,7 +104,7 @@ export function validateRecordOfType<K extends RecordType>(
     );
   }
   const record = value as RecordOf<K>;
-  const [first, ...rest] = checkRecordRules(record as OipRecord);
+  const [first, ...rest] = checkRecordRules(record);
   return first === undefined ? { ok: true, value: record } : fail(first, ...rest);
 }
 
@@ -151,7 +151,10 @@ export function validateProof(value: unknown): Validation<Proof> {
   if (unsafe !== undefined) return fail(unsafe);
   if (!runValidator("Proof", value)) {
     const [first, ...rest] = schemaIssues("Proof", "core 5.2");
-    return fail(first ?? { path: "", message: "not a well-formed proof", clause: "core 5.2" }, ...rest);
+    return fail(
+      first ?? { path: "", message: "not a well-formed proof", clause: "core 5.2" },
+      ...rest,
+    );
   }
   const proof = value as Proof;
   const [first, ...rest] = checkProofRules(proof);

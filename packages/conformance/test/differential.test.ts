@@ -55,12 +55,20 @@ function paths(value: unknown, prefix: (string | number)[] = [], out: (string | 
   return out;
 }
 
-type Mutation = { path: (string | number)[]; action: "delete" | "replace" | "copy"; value: unknown; from: (string | number)[] };
+interface Mutation {
+  path: (string | number)[];
+  action: "delete" | "replace" | "copy";
+  value: unknown;
+  from: (string | number)[];
+}
 
 function apply(record: JsonObject, mutation: Mutation): JsonObject {
   const copy = structuredClone(record) as Record<string, unknown>;
   const read = (path: (string | number)[]): unknown =>
-    path.reduce<unknown>((at, key) => (at as Record<string | number, unknown> | undefined)?.[key], copy);
+    path.reduce<unknown>(
+      (at, key) => (at as Record<string | number, unknown> | undefined)?.[key],
+      copy,
+    );
   const parent = read(mutation.path.slice(0, -1)) as Record<string | number, unknown> | undefined;
   const key = mutation.path.at(-1);
   // An earlier mutation may have replaced the parent with something that has no members.
@@ -71,26 +79,25 @@ function apply(record: JsonObject, mutation: Mutation): JsonObject {
   } else {
     // "copy" sets one member to the value of another, which is how a
     // delegation to oneself or a payer that is also the payee arises.
-    parent[key] = mutation.action === "copy" ? structuredClone(read(mutation.from)) : mutation.value;
+    parent[key] =
+      mutation.action === "copy" ? structuredClone(read(mutation.from)) : mutation.value;
   }
   return copy;
 }
 
-const mutatedRecord = fc
-  .constantFrom(...records)
-  .chain((record) => {
-    const all = paths(record);
-    const path = fc.constantFrom(...all);
-    const mutation = fc.record({
-      path,
-      action: fc.constantFrom("delete", "replace", "replace", "copy"),
-      value: junk,
-      from: path,
-    }) as fc.Arbitrary<Mutation>;
-    return fc.array(mutation, { minLength: 1, maxLength: 3 }).map((mutations) =>
-      mutations.reduce(apply, record),
-    );
-  });
+const mutatedRecord = fc.constantFrom(...records).chain((record) => {
+  const all = paths(record);
+  const path = fc.constantFrom(...all);
+  const mutation = fc.record({
+    path,
+    action: fc.constantFrom("delete", "replace", "replace", "copy"),
+    value: junk,
+    from: path,
+  }) as fc.Arbitrary<Mutation>;
+  return fc
+    .array(mutation, { minLength: 1, maxLength: 3 })
+    .map((mutations) => mutations.reduce(apply, record));
+});
 
 describe.skipIf(unavailable !== undefined && !required)("differential: record cases", () => {
   let judge: PythonJudge;
@@ -104,7 +111,11 @@ describe.skipIf(unavailable !== undefined && !required)("differential: record ca
     await judge.close();
   });
 
-  const recordCase = (record: unknown, name = "generated"): RecordCase => ({ name, kind: "record", record });
+  const recordCase = (record: unknown, name = "generated"): RecordCase => ({
+    name,
+    kind: "record",
+    record,
+  });
 
   it("both accept every record of the positive vectors", async () => {
     for (const record of records) {
@@ -169,7 +180,9 @@ describe.skipIf(unavailable !== undefined && !required)("differential: record ca
   it("answers in the order asked", async () => {
     const good = recordCase(records[0], "good");
     const bad = recordCase({ oip: "2" }, "bad");
-    const verdicts = await Promise.all([good, bad, good, bad, bad].map((entry) => judge.judge(entry)));
+    const verdicts = await Promise.all(
+      [good, bad, good, bad, bad].map((entry) => judge.judge(entry)),
+    );
     expect(verdicts.map((verdict) => verdict.name)).toEqual(["good", "bad", "good", "bad", "bad"]);
     expect(verdicts.map((verdict) => verdict.holds)).toEqual([true, false, true, false, false]);
   });

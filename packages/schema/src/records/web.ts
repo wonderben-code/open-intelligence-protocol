@@ -26,14 +26,16 @@ import { Command, Policy } from "./delegation.ts";
 export const CapabilityQuery = define(
   "capabilityQuery",
   Type.Object({
-  want: Type.Optional(Type.String({ maxLength: 1024 })),
-  tags: Type.Optional(Strings),
-  kinds: Type.Optional(
-    Type.Array(Type.Union([Type.Literal("Participant"), Type.Literal("Offer"), Type.Literal("Intent")])),
-  ),
-  constraints: Type.Optional(JsonObject),
-  evidence: Type.Optional(JsonObject),
-  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+    want: Type.Optional(Type.String({ maxLength: 1024 })),
+    tags: Type.Optional(Strings),
+    kinds: Type.Optional(
+      Type.Array(
+        Type.Union([Type.Literal("Participant"), Type.Literal("Offer"), Type.Literal("Intent")]),
+      ),
+    ),
+    constraints: Type.Optional(JsonObject),
+    evidence: Type.Optional(JsonObject),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
   }),
 );
 export type CapabilityQuery = Static<typeof CapabilityQuery>;
@@ -42,26 +44,26 @@ export type CapabilityQuery = Static<typeof CapabilityQuery>;
 export const Evidence = define(
   "evidence",
   Type.Object(
-  {
-    kind: Type.Union([
-      Type.Literal("oip"),
-      Type.Literal("uri"),
-      Type.Literal("hash"),
-      Type.Literal("vc"),
-      Type.Literal("payment"),
-      Type.Literal("log"),
-      Namespaced,
-    ]),
-    ref: Type.String({ minLength: 1 }),
-    digest: Type.Optional(Sha256Digest),
-    mediaType: Type.Optional(Type.String()),
-    note: Type.Optional(Type.String()),
-    ext: Type.Optional(Ext),
-  },
-  {
-    if: { properties: { kind: { enum: ["uri", "hash"] } }, required: ["kind"] },
-    then: { required: ["digest"] },
-  },
+    {
+      kind: Type.Union([
+        Type.Literal("oip"),
+        Type.Literal("uri"),
+        Type.Literal("hash"),
+        Type.Literal("vc"),
+        Type.Literal("payment"),
+        Type.Literal("log"),
+        Namespaced,
+      ]),
+      ref: Type.String({ minLength: 1 }),
+      digest: Type.Optional(Sha256Digest),
+      mediaType: Type.Optional(Type.String()),
+      note: Type.Optional(Type.String()),
+      ext: Type.Optional(Ext),
+    },
+    {
+      if: { properties: { kind: { enum: ["uri", "hash"] } }, required: ["kind"] },
+      then: { required: ["digest"] },
+    },
   ),
 );
 export type Evidence = Static<typeof Evidence>;
@@ -98,13 +100,18 @@ export const Intent = Type.Object(
     constraints: Type.Optional(
       Type.Object({
         deadline: Type.Optional(Timestamp),
-        budget: Type.Optional(Type.Object({ max: Amount, currency: Type.String({ minLength: 1 }) })),
+        budget: Type.Optional(
+          Type.Object({ max: Amount, currency: Type.String({ minLength: 1 }) }),
+        ),
         requires: Type.Optional(Strings),
       }),
     ),
     audience: Type.Optional(Audience),
   },
-  { ...meta("Intent", "A statement of an outcome a mind seeks (Layer 2, 4.1)."), ...statusNeedsSupersedes },
+  {
+    ...meta("Intent", "A statement of an outcome a mind seeks (Layer 2, 4.1)."),
+    ...statusNeedsSupersedes,
+  },
 );
 export type Intent = Static<typeof Intent>;
 
@@ -112,11 +119,11 @@ export type Intent = Static<typeof Intent>;
 export const OfferTerms = define(
   "offerTerms",
   Type.Object({
-  summary: Type.String(),
-  price: Type.Optional(Price),
-  deliveryBy: Type.Optional(Timestamp),
-  quantity: Type.Optional(Count),
-  conditions: Type.Optional(Strings),
+    summary: Type.String(),
+    price: Type.Optional(Price),
+    deliveryBy: Type.Optional(Timestamp),
+    quantity: Type.Optional(Count),
+    conditions: Type.Optional(Strings),
   }),
 );
 export type OfferTerms = Static<typeof OfferTerms>;
@@ -132,7 +139,10 @@ export const Offer = Type.Object(
     subject: Type.Optional(Type.Unknown()),
     audience: Type.Optional(Audience),
   },
-  { ...meta("Offer", "A statement of what a mind provides, and on what terms (Layer 2, 4.2)."), ...statusNeedsSupersedes },
+  {
+    ...meta("Offer", "A statement of what a mind provides, and on what terms (Layer 2, 4.2)."),
+    ...statusNeedsSupersedes,
+  },
 );
 export type Offer = Static<typeof Offer>;
 
@@ -191,7 +201,10 @@ export const Commitment = Type.Object(
     onBehalfOf: Type.Optional(MindAddress),
   },
   {
-    ...meta("Commitment", "A promise between parties, binding on those whose signatures count (Layer 2, Section 5)."),
+    ...meta(
+      "Commitment",
+      "A promise between parties, binding on those whose signatures count (Layer 2, Section 5).",
+    ),
     ...statusNeedsSupersedes,
   },
 );
@@ -217,7 +230,10 @@ export const Receipt = Type.Object(
     rating: Type.Optional(Type.Object({ score: UnitDecimal })),
   },
   {
-    ...meta("Receipt", "A signed statement about a record, usually about how a Commitment went (Layer 2, 6.1)."),
+    ...meta(
+      "Receipt",
+      "A signed statement about a record, usually about how a Commitment went (Layer 2, 6.1).",
+    ),
     ...statusNeedsSupersedes,
     // 6.1: a `revoked` Receipt supersedes an earlier Receipt by the same author.
     if: { properties: { outcome: { const: "revoked" } }, required: ["outcome"] },
@@ -257,7 +273,10 @@ export const Collective = Type.Object(
     procedures: Type.Optional(JsonObject),
   },
   {
-    ...meta("Collective", "A collective's charter: its purpose, roles and assignments (Layer 2, 6.2)."),
+    ...meta(
+      "Collective",
+      "A collective's charter: its purpose, roles and assignments (Layer 2, 6.2).",
+    ),
     ...statusNeedsSupersedes,
   },
 );

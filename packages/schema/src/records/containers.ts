@@ -36,7 +36,10 @@ export const Bundle = Type.Object(
     participant: Type.Optional(ref(Participant)),
     firstSeen: Type.Optional(FirstSeen),
   },
-  meta("Bundle", "A mind's identity log with its current location record and profile (Layer 1, 13.1)."),
+  meta(
+    "Bundle",
+    "A mind's identity log with its current location record and profile (Layer 1, 13.1).",
+  ),
 );
 export type Bundle = Static<typeof Bundle>;
 
@@ -80,6 +83,9 @@ export const DuplicityEvidence = Type.Object(
       }),
     ),
   },
-  meta("DuplicityEvidence", "Pairs of conflicting identity events at the same position of one log (Layer 1, 17.1)."),
+  meta(
+    "DuplicityEvidence",
+    "Pairs of conflicting identity events at the same position of one log (Layer 1, 17.1).",
+  ),
 );
 export type DuplicityEvidence = Static<typeof DuplicityEvidence>;

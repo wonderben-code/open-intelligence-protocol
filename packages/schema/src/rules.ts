@@ -34,7 +34,11 @@ function checkStatement(
   }
   const selector = (at: string, value: string) => {
     if (parseSelector(value) === undefined) {
-      report(at, `"${value}" is not a selector: use ".", ".name", "[index]" or ["name"]`, "L1 11.3");
+      report(
+        at,
+        `"${value}" is not a selector: use ".", ".name", "[index]" or ["name"]`,
+        "L1 11.3",
+      );
     }
   };
   switch (statement[0]) {
@@ -112,7 +116,8 @@ function checkKeySets(event: IdentityEvent, path: string, report: Report): void 
 }
 
 function checkIdentityEvent(event: IdentityEvent, path: string, report: Report): void {
-  if (event.controller !== undefined) checkController(event.controller, `${path}/controller`, report);
+  if (event.controller !== undefined)
+    checkController(event.controller, `${path}/controller`, report);
   checkKeySets(event, path, report);
 }
 
@@ -150,7 +155,11 @@ function checkRecordAt(record: OipRecord, path: string, report: Report): void {
   // core 8.3: every critical namespace has an extension block.
   record.critical?.forEach((namespace, i) => {
     if (record.ext === undefined || !Object.hasOwn(record.ext, namespace)) {
-      report(`${path}/critical/${i}`, `critical namespace "${namespace}" is not in ext`, "core 8.3");
+      report(
+        `${path}/critical/${i}`,
+        `critical namespace "${namespace}" is not in ext`,
+        "core 8.3",
+      );
     }
   });
 
@@ -163,7 +172,11 @@ function checkRecordAt(record: OipRecord, path: string, report: Report): void {
       break;
     case "Delegation":
       if (record.delegate === record.author) {
-        report(`${path}/delegate`, "a delegation's delegate must differ from its author", "L1 11.1");
+        report(
+          `${path}/delegate`,
+          "a delegation's delegate must differ from its author",
+          "L1 11.1",
+        );
       }
       if (record.policy !== undefined) checkPolicy(record.policy, `${path}/policy`, report);
       break;
@@ -177,7 +190,11 @@ function checkRecordAt(record: OipRecord, path: string, report: Report): void {
       for (let i = 1; i < record.participants.length; i++) {
         // Addresses are ASCII, so comparing UTF-16 code units is comparing code points.
         if ((record.participants[i - 1] ?? "") >= (record.participants[i] ?? "")) {
-          report(`${path}/participants/${i}`, "participants must be sorted by code point", "L1 14.1");
+          report(
+            `${path}/participants/${i}`,
+            "participants must be sorted by code point",
+            "L1 14.1",
+          );
         }
       }
       break;
@@ -250,7 +267,11 @@ export function checkProofRules(proof: Proof): Issue[] {
       // core 6.2: a control-key-ref names the same key on both sides of "#".
       const [key, fragment] = method.slice("did:key:".length).split("#");
       if (key !== fragment) {
-        report("/verificationMethod", "both keys of a control-key-ref must be identical", "core 6.2");
+        report(
+          "/verificationMethod",
+          "both keys of a control-key-ref must be identical",
+          "core 6.2",
+        );
       }
     }
     proof.authority?.forEach((item, i) => {

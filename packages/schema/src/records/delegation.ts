@@ -99,7 +99,9 @@ export const Revocation = Type.Object(
     author: MindAddress,
     revokes: RecordRef,
   },
-  meta("Revocation", "Revokes a delegation from the revocation's own evaluation time (Layer 1, 11.5)."),
+  meta(
+    "Revocation",
+    "Revokes a delegation from the revocation's own evaluation time (Layer 1, 11.5).",
+  ),
 );
 export type Revocation = Static<typeof Revocation>;
-

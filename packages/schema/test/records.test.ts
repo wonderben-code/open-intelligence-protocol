@@ -21,7 +21,9 @@ import { sample, sampleProof, samples, without } from "./fixtures.ts";
 
 function expectRejected(record: unknown, pathOrMessage?: RegExp): void {
   const result = validateRecord(record);
-  expect(result.ok, String(JSON.stringify(record)).slice(0, 200)).toBe(false);
+  // JSON.stringify gives undefined for undefined, whatever its type says.
+  const shown = (JSON.stringify(record) as string | undefined)?.slice(0, 200);
+  expect(result.ok, shown).toBe(false);
   if (!result.ok && pathOrMessage !== undefined) {
     expect(result.issues.map((issue) => `${issue.path} ${issue.message}`).join("\n")).toMatch(
       pathOrMessage,
@@ -171,7 +173,9 @@ describe("common members", () => {
 
   it(`${clause("core 8.3")} rejects a critical namespace that has no extension block`, () => {
     const ext = { "com.example.escrow": {} };
-    expect(validateRecord(sample("Offer", { ext, critical: ["com.example.escrow"] })).ok).toBe(true);
+    expect(validateRecord(sample("Offer", { ext, critical: ["com.example.escrow"] })).ok).toBe(
+      true,
+    );
     expectRejected(sample("Offer", { ext, critical: ["com.example.other"] }), /critical/);
     expectRejected(sample("Offer", { critical: ["com.example.escrow"] }), /critical/);
   });
@@ -207,7 +211,12 @@ describe("validating one record type", () => {
     ["Delegation", "L1 11.2", { command: "/oip/sign" }, /command/],
     ["Delegation", "L1 11.2", { command: "/oip/sign/Delegation" }, /command/],
     ["Delegation", "L1 11.2", { command: "/oip/sign/Offer/extra" }, /command/],
-    ["Delegation", "L1 11.3", { policy: Array.from({ length: 65 }, () => ["==", ".a", 1]) }, /policy/],
+    [
+      "Delegation",
+      "L1 11.3",
+      { policy: Array.from({ length: 65 }, () => ["==", ".a", 1]) },
+      /policy/,
+    ],
     ["Delegation", "L1 11.3", { policy: [["like", ".a", "x*"]] }, /policy/],
     ["Delegation", "L1 11.3", { policy: [["==", ".a"]] }, /policy/],
     ["Delegation", "L1 11.3", { policy: [["and", []]] }, /policy/],
@@ -217,19 +226,54 @@ describe("validating one record type", () => {
     ["Packet", "L1 12.1", { purpose: { goal: "no verb" } }, /purpose/],
     ["Packet", "L1 12.3", { purpose: { verb: "shout" } }, /purpose/],
     ["Packet", "L1 12.2", { content: { mediaType: "text/plain" } }, /content/],
-    ["Packet", "L1 12.2", { content: { mediaType: "text/plain", body: "a", ref: "https://x.example/a" } }, /content/],
-    ["Packet", "L1 12.2", { content: { mediaType: "text/plain", ref: "https://x.example/a" } }, /content/],
+    [
+      "Packet",
+      "L1 12.2",
+      { content: { mediaType: "text/plain", body: "a", ref: "https://x.example/a" } },
+      /content/,
+    ],
+    [
+      "Packet",
+      "L1 12.2",
+      { content: { mediaType: "text/plain", ref: "https://x.example/a" } },
+      /content/,
+    ],
     ["Packet", "L1 12.2", { content: { parts: [{ parts: [] }] } }, /content/],
-    ["Packet", "L1 12.2", { content: { parts: Array.from({ length: 33 }, () => ({ mediaType: "text/plain", body: "a" })) } }, /content/],
+    [
+      "Packet",
+      "L1 12.2",
+      {
+        content: {
+          parts: Array.from({ length: 33 }, () => ({ mediaType: "text/plain", body: "a" })),
+        },
+      },
+      /content/,
+    ],
     ["Entry", "L1 10.1", { seq: 2, prev: undefined }, /prev/],
     ["Entry", "L1 10.1", { proofs: ["sha256:ABCD"] }, /proofs/],
     ["Checkpoint", "L1 10.5", { size: 0 }, /size/],
     ["Location", "L1 15.1", { ttl: 59 }, /ttl/],
     ["Location", "L1 15.1", { ttl: 86401 }, /ttl/],
     ["Location", "L1 15.1", { status: "asleep" }, /status/],
-    ["Location", "L1 15.1", { endpoints: Array.from({ length: 33 }, () => ({ binding: "https", url: "https://h.example", priority: 1 })) }, /endpoints/],
+    [
+      "Location",
+      "L1 15.1",
+      {
+        endpoints: Array.from({ length: 33 }, () => ({
+          binding: "https",
+          url: "https://h.example",
+          priority: 1,
+        })),
+      },
+      /endpoints/,
+    ],
     ["Participant", "L1 16.1", { name: "n".repeat(129) }, /name/],
-    ["Participant", "L1 16.2", { capabilities: [{ id: "a", summary: "A", tags: ["untagged"] }] }, /tags/],
+    [
+      "Participant",
+      "L1 16.2",
+      { capabilities: [{ id: "a", summary: "A", tags: ["untagged"] }] },
+      /tags/,
+    ],
     ["Session", "L1 14.1", { nonce: "short" }, /nonce/],
     ["Sealed", "L1 12.6", { suite: "hpke-base-p256-sha256-aes128gcm" }, /suite/],
     ["Sealed", "L1 12.6", { enc: "has+padding=" }, /enc/],
@@ -237,8 +281,18 @@ describe("validating one record type", () => {
     ["Intent", "L2 4.1", { constraints: { budget: { max: "-5", currency: "USD" } } }, /budget/],
     ["Intent", "L2 2", { status: "withdrawn", supersedes: undefined }, /supersedes/],
     ["Offer", "L2 4.2", { terms: { price: { amount: "400", currency: "USD" } } }, /terms/],
-    ["Offer", "L2 4.2", { terms: { summary: "s", price: { amount: 400, currency: "USD" } } }, /amount/],
-    ["Offer", "L2 4.2", { terms: { summary: "s", price: { amount: "1e2", currency: "USD" } } }, /amount/],
+    [
+      "Offer",
+      "L2 4.2",
+      { terms: { summary: "s", price: { amount: 400, currency: "USD" } } },
+      /amount/,
+    ],
+    [
+      "Offer",
+      "L2 4.2",
+      { terms: { summary: "s", price: { amount: "1e2", currency: "USD" } } },
+      /amount/,
+    ],
     ["Receipt", "L2 6.1", { outcome: "wonderful" }, /outcome/],
     ["Receipt", "L2 6.1", { outcome: "revoked" }, /supersedes/],
     ["Receipt", "L2 6.1", { rating: { score: "1.5" } }, /score/],
@@ -280,7 +334,10 @@ describe("validating one record type", () => {
     const packet = sample("Packet");
     expect(packet).toHaveProperty("session");
     expect(validateRecord(without(packet, "expires")).ok).toBe(true);
-    expectRejected(without(without(without(packet, "expires"), "session"), "seq"), /expires|session/);
+    expectRejected(
+      without(without(without(packet, "expires"), "session"), "seq"),
+      /expires|session/,
+    );
     expectRejected(without(packet, "seq"), /seq/);
     expectRejected(without(packet, "session"), /session/);
     expectRejected({ ...packet, seq: 1 }, /prev/);

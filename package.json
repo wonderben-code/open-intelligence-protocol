@@ -13,7 +13,7 @@
     "build": "tsc -b tsconfig.build.json",
     "clean": "node scripts/clean.ts",
     "typecheck": "pnpm -r --workspace-concurrency=1 exec tsc --noEmit && tsc -p scripts/tsconfig.json --noEmit",
-    "lint": "eslint . && prettier --check . && depcruise packages scripts --config .dependency-cruiser.cjs",
+    "lint": "eslint . && prettier --check . && depcruise packages scripts --config .dependency-cruiser.cjs && node scripts/check-guards.ts",
     "format": "prettier --write .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

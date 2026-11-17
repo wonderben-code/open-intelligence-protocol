@@ -111,10 +111,13 @@ function validatorsSource(): string {
 
   // Keep one typed export, so that the declaration file does not depend on Ajv's generated shapes.
   const names: string[] = [];
-  code = code.replace(/^export const (\w+) = (\w+);$/gm, (_line: string, name: string, fn: string) => {
-    names.push(`  ${name}: ${fn},`);
-    return "";
-  });
+  code = code.replace(
+    /^export const (\w+) = (\w+);$/gm,
+    (_line: string, name: string, fn: string) => {
+      names.push(`  ${name}: ${fn},`);
+      return "";
+    },
+  );
   if (names.length !== Object.keys(compiled).length) {
     throw new Error("could not find every exported validator in Ajv's output");
   }
@@ -172,7 +175,9 @@ const orphans = readdirSync(schemaDir, { withFileTypes: true })
 if (process.argv.includes("--check")) {
   const problems = [...stale, ...orphans].map((file) => relative(repoRoot, file));
   if (problems.length > 0) {
-    console.error(`Out of date: ${problems.join(", ")}\nRun \`pnpm schemas\` and commit the result.`);
+    console.error(
+      `Out of date: ${problems.join(", ")}\nRun \`pnpm schemas\` and commit the result.`,
+    );
     process.exit(1);
   }
   console.log(`${expected.size} generated files are current.`);
@@ -182,5 +187,7 @@ if (process.argv.includes("--check")) {
     writeFileSync(file, expected.get(file) ?? "");
   }
   for (const file of orphans) rmSync(file);
-  console.log(`${expected.size} generated files; wrote ${stale.length}, removed ${orphans.length}.`);
+  console.log(
+    `${expected.size} generated files; wrote ${stale.length}, removed ${orphans.length}.`,
+  );
 }

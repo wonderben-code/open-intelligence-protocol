@@ -26,12 +26,12 @@ const closed = { additionalProperties: false } as const;
 export const KeyController = define(
   "keyController",
   Type.Object(
-  {
-    keys: Type.Array(Ed25519Multikey, { minItems: 1, maxItems: 16, uniqueItems: true }),
-    next: Type.Array(KeyHash, { maxItems: 16, uniqueItems: true }),
-    nextThreshold: Type.Optional(Type.Integer({ minimum: 1, maximum: 16 })),
-  },
-  closed,
+    {
+      keys: Type.Array(Ed25519Multikey, { minItems: 1, maxItems: 16, uniqueItems: true }),
+      next: Type.Array(KeyHash, { maxItems: 16, uniqueItems: true }),
+      nextThreshold: Type.Optional(Type.Integer({ minimum: 1, maximum: 16 })),
+    },
+    closed,
   ),
 );
 export type KeyController = Static<typeof KeyController>;
@@ -40,11 +40,11 @@ export type KeyController = Static<typeof KeyController>;
 export const MemberController = define(
   "memberController",
   Type.Object(
-  {
-    members: Type.Array(MindAddress, { minItems: 1, maxItems: 256, uniqueItems: true }),
-    threshold: Type.Integer({ minimum: 1, maximum: 256 }),
-  },
-  closed,
+    {
+      members: Type.Array(MindAddress, { minItems: 1, maxItems: 256, uniqueItems: true }),
+      threshold: Type.Integer({ minimum: 1, maximum: 256 }),
+    },
+    closed,
   ),
 );
 export type MemberController = Static<typeof MemberController>;
@@ -142,7 +142,10 @@ const laterEventRules = { not: { anyOf: [{ required: ["height"] }, noRecovery] }
 export const Update = Type.Object(
   { ...laterEvent, type: Type.Literal("Update") },
   {
-    ...meta("Update", "Rotates control keys or changes a mind's keys, homes or aliases (Layer 1, 3.7)."),
+    ...meta(
+      "Update",
+      "Rotates control keys or changes a mind's keys, homes or aliases (Layer 1, 3.7).",
+    ),
     ...laterEventRules,
   },
 );
@@ -156,7 +159,10 @@ export const Fork = Type.Object(
     terms: Type.Optional(JsonObject),
   },
   {
-    ...meta("Fork", "Records in the parent's identity log that a child mind was forked from it (Layer 1, 3.8)."),
+    ...meta(
+      "Fork",
+      "Records in the parent's identity log that a child mind was forked from it (Layer 1, 3.8).",
+    ),
     ...laterEventRules,
   },
 );

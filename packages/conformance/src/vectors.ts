@@ -73,12 +73,7 @@ export interface RecordCase extends CaseBase {
 }
 
 export type VectorCase =
-  | LogCase
-  | CountsForCase
-  | SentForCase
-  | StatusCase
-  | AssuranceCase
-  | RecordCase;
+  LogCase | CountsForCase | SentForCase | StatusCase | AssuranceCase | RecordCase;
 
 /** The kinds of case, in the order the vectors' README lists them. */
 export const CASE_KINDS = ["log", "countsFor", "sentFor", "status", "assurance", "record"] as const;
@@ -163,7 +158,11 @@ export function parseVectors(value: unknown): Vectors {
   if (!isObject(value["cases"])) fail("no cases");
   if (!isObject(value["keys"])) fail("no keys");
   const baseline = value["baseline"];
-  if (!isObject(baseline) || !Array.isArray(baseline["logs"]) || !Array.isArray(baseline["records"])) {
+  if (
+    !isObject(baseline) ||
+    !Array.isArray(baseline["logs"]) ||
+    !Array.isArray(baseline["records"])
+  ) {
     fail("no baseline of logs and records");
   }
   for (const name of [...(baseline["logs"] as unknown[]), ...(baseline["records"] as unknown[])]) {

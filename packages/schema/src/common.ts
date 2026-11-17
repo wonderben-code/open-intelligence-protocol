@@ -14,10 +14,7 @@ import { Critical, Ext, JsonObject, Timestamp } from "./primitives.ts";
  * a malformed proof never counts, but it does not make the record malformed
  * (core 5.5), so that nobody can invalidate a record by adding a bad proof.
  */
-export const ProofSet = define(
-  "proofSet",
-  Type.Array(JsonObject, { minItems: 1, maxItems: 256 }),
-);
+export const ProofSet = define("proofSet", Type.Array(JsonObject, { minItems: 1, maxItems: 256 }));
 
 /** Members of every record. */
 export const everyRecord = {

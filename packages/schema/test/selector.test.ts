@@ -13,7 +13,11 @@ describe(`${clause("L1 11.3")} selectors`, () => {
     expect(parseSelector(".terms.price.amount")).toEqual(["terms", "price", "amount"]);
     expect(parseSelector(".parties[0].mind")).toEqual(["parties", 0, "mind"]);
     expect(parseSelector("[12][0]")).toEqual([12, 0]);
-    expect(parseSelector('.ext["com.example.escrow"].v')).toEqual(["ext", "com.example.escrow", "v"]);
+    expect(parseSelector('.ext["com.example.escrow"].v')).toEqual([
+      "ext",
+      "com.example.escrow",
+      "v",
+    ]);
     expect(parseSelector('["a \\"quoted\\" name"]')).toEqual(['a "quoted" name']);
     expect(parseSelector('["\\u00e9"]')).toEqual(["é"]);
     expect(parseSelector('[""]')).toEqual([""]);

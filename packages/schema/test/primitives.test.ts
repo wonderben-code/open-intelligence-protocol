@@ -52,7 +52,10 @@ describe("timestamps", () => {
       two(61),
       fc.option(fc.stringMatching(/^[0-9]{1,9}$/), { nil: undefined }),
     )
-    .map(([y, mo, d, h, mi, s, f]) => `${y}-${mo}-${d}T${h}:${mi}:${s}${f === undefined ? "" : `.${f}`}Z`);
+    .map(
+      ([y, mo, d, h, mi, s, f]) =>
+        `${y}-${mo}-${d}T${h}:${mi}:${s}${f === undefined ? "" : `.${f}`}Z`,
+    );
 
   it(`${clause("core 1.4")} accepts exactly the strings that match the specification's pattern and name a real date and time`, () => {
     fc.assert(
@@ -66,9 +69,16 @@ describe("timestamps", () => {
 
   it(`${clause("core 1.4")} never accepts a string the specification's pattern rejects`, () => {
     fc.assert(
-      fc.property(fc.oneof(fc.string(), timestampLike.map((value) => value.replace("Z", "")), timestampLike.map((value) => ` ${value}`)), (value) => {
-        if (!SPEC.test(value)) expect(re.timestamp.test(value)).toBe(false);
-      }),
+      fc.property(
+        fc.oneof(
+          fc.string(),
+          timestampLike.map((value) => value.replace("Z", "")),
+          timestampLike.map((value) => ` ${value}`),
+        ),
+        (value) => {
+          if (!SPEC.test(value)) expect(re.timestamp.test(value)).toBe(false);
+        },
+      ),
       { numRuns: 2000 },
     );
   });
@@ -96,9 +106,20 @@ describe("durations", () => {
   const SPEC = /^P(?!$)([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?([0-9]+S)?)?$/;
 
   const part = (unit: string) =>
-    fc.option(fc.integer({ min: 0, max: 99999 }).map((n) => `${n}${unit}`), { nil: "" });
+    fc.option(
+      fc.integer({ min: 0, max: 99999 }).map((n) => `${n}${unit}`),
+      { nil: "" },
+    );
   const durationLike = fc
-    .tuple(fc.constantFrom("P", "", "p"), part("D"), fc.constantFrom("T", "", "T"), part("H"), part("M"), part("S"), fc.constantFrom("", "", "", "X", "1"))
+    .tuple(
+      fc.constantFrom("P", "", "p"),
+      part("D"),
+      fc.constantFrom("T", "", "T"),
+      part("H"),
+      part("M"),
+      part("S"),
+      fc.constantFrom("", "", "", "X", "1"),
+    )
     .map((parts) => parts.join(""));
 
   it(`${clause("core 1.5")} accepts exactly the strings the specification's pattern accepts`, () => {
@@ -108,7 +129,17 @@ describe("durations", () => {
       }),
       { numRuns: 5000 },
     );
-    for (const value of ["P30D", "PT15M", "P1DT2H3M4S", "PT0S", "P", "PT", "P1D T1H", "PT1S1M", "P1H"]) {
+    for (const value of [
+      "P30D",
+      "PT15M",
+      "P1DT2H3M4S",
+      "PT0S",
+      "P",
+      "PT",
+      "P1D T1H",
+      "PT1S1M",
+      "P1H",
+    ]) {
       expect(re.duration.test(value), value).toBe(SPEC.test(value));
     }
   });
@@ -119,7 +150,21 @@ describe("decimals", () => {
     for (const value of ["0", "400", "-12.50", "0.001", "500.01"]) {
       expect(re.decimal.test(value), value).toBe(true);
     }
-    for (const value of ["1,000", "1e2", " 400 ", "-Infinity", "４００", "01", ".5", "5.", "+5", "", "NaN", "0x10", "1_000"]) {
+    for (const value of [
+      "1,000",
+      "1e2",
+      " 400 ",
+      "-Infinity",
+      "４００",
+      "01",
+      ".5",
+      "5.",
+      "+5",
+      "",
+      "NaN",
+      "0x10",
+      "1_000",
+    ]) {
       expect(re.decimal.test(value), value).toBe(false);
       expect(re.amount.test(value), value).toBe(false);
     }
@@ -133,8 +178,10 @@ describe("decimals", () => {
   });
 
   it("accepts scores from 0 to 1 only", () => {
-    for (const value of ["0", "1", "0.5", "1.0", "0.999", "1.000"]) expect(re.unitDecimal.test(value), value).toBe(true);
-    for (const value of ["1.1", "2", "-0.1", "1.01", ".5", "01"]) expect(re.unitDecimal.test(value), value).toBe(false);
+    for (const value of ["0", "1", "0.5", "1.0", "0.999", "1.000"])
+      expect(re.unitDecimal.test(value), value).toBe(true);
+    for (const value of ["1.1", "2", "-0.1", "1.01", ".5", "01"])
+      expect(re.unitDecimal.test(value), value).toBe(false);
   });
 });
 
@@ -182,8 +229,10 @@ describe("identifiers and references", () => {
   });
 
   it(`${clause("L1 11.2")} follows the command syntax`, () => {
-    for (const value of ["/oip/send", "/x402/pay", "/a", "/a.b/c_d/e-f"]) expect(re.command.test(value), value).toBe(true);
-    for (const value of ["", "/", "oip/send", "/oip/", "/oip//send", "/oip/sign/*", "/a b"]) expect(re.command.test(value), value).toBe(false);
+    for (const value of ["/oip/send", "/x402/pay", "/a", "/a.b/c_d/e-f"])
+      expect(re.command.test(value), value).toBe(true);
+    for (const value of ["", "/", "oip/send", "/oip/", "/oip//send", "/oip/sign/*", "/a b"])
+      expect(re.command.test(value), value).toBe(false);
     expect(re.oipCommandSpace.test("/oip")).toBe(true);
     expect(re.oipCommandSpace.test("/oip/anything")).toBe(true);
     expect(re.oipCommandSpace.test("/oipx")).toBe(false);

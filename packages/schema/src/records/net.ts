@@ -40,7 +40,10 @@ export const Lineage = Type.Object(
     child: MindAddress,
     terms: Type.Optional(JsonObject),
   },
-  meta("Lineage", "A parent's acknowledgement of a child mind, made without its control keys (Layer 1, 8.3)."),
+  meta(
+    "Lineage",
+    "A parent's acknowledgement of a child mind, made without its control keys (Layer 1, 8.3).",
+  ),
 );
 export type Lineage = Static<typeof Lineage>;
 
@@ -56,7 +59,10 @@ export const Entry = Type.Object(
     proofs: Type.Optional(Type.Array(Sha256Digest, { maxItems: 256 })),
   },
   {
-    ...meta("Entry", "One entry of a mind's public feed, committing to a record and to its proofs (Layer 1, 10.1)."),
+    ...meta(
+      "Entry",
+      "One entry of a mind's public feed, committing to a record and to its proofs (Layer 1, 10.1).",
+    ),
     // 10.1: `prev` is required when `seq` is greater than 0.
     if: { properties: { seq: { minimum: 1 } }, required: ["seq"] },
     then: { required: ["prev"] },
@@ -139,7 +145,11 @@ export const Content = Type.Unsafe<Content>({
     {
       type: "object",
       properties: {
-        parts: { type: "array", maxItems: 32, items: { anyOf: [inlineContent, referencedContent] } },
+        parts: {
+          type: "array",
+          maxItems: 32,
+          items: { anyOf: [inlineContent, referencedContent] },
+        },
       },
       required: ["parts"],
       not: has("mediaType", "body", "ref", "digest"),
@@ -249,7 +259,10 @@ export const Ack = Type.Object(
     received: Timestamp,
     sealed: Type.Optional(ContentId),
   },
-  meta("Ack", "A recipient's acknowledgement that it received a packet at a given time (Layer 1, 13.2)."),
+  meta(
+    "Ack",
+    "A recipient's acknowledgement that it received a packet at a given time (Layer 1, 13.2).",
+  ),
 );
 export type Ack = Static<typeof Ack>;
 
@@ -259,7 +272,10 @@ export const Hello = Type.Object(
     type: Type.Literal("Hello"),
     author: MindAddress,
   },
-  meta("Hello", "Authenticates a mind to a server, with a proof over the server's challenge (Layer 1, 13.3)."),
+  meta(
+    "Hello",
+    "Authenticates a mind to a server, with a proof over the server's challenge (Layer 1, 13.3).",
+  ),
 );
 export type Hello = Static<typeof Hello>;
 
@@ -270,7 +286,10 @@ export const Session = Type.Object(
     participants: Type.Array(MindAddress, { minItems: 2, maxItems: 256, uniqueItems: true }),
     nonce: Nonce,
   },
-  meta("Session", "Names a session by its participants and a nonce. Unsigned; its content ID is the session ID (Layer 1, 14.1)."),
+  meta(
+    "Session",
+    "Names a session by its participants and a nonce. Unsigned; its content ID is the session ID (Layer 1, 14.1).",
+  ),
 );
 export type Session = Static<typeof Session>;
 
@@ -288,7 +307,10 @@ export const Resume = Type.Object(
     lastSent: Type.Optional(Type.Object(chainPosition)),
     lastReceived: Type.Array(Type.Object({ mind: MindAddress, ...chainPosition })),
   },
-  meta("Resume", "Says where each sending chain of a session stands, so that missing packets can be sent again (Layer 1, 14.4)."),
+  meta(
+    "Resume",
+    "Says where each sending chain of a session stands, so that missing packets can be sent again (Layer 1, 14.4).",
+  ),
 );
 export type Resume = Static<typeof Resume>;
 
@@ -299,7 +321,10 @@ export const Branch = Type.Object(
     parentSession: ContentId,
     fork: VersionedMind,
   },
-  meta("Branch", "A fork's proposal to continue from its parent's session in a new one (Layer 1, 14.5)."),
+  meta(
+    "Branch",
+    "A fork's proposal to continue from its parent's session in a new one (Layer 1, 14.5).",
+  ),
 );
 export type Branch = Static<typeof Branch>;
 
@@ -326,7 +351,10 @@ export const Location = Type.Object(
     participant: Type.Optional(ContentId),
     feed: Type.Optional(Type.Object({ seq: Count, head: ContentId })),
   },
-  meta("Location", "Where a mind can be reached now (Layer 1, 15.1). Judged under the current-state rule."),
+  meta(
+    "Location",
+    "Where a mind can be reached now (Layer 1, 15.1). Judged under the current-state rule.",
+  ),
 );
 export type Location = Static<typeof Location>;
 
@@ -364,7 +392,10 @@ export const Participant = Type.Object(
     attestations: Type.Optional(Strings),
     supersedes: Type.Optional(RecordRef),
   },
-  meta("Participant", "A mind's profile: what it is and what it can do (Layer 1, 16.1). Judged under the current-state rule."),
+  meta(
+    "Participant",
+    "A mind's profile: what it is and what it can do (Layer 1, 16.1). Judged under the current-state rule.",
+  ),
 );
 export type Participant = Static<typeof Participant>;
 
@@ -398,7 +429,10 @@ export const Forwarded = Type.Object(
     to: MindAddress,
     packet: ref(Packet),
   },
-  meta("Forwarded", "A broker's wrapper around a packet it delivers to a mind that matched the packet's query (Layer 1, 18.5)."),
+  meta(
+    "Forwarded",
+    "A broker's wrapper around a packet it delivers to a mind that matched the packet's query (Layer 1, 18.5).",
+  ),
 );
 export type Forwarded = Static<typeof Forwarded>;
 
@@ -412,6 +446,9 @@ export const Sealed = Type.Object(
     enc: Type.String({ pattern: patterns.base64url }),
     ciphertext: Type.String({ pattern: patterns.base64url }),
   },
-  meta("Sealed", "A packet encrypted to one of the recipient's agreement keys with HPKE. Unsigned (Layer 1, 12.6)."),
+  meta(
+    "Sealed",
+    "A packet encrypted to one of the recipient's agreement keys with HPKE. Unsigned (Layer 1, 12.6).",
+  ),
 );
 export type Sealed = Static<typeof Sealed>;

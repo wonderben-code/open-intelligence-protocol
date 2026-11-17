@@ -24,13 +24,22 @@ function nest(depth: number): unknown {
 
 describe("limits on every value", () => {
   it(`${clause("core 1.2")} rejects a number with a fraction or outside the safe range, wherever it is`, () => {
-    for (const bad of [1.5, MAX_SAFE_INTEGER + 1, -MAX_SAFE_INTEGER - 1, Number.NaN, Number.POSITIVE_INFINITY, 1e300]) {
+    for (const bad of [
+      1.5,
+      MAX_SAFE_INTEGER + 1,
+      -MAX_SAFE_INTEGER - 1,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      1e300,
+    ]) {
       const result = validateRecord(sample("Intent", { futureMember: { deep: [0, bad] } }));
       expect(result.ok, String(bad)).toBe(false);
       if (!result.ok) expect(result.issues[0].clause).toBe("core 1.2");
     }
     for (const good of [0, -0, 1, -1, MAX_SAFE_INTEGER, -MAX_SAFE_INTEGER, 1.0, 1e2]) {
-      expect(validateRecord(sample("Intent", { futureMember: [good] })).ok, String(good)).toBe(true);
+      expect(validateRecord(sample("Intent", { futureMember: [good] })).ok, String(good)).toBe(
+        true,
+      );
     }
   });
 
@@ -58,10 +67,13 @@ describe("limits on every value", () => {
 describe("validateRecord", () => {
   it("never throws, whatever it is given", () => {
     fc.assert(
-      fc.property(fc.anything({ withBigInt: true, withDate: true, withMap: true, withSet: true }), (value) => {
-        expect(typeof validateRecord(value).ok).toBe("boolean");
-        expect(typeof validateProof(value).ok).toBe("boolean");
-      }),
+      fc.property(
+        fc.anything({ withBigInt: true, withDate: true, withMap: true, withSet: true }),
+        (value) => {
+          expect(typeof validateRecord(value).ok).toBe("boolean");
+          expect(typeof validateProof(value).ok).toBe("boolean");
+        },
+      ),
       { numRuns: 2000 },
     );
   });
@@ -90,12 +102,16 @@ describe("validateRecord", () => {
   it("still accepts a sample after any one member is replaced only if the value is still well formed", () => {
     // Replacing a required, typed member with an arbitrary JSON value of another type must fail.
     fc.assert(
-      fc.property(fc.constantFrom(...RECORD_TYPES), fc.constantFrom(null, true, 12, [], {}), (type, junk) => {
-        const record = sample(type);
-        for (const member of ["oip", "type"]) {
-          expect(validateRecord({ ...record, [member]: junk }).ok).toBe(false);
-        }
-      }),
+      fc.property(
+        fc.constantFrom(...RECORD_TYPES),
+        fc.constantFrom(null, true, 12, [], {}),
+        (type, junk) => {
+          const record = sample(type);
+          for (const member of ["oip", "type"]) {
+            expect(validateRecord({ ...record, [member]: junk }).ok).toBe(false);
+          }
+        },
+      ),
     );
   });
 
@@ -134,7 +150,8 @@ describe("string lengths", () => {
     expect(codePointLength("\udc00\ud800")).toBe(2);
     fc.assert(
       fc.property(fc.string({ unit: "grapheme" }), (value) => {
-        expect(codePointLength(value)).toBe([...value].length);
+        // Array.from walks a string by code point.
+        expect(codePointLength(value)).toBe(Array.from(value).length);
       }),
     );
   });

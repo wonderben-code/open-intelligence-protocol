@@ -20,11 +20,14 @@ const sha256 = (text: string) => createHash("sha256").update(text, "utf8").diges
 const clauses = readClauses(sha256);
 const ids = new Set<string>();
 for (const clause of clauses) {
-  if (ids.has(clause.id)) throw new Error(`clause ${clause.id} appears twice in the specifications`);
+  if (ids.has(clause.id))
+    throw new Error(`clause ${clause.id} appears twice in the specifications`);
   ids.add(clause.id);
 }
 
-const revision = /\*\*Revision ([0-9-]+)/.exec(readFileSync(join(repoRoot, "spec/core.md"), "utf8"))?.[1];
+const revision = /\*\*Revision ([0-9-]+)/.exec(
+  readFileSync(join(repoRoot, "spec/core.md"), "utf8"),
+)?.[1];
 if (revision === undefined) throw new Error("spec/core.md does not state its revision");
 
 const output = `${JSON.stringify({ revision, clauses }, null, 2)}\n`;
@@ -38,7 +41,9 @@ if (process.argv.includes("--check")) {
     // A missing file is out of date.
   }
   if (current !== output) {
-    console.error("spec/clauses.json is out of date. Run `pnpm spec:clauses` and commit the result.");
+    console.error(
+      "spec/clauses.json is out of date. Run `pnpm spec:clauses` and commit the result.",
+    );
     process.exit(1);
   }
   console.log(`spec/clauses.json is current (${clauses.length} clauses).`);

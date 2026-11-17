@@ -57,7 +57,7 @@ export function clause(...ids: [string, ...string[]]): string {
     if (!specClauses.has(id)) {
       throw new Error(
         `"${id}" is not a clause of specification revision ${specRevision}. ` +
-          "Clause IDs look like \"core 4.4\" or \"L1 6.4\"; see spec/clauses.json.",
+          'Clause IDs look like "core 4.4" or "L1 6.4"; see spec/clauses.json.',
       );
     }
   }

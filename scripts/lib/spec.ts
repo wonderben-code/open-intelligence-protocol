@@ -74,7 +74,8 @@ function levelOf(counts: Partial<Record<Keyword, number>>): Level {
 function summarise(text: string, section: string): string {
   // A clause that opens with a table or a list has no sentence to quote.
   const first = text.split("\n").find((line) => line.trim() !== "") ?? "";
-  if (/^\s*(\||[-*] )/.test(first)) return `${section} (${first.trimStart().startsWith("|") ? "table" : "list"})`;
+  if (/^\s*(\||[-*] )/.test(first))
+    return `${section} (${first.trimStart().startsWith("|") ? "table" : "list"})`;
   const plain = text
     .replace(/<[^>]+>/g, "")
     .replace(/\*\*/g, "")
@@ -90,7 +91,11 @@ function summarise(text: string, section: string): string {
  * tables, lists and code). Text in a numbered section before its first
  * numbered paragraph, or all of a section that has none, is the clause `N`.
  */
-export function clausesOf(prefix: string, markdown: string, digest: (text: string) => string): Clause[] {
+export function clausesOf(
+  prefix: string,
+  markdown: string,
+  digest: (text: string) => string,
+): Clause[] {
   const clauses: Clause[] = [];
   let section: { number: string; title: string } | undefined;
   let current: { id: string; lines: string[] } | undefined;

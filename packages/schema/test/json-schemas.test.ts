@@ -15,7 +15,10 @@ const schemaDir = join(repoRoot, "spec", "schemas");
 const onDisk = Object.fromEntries(
   readdirSync(schemaDir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [file.replace(/\.json$/, ""), JSON.parse(readFileSync(join(schemaDir, file), "utf8")) as Record<string, unknown>]),
+    .map((file) => [
+      file.replace(/\.json$/, ""),
+      JSON.parse(readFileSync(join(schemaDir, file), "utf8")) as Record<string, unknown>,
+    ]),
 );
 
 /** A second validator, built at run time from the files an implementer would download. */
@@ -98,7 +101,10 @@ describe("the exported JSON Schemas", () => {
   it("reject the two malformed records of the negative vectors' `record` cases as far as a schema can", () => {
     const independent = independentValidator();
     const cases = readVectors().negative.filter((entry) => entry.kind === "record");
-    expect(cases.map((entry) => entry.name).sort()).toEqual(["delegation-to-self", "packet-short-nonce"]);
+    expect(cases.map((entry) => entry.name).sort()).toEqual([
+      "delegation-to-self",
+      "packet-short-nonce",
+    ]);
     for (const entry of cases) {
       expect(validateRecord(entry["record"]).ok, entry.name).toBe(false);
     }

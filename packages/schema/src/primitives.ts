@@ -102,7 +102,10 @@ export const OIP_COMMANDS = [
 export const SHORT_NAMESPACES = ["x402", "ap2", "acp", "l402", "vc", "as2"] as const;
 
 /** core 1.4. Compared as an instant, never as a string. */
-export const Timestamp = define("timestamp", Type.String({ pattern: patterns.timestamp, maxLength: 30 }));
+export const Timestamp = define(
+  "timestamp",
+  Type.String({ pattern: patterns.timestamp, maxLength: 30 }),
+);
 
 /** core 1.5. */
 export const Duration = define("duration", Type.String({ pattern: patterns.duration }));
@@ -114,16 +117,22 @@ export const Decimal = define("decimal", Type.String({ pattern: patterns.decimal
 export const Amount = define("amount", Type.String({ pattern: patterns.amount, maxLength: 64 }));
 
 /** A decimal string from "0" to "1" (Layer 1, 18.3; Layer 2, 6.1). */
-export const UnitDecimal = define("unitDecimal", Type.String({ pattern: patterns.unitDecimal, maxLength: 64 }));
+export const UnitDecimal = define(
+  "unitDecimal",
+  Type.String({ pattern: patterns.unitDecimal, maxLength: 64 }),
+);
 
 /** core 1.2: a non-negative safe integer. */
 export const Count = define("count", Type.Integer({ minimum: 0, maximum: MAX_SAFE_INTEGER }));
 
 /** core 1.2: any safe integer. */
-export const SafeInteger = define("safeInteger", Type.Integer({
-  minimum: -MAX_SAFE_INTEGER,
-  maximum: MAX_SAFE_INTEGER,
-}));
+export const SafeInteger = define(
+  "safeInteger",
+  Type.Integer({
+    minimum: -MAX_SAFE_INTEGER,
+    maximum: MAX_SAFE_INTEGER,
+  }),
+);
 
 /** core 3.2. */
 export const ContentId = define("contentId", Type.String({ pattern: patterns.contentId }));
@@ -138,16 +147,25 @@ export const MindAddress = define("mindAddress", Type.String({ pattern: patterns
 export const VersionId = define("versionId", Type.String({ pattern: patterns.versionId }));
 
 /** core 6.1 `versioned-mind`. */
-export const VersionedMind = define("versionedMind", Type.String({ pattern: patterns.versionedMind }));
+export const VersionedMind = define(
+  "versionedMind",
+  Type.String({ pattern: patterns.versionedMind }),
+);
 
 /** core 6.1 `record-ref`. */
 export const RecordRef = define("recordRef", Type.String({ pattern: patterns.recordRef }));
 
 /** core 4.1. */
-export const Ed25519Multikey = define("ed25519Multikey", Type.String({ pattern: patterns.ed25519Multikey }));
+export const Ed25519Multikey = define(
+  "ed25519Multikey",
+  Type.String({ pattern: patterns.ed25519Multikey }),
+);
 
 /** core 4.1. */
-export const X25519Multikey = define("x25519Multikey", Type.String({ pattern: patterns.x25519Multikey }));
+export const X25519Multikey = define(
+  "x25519Multikey",
+  Type.String({ pattern: patterns.x25519Multikey }),
+);
 
 /** `"sha256:"` and 64 lower-case hex digits. */
 export const Sha256Digest = define("sha256Digest", Type.String({ pattern: patterns.sha256Digest }));
@@ -156,7 +174,10 @@ export const Sha256Digest = define("sha256Digest", Type.String({ pattern: patter
 export const Nonce = define("nonce", Type.String({ minLength: 8, maxLength: 64 }));
 
 /** An HTTPS origin. */
-export const HttpsOrigin = define("httpsOrigin", Type.String({ pattern: patterns.httpsOrigin, maxLength: 2048 }));
+export const HttpsOrigin = define(
+  "httpsOrigin",
+  Type.String({ pattern: patterns.httpsOrigin, maxLength: 2048 }),
+);
 
 /** Any JSON object. Its members are preserved and otherwise ignored (core 1.7). */
 export const JsonObject = Type.Unsafe<Readonly<Record<string, unknown>>>({ type: "object" });
@@ -171,16 +192,16 @@ export const Strings = Type.Array(Type.String());
 export const Ext = define(
   "ext",
   Type.Unsafe<Readonly<Record<string, Readonly<Record<string, unknown>>>>>({
-  type: "object",
-  propertyNames: {
-    anyOf: [
-      { pattern: patterns.reverseDnsNamespace },
-      { enum: [...SHORT_NAMESPACES] },
-      { pattern: patterns.oipNamespace },
-    ],
-  },
-  additionalProperties: { type: "object" },
-}),
+    type: "object",
+    propertyNames: {
+      anyOf: [
+        { pattern: patterns.reverseDnsNamespace },
+        { enum: [...SHORT_NAMESPACES] },
+        { pattern: patterns.oipNamespace },
+      ],
+    },
+    additionalProperties: { type: "object" },
+  }),
 );
 
 /** core 8.3: the namespaces a reader must understand. Each also appears in `ext` (a rule). */

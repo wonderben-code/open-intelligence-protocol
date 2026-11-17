@@ -1,0 +1,37 @@
+# Generated files: each has its own "is it current" check.
+pnpm-lock.yaml
+packages/schema/src/generated/
+spec/schemas/
+spec/clauses.json
+docs/conformance/coverage.md
+docs/api/
+**/etc/*.api.md
+**/dist/
+**/coverage/
+.changeset/*.md
+
+# The specifications, papers, research and reviews are prose with their own
+# conventions. Reformatting the specifications would also change the clause
+# digests in spec/clauses.json.
+spec/*.md
+spec/test-vectors/
+papers/
+research/
+reviews/
+site/
+timestamps/
+LICENSES/
+
+# Documents that predate the workspace.
+/BUILD.md
+/CLAUDE.md
+/PROGRESS.md
+/README.md
+/PHILOSOPHY.md
+/LICENSE
+/LICENSE-DOCS.md
+/CITATION.cff
+
+# Kept as the workflows' author wrote them (BUILD.md, M0: leave them as they are).
+.github/workflows/bitcoin-timestamp.yml
+.github/workflows/bitcoin-timestamp-branches.yml

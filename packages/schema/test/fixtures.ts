@@ -36,11 +36,9 @@ export const OTHER_CID = "bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazu
 export const T0 = "2026-10-30T09:00:00Z";
 
 const aminaUpdate = event("amina_log", 1);
-const proof = (aminaUpdate["proof"] as JsonObject[])[0] as JsonObject;
-const controlKey = ((aminaUpdate["controller"] as JsonObject)["keys"] as string[])[0] as string;
-const agreementKey = ((event("amina_log", 0)["agreement"] as JsonObject[])[0] as JsonObject)[
-  "key"
-] as string;
+const proof = (aminaUpdate["proof"] as JsonObject[])[0]!;
+const controlKey = ((aminaUpdate["controller"] as JsonObject)["keys"] as string[])[0]!;
+const agreementKey = (event("amina_log", 0)["agreement"] as JsonObject[])[0]!["key"] as string;
 
 /** A well-formed record of each type. */
 export const samples: Readonly<Record<RecordType, JsonObject>> = {

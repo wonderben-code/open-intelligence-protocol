@@ -106,7 +106,9 @@ describe("running a case", () => {
     expect(runCase(always(true, status.expect), vectors, "negative", status).outcome).toBe("pass");
     expect(runCase(always(true, "open-ish"), vectors, "negative", status).outcome).toBe("fail");
     const assurance = first("assurance") as Extract<VectorCase, { kind: "assurance" }>;
-    expect(runCase(always(true, assurance.expect), vectors, "negative", assurance).outcome).toBe("pass");
+    expect(runCase(always(true, assurance.expect), vectors, "negative", assurance).outcome).toBe(
+      "pass",
+    );
     expect(runCase(always(true, "bridged"), vectors, "negative", assurance).outcome).toBe("fail");
   });
 
@@ -174,7 +176,15 @@ describe("reading the vectors", () => {
 
   it("rejects a file that is not the shape the suite relies on", () => {
     expect(() => parseVectors(null)).toThrow(/not an object/);
-    for (const member of ["spec_revision", "cases", "keys", "baseline", "valid", "negative", "controls"]) {
+    for (const member of [
+      "spec_revision",
+      "cases",
+      "keys",
+      "baseline",
+      "valid",
+      "negative",
+      "controls",
+    ]) {
       const broken = raw();
       delete broken[member];
       expect(() => parseVectors(broken), member).toThrow(/vectors\.json/);
@@ -188,17 +198,22 @@ describe("reading the vectors", () => {
   });
 
   it("rejects a case with no name, an unknown kind, a missing member or a repeated name", () => {
-    const withCase = (change: (list: Record<string, unknown>[]) => void) => {
+    const withCase = (
+      change: (first: Record<string, unknown>, list: Record<string, unknown>[]) => void,
+    ) => {
       const broken = raw();
-      change(broken["negative"] as Record<string, unknown>[]);
+      const list = broken["negative"] as Record<string, unknown>[];
+      const [first] = list;
+      if (first === undefined) throw new Error("the vectors have no negative cases");
+      change(first, list);
       return () => parseVectors(broken);
     };
-    expect(withCase((list) => delete list[0]?.["name"])).toThrow(/no name/);
-    expect(withCase((list) => ((list[0] ?? {})["kind"] = "vibes"))).toThrow(/unknown kind/);
-    expect(withCase((list) => delete list[0]?.["log"])).toThrow(/has no log/);
-    expect(withCase((list) => list.push({ ...list[0] }))).toThrow(/appears twice/);
-    expect(withCase((list) => list.push("a string" as unknown as Record<string, unknown>))).toThrow(
-      /not an object/,
-    );
+    expect(withCase((first) => delete first["name"])).toThrow(/no name/);
+    expect(withCase((first) => (first["kind"] = "vibes"))).toThrow(/unknown kind/);
+    expect(withCase((first) => delete first["log"])).toThrow(/has no log/);
+    expect(withCase((first, list) => list.push({ ...first }))).toThrow(/appears twice/);
+    expect(
+      withCase((_first, list) => list.push("a string" as unknown as Record<string, unknown>)),
+    ).toThrow(/not an object/);
   });
 });

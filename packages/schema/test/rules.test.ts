@@ -5,11 +5,21 @@ import { clause, copy, type JsonObject } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import { MAX_POLICY_DEPTH, validateProof, validateRecord } from "../src/index.ts";
-import { AMINA, CID, delegatedProof, LEXIS_AGENT, sample, sampleProof, samples } from "./fixtures.ts";
+import {
+  AMINA,
+  CID,
+  delegatedProof,
+  LEXIS_AGENT,
+  sample,
+  sampleProof,
+  samples,
+} from "./fixtures.ts";
 
 function issuesOf(record: unknown): string[] {
   const result = validateRecord(record);
-  return result.ok ? [] : result.issues.map((issue) => `${issue.clause} ${issue.path}: ${issue.message}`);
+  return result.ok
+    ? []
+    : result.issues.map((issue) => `${issue.clause} ${issue.path}: ${issue.message}`);
 }
 
 const KEY_A = "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
@@ -20,8 +30,7 @@ describe("thresholds are majorities", () => {
   const keyGenesis = (controller: JsonObject) => sample("Genesis", { controller });
   const memberGenesis = (controller: JsonObject) =>
     sample("Genesis", { kind: "collective", controller });
-  const members = (n: number) =>
-    Array.from({ length: n }, (_unused, i) => `did:oip:${HASH(i)}`);
+  const members = (n: number) => Array.from({ length: n }, (_unused, i) => `did:oip:${HASH(i)}`);
 
   it(`${clause("L1 3.4")} accepts nextThreshold from a majority up to the number of committed keys`, () => {
     const next = [HASH(0), HASH(1), HASH(2)];
@@ -35,22 +44,33 @@ describe("thresholds are majorities", () => {
     const next = [HASH(0), HASH(1), HASH(2)];
     expect(issuesOf(keyGenesis({ keys: [KEY_A], next, nextThreshold: 1 }))[0]).toMatch(/majority/);
     expect(issuesOf(keyGenesis({ keys: [KEY_A], next }))[0]).toMatch(/majority/);
-    expect(issuesOf(keyGenesis({ keys: [KEY_A], next: [HASH(0), HASH(1)] }))[0]).toMatch(/majority/);
+    expect(issuesOf(keyGenesis({ keys: [KEY_A], next: [HASH(0), HASH(1)] }))[0]).toMatch(
+      /majority/,
+    );
     expect(issuesOf(keyGenesis({ keys: [KEY_A], next, nextThreshold: 4 }))[0]).toMatch(/majority/);
     expect(issuesOf(keyGenesis({ keys: [KEY_A], next, nextThreshold: 0 }))).not.toEqual([]);
   });
 
   it(`${clause("L1 3.4")} rejects nextThreshold when next is empty`, () => {
     expect(issuesOf(keyGenesis({ keys: [KEY_A], next: [] }))).toEqual([]);
-    expect(issuesOf(keyGenesis({ keys: [KEY_A], next: [], nextThreshold: 1 }))[0]).toMatch(/absent/);
+    expect(issuesOf(keyGenesis({ keys: [KEY_A], next: [], nextThreshold: 1 }))[0]).toMatch(
+      /absent/,
+    );
   });
 
   it(`${clause("L1 3.4")} rejects duplicate control keys, duplicate commitments and more than 16 of either`, () => {
     expect(issuesOf(keyGenesis({ keys: [KEY_A, KEY_A], next: [] }))).not.toEqual([]);
-    expect(issuesOf(keyGenesis({ keys: [KEY_A], next: [HASH(0), HASH(0)], nextThreshold: 2 }))).not.toEqual([]);
+    expect(
+      issuesOf(keyGenesis({ keys: [KEY_A], next: [HASH(0), HASH(0)], nextThreshold: 2 })),
+    ).not.toEqual([]);
     expect(issuesOf(keyGenesis({ keys: [], next: [] }))).not.toEqual([]);
-    const seventeen = Array.from({ length: 17 }, (_unused, i) => `bciqa${"a".repeat(49)}${"abcdefghijklmnopq"[i] ?? ""}a`);
-    expect(issuesOf(keyGenesis({ keys: [KEY_A], next: seventeen, nextThreshold: 9 }))).not.toEqual([]);
+    const seventeen = Array.from(
+      { length: 17 },
+      (_unused, i) => `bciqa${"a".repeat(49)}${"abcdefghijklmnopq"[i] ?? ""}a`,
+    );
+    expect(issuesOf(keyGenesis({ keys: [KEY_A], next: seventeen, nextThreshold: 9 }))).not.toEqual(
+      [],
+    );
   });
 
   it(`${clause("L1 3.4")} accepts a member threshold that is a majority and rejects one that is not`, () => {
@@ -64,7 +84,9 @@ describe("thresholds are majorities", () => {
   });
 
   it(`${clause("L1 3.4")} rejects a controller that mixes the two kinds or has members it does not define`, () => {
-    expect(issuesOf(keyGenesis({ keys: [KEY_A], next: [], members: members(1), threshold: 1 }))).not.toEqual([]);
+    expect(
+      issuesOf(keyGenesis({ keys: [KEY_A], next: [], members: members(1), threshold: 1 })),
+    ).not.toEqual([]);
     expect(issuesOf(keyGenesis({ keys: [KEY_A], next: [], note: "extra" }))).not.toEqual([]);
     const duplicated = [...members(2), ...members(1)];
     expect(issuesOf(memberGenesis({ members: duplicated, threshold: 2 }))).not.toEqual([]);
@@ -113,26 +135,33 @@ describe("identity events", () => {
   it(`${clause("L1 3.5")} rejects a key that appears twice in a set, or in both keys and invocation`, () => {
     const entry = (key: string, label?: string) => (label === undefined ? { key } : { key, label });
     expect(issuesOf(sample("Update", { keys: [entry(KEY_A), entry(KEY_B)] }))).toEqual([]);
-    expect(issuesOf(sample("Update", { keys: [entry(KEY_A), entry(KEY_A, "again")] }))[0]).toMatch(/twice/);
+    expect(issuesOf(sample("Update", { keys: [entry(KEY_A), entry(KEY_A, "again")] }))[0]).toMatch(
+      /twice/,
+    );
     expect(
       issuesOf(sample("Update", { keys: [entry(KEY_A)], invocation: [entry(KEY_A)] }))[0],
     ).toMatch(/both keys and invocation/);
   });
 
   it(`${clause("L1 3.5")} rejects key entries of the wrong type, with unknown members or with long labels`, () => {
-    const agreement = (samples.Genesis["agreement"] as JsonObject[])[0] as JsonObject;
+    const agreement = (samples.Genesis["agreement"] as JsonObject[])[0]!;
     expect(issuesOf(sample("Update", { keys: [agreement] }))).not.toEqual([]);
     expect(issuesOf(sample("Update", { agreement: [{ key: KEY_A }] }))).not.toEqual([]);
     expect(issuesOf(sample("Update", { keys: [{ key: KEY_A, note: "x" }] }))).not.toEqual([]);
-    expect(issuesOf(sample("Update", { keys: [{ key: KEY_A, label: "l".repeat(65) }] }))).not.toEqual([]);
-    expect(issuesOf(sample("Update", { keys: [{ key: KEY_A, label: "é".repeat(64) }] }))).toEqual([]);
+    expect(
+      issuesOf(sample("Update", { keys: [{ key: KEY_A, label: "l".repeat(65) }] })),
+    ).not.toEqual([]);
+    expect(issuesOf(sample("Update", { keys: [{ key: KEY_A, label: "é".repeat(64) }] }))).toEqual(
+      [],
+    );
     const many = (n: number) => Array.from({ length: n }, () => ({ key: KEY_A }));
     expect(issuesOf(sample("Update", { invocation: many(17) }))).not.toEqual([]);
     expect(issuesOf(sample("Update", { keys: many(65) }))).not.toEqual([]);
   });
 
   it(`${clause("L1 3.6")} bounds homes, aliases and parents`, () => {
-    const origins = (n: number) => Array.from({ length: n }, (_unused, i) => `https://h${i}.example`);
+    const origins = (n: number) =>
+      Array.from({ length: n }, (_unused, i) => `https://h${i}.example`);
     expect(issuesOf(sample("Genesis", { homes: origins(8) }))).toEqual([]);
     expect(issuesOf(sample("Genesis", { homes: origins(9) }))).not.toEqual([]);
     expect(issuesOf(sample("Genesis", { homes: ["http://plain.example"] }))).not.toEqual([]);
@@ -156,13 +185,31 @@ describe("delegation", () => {
 
   it(`${clause("L1 11.3")} accepts statements nested up to the limit and rejects deeper ones`, () => {
     expect(issuesOf(sample("Delegation", { policy: [nested(MAX_POLICY_DEPTH)] }))).toEqual([]);
-    expect(issuesOf(sample("Delegation", { policy: [nested(MAX_POLICY_DEPTH + 1)] }))[0]).toMatch(/nests/);
+    expect(issuesOf(sample("Delegation", { policy: [nested(MAX_POLICY_DEPTH + 1)] }))[0]).toMatch(
+      /nests/,
+    );
   });
 
   it(`${clause("L1 11.3")} checks selectors in comparisons, quantifiers and connectives`, () => {
     const good = [
-      ["all", ".parties", ["or", [["==", ".mind", AMINA], ["!=", '["a b"]', null]]]],
-      ["and", [["<=", ".terms.price.amount", "500"], ["any", ".x[0]", ["==", ".", 1]]]],
+      [
+        "all",
+        ".parties",
+        [
+          "or",
+          [
+            ["==", ".mind", AMINA],
+            ["!=", '["a b"]', null],
+          ],
+        ],
+      ],
+      [
+        "and",
+        [
+          ["<=", ".terms.price.amount", "500"],
+          ["any", ".x[0]", ["==", ".", 1]],
+        ],
+      ],
     ];
     expect(issuesOf(sample("Delegation", { policy: good }))).toEqual([]);
     for (const policy of [
@@ -170,7 +217,15 @@ describe("delegation", () => {
       [["any", "parties", ["==", ".", 1]]],
       [["all", ".parties", ["==", "mind", 1]]],
       [["not", ["==", ".a[01]", 1]]],
-      [["or", [["==", ".a", 1], ["==", ".b..c", 1]]]],
+      [
+        [
+          "or",
+          [
+            ["==", ".a", 1],
+            ["==", ".b..c", 1],
+          ],
+        ],
+      ],
     ]) {
       expect(issuesOf(sample("Delegation", { policy }))[0]).toMatch(/not a selector/);
     }
@@ -178,7 +233,9 @@ describe("delegation", () => {
 
   it(`${clause("L2 6.2")} applies the policy rules to the powers of a charter's roles`, () => {
     const charter = (policy: unknown) =>
-      sample("Collective", { roles: { "the steward": { powers: [{ command: "/oip/sign/Offer", policy }] } } });
+      sample("Collective", {
+        roles: { "the steward": { powers: [{ command: "/oip/sign/Offer", policy }] } },
+      });
     expect(issuesOf(charter([["==", ".a", 1]]))).toEqual([]);
     expect(issuesOf(charter([["==", "a", 1]]))[0]).toMatch(/roles\/the steward\/powers\/0\/policy/);
     expect(issuesOf(sample("Collective", { roles: { r: {} } }))).toEqual([]);
@@ -186,7 +243,11 @@ describe("delegation", () => {
 });
 
 describe("commitments", () => {
-  const parties = samples.Commitment["parties"] as { mind: string; role: string; required?: boolean }[];
+  const parties = samples.Commitment["parties"] as {
+    mind: string;
+    role: string;
+    required?: boolean;
+  }[];
   const [first, second] = parties as [(typeof parties)[0], (typeof parties)[0]];
   const terms = samples.Commitment["terms"] as JsonObject;
 
@@ -217,8 +278,12 @@ describe("commitments", () => {
     const withPrice = (changes: JsonObject) =>
       sample("Commitment", { terms: { ...terms, price: { ...price, ...changes } } });
     expect(issuesOf(withPrice({}))).toEqual([]);
-    expect(issuesOf(withPrice({ payer: LEXIS_AGENT }))[0]).toMatch(/payer must be one of the parties/);
-    expect(issuesOf(withPrice({ payee: LEXIS_AGENT }))[0]).toMatch(/payee must be one of the parties/);
+    expect(issuesOf(withPrice({ payer: LEXIS_AGENT }))[0]).toMatch(
+      /payer must be one of the parties/,
+    );
+    expect(issuesOf(withPrice({ payee: LEXIS_AGENT }))[0]).toMatch(
+      /payee must be one of the parties/,
+    );
     expect(issuesOf(withPrice({ payee: price["payer"] }))[0]).toMatch(/two different parties/);
     const { payer: _payer, ...noPayer } = price;
     expect(issuesOf(sample("Commitment", { terms: { ...terms, price: noPayer } }))).not.toEqual([]);
@@ -229,8 +294,12 @@ describe("other rules", () => {
   it(`${clause("L1 14.1")} requires session participants to be distinct and sorted by code point`, () => {
     const participants = [...(samples.Session["participants"] as string[])];
     expect(participants.length).toBeGreaterThanOrEqual(2);
-    expect(issuesOf(sample("Session", { participants: participants.toReversed() }))[0]).toMatch(/sorted/);
-    expect(issuesOf(sample("Session", { participants: [participants[0], participants[0]] }))).not.toEqual([]);
+    expect(issuesOf(sample("Session", { participants: participants.toReversed() }))[0]).toMatch(
+      /sorted/,
+    );
+    expect(
+      issuesOf(sample("Session", { participants: [participants[0], participants[0]] })),
+    ).not.toEqual([]);
     expect(issuesOf(sample("Session", { participants: [participants[0]] }))).not.toEqual([]);
   });
 
@@ -247,24 +316,35 @@ describe("other rules", () => {
     const good = samples.Update;
     expect(issuesOf(sample("Bundle", { log: [good, bad] }))[0]).toMatch(/\/log\/1\/keys\/1\/key/);
     expect(issuesOf(sample("LogPage", { events: [bad] }))[0]).toMatch(/\/events\/0\//);
-    expect(issuesOf(sample("DuplicityEvidence", { pairs: [[good, bad]] }))[0]).toMatch(/\/pairs\/0\/1\//);
+    expect(issuesOf(sample("DuplicityEvidence", { pairs: [[good, bad]] }))[0]).toMatch(
+      /\/pairs\/0\/1\//,
+    );
     const packet = sample("Packet", { critical: ["com.example.x"] });
     expect(issuesOf(sample("Forwarded", { packet }))[0]).toMatch(/core 8\.3 \/packet\/critical\/0/);
     const profile = sample("Participant", {
-      capabilities: [{ id: "a", summary: "A" }, { id: "a", summary: "B" }],
+      capabilities: [
+        { id: "a", summary: "A" },
+        { id: "a", summary: "B" },
+      ],
     });
-    expect(issuesOf(sample("Bundle", { participant: profile }))[0]).toMatch(/\/participant\/capabilities\/1/);
+    expect(issuesOf(sample("Bundle", { participant: profile }))[0]).toMatch(
+      /\/participant\/capabilities\/1/,
+    );
     const location = sample("Location", { critical: ["com.example.x"] });
     expect(issuesOf(sample("Bundle", { location }))[0]).toMatch(/\/location\/critical\/0/);
     const entry = sample("Entry", { critical: ["com.example.x"] });
-    expect(issuesOf(sample("FeedPage", { entries: [entry] }))[0]).toMatch(/\/entries\/0\/critical\/0/);
+    expect(issuesOf(sample("FeedPage", { entries: [entry] }))[0]).toMatch(
+      /\/entries\/0\/critical\/0/,
+    );
   });
 });
 
 describe("proofs", () => {
   const rejected = (proof: unknown) => {
     const result = validateProof(proof);
-    return result.ok ? [] : result.issues.map((issue) => `${issue.clause} ${issue.path}: ${issue.message}`);
+    return result.ok
+      ? []
+      : result.issues.map((issue) => `${issue.clause} ${issue.path}: ${issue.message}`);
   };
 
   it(`${clause("core 5.2")} accepts a proof with exactly the members allowed`, () => {
@@ -279,7 +359,14 @@ describe("proofs", () => {
   });
 
   it(`${clause("core 5.2")} rejects a proof that lacks a required member or has the wrong type or cryptosuite`, () => {
-    for (const member of ["type", "cryptosuite", "verificationMethod", "proofPurpose", "created", "proofValue"]) {
+    for (const member of [
+      "type",
+      "cryptosuite",
+      "verificationMethod",
+      "proofPurpose",
+      "created",
+      "proofValue",
+    ]) {
       const { [member]: _removed, ...rest } = sampleProof();
       expect(rejected(rest)).not.toEqual([]);
     }
@@ -294,7 +381,7 @@ describe("proofs", () => {
   });
 
   it(`${clause("core 5.2")} allows challenge and domain only in authentication proofs`, () => {
-    const hello = (samples.Hello["proof"] as JsonObject[])[0] as JsonObject;
+    const hello = (samples.Hello["proof"] as JsonObject[])[0]!;
     expect(hello["proofPurpose"]).toBe("authentication");
     expect(rejected(hello)).toEqual([]);
     expect(rejected({ ...hello, proofPurpose: "assertionMethod" })).not.toEqual([]);
@@ -304,7 +391,9 @@ describe("proofs", () => {
 
   it(`${clause("core 6.2")} requires both keys of a control-key-ref to be identical`, () => {
     expect(rejected(sampleProof({ verificationMethod: `did:key:${KEY_A}#${KEY_A}` }))).toEqual([]);
-    expect(rejected(sampleProof({ verificationMethod: `did:key:${KEY_A}#${KEY_B}` }))[0]).toMatch(/identical/);
+    expect(rejected(sampleProof({ verificationMethod: `did:key:${KEY_A}#${KEY_B}` }))[0]).toMatch(
+      /identical/,
+    );
   });
 
   it(`${clause("core 6.1")} rejects a verification method that is neither a key-ref nor a control-key-ref`, () => {
@@ -317,7 +406,9 @@ describe("proofs", () => {
     ]) {
       expect(rejected(sampleProof({ verificationMethod }))).not.toEqual([]);
     }
-    expect(rejected(sampleProof({ verificationMethod: `${AMINA}?versionId=0-${CID}#${KEY_A}` }))).toEqual([]);
+    expect(
+      rejected(sampleProof({ verificationMethod: `${AMINA}?versionId=0-${CID}#${KEY_A}` })),
+    ).toEqual([]);
   });
 
   it(`${clause("L1 11.6")} accepts a chain of 1 to 8 delegations, as record-refs or inline`, () => {
@@ -342,6 +433,8 @@ describe("proofs", () => {
   it(`${clause("L1 11.1")} applies the record rules to a delegation carried inline`, () => {
     const delegation = copy(samples.Delegation);
     delegation["delegate"] = delegation["author"];
-    expect(rejected(sampleProof({ authority: [delegation] }))[0]).toMatch(/^L1 11\.1 \/authority\/0\/delegate/);
+    expect(rejected(sampleProof({ authority: [delegation] }))[0]).toMatch(
+      /^L1 11\.1 \/authority\/0\/delegate/,
+    );
   });
 });

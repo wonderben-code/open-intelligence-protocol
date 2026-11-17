@@ -1,7 +1,7 @@
 {
   "spec_revision": "2026-10-31",
   "status": "draft",
-  "note": "Keys derive from SHA-256('oip-test-vector:'+label). Never use these keys for anything real.",
+  "note": "Ed25519 keys derive from SHA-256('oip-test-vector:'+label); X25519 keys from SHA-256('oip-test-vector-x25519:'+label). Never use these keys for anything real.",
   "assumption": "Unless a case gives `seen` times, a verifier is taken to have obtained each proof at that proof's `created` time.",
   "keys": {
     "amina-control-0": {
@@ -20,6 +20,10 @@
       "seed_hex": "3b8105c7d63a5e535126283955a7eeded86ed84ff3a3e97b0f30cb3501f8a66c",
       "multikey": "z6MkfdR1VtpR9DFfEYbXhfBbWmgHaL5RSD2WYDRBYvrhPJcz"
     },
+    "amina-control-4": {
+      "seed_hex": "bfc7cf782dfa7a539c2fcc4cf72d8d9af192a8f471885994d0329cf97a3e0db0",
+      "multikey": "z6MkkUdbLgCX86qy7zXJtkhyWxuzz12Pw3YbpJDSy3rNKgSp"
+    },
     "amina-phone": {
       "seed_hex": "fa8f3711d5a2f523d3507b4857f3dfad2a037080b12ad1e93a2454a35b143aa8",
       "multikey": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx"
@@ -27,6 +31,15 @@
     "amina-laptop": {
       "seed_hex": "5f67ccb2b9dc03a12e5bcaa6e8266d1517dfb423e715700957d98c22773d64e2",
       "multikey": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU"
+    },
+    "amina-invocation": {
+      "seed_hex": "bfb9d9e5172975f93333dce025d37dcc479ae835bfb80dc4af8a7863d68c8641",
+      "multikey": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA"
+    },
+    "x25519:amina": {
+      "seed_hex": "e2be56906cf2eb997bcd8a996366c17875fa759ad69ef616910add5b0630e95f",
+      "multikey": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+      "type": "X25519"
     },
     "lexisltd-control-0": {
       "seed_hex": "9b6619e8551f95262b5bd22730e525a8467362d8802cf061d4369c79d5c24c56",
@@ -55,6 +68,10 @@
     "lexis-agent-i1": {
       "seed_hex": "6832d271527454d5f6241894c48dc3849e21b5fc89fe147d6dcfe01960f15476",
       "multikey": "z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4"
+    },
+    "lexis-agent-invocation": {
+      "seed_hex": "969ba194b4ae36b45b39224790bde19e969399e75ad5a62acfb61f8792908656",
+      "multikey": "z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG"
     },
     "lexis-fork-control-0": {
       "seed_hex": "56012b37aa8624c301d6c180c38bca18d31204e4b1329f0f0f042eed91c3905c",
@@ -88,9 +105,17 @@
       "seed_hex": "9f889b01f33ce97b1103c75870772dc018ede27975fd095a62c11ee62ac908d0",
       "multikey": "z6MkfMfqZwXqerwePKYK2ttErh3rTdeW8Ghri979qPiEEBPN"
     },
+    "researcher-control-2": {
+      "seed_hex": "3082e951fafd2316ac2f1cd06ae36233b2dc844ac2ff7154168797480cc4e0a1",
+      "multikey": "z6Mkq8Yu6UrJk7SWr7ayYHq1ayP2qRuigsQbDuATqULeXcpr"
+    },
     "researcher-ops": {
       "seed_hex": "8ce576d6603a4343e53bc52525b2e6ed52f3baa85b4dd326e39d1b8d3a6181d6",
       "multikey": "z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re"
+    },
+    "researcher-invocation": {
+      "seed_hex": "332b393911c1a310d735450038c92bfdf434e3d6d74883e3555dfc8c9972c18d",
+      "multikey": "z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd"
     },
     "multi-control-0": {
       "seed_hex": "e80c430d402b84387f169b1bb6a60924b5d83808cf03e2aeebf5c8cc216c8c02",
@@ -115,6 +140,18 @@
     "multi-ops": {
       "seed_hex": "d2653cd92506ffce5b10d8e84148a1494ae19be6e6a4a963471c91623ac0e045",
       "multikey": "z6MkqSWDVLrJvyD4apQYdpUgV7CzBAvVySmn23FkrojQ3hmy"
+    },
+    "amina-assistant-control-0": {
+      "seed_hex": "e7e76e6b951eb763d11add912fb9eee1400c374e26da6c62e6734340c2bb04dc",
+      "multikey": "z6MkvFD3RLF5mgjMFKM6bnbsR3q3FtnJyEtcZ7JF9uJmHAne"
+    },
+    "amina-assistant-control-1": {
+      "seed_hex": "402ed8560cc1399bfdcab22322fe58757898a74071c0e4626395b95d06f7877d",
+      "multikey": "z6MkiJ7Up1eehDUS5xS7CVi58fR2E2o9nC2TiRJwFzkcsQLu"
+    },
+    "amina-assistant-ops": {
+      "seed_hex": "80a424b4079d2d8a292702904e4cdacf48e1510a7e7d26f15854cdaaa1863a73",
+      "multikey": "z6Mkqyvb9guJXXERFw5Ye1BZDcrDU6RLWcxv77QcbtYD68Lk"
     },
     "attacker-next": {
       "seed_hex": "b30140ce94dc3a9224116f6cfede398e35e4a09de1095aa3a72ef5acf2ecc876",
@@ -205,6 +242,12 @@
             "label": "amina-laptop"
           }
         ],
+        "invocation": [
+          {
+            "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+            "label": "amina-invocation"
+          }
+        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
@@ -212,7 +255,7 @@
             "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
             "proofPurpose": "capabilityInvocation",
             "created": "2026-10-30T09:05:00Z",
-            "proofValue": "z4vRRzFpLnRWfksMGLqoqVnWT1Q3aeuuJiRnVepPUThZdakg8jKHzCLBihJufVHDL8xPJ8NCQDWJjPU6KnYdARVTg"
+            "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
           }
         ]
       }
@@ -302,6 +345,12 @@
           "nextThreshold": 1
         },
         "child": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva",
+        "invocation": [
+          {
+            "key": "z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
+            "label": "lexis-agent-invocation"
+          }
+        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
@@ -309,7 +358,7 @@
             "verificationMethod": "did:key:z6MkuzvQPYe83ZVTWXzckWEdQbLudB79spyscfTbs7qGk2ou#z6MkuzvQPYe83ZVTWXzckWEdQbLudB79spyscfTbs7qGk2ou",
             "proofPurpose": "capabilityInvocation",
             "created": "2026-10-30T09:11:00Z",
-            "proofValue": "z4mRjDjonZafyd1pMqoU9qkGwS43XFjQy9YGRfEbnbk7Mmw26ycat9RtZCZYLiGD1HhiK57euLbQyFQ9nrUv3V3Sy"
+            "proofValue": "z2dqC7ZLErcv6fQQWiPupnSMoG1kjraYPfSahMX28Lr8tq2Tv3Ur2ddd3dpHUbNLpBdHivmQBDq2Ju9XmjpJE3ibL"
           }
         ]
       }
@@ -377,7 +426,7 @@
         "parents": [
           {
             "mind": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
-            "at": "1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy"
+            "at": "1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q"
           }
         ],
         "proof": [
@@ -387,7 +436,7 @@
             "verificationMethod": "did:key:z6MkgHaryDZrULP1YskKStm1dXjocw3xrSmafbysTGdyjytW#z6MkgHaryDZrULP1YskKStm1dXjocw3xrSmafbysTGdyjytW",
             "proofPurpose": "capabilityInvocation",
             "created": "2026-10-30T09:12:00Z",
-            "proofValue": "z5Smkr7xmQrQPQjEnxFsPAbpVjSnai4zE9cguhY6mUbZcrE9VMLWd2DLQRyUztKHZia3wjavnGxHtmi78uLMf5zDH"
+            "proofValue": "zfJXeydeiM5AyFu3Eazow796jLC5dYpqYSjwYxsmen2ExJNdU9rNbTdmCwXm7eKd5LDrDKW28onf29YZGnxPcCVm"
           }
         ]
       }
@@ -423,6 +472,39 @@
             "proofValue": "z3MH5FV5h4E7KxDzZ8MAB9nNKGthVbcXExR1qxWKuiZzXKTh7YkfDk5w2ML7kEbhEkWuEPdG2Lqknjaf5BD7Qd58F"
           }
         ]
+      },
+      {
+        "oip": "1",
+        "type": "Update",
+        "mind": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua",
+        "seq": 1,
+        "prev": "bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua",
+        "created": "2026-10-30T09:02:00Z",
+        "controller": {
+          "keys": [
+            "z6MkfMfqZwXqerwePKYK2ttErh3rTdeW8Ghri979qPiEEBPN"
+          ],
+          "next": [
+            "bciqjqjgmugpyekpkhse65grvganafkjvlxvbp4tcnjzvth5ey7t3a6q"
+          ],
+          "nextThreshold": 1
+        },
+        "invocation": [
+          {
+            "key": "z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
+            "label": "researcher-invocation"
+          }
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:key:z6MkfMfqZwXqerwePKYK2ttErh3rTdeW8Ghri979qPiEEBPN#z6MkfMfqZwXqerwePKYK2ttErh3rTdeW8Ghri979qPiEEBPN",
+            "proofPurpose": "capabilityInvocation",
+            "created": "2026-10-30T09:02:00Z",
+            "proofValue": "z3gbsxpTFtECgr69TZUDgs8YZWryQJg8QmhbYxXnpg7MRu7WZ5j868bphd98ehTyZwFb5iuQi5hadEcPgQX6n4stH"
+          }
+        ]
       }
     ],
     "collective_log": [
@@ -443,26 +525,26 @@
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
             "proofPurpose": "capabilityInvocation",
             "created": "2026-10-30T09:20:00Z",
-            "proofValue": "z3uC8c2D4vjJoLVcJRv5DBEdTyWZKjFpJy4xQ9Bf7H5HCFqEfn1SeBAzVYFWUvHjyjqGLGppBEfUyye3Ue2RJyPZW"
+            "proofValue": "z5xs6cw4KZ5s4FioAXb2usi4F9JBoUq8g6X4e1sycisAxSJ95v1GNPfw814ANBRqZWshHetFgzrVdFhE6Env9m2Rp"
           },
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
             "proofPurpose": "capabilityInvocation",
             "created": "2026-10-30T09:20:00Z",
-            "proofValue": "z3SGz1p1eV8ky1XuCFiWgaio48UyCiGHcRYeQCTQs2UQegTkgsiuZ9Kwtoc8hkAzgSccgqpdQg93x1dsN965QFrHg"
+            "proofValue": "z3uK7w4kE4t6ZHPzSyjVL3VEcPFw2BTjfbuzzdYTPuB47ZNAcDDmBLrXmFrbFFNGJcKG3DFMMiSspUtRJLQmbnPvC"
           },
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+            "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
             "proofPurpose": "capabilityInvocation",
             "created": "2026-10-30T09:20:00Z",
-            "proofValue": "z2Yi6qpqht2VE4UyTEBj59NsEsSsKJck9fWVfSwpVPpqxcBX3Axq69yvA9XZgah9Sw8xsEJuzEwaqM7YJ7poxpyg8"
+            "proofValue": "z41P1xs2qX3qQEPy2pSd2joQFVLbat2AQ4CrP64ZZqBeayi94oWCnJRbTXZeLYBcViLGowjzmU6K3gncPRTF8DpDj"
           }
         ]
       }
@@ -538,6 +620,39 @@
         ]
       }
     ],
+    "assistant_log": [
+      {
+        "oip": "1",
+        "type": "Genesis",
+        "kind": "agent",
+        "created": "2026-10-30T09:03:00Z",
+        "controller": {
+          "keys": [
+            "z6MkvFD3RLF5mgjMFKM6bnbsR3q3FtnJyEtcZ7JF9uJmHAne"
+          ],
+          "next": [
+            "bciqexrh6y5keeujhx7vacud5rqvjg6gmnyfmpdkgnny3wet3f3x4mdq"
+          ],
+          "nextThreshold": 1
+        },
+        "keys": [
+          {
+            "key": "z6Mkqyvb9guJXXERFw5Ye1BZDcrDU6RLWcxv77QcbtYD68Lk",
+            "label": "amina-assistant-ops"
+          }
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:key:z6MkvFD3RLF5mgjMFKM6bnbsR3q3FtnJyEtcZ7JF9uJmHAne#z6MkvFD3RLF5mgjMFKM6bnbsR3q3FtnJyEtcZ7JF9uJmHAne",
+            "proofPurpose": "capabilityInvocation",
+            "created": "2026-10-30T09:03:00Z",
+            "proofValue": "zAedV4J4ne4vu8ftVHe6Ptfs7wTB6rXMgiFbE8viJXq82afLxfgeCG2D3vx6EHztHjnz3tHpoXDoxCe18hP8o29v"
+          }
+        ]
+      }
+    ],
     "delegation": {
       "oip": "1",
       "type": "Delegation",
@@ -602,10 +717,62 @@
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "capabilityDelegation",
           "created": "2026-10-30T09:45:00Z",
-          "proofValue": "z2z7Z388oewkw2FxxifGwykuijomrNTGuNd8vVtLZaYD8kuaZYqtmvDn2rtYpp5oUkzDuvfxyxX8ryubbJ24xF28N"
+          "proofValue": "z64prhiiQz63SKLHqreGNcgjnMEGYSHB5aeAP5hoeVh4u1u7VP4PKt8SSTAkdWdFpFBKPJjp3Uzkm2jY3B6KCReXK"
+        }
+      ]
+    },
+    "delegation_amina": {
+      "oip": "1",
+      "type": "Delegation",
+      "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "created": "2026-10-30T09:35:00Z",
+      "delegate": "did:oip:bciqdijuuvrylgdjtyylenmf7llyctlbzzqnvj5plxhrxl7oiipox2na",
+      "subject": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "command": "/oip/sign/Commitment",
+      "policy": [
+        [
+          "==",
+          ".terms.price.currency",
+          "USD"
+        ],
+        [
+          "<=",
+          ".terms.price.amount",
+          "150"
+        ],
+        [
+          "all",
+          ".parties",
+          [
+            "or",
+            [
+              [
+                "==",
+                ".mind",
+                "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
+              ],
+              [
+                "==",
+                ".mind",
+                "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+              ]
+            ]
+          ]
+        ]
+      ],
+      "expires": "2026-11-30T09:00:00Z",
+      "nonce": "3b7e1f9a0c5d2e84",
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+          "proofPurpose": "capabilityDelegation",
+          "created": "2026-10-30T09:35:00Z",
+          "proofValue": "z5XtwF56pT52ybTJ2Xormgn1okAMKs3wUnFAUsx65wEjvXUihn3dUPz1f8VfLogVqNv6aD12sXi5RtwC177HLfssF"
         }
       ]
     },
@@ -636,10 +803,10 @@
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+          "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:00:00Z",
-          "proofValue": "zryAqjpsGHasCvk3qKHUVqhnUTdH8Ezmoz613gccm9Keu518wsJRPYutjRc6fvU7kAd6FnoyMVV3aEsKQAXMf12d"
+          "proofValue": "z4FLN2prJLehkrLxaAK2pSi4gnvCeiWUdUAKrsRZ38FQtUsRumXhh77fHnQMHjRPYcfXQ4ss5ogoR6K8pjwpnXALG"
         }
       ]
     },
@@ -663,10 +830,10 @@
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:04:00Z",
-          "proofValue": "z4WLETt6K2b8rw4NYNqX4WtxfpLKEwyfPeu6xEiQx9ZsyuaoydXirPqbFdvEknys3BuaqjS8Wuiq428bVnk6sVTip"
+          "proofValue": "z48LwNapRAa26eQcxjoXrqNDwNM6Ha1wmAhs1WDqedPnFup62u6TKNAo278W7RiNs8EM2YuBZdcu6frbxwWrCezCs"
         }
       ]
     },
@@ -700,17 +867,17 @@
         "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
       ],
       "closesIntent": true,
-      "authority": [
-        "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
-      ],
       "proof": [
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:20:00Z",
-          "proofValue": "zgrukihgteEn9hVfLLcYtwEvgCnNVFkGPAqHoUK69b2qQsQ6AzQjjExwFMSL2fx4eJyxvXxCUT8FFmSk3S6UAw9n"
+          "authority": [
+            "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+          ],
+          "proofValue": "z2QT2xqNJFqUJd3FVwhSZfPUnPe4zt1sEY8fy8kFySHjVjgtDsKGnjitdGBRtntHaTcdACsGE7SfGzJPAZJa91nwP"
         }
       ]
     },
@@ -744,25 +911,25 @@
         "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
       ],
       "closesIntent": true,
-      "authority": [
-        "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
-      ],
       "proof": [
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:20:00Z",
-          "proofValue": "zgrukihgteEn9hVfLLcYtwEvgCnNVFkGPAqHoUK69b2qQsQ6AzQjjExwFMSL2fx4eJyxvXxCUT8FFmSk3S6UAw9n"
+          "authority": [
+            "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+          ],
+          "proofValue": "z2QT2xqNJFqUJd3FVwhSZfPUnPe4zt1sEY8fy8kFySHjVjgtDsKGnjitdGBRtntHaTcdACsGE7SfGzJPAZJa91nwP"
         },
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+          "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:22:00Z",
-          "proofValue": "zT7E8EwGc7gitBpcYeka25RQETJUw9xJpg6o4L9attuirbL8SnYT2aBdjfJPcxon399oPMe3CB8bmeQoeVLn68qp"
+          "proofValue": "z2HPD3sn6WZaekd2N8GqkkjALKDfErijiu5EfyoeYXDiz9nTv1nrLqNMqwJ3DLtVC94HSo7hrwtafvdHNZw3tw6gc"
         }
       ]
     },
@@ -771,7 +938,7 @@
       "type": "Receipt",
       "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
       "created": "2026-11-01T17:40:00Z",
-      "about": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqejyh5njtnjtej47m5vjuqdeiwdfb7lx2oo7wkd5gxcwauo3vsvai",
+      "about": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqmthql6djhigqky3al4ev4e37pfqpaozfnkzh7asfvg2kfhsjifxi",
       "outcome": "fulfilled",
       "statement": "Translation received on time.",
       "evidence": [
@@ -785,10 +952,60 @@
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+          "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
           "proofPurpose": "assertionMethod",
           "created": "2026-11-01T17:40:00Z",
-          "proofValue": "z5qh8mjox43TF6WK85Ece8WxWcpQLwCLHX6Tyg8gJwNtzn97WArQJAUn65qExXqNizXW5Tt1ZtAyoyxA7cxxcaXbg"
+          "proofValue": "z5qU8gmaCEmBWdph9ZLChaCWL11JGbbtrw1Q852qkDPkdUmZVx58jC5VkG9MnqKi8342rKqztdfmf8YLHVr8URxhp"
+        }
+      ]
+    },
+    "commitment_agents": {
+      "oip": "1",
+      "type": "Commitment",
+      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+      "created": "2026-10-30T10:40:00Z",
+      "parties": [
+        {
+          "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+          "role": "debtor",
+          "required": true
+        },
+        {
+          "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "role": "creditor",
+          "required": true
+        }
+      ],
+      "promise": "Lexis Ltd will deliver the translation by 1 Nov 2026 06:00 UTC, twelve hours early; Amina will pay a 30 USD rush fee on delivery.",
+      "terms": {
+        "deadline": "2026-11-01T06:00:00Z",
+        "price": {
+          "amount": "30",
+          "currency": "USD"
+        }
+      },
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T10:40:00Z",
+          "authority": [
+            "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+          ],
+          "proofValue": "z4wso6d33eydKiFVhRbVPPKLVixXSBjfx3tQ8VCJ9dnHA2m7gVV3mDzRAzE7BMM476Tnww8kBqDEuSiW4kywoNRdH"
+        },
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqdijuuvrylgdjtyylenmf7llyctlbzzqnvj5plxhrxl7oiipox2na?versionId=0-bciqdijuuvrylgdjtyylenmf7llyctlbzzqnvj5plxhrxl7oiipox2na#z6Mkqyvb9guJXXERFw5Ye1BZDcrDU6RLWcxv77QcbtYD68Lk",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T10:41:00Z",
+          "authority": [
+            "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqbxuumvj7ipv6gclnrdh5vdimvoj5ikitt66m4fpps7onul3npkry"
+          ],
+          "proofValue": "z2YmdPehyDrWxGFompSXHA6BVhZBjnoAZ9R92LmBJwZzdtAtT3jZ9BakfgARaQoRigGyc9wtYSHtjTD2aLRyqyd8Z"
         }
       ]
     },
@@ -831,10 +1048,10 @@
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+          "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T09:25:00Z",
-          "proofValue": "z2JGfUcPF677MBeBqDiW79i2h1PscDshfyCr49MDwgquRqVuHFBLs4TBF6xPUDnh28qhx1hAUzGKUWGoD7FVSgHhA"
+          "proofValue": "z2b3J6dQJ7wLcsajLvMykEt2ertkMuvEMLLJsi1PsMxTgbcnCgaPCpB41k9Fhoa2MpAiWJN4XCRhT1hhqdKHiEr17"
         },
         {
           "type": "DataIntegrityProof",
@@ -875,10 +1092,10 @@
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:30:00Z",
-          "proofValue": "z454p36gXfUgxv84tvkanbtBpQvqDC3tH4GtCMms54Wfj5c5zU64Bcv4CqZKzCy29U4FDwWmK4KFcjUZepxRZhenc"
+          "proofValue": "zsvcbexJgeW4fgD2F8PdbDaLhCz3Fgjk1pfx3bvcRQH57QhNS14EqkcLJYXin2z6b8HzGdrQDnCqA4vqtxBKRdGr"
         }
       ]
     },
@@ -907,10 +1124,6 @@
           "currency": "USD"
         }
       },
-      "authority": [
-        "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq",
-        "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqg3rjjdofy2rwgoh2nqnzcd2gwhyhnngz7rxzhl6pnjjsxcvdwzgi"
-      ],
       "proof": [
         {
           "type": "DataIntegrityProof",
@@ -918,7 +1131,11 @@
           "verificationMethod": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva?versionId=0-bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva#z6Mkfp1nPdhNyJGjr6zfbnHLLVsCpppmiaGDRhEYiYsNvcWv",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T11:00:00Z",
-          "proofValue": "zXjXAD18U8sUBZ5xSoP8Y5XSVVSQToRGKaVyUnuMGfPqy97scZeUwHaYcMWeMKNs3KdKZDawJNapkfUVNG5nf6fs"
+          "authority": [
+            "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq",
+            "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqg3rjjdofy2rwgoh2nqnzcd2gwhyhnngz7rxzhl6pnjjsxcvdwzgi"
+          ],
+          "proofValue": "zH19VqtBaSY6m7qvtuUexiyBXLCdwfDD87U36n7FdEKMZg1o1S1g8oALrWqUoCCumUWvbsZJbSv9vCb2DhoQHQcp"
         }
       ]
     },
@@ -927,15 +1144,15 @@
       "type": "Lineage",
       "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
       "created": "2026-10-30T09:13:00Z",
-      "child": "did:oip:bciqbpvftfc624zhokqazc6grw5wt3v6236lwi2bbgdnspon43pl6rba",
+      "child": "did:oip:bciqhgere3ai6q526kpocwbz6xu5yem6m5vgtruww5epnpqwlfaezo3i",
       "proof": [
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T09:13:00Z",
-          "proofValue": "z2vMTAwrqSPpJFkd4y2SpcXX8gJwBE9gHA9NGUsWKHL1n4hkqdmMh88bt9z4uwBZHyYWoFmYH9qDns14tSVs8HnzK"
+          "proofValue": "z45VDyPZne5Uv8qihkNkXTqZmjKAF7vs8iTt3N36YrQgWQsgtsgGjcbPEVH5ZjiiELTWJbfVUNbyc6xipDP6h4JET"
         }
       ]
     },
@@ -1002,10 +1219,10 @@
                 {
                   "type": "DataIntegrityProof",
                   "cryptosuite": "eddsa-jcs-2022",
-                  "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                  "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
                   "proofPurpose": "assertionMethod",
                   "created": "2026-10-30T10:04:00Z",
-                  "proofValue": "z4WLETt6K2b8rw4NYNqX4WtxfpLKEwyfPeu6xEiQx9ZsyuaoydXirPqbFdvEknys3BuaqjS8Wuiq428bVnk6sVTip"
+                  "proofValue": "z48LwNapRAa26eQcxjoXrqNDwNM6Ha1wmAhs1WDqedPnFup62u6TKNAo278W7RiNs8EM2YuBZdcu6frbxwWrCezCs"
                 }
               ]
             }
@@ -1022,10 +1239,46 @@
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:04:05Z",
-          "proofValue": "z4NvSYU318TJNctey4P1vQykTEkCJkHqB4YRXa5Z5sTNCwvn7jjF5ADPAbAqkeg7YqD33QcmSLW6G9wVGtajc65VZ"
+          "proofValue": "z5AcBhqH681r2EfR7wN8VXotPAHKEpghLR9uFyuyRosqMALYafThpgGxaQN79oCoRKsTfgjc9ncsHEdGDjhWvnpTB"
+        }
+      ]
+    },
+    "ack": {
+      "oip": "1",
+      "type": "Ack",
+      "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "packet": "bciqjk2bnzjwysbvwqeuvhzxdhkg2bfxe6jbtfu6iamhtj3ukf7yrfqy",
+      "received": "2026-10-30T10:04:06Z",
+      "created": "2026-10-30T10:04:06Z",
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T10:04:06Z",
+          "proofValue": "z2pvJBpbxjoHUxrykhXKVzHR2Fnxr57jze4yVYyMqQD4ZWvF2BLhahiPg6psQZaqegbU23sTJq369VVpLxiSaCJR8"
+        }
+      ]
+    },
+    "hello": {
+      "oip": "1",
+      "type": "Hello",
+      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+      "created": "2026-10-30T10:06:00Z",
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "proofPurpose": "authentication",
+          "created": "2026-10-30T10:06:00Z",
+          "challenge": "q8xG3kZ2pV7mT0wR5nY1aB",
+          "domain": "https://host.example",
+          "proofValue": "z3Nm2m4ANNjATFvLH3UXNS8tARv8XzdwgxuqvT2RVLRVhhyo1dahgrXiBp9DUjbphYVrDnXRjhgu7qmWYidEKk5ux"
         }
       ]
     },
@@ -1067,10 +1320,10 @@
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T09:40:00Z",
-          "proofValue": "zQLSFBBAPZGgc9SXFEv41BrkPwdTMS7oeF6csALNXvWLrGVkXMf9N6Ut4eT3cUNzQkcpigwR51dGSLLD22VUL915"
+          "proofValue": "z5L8FhaTCcQrakRseq2q9SEr4p54gMt2WFqww3oVikiz6wv8gudEhD8ADKNZKfcsVWrmTciyuspE6KGuZWQuv7adx"
         }
       ]
     },
@@ -1107,16 +1360,16 @@
       "participant": "bciqeljjsyjpadmquy4x34d4noynlvr4w4k62un3kbgrfna4iqqpvmaq",
       "feed": {
         "seq": 0,
-        "head": "bciqadinharkyi6s35h3dz2xzloma4mz4qwa2gypqymfewh6ue5azuzy"
+        "head": "bciqblh5eb7afygepa5bl5u3opz6vaahim3ywc7tamigg3iomvr7bflq"
       },
       "proof": [
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:05:00Z",
-          "proofValue": "z4bdnrWoaAG1JRN7koF17uSiVw7hm1PXxmY43XMSvzmgjhZNJvsW9ufWxD945Vtp6gAMS8uHSsVyX5tnKZaLgJFpm"
+          "proofValue": "z24q7JEtg5NXVp3kDizSmWM9QzwLUs5D1VR8mP7XFpKoDbAhuZV5fhuM91Hoe2cSpzf8ps4KtHgKF8dxHGeqe7irf"
         }
       ]
     },
@@ -1129,16 +1382,59 @@
       "object": "bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq",
       "objectType": "Offer",
       "proofs": [
-        "sha256:f8269a23a7947cf1ff042140c8b5b232692a2df90eb336e4d4662b3a7e432c6b"
+        "sha256:79040ad4147113504cfc17ecb282eb82f31f1d5f39beb38b91752db2fe25ae10"
       ],
       "proof": [
         {
           "type": "DataIntegrityProof",
           "cryptosuite": "eddsa-jcs-2022",
-          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
           "proofPurpose": "assertionMethod",
           "created": "2026-10-30T10:04:01Z",
-          "proofValue": "z5LENRjhpptmWho7eVqXW99vQQUW7MXB4Xv63s2kSNRZ26hsKyhbVHEVAybcrMjNUEknn8RQinsDmTuE3PPFJKjcM"
+          "proofValue": "z4i9bmDfYTJB2cF9VzmUks2cU6uutojajEVqMacm6mcrBiQZoRHLDNkvPQULA5JXNiKHnc8DGZsP7Zyfc7vwMmqvk"
+        }
+      ]
+    },
+    "feed_entry_1": {
+      "oip": "1",
+      "type": "Entry",
+      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+      "seq": 1,
+      "prev": "bciqblh5eb7afygepa5bl5u3opz6vaahim3ywc7tamigg3iomvr7bflq",
+      "created": "2026-10-30T10:23:00Z",
+      "object": "bciqmthql6djhigqky3al4ev4e37pfqpaozfnkzh7asfvg2kfhsjifxi",
+      "objectType": "Commitment",
+      "proofs": [
+        "sha256:08be18ad77a44d1dd36d985fa21c10f94972f4df05d5a165b7c31340492018b5",
+        "sha256:63356b3931f463f21685702f89b31291eaf4014f4d1cc31443b7a335c6de8bd1"
+      ],
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T10:23:00Z",
+          "proofValue": "z4wFUKpWKmr2Czarsi2NnFaigYnz5CkdT9zRqMJ4XvDQb2PhiTbgkK3bPGTnJFdtFQmxh2qaDZjL1GyAb6PsLM5w"
+        }
+      ]
+    },
+    "checkpoint": {
+      "oip": "1",
+      "type": "Checkpoint",
+      "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+      "created": "2026-10-30T10:30:00Z",
+      "size": 2,
+      "head": "bciqd2bgzwj54tegskfxshcit7tmfov47stcihnuqj2dwx6nlqtzerui",
+      "root": "bciqlr6kvjwt7ktohgljmoj6l4llpca4rwpgi2ybjed3gwggijxo26ja",
+      "proof": [
+        {
+          "type": "DataIntegrityProof",
+          "cryptosuite": "eddsa-jcs-2022",
+          "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+          "proofPurpose": "assertionMethod",
+          "created": "2026-10-30T10:30:00Z",
+          "proofValue": "z5GG85oB43EZQarkrupFk3G2VLKDAwf7vQ5p4er7SuNJPufxsrWEh4wkjPFZD3UczNzsgMoq4VT51eFkYahJUCsBm"
         }
       ]
     },
@@ -1146,10 +1442,149 @@
     "lexis_ltd": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
     "lexis_agent": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
     "lexis_fork": "did:oip:bciqkncfjjwhnvqm6qgb2kokupfchq3ydyksusu6pchmhlvosm7swpva",
-    "lexis_fork2": "did:oip:bciqbpvftfc624zhokqazc6grw5wt3v6236lwi2bbgdnspon43pl6rba",
+    "lexis_fork2": "did:oip:bciqhgere3ai6q526kpocwbz6xu5yem6m5vgtruww5epnpqwlfaezo3i",
     "researcher": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua",
     "collective": "did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
     "multi": "did:oip:bciqjafn3exoy4qpv6psmqxsbfex6ynylem2ua5zmij74se537ukiuea",
+    "assistant": "did:oip:bciqdijuuvrylgdjtyylenmf7llyctlbzzqnvj5plxhrxl7oiipox2na",
+    "did_document_amina": {
+      "didDocument": {
+        "id": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "verificationMethod": [
+          {
+            "id": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "type": "Multikey",
+            "controller": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "publicKeyMultibase": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx"
+          },
+          {
+            "id": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+            "type": "Multikey",
+            "controller": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "publicKeyMultibase": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU"
+          },
+          {
+            "id": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+            "type": "Multikey",
+            "controller": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "publicKeyMultibase": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA"
+          },
+          {
+            "id": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+            "type": "Multikey",
+            "controller": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "publicKeyMultibase": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3"
+          }
+        ],
+        "authentication": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU"
+        ],
+        "assertionMethod": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU"
+        ],
+        "capabilityDelegation": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU"
+        ],
+        "capabilityInvocation": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA"
+        ],
+        "keyAgreement": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3"
+        ],
+        "service": [
+          {
+            "id": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#home-0",
+            "type": "OIPHome",
+            "serviceEndpoint": "https://amina.example"
+          }
+        ]
+      },
+      "didDocumentMetadata": {
+        "versionId": "1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
+        "deactivated": false,
+        "parents": [],
+        "children": [],
+        "nextKeyHashes": [
+          "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+        ],
+        "nextThreshold": 1
+      }
+    },
+    "did_document_amina_at_genesis": {
+      "didDocument": {
+        "id": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "verificationMethod": [
+          {
+            "id": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=0-bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "type": "Multikey",
+            "controller": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "publicKeyMultibase": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx"
+          },
+          {
+            "id": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=0-bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+            "type": "Multikey",
+            "controller": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "publicKeyMultibase": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3"
+          }
+        ],
+        "authentication": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=0-bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx"
+        ],
+        "assertionMethod": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=0-bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx"
+        ],
+        "capabilityDelegation": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=0-bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx"
+        ],
+        "capabilityInvocation": [],
+        "keyAgreement": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=0-bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3"
+        ],
+        "service": [
+          {
+            "id": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna#home-0",
+            "type": "OIPHome",
+            "serviceEndpoint": "https://amina.example"
+          }
+        ]
+      },
+      "didDocumentMetadata": {
+        "versionId": "0-bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "deactivated": false,
+        "parents": [],
+        "children": [],
+        "nextKeyHashes": [
+          "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+        ],
+        "nextThreshold": 1
+      }
+    },
+    "did_document_collective": {
+      "didDocument": {
+        "id": "did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+        "verificationMethod": [],
+        "authentication": [],
+        "assertionMethod": [],
+        "capabilityDelegation": [],
+        "capabilityInvocation": [],
+        "keyAgreement": []
+      },
+      "didDocumentMetadata": {
+        "versionId": "0-bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i",
+        "deactivated": false,
+        "parents": [],
+        "children": [],
+        "members": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+          "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+        ],
+        "threshold": 2
+      }
+    },
     "status": [
       {
         "of": "intent",
@@ -1218,20 +1653,31 @@
           "receipt"
         ],
         "expect": "fulfilled"
+      },
+      {
+        "of": "commitment_agents",
+        "at": "2026-10-31T12:00:00Z",
+        "records": [
+          "commitment_agents"
+        ],
+        "expect": "accepted"
       }
     ],
     "content_ids": {
       "amina_genesis": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
-      "amina_update": "bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i",
+      "amina_update": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
       "delegation": "bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq",
       "delegation_sub": "bciqg3rjjdofy2rwgoh2nqnzcd2gwhyhnngz7rxzhl6pnjjsxcvdwzgi",
+      "delegation_amina": "bciqbxuumvj7ipv6gclnrdh5vdimvoj5ikitt66m4fpps7onul3npkry",
       "intent": "bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
       "offer": "bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq",
-      "commitment": "bciqejyh5njtnjtej47m5vjuqdeiwdfb7lx2oo7wkd5gxcwauo3vsvai",
-      "receipt": "bciqjmoojvytkvsdzmctvajrteo46gt732zue3camm4ditjzoidkgvqq",
+      "commitment": "bciqmthql6djhigqky3al4ev4e37pfqpaozfnkzh7asfvg2kfhsjifxi",
+      "commitment_agents": "bciqf3gm3moq3ebruchsdo7ydfvkytrlvwenkce7bctxuu3xl2obrwbq",
+      "receipt": "bciqglbhx3ar6mvqpqhpemrteoir3f6hyfdmlzvztb7hlf7kuhflmw3y",
       "collective_charter": "bciqbobjbipmchqsd3giydl5jt6xdtrgbgh76cl64knpqtlkqavnd6gq",
       "session": "bciqa3sa2tbotcf547qfzc67qop33nt37fvrafokk4oeo5bvtt277zxi",
-      "packet": "bciqjgynbrkyqhilytz6tpsgo2d5u42obaklwfaunmd3ttrvmguzb5hy"
+      "packet": "bciqjk2bnzjwysbvwqeuvhzxdhkg2bfxe6jbtfu6iamhtj3ukf7yrfqy",
+      "checkpoint": "bciqldtatndg5hhbyorninoj7ewjvfdyzbjubpjzx3cdetjp2aokxqqq"
     },
     "jcs_example": {
       "input": {
@@ -1245,6 +1691,403 @@
       "output": "{\"a\":[1,\"x\"],\"b\":2,\"é\":true}"
     }
   },
+  "valid": [
+    {
+      "name": "collective-survives-member-compromise-claim",
+      "reason": "On 2 Nov Amina declares her invocation key compromised since 30 Oct 09:00, before the collective's genesis. Identity events are judged at their position, so the collective's log still verifies.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "collective",
+          "created": "2026-10-30T09:20:00Z",
+          "controller": {
+            "members": [
+              "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+              "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+            ],
+            "threshold": 2
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z5xs6cw4KZ5s4FioAXb2usi4F9JBoUq8g6X4e1sycisAxSJ95v1GNPfw814ANBRqZWshHetFgzrVdFhE6Env9m2Rp"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z3uK7w4kE4t6ZHPzSyjVL3VEcPFw2BTjfbuzzdYTPuB47ZNAcDDmBLrXmFrbFFNGJcKG3DFMMiSspUtRJLQmbnPvC"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z41P1xs2qX3qQEPy2pSd2joQFVLbat2AQ4CrP64ZZqBeayi94oWCnJRbTXZeLYBcViLGowjzmU6K3gncPRTF8DpDj"
+            }
+          ]
+        }
+      ],
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 2,
+            "prev": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
+            "created": "2026-11-02T08:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+              ],
+              "next": [
+                "bciqlztaugk22rnawzs6glt6bxbmy2smcv7ptzvjqhe2z4lgfbrnyjvi"
+              ],
+              "nextThreshold": 1
+            },
+            "invocation": [],
+            "revoked": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "compromisedSince": "2026-10-30T09:00:00Z"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-11-02T08:00:00Z",
+                "proofValue": "z31KgwMaL8y4wstMTmrsTPyCiZc1T3QD9xjUT2m1E5dMnGqts4PzKKQ76rUggh4yuu3CAmvRbjhHmhhuHJjgL2bj5"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "name": "backdated-removal-cannot-withdraw",
+      "reason": "Amina removes her phone key in an event dated 30 Oct but first seen on 2 Nov. A removal takes effect from its evaluation time, so her Receipt signed with that key on 1 Nov still counts.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Receipt",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-11-01T17:40:00Z",
+        "about": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqmthql6djhigqky3al4ev4e37pfqpaozfnkzh7asfvg2kfhsjifxi",
+        "outcome": "fulfilled",
+        "statement": "Translation received on time.",
+        "evidence": [
+          {
+            "kind": "uri",
+            "ref": "https://lexis.example/d/7731.pdf",
+            "digest": "sha256:0ca63b464353b16f082e23790030ffcf22cc9eb1116f3a8cc558a3616b48ec7f"
+          }
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-11-01T17:40:00Z",
+            "proofValue": "z5qU8gmaCEmBWdph9ZLChaCWL11JGbbtrw1Q852qkDPkdUmZVx58jC5VkG9MnqKi8342rKqztdfmf8YLHVr8URxhp"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 2,
+            "prev": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
+            "created": "2026-10-30T10:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+              ],
+              "next": [
+                "bciqlztaugk22rnawzs6glt6bxbmy2smcv7ptzvjqhe2z4lgfbrnyjvi"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T10:00:00Z",
+                "proofValue": "z2Thusp1isTdfjwenfzkZ96GFLi8E5fq4cvve77CiPpPW5joKhMxEDe5sJSVmhhzWy8vb4zDn9QhAHDwvBARhu8mp"
+              }
+            ]
+          }
+        ]
+      ],
+      "seen": {
+        "bciqp35uuygy6euohe42r6uereaygengpu4uibrah3ceue4kicyzvb4a": "2026-11-02T08:00:00Z"
+      }
+    },
+    {
+      "name": "revocation-takes-effect-from-evidence",
+      "reason": "A revocation dated 30 Oct but first seen on 10 Nov does not void a commitment first seen on 5 Nov.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-11-05T00:00:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "120",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-11-05T00:00:00Z",
+            "authority": [
+              "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+            ],
+            "proofValue": "z4QVYSnxNSBTgVHBqw8Xwq17o5Ja1yBZhUU2sjpXCjoqj2BrAUAVP3puftgH9MS6Y1cFTz7TSCorEYmqbsfXLyJ7N"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+      "extraRecords": [
+        {
+          "oip": "1",
+          "type": "Revocation",
+          "author": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+          "created": "2026-10-30T12:00:00Z",
+          "revokes": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq",
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui?versionId=0-bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui#z6MkrJ5iuv1vt3zBMNK9TvCQv7EC1zXkgxmudpScJJmDJiHX",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T12:00:00Z",
+              "proofValue": "zNjWygFqEACvMf59GGA3opMc14KBFb5ckTBzWqgh4R5Tpko9RFSo9yzDMeqqct4j1wyaMFBZaBqJD6YFLFs5PvWL"
+            }
+          ]
+        }
+      ],
+      "seen": {
+        "bciqe27ry4efg6363fzcz4cwfd3dklfml2du27hyvjig33i3deux6b5q": "2026-11-10T00:00:00Z"
+      }
+    }
+  ],
   "negative": [
     {
       "name": "threshold-duplicate-control-key",
@@ -1477,26 +2320,26 @@
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-30T09:20:00Z",
-              "proofValue": "z2knaTFQKV1VKKnQf6QCZSv376UuAAM6DZfWwSZUAizQ1Us95cUSi6oHwgNgxoCvFkqwFVceX62wmFe1qs9hG5Bgw"
+              "proofValue": "z2F1Jqa6xnq4FaFBsi45kQ8ax1Wf9LfHauLranVLVftpHqXv1yWsyC4KFaoJqZvR4ZoJsn26RLKAsM2UKJchBfbZo"
             },
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-30T09:20:00Z",
-              "proofValue": "z2Y9aAtchZB5NrWm28fMhxsgDfTL4LmUM9kxycdZaKa9J564CjxQnTQwcKT6k9Pww9TQL2EijEM8zJY71WN8m7hev"
+              "proofValue": "z4wyqZjxkDg9wLYLnJjVTLw952dJ9iViKpLVXeii93RbQj75gmDcMF4tBXPC4SJz7Qa5BUgzUtjLNy5PU61q9s4k9"
             },
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-30T09:20:00Z",
-              "proofValue": "z47LD9YTtbCp6dusbLXg2qsMeSmPzgYKC11b9LeHWVBysr3MLnnFpEQntsePg2tEaW11n5WXU13yZbzbExkrqPGaY"
+              "proofValue": "z49F5at9bwEQB1Vj4YW4Erqu9pd3g6wUySJT3z9o42fQ97kwdR2mywDgCVNNNUsgebaJYxpkU8HqJCt15xMv9pmLG"
             }
           ]
         }
@@ -1524,26 +2367,26 @@
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-30T09:20:00Z",
-              "proofValue": "z2KX9R5gYEEPxAoNBkSLLPepvGWWJfCCsYTJ9UMps2jtTvLQk8bAZKtKiXEtnxPPEa1Y9FSXkSxwes694DzmXPnHC"
+              "proofValue": "z42bGZm5Nb82aYVUc9FJrqh6TvM19z3mqtHz4ymUmrQaqtQQang9WJhcgFhjbrbz4tt6SpjTQyxCnVkyq5YG8pHJ4"
             },
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-30T09:20:00Z",
-              "proofValue": "zPY6weQ9V1LXCpSZqefQYD9RAZev431MqBJUQQ9zGwMpuic4gnS2GPNZDJDqDioKvtF1Z1M3zYoXHfXzJZdP3r7N"
+              "proofValue": "z4Jxui4fXWfc7V2gCnB7YYReGWVe8PVwWxikoq2XhQxUW9iYSSEQrYjjYQvgZKx8F1PEDgfKSx4bGPkzuzYthZdsC"
             },
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-30T09:20:00Z",
-              "proofValue": "z4eMFNaxLt2iV4ZeqqdERrhfBjnTh4Xxnk52NJDZWvE6ya6eJTWUCvVU3wx8CE9ZBbp279eg5CmkqRoWEAVd45oN3"
+              "proofValue": "z2a6B7EEEPvV9RK7HfK1b5ttEFSXWkW8DYRphoihJJDn1xVmtLRupKoZWXxPVB9wCTqvALFJwkhfa6XEU4wvV9qPq"
             }
           ]
         }
@@ -1571,18 +2414,65 @@
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-30T09:20:00Z",
-              "proofValue": "z3uC8c2D4vjJoLVcJRv5DBEdTyWZKjFpJy4xQ9Bf7H5HCFqEfn1SeBAzVYFWUvHjyjqGLGppBEfUyye3Ue2RJyPZW"
+              "proofValue": "z5xs6cw4KZ5s4FioAXb2usi4F9JBoUq8g6X4e1sycisAxSJ95v1GNPfw814ANBRqZWshHetFgzrVdFhE6Env9m2Rp"
             },
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-30T09:20:00Z",
-              "proofValue": "z3SGz1p1eV8ky1XuCFiWgaio48UyCiGHcRYeQCTQs2UQegTkgsiuZ9Kwtoc8hkAzgSccgqpdQg93x1dsN965QFrHg"
+              "proofValue": "z3uK7w4kE4t6ZHPzSyjVL3VEcPFw2BTjfbuzzdYTPuB47ZNAcDDmBLrXmFrbFFNGJcKG3DFMMiSspUtRJLQmbnPvC"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "collective-signed-with-operational-keys",
+      "reason": "Members sign a collective's identity events with invocation keys; everyday operational keys cannot change any identity.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "collective",
+          "created": "2026-10-30T09:20:00Z",
+          "controller": {
+            "members": [
+              "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+              "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+            ],
+            "threshold": 2
+          },
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z5yAEeEMcS8m62dbqzsKk53jNpwmZEpaAeVLob2SqTB2cXJSaTxYSPsu6pcK24mr73rUi6bRVzxxwbWgoGqtKCnsh"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z3m9qNUBnYUYqzU3inffHXL7myKjpLBzVRBdSYAEGgAZdr2DBtP8NFKKyzc9PMqstAeKYCfTQcNw56PvX5Lhm4KVx"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:20:00Z",
+              "proofValue": "z2Yi6qpqht2VE4UyTEBj59NsEsSsKJck9fWVfSwpVPpqxcBX3Axq69yvA9XZgah9Sw8xsEJuzEwaqM7YJ7poxpyg8"
             }
           ]
         }
@@ -1610,26 +2500,26 @@
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-30T09:20:00Z",
-              "proofValue": "z3uC8c2D4vjJoLVcJRv5DBEdTyWZKjFpJy4xQ9Bf7H5HCFqEfn1SeBAzVYFWUvHjyjqGLGppBEfUyye3Ue2RJyPZW"
+              "proofValue": "z5xs6cw4KZ5s4FioAXb2usi4F9JBoUq8g6X4e1sycisAxSJ95v1GNPfw814ANBRqZWshHetFgzrVdFhE6Env9m2Rp"
             },
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-30T09:20:00Z",
-              "proofValue": "z3SGz1p1eV8ky1XuCFiWgaio48UyCiGHcRYeQCTQs2UQegTkgsiuZ9Kwtoc8hkAzgSccgqpdQg93x1dsN965QFrHg"
+              "proofValue": "z3uK7w4kE4t6ZHPzSyjVL3VEcPFw2BTjfbuzzdYTPuB47ZNAcDDmBLrXmFrbFFNGJcKG3DFMMiSspUtRJLQmbnPvC"
             },
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-30T09:20:00Z",
-              "proofValue": "z2Yi6qpqht2VE4UyTEBj59NsEsSsKJck9fWVfSwpVPpqxcBX3Axq69yvA9XZgah9Sw8xsEJuzEwaqM7YJ7poxpyg8"
+              "proofValue": "z41P1xs2qX3qQEPy2pSd2joQFVLbat2AQ4CrP64ZZqBeayi94oWCnJRbTXZeLYBcViLGowjzmU6K3gncPRTF8DpDj"
             }
           ]
         },
@@ -1645,18 +2535,18 @@
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-31T00:00:00Z",
-              "proofValue": "z5uVMkh4NrmfpBNWeCBrwu565mLSZyXdJpNpYNeSEbY6eioV7QPXBvuripoS6gbsPfhubcJWRGHCPu9jntSvSjpLR"
+              "proofValue": "z4WCsYKW6RHxfTmCLxA6qdZ1hYpBY8CJEg5B9CSEXZAiycvbBuo5r6Wd3vLNxYBTYAVXpNuHpRVCHk9EwRgUNVeRF"
             },
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-31T00:00:00Z",
-              "proofValue": "z5GKSNcZjgUcMmj4n199vbTtR8Rsu8rS8trZtKmZbjPdvKLz8dXjAyTjxPUCBUb1E3s71qRiaX4GH5zAADjtq1Vb5"
+              "proofValue": "zJty2hR2EvwjWNaUpCD874S5mEDGfaRToTB1hpt2EkJ9Y7wdTsUHzwaXfmX819ANGJmZnFREJb9XdTR8vZy7UmyF"
             }
           ]
         },
@@ -1674,18 +2564,18 @@
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-31T01:00:00Z",
-              "proofValue": "z578TyE2tajY9o7md4RCJjJLpiCF1djw2wmAxNeg5iL1N2h4PXNGhLH43325Hs8EN1zW234YdoGh4pkRGEswoWpro"
+              "proofValue": "z24x9kWsVEEBmPPbBYWJdtTokKRSmLrUeUeViCqNxyfHWh6bg532n5dBEJ7Nxu8eaBAEAquhzFwZibhZ6x5DfnCgz"
             },
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+              "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
               "proofPurpose": "capabilityInvocation",
               "created": "2026-10-31T01:00:00Z",
-              "proofValue": "z5f7fRiH9ST72jsaKDJnjsjzpuuPfmcDkzVcmwNKYCmyCnzB47F5W1s5B2Zsk48hg9tA45WmNuzkR3S9YFBrxUtcg"
+              "proofValue": "z49VGpz7VwWTXxLoBZvNoVH6KFkMyUdEpDGK1o8ztL7jXXQdbppQYMe7R7Xwv4mgugtVeY2VYkpW6VGYHyYg3aEST"
             }
           ]
         }
@@ -1806,6 +2696,261 @@
       ]
     },
     {
+      "name": "non-canonical-content-id",
+      "reason": "`prev` spells the genesis content ID with non-zero padding bits. It decodes to the same bytes, but content IDs have one canonical spelling and are compared as strings.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "human",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+            ],
+            "next": [
+              "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "label": "amina-phone"
+            }
+          ],
+          "agreement": [
+            {
+              "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+              "label": "main"
+            }
+          ],
+          "homes": [
+            "https://amina.example"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+            }
+          ]
+        },
+        {
+          "oip": "1",
+          "type": "Update",
+          "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "seq": 1,
+          "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgnb",
+          "created": "2026-10-30T09:05:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+            ],
+            "next": [
+              "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "label": "amina-phone"
+            },
+            {
+              "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+              "label": "amina-laptop"
+            }
+          ],
+          "invocation": [
+            {
+              "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+              "label": "amina-invocation"
+            }
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:05:00Z",
+              "proofValue": "z38XQNkaUR4Ki5YZkiQFaav2yj3tRXd1hU7YjKbu3MDP8c3TMcByCMBxQecDocBbiAMMFL2BxXzS4e8AKPc6Mmh7K"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "revoked-key-readded",
+      "reason": "A key listed in `revoked` can never be added again.",
+      "kind": "log",
+      "log": [
+        {
+          "oip": "1",
+          "type": "Genesis",
+          "kind": "human",
+          "created": "2026-10-30T09:00:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+            ],
+            "next": [
+              "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "label": "amina-phone"
+            }
+          ],
+          "agreement": [
+            {
+              "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+              "label": "main"
+            }
+          ],
+          "homes": [
+            "https://amina.example"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:00:00Z",
+              "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+            }
+          ]
+        },
+        {
+          "oip": "1",
+          "type": "Update",
+          "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "seq": 1,
+          "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "created": "2026-10-30T09:05:00Z",
+          "controller": {
+            "keys": [
+              "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+            ],
+            "next": [
+              "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "label": "amina-phone"
+            },
+            {
+              "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+              "label": "amina-laptop"
+            }
+          ],
+          "invocation": [
+            {
+              "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+              "label": "amina-invocation"
+            }
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-10-30T09:05:00Z",
+              "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+            }
+          ]
+        },
+        {
+          "oip": "1",
+          "type": "Update",
+          "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "seq": 2,
+          "prev": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
+          "created": "2026-11-02T08:00:00Z",
+          "controller": {
+            "keys": [
+              "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+            ],
+            "next": [
+              "bciqlztaugk22rnawzs6glt6bxbmy2smcv7ptzvjqhe2z4lgfbrnyjvi"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+              "label": "amina-laptop"
+            }
+          ],
+          "revoked": [
+            {
+              "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx"
+            }
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-11-02T08:00:00Z",
+              "proofValue": "z3afYGX8Zd2edtSzxsncdQkMrSqHrx21PB7NYgkC3Ye4uk6rtus6j8n2WajsAF3RxwzkE7M8D9wJGZYv2aqgZBbuA"
+            }
+          ]
+        },
+        {
+          "oip": "1",
+          "type": "Update",
+          "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+          "seq": 3,
+          "prev": "bciqouqnbcts2545ednmfzpaicgg6qwx7hectizjj44geub7j4gjvgki",
+          "created": "2026-11-03T08:00:00Z",
+          "controller": {
+            "keys": [
+              "z6MkfdR1VtpR9DFfEYbXhfBbWmgHaL5RSD2WYDRBYvrhPJcz"
+            ],
+            "next": [
+              "bciqfzqteysfmumkmjskwpw24e3jkqp4acuhhwvevwxnn7wphw4u3mti"
+            ],
+            "nextThreshold": 1
+          },
+          "keys": [
+            {
+              "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "label": "amina-phone"
+            },
+            {
+              "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+              "label": "amina-laptop"
+            }
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:key:z6MkfdR1VtpR9DFfEYbXhfBbWmgHaL5RSD2WYDRBYvrhPJcz#z6MkfdR1VtpR9DFfEYbXhfBbWmgHaL5RSD2WYDRBYvrhPJcz",
+              "proofPurpose": "capabilityInvocation",
+              "created": "2026-11-03T08:00:00Z",
+              "proofValue": "z4uBhvv5uo2e1tsZUMNgCzufBsXmwHzZAeKeCVriTRoZucXRtiKpJo5KdRTxKC93jWoZ6nAsioW4f4v2mgFYH2Dy"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "wrong-proof-purpose",
       "reason": "An Intent needs an assertionMethod proof; an authentication proof does not count.",
       "kind": "countsFor",
@@ -1836,10 +2981,10 @@
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
             "proofPurpose": "authentication",
             "created": "2026-10-30T10:00:00Z",
-            "proofValue": "ztdMFSdSyLvVbQv8s2XeCbJxvQu5WUYLcD7dQ7vyWgkZ2UP51k5Bt5C7VDt3YLZH4TQNRwkdg9kDHEAg6bopBZw6"
+            "proofValue": "z2V9AXCnVSE8EcJjWsXBugwmgq41sS4PdfdSgvCJmzq45U4L38zhJaHJWEV8tS2smAmo5MJndaSnwjR6r9zXUamgr"
           }
         ]
       },
@@ -1879,6 +3024,56 @@
           "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
         ],
         "closesIntent": true,
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6Mko3DSnmEi8gQ9nNaB8m3eBfr8SANAUrvYNcV2TbRFxLFj",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:20:00Z",
+            "authority": [
+              "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+            ],
+            "proofValue": "z2yeYhXxUXeUgiQ3pv3aKyLznU8L45XUpPLD7apxRFx6F23LA12YrZsyUB9GDQ4rrjFemRU9neZvMZqSKrBXxjisx"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+    },
+    {
+      "name": "delegation-outside-the-proof",
+      "reason": "A delegate's proof lists the delegations it relies on in its own `authority`. A record-level `authority` member is not part of the protocol and authorises nothing.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:20:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "120",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
         "authority": [
           "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
         ],
@@ -1886,10 +3081,10 @@
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6Mko3DSnmEi8gQ9nNaB8m3eBfr8SANAUrvYNcV2TbRFxLFj",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:20:00Z",
-            "proofValue": "z3Rwghsft9QzEX1uwhnkjfLSKSkZHqVrAtosZf19EeCN2dmcJ8ycWXcRp9EFKR8hy9yZATWA9bG25vDpxqEaSuSTA"
+            "proofValue": "z62v28prSdAMZpXbEz6Goca6j2TYUVZWMcbHjExCuC1WRwU8o5F6sp2VMMF2dYLrUjyboezbjdTgSsaivkqbHr6i"
           }
         ]
       },
@@ -1910,38 +3105,38 @@
         "policy": [],
         "expires": "2027-10-30T09:30:00Z",
         "nonce": "f00dfeedc0ffee11",
-        "authority": [
-          {
-            "oip": "1",
-            "type": "Delegation",
-            "author": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
-            "created": "2026-10-30T09:31:00Z",
-            "delegate": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
-            "subject": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
-            "command": "/oip/sign/Delegation",
-            "policy": [],
-            "expires": "2026-11-30T09:30:00Z",
-            "nonce": "0d3a5c7e9b1f2468",
-            "proof": [
-              {
-                "type": "DataIntegrityProof",
-                "cryptosuite": "eddsa-jcs-2022",
-                "verificationMethod": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui?versionId=0-bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui#z6MkrJ5iuv1vt3zBMNK9TvCQv7EC1zXkgxmudpScJJmDJiHX",
-                "proofPurpose": "capabilityDelegation",
-                "created": "2026-10-30T09:31:00Z",
-                "proofValue": "z32eQsAoxL5JrSKjH6LFNtnmxP7HyMEgtzsr2vf33WkaRRnWGwxx1Gm7wt65bvbjq6BdEqwjNAEEr7bZBZgavDwg9"
-              }
-            ]
-          }
-        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "capabilityDelegation",
             "created": "2026-10-30T09:31:00Z",
-            "proofValue": "zAUa1xXLT6RzACPFP4SfbTkAEM8BKgQpfXgCP5w4ePefH8x7kmSD95q6fs7qHx3Q4xwXfe47aYBwVSFWXbkHJymd"
+            "authority": [
+              {
+                "oip": "1",
+                "type": "Delegation",
+                "author": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+                "created": "2026-10-30T09:31:00Z",
+                "delegate": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                "subject": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+                "command": "/oip/sign/Delegation",
+                "policy": [],
+                "expires": "2026-11-30T09:30:00Z",
+                "nonce": "0d3a5c7e9b1f2468",
+                "proof": [
+                  {
+                    "type": "DataIntegrityProof",
+                    "cryptosuite": "eddsa-jcs-2022",
+                    "verificationMethod": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui?versionId=0-bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui#z6MkrJ5iuv1vt3zBMNK9TvCQv7EC1zXkgxmudpScJJmDJiHX",
+                    "proofPurpose": "capabilityDelegation",
+                    "created": "2026-10-30T09:31:00Z",
+                    "proofValue": "z32eQsAoxL5JrSKjH6LFNtnmxP7HyMEgtzsr2vf33WkaRRnWGwxx1Gm7wt65bvbjq6BdEqwjNAEEr7bZBZgavDwg9"
+                  }
+                ]
+              }
+            ],
+            "proofValue": "z27fgV8ke19x4Un5RRwAnqEKeuTX8YT9EURHuCNsXywCavtTHwCHKTrkMQU3Cs8fBo6sdvm9Cfe4sY2xzJ38K9mch"
           }
         ]
       },
@@ -1981,38 +3176,38 @@
           "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
         ],
         "closesIntent": true,
-        "authority": [
-          {
-            "oip": "1",
-            "type": "Delegation",
-            "author": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
-            "created": "2026-10-30T09:32:00Z",
-            "delegate": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
-            "subject": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
-            "command": "/oip",
-            "policy": [],
-            "expires": "2026-11-30T09:30:00Z",
-            "nonce": "b1a2c3d4e5f60718",
-            "proof": [
-              {
-                "type": "DataIntegrityProof",
-                "cryptosuite": "eddsa-jcs-2022",
-                "verificationMethod": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui?versionId=0-bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui#z6MkrJ5iuv1vt3zBMNK9TvCQv7EC1zXkgxmudpScJJmDJiHX",
-                "proofPurpose": "capabilityDelegation",
-                "created": "2026-10-30T09:32:00Z",
-                "proofValue": "z4xcuMrFxTcFmJJzb5BrDAj4Je8JVq7wLfF9avT6HNPbPSno1tackCcdGLTnxLqySyhQ5jn89TobRvyBHaxmx4D8a"
-              }
-            ]
-          }
-        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:20:00Z",
-            "proofValue": "z4bon6eBESbTDjCKmt3oyHVDyXXXKWoJ7WDeLEQiYmUxMo4nP8vTeURxrBYWrrmWDmyAm9Yz3x5xYoNeKBPvFdAMP"
+            "authority": [
+              {
+                "oip": "1",
+                "type": "Delegation",
+                "author": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+                "created": "2026-10-30T09:32:00Z",
+                "delegate": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                "subject": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+                "command": "/oip",
+                "policy": [],
+                "expires": "2026-11-30T09:30:00Z",
+                "nonce": "b1a2c3d4e5f60718",
+                "proof": [
+                  {
+                    "type": "DataIntegrityProof",
+                    "cryptosuite": "eddsa-jcs-2022",
+                    "verificationMethod": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui?versionId=0-bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui#z6MkrJ5iuv1vt3zBMNK9TvCQv7EC1zXkgxmudpScJJmDJiHX",
+                    "proofPurpose": "capabilityDelegation",
+                    "created": "2026-10-30T09:32:00Z",
+                    "proofValue": "z4xcuMrFxTcFmJJzb5BrDAj4Je8JVq7wLfF9avT6HNPbPSno1tackCcdGLTnxLqySyhQ5jn89TobRvyBHaxmx4D8a"
+                  }
+                ]
+              }
+            ],
+            "proofValue": "z4g9hiEW3aeQWf3HGqXKRXjVKqSQiE2fiTrFa8YGm9Z8cxeaoYisrxrcLv3i1yV71iyPTpfPyb9XrAguZGzKRqRHE"
           }
         ]
       },
@@ -2052,17 +3247,17 @@
           "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
         ],
         "closesIntent": true,
-        "authority": [
-          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
-        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:20:00Z",
-            "proofValue": "z4tFSKpS21ubu1bcDghB3ubJzRAwwLjThqGm9p7F1FQdu3NtygueCChKobVTnfzwLgaYA7ZAYRMYPwQ7qCAGVQ4d3"
+            "authority": [
+              "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+            ],
+            "proofValue": "z4J2hEFEWKfmKaovSswobgDYCWoVD6bdhk6YQp1toKPnurF3PLaSBzmfQBv2VtX7oKyumJp77nVk9zdxPLGpuhJGZ"
           }
         ]
       },
@@ -2102,17 +3297,17 @@
           "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
         ],
         "closesIntent": true,
-        "authority": [
-          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
-        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:20:00Z",
-            "proofValue": "z4wHJqCwm8zUKzrzdur8Pg3QgCDXEnr374CrWrqUm1Ftko2TnXqJKSqB1txGUS1CkYTmRG8eC2KyuohBMQyEHFiih"
+            "authority": [
+              "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+            ],
+            "proofValue": "zCrVdqXoDSFUc6muhyKb6TnBN5rpPDv9G2xq63bLaKLvWhugkBKMVrN1N7oaLnMZMQ8QaEtJdRUKoQ9zcgN1EKcn"
           }
         ]
       },
@@ -2152,17 +3347,17 @@
           "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
         ],
         "closesIntent": true,
-        "authority": [
-          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
-        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:20:00Z",
-            "proofValue": "z4hTyVxpNRiDLk9YsXp4xNgqmMaQJ9NLBuTyupcLk5H7FGPPzhETvSbKtkrb1fyBZnGyKKr2weoe7uDZD6YfuGoge"
+            "authority": [
+              "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+            ],
+            "proofValue": "znP7L4QkG4R51khxJxaUqvkbnrneMxFViT8qk274dCk1k9mo5dYKMufvjEUPFR7BqpFJLHEqyAsnfViL4HYQuQQg"
           }
         ]
       },
@@ -2202,17 +3397,17 @@
           "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
         ],
         "closesIntent": true,
-        "authority": [
-          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
-        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:20:00Z",
-            "proofValue": "z2yxNCC6XpT4BHJWguhAT63cne3WKeZ4nLz8doprvZ3ASVPygSBU6fEcZq5q3TobnpqofgJyaMKBYZBRtDAzmERqS"
+            "authority": [
+              "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+            ],
+            "proofValue": "z2scvTkZrkYQAM8ktgGMfabWaJ9nJvPtNxqD24eZmqXLw6wFxtBFduhrFpTjqRhsnFjN6TscqngXaVB8G61W46Rzg"
           }
         ]
       },
@@ -2252,17 +3447,17 @@
           "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
         ],
         "closesIntent": true,
-        "authority": [
-          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
-        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:20:00Z",
-            "proofValue": "zsXiXPwiMFwenWAT3gVquwhaNo9ppHB7eY3E3qeqTGw8EaujGjGG4uoPQSg7f4Q3zvM99Z7k5dx7K3AHthaHp5P5"
+            "authority": [
+              "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+            ],
+            "proofValue": "z2PbujKYJiviyw5WJy37d93SLA5fNf4XYyrNiBQjsrBrxx1D9nWvAmAowKg7LGxGFbeyTSZAgQmScdMqRkTNr6Rao"
           }
         ]
       },
@@ -2302,17 +3497,17 @@
           "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
         ],
         "closesIntent": true,
-        "authority": [
-          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
-        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:20:00Z",
-            "proofValue": "z5iEf6WKgte95Gc9RhNP7p8oywj8PRM6fvQ9sPKSDv4deLfgtZT78y9FoPmShLgdQm8XAQmHzdP2XkdeX9zVQvNjU"
+            "authority": [
+              "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+            ],
+            "proofValue": "zmvfgFx3g89D6Nfq61FaZDwFAEdL4Z6cBCaJKqtjYsfirRyJeE3LcPw4UqCpXHgv7Rd56Yum5RzePWia8eZ3wCrG"
           }
         ]
       },
@@ -2352,21 +3547,66 @@
           "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
         ],
         "closesIntent": true,
-        "authority": [
-          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
-        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:20:00Z",
-            "proofValue": "zj3EDfbTZcJrH7Fbkw8siEbZpU41jGHbywzaNqYDWECJm8ZZiZhrd6GngGXMuCraqWB6YMZKPDMKT2dHjdokaqMf"
+            "authority": [
+              "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+            ],
+            "proofValue": "z4Yhi7tbrs8GqaVAoV7PRXzf5GWjLcfunrp9MJRr2EYHomXsXM7KEuSYkaFktfLxzLDw5syFhmeV3fi8QRSSPCiFU"
           }
         ]
       },
       "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui"
+    },
+    {
+      "name": "policy-counterparty",
+      "reason": "Amina's assistant may commit her only to deals whose parties are Amina and Lexis Ltd; a deal with the researcher is outside its delegation.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:40:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver the translation by 1 Nov 2026 06:00 UTC, twelve hours early; Amina will pay a 30 USD rush fee on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T06:00:00Z",
+          "price": {
+            "amount": "30",
+            "currency": "USD"
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqdijuuvrylgdjtyylenmf7llyctlbzzqnvj5plxhrxl7oiipox2na?versionId=0-bciqdijuuvrylgdjtyylenmf7llyctlbzzqnvj5plxhrxl7oiipox2na#z6Mkqyvb9guJXXERFw5Ye1BZDcrDU6RLWcxv77QcbtYD68Lk",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:40:00Z",
+            "authority": [
+              "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqbxuumvj7ipv6gclnrdh5vdimvoj5ikitt66m4fpps7onul3npkry"
+            ],
+            "proofValue": "z53G7v1LD6mKQ73YNRCWz6xgoP7cZibTMmNHavvfvSN7VxjMAYaDdmmuTokY2axPcapLiAZgeUvpHNzUPmCqJTPqp"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
     },
     {
       "name": "removed-key-backdated",
@@ -2399,10 +3639,10 @@
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
             "proofPurpose": "assertionMethod",
             "created": "2026-11-01T08:00:00Z",
-            "proofValue": "z5XZ9WVvxA8kza28s2Fr8nYAvHZDG4N4hXWVgT9G5rF5D9EzWHPgXKhXqeFgc9wnqxaZLa3ucP7yL2w6ni74VvcPr"
+            "proofValue": "z48e2TbzMnXqTiWLwAjHt7mVzXgaoKfomFEXFaBLwaApa6Koy9LQyzsbApsYsxsP4HPfk4dmPZKuTpVHWsA5PstT3"
           }
         ]
       },
@@ -2475,6 +3715,12 @@
                 "label": "amina-laptop"
               }
             ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
             "proof": [
               {
                 "type": "DataIntegrityProof",
@@ -2482,7 +3728,7 @@
                 "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
                 "proofPurpose": "capabilityInvocation",
                 "created": "2026-10-30T09:05:00Z",
-                "proofValue": "z4vRRzFpLnRWfksMGLqoqVnWT1Q3aeuuJiRnVepPUThZdakg8jKHzCLBihJufVHDL8xPJ8NCQDWJjPU6KnYdARVTg"
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
               }
             ]
           },
@@ -2491,7 +3737,7 @@
             "type": "Update",
             "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
             "seq": 2,
-            "prev": "bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i",
+            "prev": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
             "created": "2026-11-02T08:00:00Z",
             "controller": {
               "keys": [
@@ -2515,7 +3761,7 @@
                 "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
                 "proofPurpose": "capabilityInvocation",
                 "created": "2026-11-02T08:00:00Z",
-                "proofValue": "z4CGeY2S9AoUTeKifHWPaW4aCcFmSAZaENNCLTYXhQAkRe1W4NrAD9YJpGhv69EWNbm9WEtB4ZMSG58KgcrdGoi9U"
+                "proofValue": "z3kw62fek5CEFdp1UXF7qnLxQ8h2PC3P1qdFjevGmCYAiRiwE3YdXaADPupXMZ6WC1pS5MhwJc6m8vqrspV8cP7HE"
               }
             ]
           }
@@ -2534,7 +3780,7 @@
         "type": "Intent",
         "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
         "created": "2026-10-30T23:00:00Z",
-        "expires": "2026-10-31T10:00:00Z",
+        "expires": "2026-11-08T08:00:00Z",
         "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
         "constraints": {
           "deadline": "2026-11-02T17:00:00Z",
@@ -2556,10 +3802,10 @@
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T23:00:00Z",
-            "proofValue": "z5p17NFokAEFokdeX4UsP47s7BF6ETSwGoAwsR27x5qhrzbCZs3qA5gh6PKUqD5FxBHUfrMBzqTNa8ikWx4r7BH9e"
+            "proofValue": "z4GSn7rtLNu3antX2CzMGLozznuP3uTZAzhd8qvJ2sYEC9xZNrKZ9JFS9XH5xsuEQWBfU2beniTNJ4ZNnASJ8oWXo"
           }
         ]
       },
@@ -2632,6 +3878,12 @@
                 "label": "amina-laptop"
               }
             ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
             "proof": [
               {
                 "type": "DataIntegrityProof",
@@ -2639,7 +3891,7 @@
                 "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
                 "proofPurpose": "capabilityInvocation",
                 "created": "2026-10-30T09:05:00Z",
-                "proofValue": "z4vRRzFpLnRWfksMGLqoqVnWT1Q3aeuuJiRnVepPUThZdakg8jKHzCLBihJufVHDL8xPJ8NCQDWJjPU6KnYdARVTg"
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
               }
             ]
           },
@@ -2648,7 +3900,7 @@
             "type": "Update",
             "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
             "seq": 2,
-            "prev": "bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i",
+            "prev": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
             "created": "2026-11-02T08:00:00Z",
             "controller": {
               "keys": [
@@ -2678,14 +3930,14 @@
                 "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
                 "proofPurpose": "capabilityInvocation",
                 "created": "2026-11-02T08:00:00Z",
-                "proofValue": "z3P38q6vnnRoArhSjKkqdEvEphmNwXqv9F1cthUGSVa5CQyAdudSgS6sKRahPcY8vNxytwoWq9VvwzFRhiaBHVmRD"
+                "proofValue": "zN7e7cpjewN4R1qUc5SHct625s9YgZ3XX2hYRvDpanzpYsUQqfnaZEBuXdYKGAvV1dtcxPFDnwjjeMt8Ys2pS9o8"
               }
             ]
           }
         ]
       ],
       "seen": {
-        "bciqpra5cr7nr2j3sqxtfqrobjiizusfssa52pvzly7vm54lm6gmrxia": "2026-11-01T00:00:00Z"
+        "bciqndsabhvhp2izmxjuagwfwpkj4qsa344mqqpdfjeera23mq37qqny": "2026-11-01T00:00:00Z"
       }
     },
     {
@@ -2722,23 +3974,23 @@
           "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
         ],
         "closesIntent": true,
-        "authority": [
-          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
-        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "assertionMethod",
             "created": "2026-11-29T00:00:00Z",
-            "proofValue": "z4Knq8UmxujvUHWTQt1Bvk9eeNXqg3a9mbtgDRpxaGKrH9RuSk5KdVtESS56nS73NMZZd2ydKE6m3ZgHdtsMks5Lq"
+            "authority": [
+              "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+            ],
+            "proofValue": "z3xtLXN1hYN3Sguw6d8m5zXhSnkfoZKUDR6sWgPbq5GQa4TEWw8hzwzbTJEPf8DKfNKYk5bEhLHzws9JUhWWHhRv3"
           }
         ]
       },
       "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
       "seen": {
-        "bciqijj4u7n2bfc2mgrrhafaivettixarlhqusehjcm4t6uraamptfri": "2026-12-05T00:00:00Z"
+        "bciqdwkiix4ux2b6ukjb2wnv6ikabjw76vefwtu4orkr52jnrxn4prgy": "2026-12-05T00:00:00Z"
       }
     },
     {
@@ -2775,17 +4027,17 @@
           "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
         ],
         "closesIntent": true,
-        "authority": [
-          "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
-        ],
         "proof": [
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "assertionMethod",
             "created": "2026-11-05T00:00:00Z",
-            "proofValue": "z5Jg3nFHjmXmYot8uuwVcNzL9uP84sMqz3Ttworm96vpbUbkQFhFbwf5bPyaQ7RFmPewxAeYtvVars1khFBCQ1L7x"
+            "authority": [
+              "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+            ],
+            "proofValue": "z4QVYSnxNSBTgVHBqw8Xwq17o5Ja1yBZhUU2sjpXCjoqj2BrAUAVP3puftgH9MS6Y1cFTz7TSCorEYmqbsfXLyJ7N"
           }
         ]
       },
@@ -2810,7 +4062,7 @@
         }
       ],
       "seen": {
-        "bciqol5kqyhq3sn2fduirgmqk7fdh4dfaht4xhs3l7tsi5e7oprtah3a": "2026-11-12T00:00:00Z"
+        "bciqjvn6ms6tkbfavko3dcojypbgsh2rtpsbdmyyktzbcgmity3lyasa": "2026-11-12T00:00:00Z"
       }
     },
     {
@@ -2835,10 +4087,10 @@
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T23:00:00Z",
-            "proofValue": "z4cPnt3W4UANLgBXH9Bo2BBwwdixQcs9hqAFmkVcbrGn9mGefpfsyr5aoNNqevZiwnnJgT1srjTg5ySjKBKsR41QY"
+            "proofValue": "zCfYamQyQMQ2pYmwEDNkCCjRTeFt7QNbtFXRMKFGVRmM78cwpZoBBibjW1vAXb15ZVqEdVx5V3Bm3mnpBQfUyZ3W"
           }
         ]
       },
@@ -2862,26 +4114,26 @@
               {
                 "type": "DataIntegrityProof",
                 "cryptosuite": "eddsa-jcs-2022",
-                "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
                 "proofPurpose": "capabilityInvocation",
                 "created": "2026-10-30T09:20:00Z",
-                "proofValue": "z3uC8c2D4vjJoLVcJRv5DBEdTyWZKjFpJy4xQ9Bf7H5HCFqEfn1SeBAzVYFWUvHjyjqGLGppBEfUyye3Ue2RJyPZW"
+                "proofValue": "z5xs6cw4KZ5s4FioAXb2usi4F9JBoUq8g6X4e1sycisAxSJ95v1GNPfw814ANBRqZWshHetFgzrVdFhE6Env9m2Rp"
               },
               {
                 "type": "DataIntegrityProof",
                 "cryptosuite": "eddsa-jcs-2022",
-                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
                 "proofPurpose": "capabilityInvocation",
                 "created": "2026-10-30T09:20:00Z",
-                "proofValue": "z3SGz1p1eV8ky1XuCFiWgaio48UyCiGHcRYeQCTQs2UQegTkgsiuZ9Kwtoc8hkAzgSccgqpdQg93x1dsN965QFrHg"
+                "proofValue": "z3uK7w4kE4t6ZHPzSyjVL3VEcPFw2BTjfbuzzdYTPuB47ZNAcDDmBLrXmFrbFFNGJcKG3DFMMiSspUtRJLQmbnPvC"
               },
               {
                 "type": "DataIntegrityProof",
                 "cryptosuite": "eddsa-jcs-2022",
-                "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+                "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
                 "proofPurpose": "capabilityInvocation",
                 "created": "2026-10-30T09:20:00Z",
-                "proofValue": "z2Yi6qpqht2VE4UyTEBj59NsEsSsKJck9fWVfSwpVPpqxcBX3Axq69yvA9XZgah9Sw8xsEJuzEwaqM7YJ7poxpyg8"
+                "proofValue": "z41P1xs2qX3qQEPy2pSd2joQFVLbat2AQ4CrP64ZZqBeayi94oWCnJRbTXZeLYBcViLGowjzmU6K3gncPRTF8DpDj"
               }
             ]
           },
@@ -2903,18 +4155,18 @@
               {
                 "type": "DataIntegrityProof",
                 "cryptosuite": "eddsa-jcs-2022",
-                "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
                 "proofPurpose": "capabilityInvocation",
                 "created": "2026-10-31T00:00:00Z",
-                "proofValue": "zzWUv66LwfNtStzgVGsDUjP9QjQrhBAfMBcNsMiHTvWxQbiXcsy1NFd4hWu47ANdPLWvvVpWFRPuTTCooeEzqxNY"
+                "proofValue": "zN39GcQWKJAtMMssrRAxpnXMWWLHZsps48tJ6feCWxG4ZjtiPVZDKDdTdbzaR6KkCW55zgEMe439QcfunmQUAmJC"
               },
               {
                 "type": "DataIntegrityProof",
                 "cryptosuite": "eddsa-jcs-2022",
-                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
                 "proofPurpose": "capabilityInvocation",
                 "created": "2026-10-31T00:00:00Z",
-                "proofValue": "z3pzsKZKJr3QBjZKsmXyLr6nTa92hF1fTCurTGmN6Af1xorkQ4vY4YveVSVZpLbKBc3nQGB1SYgyB4B3iB9ZfZJAt"
+                "proofValue": "z5XpaoN4W1RLLPWfrMYZ9tfrUygmBfZDYk1F8CnDpniibopL5bh32bZCjRhD4ViGyfw8vahirgtd41CSMG6vttXWt"
               }
             ]
           }
@@ -2955,10 +4207,10 @@
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:30:00Z",
-            "proofValue": "z4uGq2xhfqFzHV7XmjTw6tPCNBR8p9gbQbXNZ32LWhRfGfRSp25p92jdyC8LsKeBUCyJLB5xVSoeWGw299yX2qyNG"
+            "proofValue": "z3TUT96noyDMbCzqWoZtYzmyknTdvtGpEVYuH43PVvUFSGDQb6PPVNCHU3LT2FAa4ad97KsMQYqrDHxv6SYLUDxjU"
           }
         ]
       },
@@ -2966,6 +4218,46 @@
       "seen": {
         "bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i": "2026-10-30T10:00:00Z"
       }
+    },
+    {
+      "name": "proof-after-record-expiry",
+      "reason": "The Intent expires on 31 Oct 10:00; a proof made after that does not count.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-10-30T10:00:00Z",
+        "expires": "2026-10-31T10:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-31T11:00:00Z",
+            "proofValue": "z5J9CApq8NwtLLs2vEGoXTJZzRKtUvmjurmvUefUVCs3LEXBATYDAWKTRh2B1URqnNUYUB4tcBCvniX1uH3X6Mtd6"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna"
     },
     {
       "name": "outsider-closes-intent",
@@ -2998,10 +4290,10 @@
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:00:00Z",
-            "proofValue": "zryAqjpsGHasCvk3qKHUVqhnUTdH8Ezmoz613gccm9Keu518wsJRPYutjRc6fvU7kAd6FnoyMVV3aEsKQAXMf12d"
+            "proofValue": "z4FLN2prJLehkrLxaAK2pSi4gnvCeiWUdUAKrsRZ38FQtUsRumXhh77fHnQMHjRPYcfXQ4ss5ogoR6K8pjwpnXALG"
           }
         ]
       },
@@ -3033,10 +4325,10 @@
             {
               "type": "DataIntegrityProof",
               "cryptosuite": "eddsa-jcs-2022",
-              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqpjsvubu3c6ldbutgtxu3u5x4so57tprlroria7dqkkp3e3kcx33i#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
               "proofPurpose": "assertionMethod",
               "created": "2026-10-30T10:00:00Z",
-              "proofValue": "zryAqjpsGHasCvk3qKHUVqhnUTdH8Ezmoz613gccm9Keu518wsJRPYutjRc6fvU7kAd6FnoyMVV3aEsKQAXMf12d"
+              "proofValue": "z4FLN2prJLehkrLxaAK2pSi4gnvCeiWUdUAKrsRZ38FQtUsRumXhh77fHnQMHjRPYcfXQ4ss5ogoR6K8pjwpnXALG"
             }
           ]
         },
@@ -3090,6 +4382,245 @@
       ],
       "at": "2026-10-30T12:00:00Z",
       "expect": "open"
+    },
+    {
+      "name": "compromise-claim-shows-dispute",
+      "reason": "Amina declares the key that co-signed the commitment compromised since before she signed. Her signature no longer counts, so the commitment is not accepted; it shows as disputed, not as merely proposed.",
+      "kind": "status",
+      "of": {
+        "oip": "1",
+        "type": "Commitment",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:20:00Z",
+        "parties": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "role": "debtor",
+            "required": true
+          },
+          {
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "role": "creditor",
+            "required": true
+          }
+        ],
+        "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+        "terms": {
+          "deadline": "2026-11-01T18:00:00Z",
+          "price": {
+            "amount": "120",
+            "currency": "USD"
+          }
+        },
+        "resolves": [
+          "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+          "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+        ],
+        "closesIntent": true,
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:20:00Z",
+            "authority": [
+              "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+            ],
+            "proofValue": "z2QT2xqNJFqUJd3FVwhSZfPUnPe4zt1sEY8fy8kFySHjVjgtDsKGnjitdGBRtntHaTcdACsGE7SfGzJPAZJa91nwP"
+          },
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:22:00Z",
+            "proofValue": "z2HPD3sn6WZaekd2N8GqkkjALKDfErijiu5EfyoeYXDiz9nTv1nrLqNMqwJ3DLtVC94HSo7hrwtafvdHNZw3tw6gc"
+          }
+        ]
+      },
+      "records": [
+        {
+          "oip": "1",
+          "type": "Commitment",
+          "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+          "created": "2026-10-30T10:20:00Z",
+          "parties": [
+            {
+              "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+              "role": "debtor",
+              "required": true
+            },
+            {
+              "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+              "role": "creditor",
+              "required": true
+            }
+          ],
+          "promise": "Lexis Ltd will deliver an English translation of the lease by 1 Nov 2026 18:00 UTC; Amina will pay 120 USD on delivery.",
+          "terms": {
+            "deadline": "2026-11-01T18:00:00Z",
+            "price": {
+              "amount": "120",
+              "currency": "USD"
+            }
+          },
+          "resolves": [
+            "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna/bciqd6w4jjo5tlzjh4lkzak6owbrkaimg5cpwsbjld2lli6ls5kfuw5i",
+            "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi/bciqhqobfvyuwl2m3v2dbvbu2m4l3zewwas34aaq5wf4u7giu7j5hyhq"
+          ],
+          "closesIntent": true,
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T10:20:00Z",
+              "authority": [
+                "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqpsgc7afbpq4jwwsweg4dpjtxg5347xve7mtzcg56kkmjv3rq4ohq"
+              ],
+              "proofValue": "z2QT2xqNJFqUJd3FVwhSZfPUnPe4zt1sEY8fy8kFySHjVjgtDsKGnjitdGBRtntHaTcdACsGE7SfGzJPAZJa91nwP"
+            },
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T10:22:00Z",
+              "proofValue": "z2HPD3sn6WZaekd2N8GqkkjALKDfErijiu5EfyoeYXDiz9nTv1nrLqNMqwJ3DLtVC94HSo7hrwtafvdHNZw3tw6gc"
+            }
+          ]
+        }
+      ],
+      "at": "2026-11-03T12:00:00Z",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 2,
+            "prev": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
+            "created": "2026-11-02T08:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+              ],
+              "next": [
+                "bciqlztaugk22rnawzs6glt6bxbmy2smcv7ptzvjqhe2z4lgfbrnyjvi"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "revoked": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "compromisedSince": "2026-10-30T10:00:00Z"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-11-02T08:00:00Z",
+                "proofValue": "zbR5jds6ezLrwcepxZabK9btbDxFJjzMfyUCVbEBBeAzy6pHhzX3d7KBUVuTr2VqxFL8xSEeaeWx7WuTneuTs4gM"
+              }
+            ]
+          }
+        ]
+      ],
+      "expect": "disputed"
     },
     {
       "name": "packet-short-nonce",
@@ -3148,10 +4679,10 @@
                   {
                     "type": "DataIntegrityProof",
                     "cryptosuite": "eddsa-jcs-2022",
-                    "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+                    "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
                     "proofPurpose": "assertionMethod",
                     "created": "2026-10-30T10:04:00Z",
-                    "proofValue": "z4WLETt6K2b8rw4NYNqX4WtxfpLKEwyfPeu6xEiQx9ZsyuaoydXirPqbFdvEknys3BuaqjS8Wuiq428bVnk6sVTip"
+                    "proofValue": "z48LwNapRAa26eQcxjoXrqNDwNM6Ha1wmAhs1WDqedPnFup62u6TKNAo278W7RiNs8EM2YuBZdcu6frbxwWrCezCs"
                   }
                 ]
               }
@@ -3168,10 +4699,10 @@
           {
             "type": "DataIntegrityProof",
             "cryptosuite": "eddsa-jcs-2022",
-            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqkbhmwvd57dqjhxpargaoygpozzv4jvnj7m7nvfa2bsvqbv4m5fhy#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
             "proofPurpose": "assertionMethod",
             "created": "2026-10-30T10:04:05Z",
-            "proofValue": "z5EWzTdy4K3sHgXjjGC9yS5AnPP4GYJsE4SgB596jGGWC1eBQwqvyrArYR6M6torm4L9iWy2yJme9F1bbCqBRgjWr"
+            "proofValue": "z4RxNLNP8Ut3fkk3NzRvQXJbKB6dbgStT2r1Jo6SrUPV9vCPspe4BogKzrbJ1HogttYAgs6VU2oYPudifDssaG61p"
           }
         ]
       }

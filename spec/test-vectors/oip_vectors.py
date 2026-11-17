@@ -60,19 +60,22 @@ OIP_COMMANDS = ("/oip/send",) + tuple("/oip/sign/" + t
 RECEIPT_OUTCOMES = ("accepted", "progress", "fulfilled", "broken",
                     "cancelled", "disputed", "revoked")
 
-CID_RE = re.compile(r"b[a-z2-7]{55}")
-ADDR_RE = re.compile(r"did:oip:b[a-z2-7]{55}")
-RECREF_RE = re.compile(r"did:oip:b[a-z2-7]{55}/(b[a-z2-7]{55})")
+CID = r"bciq[a-p][a-z2-7]{50}[aiqy]"   # the one canonical spelling
+CID_RE = re.compile(CID)
+ADDR_RE = re.compile(r"did:oip:" + CID)
+RECREF_RE = re.compile(r"did:oip:" + CID + r"/(" + CID + r")")
 B58 = "[1-9A-HJ-NP-Za-km-z]"
-KEYREF_RE = re.compile(r"(did:oip:b[a-z2-7]{55})\?versionId="
-                       r"((?:0|[1-9][0-9]*)-b[a-z2-7]{55})#(z" + B58 + r"+)")
+KEYREF_RE = re.compile(r"(did:oip:" + CID + r")\?versionId="
+                       r"((?:0|[1-9][0-9]*)-" + CID + r")#(z" + B58 + r"+)")
 CTLREF_RE = re.compile(r"did:key:(z" + B58 + r"+)#(z" + B58 + r"+)")
 DECIMAL_RE = re.compile(r"-?(0|[1-9][0-9]*)(\.[0-9]+)?")
 NONNEG_DECIMAL_RE = re.compile(r"(0|[1-9][0-9]*)(\.[0-9]+)?")
 TS_RE = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):"
                    r"([0-9]{2})(?:\.([0-9]{1,9}))?Z")
 COMMAND_RE = re.compile(r"/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*")
-SELECTOR_RE = re.compile(r"(\.[A-Za-z0-9_]+)+")
+SEL_TOKEN = re.compile(r'\.([A-Za-z0-9_]+)|\[(0|[1-9][0-9]*)\]|'
+                       r'\[("(?:[^"\\]|\\.)*")\]')
+MAX_POLICY_DEPTH = 8
 ORDERING_OPS = ("<", "<=", ">", ">=")
 OPS = ("==", "!=") + ORDERING_OPS
 
@@ -209,9 +212,14 @@ def as_decimal(v):
         return None
     if isinstance(v, int):
         return Decimal(v)
-    if fullmatch(DECIMAL_RE, v):
+    if fullmatch(DECIMAL_RE, v) and len(v) <= 64:
         return Decimal(v)
     return None
+
+
+def is_amount(v) -> bool:
+    """A non-negative decimal string of at most 64 characters."""
+    return fullmatch(NONNEG_DECIMAL_RE, v) and len(v) <= 64
 
 # ---------------------------------------------------------------- keys
 
@@ -233,6 +241,7 @@ class AgreementKey:
         seed = hashlib.sha256(("oip-test-vector-x25519:" + label).encode()) \
             .digest()
         self.sk = X25519PrivateKey.from_private_bytes(seed)
+        self.seed_hex = seed.hex()
         self.mk = multikey_x25519(self.sk.public_key().public_bytes(*RAW))
 
 # ---------------------------------------------------------------- proofs
@@ -274,9 +283,13 @@ def verify_proof(doc: dict, proof, pub_multikey: str) -> bool:
     may sign for anyone is decided separately (Verifier.valid_key)."""
     if not isinstance(proof, dict):
         return False
-    allowed = set(PROOF_REQUIRED)
+    allowed = set(PROOF_REQUIRED) | {"authority"}
     if proof.get("proofPurpose") == "authentication":
         allowed |= {"challenge", "domain"}
+    if "authority" in proof and (
+            not isinstance(proof["authority"], list) or
+            not 1 <= len(proof["authority"]) <= MAX_AUTHORITY):
+        return False
     if "@context" in doc:
         allowed.add("@context")
         if proof.get("@context") != doc["@context"]:
@@ -365,6 +378,8 @@ class State:
         self.members = []           # member-controlled
         self.threshold = None
         self.keys = []              # operational keys (Multikeys)
+        self.invocation = []        # keys for other minds' identity events
+        self.revoked_keys = set()   # revoked keys never return
         self.agreement = []
         self.homes = []
         self.also_known_as = []
@@ -384,9 +399,10 @@ class State:
 class Log:
     """A verified identity log: its events and the state after each."""
 
-    def __init__(self, mind, events, states, times):
+    def __init__(self, mind, events, states, times, height=0):
         self.mind, self.events, self.states = mind, events, states
         self.times = times          # evaluation time of each event (ns)
+        self.height = height        # 0 for key-controlled minds
 
     @property
     def latest(self) -> State:
@@ -502,7 +518,7 @@ def verify_log(events, verifier, depth=0) -> Log:
     """Verify an identity log (Layer 1, Section 4). Raises ValueError."""
     if not isinstance(events, list) or not events:
         raise ValueError("empty log")
-    st, states, times = State(), [], []
+    st, states, times, heights = State(), [], [], set()
     for i, ev in enumerate(events):
         if not isinstance(ev, dict) or ev.get("oip") != OIP_VERSION:
             raise ValueError("unknown oip version")
@@ -530,10 +546,13 @@ def verify_log(events, verifier, depth=0) -> Log:
                 raise ValueError("bad kind")
             if isinstance(ctl, dict) and "members" in ctl:
                 _check_member_controller(ctl, st.mind)
-                if len(verifier.member_signers(ev, ctl["members"], depth,
-                                               at_position=True)) \
-                   != len(ctl["members"]):
-                    raise ValueError("every founding member must sign")
+                signers = verifier.member_signers(ev, ctl["members"], depth,
+                                                  at_position=True)
+                if len(signers) != len(ctl["members"]):
+                    raise ValueError("every founding member must sign with "
+                                     "an invocation key")
+                heights.update(verifier.log(m, depth + 1).height
+                               for m in signers)
                 st.controller = "member"
                 st.members, st.threshold = list(ctl["members"]), \
                     ctl["threshold"]
@@ -558,17 +577,23 @@ def verify_log(events, verifier, depth=0) -> Log:
             if created < st.created:
                 raise ValueError("created must not decrease along a log")
             if st.controller == "member":
-                if len(verifier.member_signers(ev, st.members, depth,
-                                               at_position=True)) < \
-                   st.threshold:
+                signers = verifier.member_signers(ev, st.members, depth,
+                                                  at_position=True)
+                if len(signers) < st.threshold:
                     raise ValueError("collective event lacks the threshold "
                                      "of current members")
+                heights.update(verifier.log(m, depth + 1).height
+                               for m in signers)
                 if ctl is not None:
                     _check_member_controller(ctl, st.mind)
                     added = [m for m in ctl["members"] if m not in st.members]
-                    if added and len(verifier.member_signers(
-                            ev, added, depth, at_position=True)) != len(added):
-                        raise ValueError("added members must sign")
+                    if added:
+                        new = verifier.member_signers(ev, added, depth,
+                                                      at_position=True)
+                        if len(new) != len(added):
+                            raise ValueError("added members must sign")
+                        heights.update(verifier.log(m, depth + 1).height
+                                       for m in new)
                     st.members, st.threshold = list(ctl["members"]), \
                         ctl["threshold"]
             else:
@@ -592,6 +617,13 @@ def verify_log(events, verifier, depth=0) -> Log:
                 st.retired = True
         if "keys" in ev:
             st.keys = _key_entries(ev["keys"], 64, ed25519_pub_from_multikey)
+        if "invocation" in ev:
+            st.invocation = _key_entries(ev["invocation"], 16,
+                                         ed25519_pub_from_multikey)
+        if set(st.keys) & set(st.invocation):
+            raise ValueError("a key cannot be both operational and invocation")
+        if set(st.keys + st.invocation) & st.revoked_keys:
+            raise ValueError("a revoked key cannot be added again")
         if "agreement" in ev:
             st.agreement = _key_entries(ev["agreement"], 16,
                                         check_x25519_multikey)
@@ -602,9 +634,12 @@ def verify_log(events, verifier, depth=0) -> Log:
         if i > 0 and "revoked" in ev:
             for r in ev["revoked"]:
                 k = r["key"]
-                if "keys" in ev and k in st.keys:
+                if ("keys" in ev and k in st.keys) or \
+                   ("invocation" in ev and k in st.invocation):
                     raise ValueError("a revoked key must not remain in keys")
                 st.keys = [x for x in st.keys if x != k]
+                st.invocation = [x for x in st.invocation if x != k]
+                st.revoked_keys.add(k)
                 if "compromisedSince" in r:
                     c = ts(r["compromisedSince"])
                     st.compromised[k] = min(c, st.compromised.get(k, c))
@@ -615,7 +650,10 @@ def verify_log(events, verifier, depth=0) -> Log:
         states.append(st.copy())
         when = verifier.event_time(ev)
         times.append(max(when, times[-1]) if times else when)
-    return Log(st.mind, events, states, times)
+    height = 1 + max(heights, default=0) if st.controller == "member" else 0
+    if height > MAX_NESTING:
+        raise ValueError("collectives nest at most 4 deep")
+    return Log(st.mind, events, states, times, height)
 
 # ---------------------------------------------------------------- policies
 
@@ -623,48 +661,108 @@ def verify_log(events, verifier, depth=0) -> Log:
 _MISSING = object()
 
 
+def parse_selector(selector):
+    """Selector grammar (Layer 1, 11.3): "." alone, or one or more of
+    .name, [index] and ["quoted name"]. Returns the path, or None."""
+    if selector == ".":
+        return []
+    if not isinstance(selector, str) or not selector:
+        return None
+    parts, pos = [], 0
+    while pos < len(selector):
+        m = SEL_TOKEN.match(selector, pos)
+        if not m:
+            return None
+        if m.group(1) is not None:
+            parts.append(m.group(1))
+        elif m.group(2) is not None:
+            parts.append(int(m.group(2)))
+        else:
+            try:
+                parts.append(json.loads(m.group(3)))
+            except ValueError:
+                return None
+        pos = m.end()
+    return parts
+
+
 def _select(obj, selector):
     cur = obj
-    for part in selector.split(".")[1:]:
-        if not isinstance(cur, dict) or part not in cur:
+    for part in parse_selector(selector):
+        if isinstance(part, int):
+            if not isinstance(cur, list) or part >= len(cur):
+                return _MISSING
+        elif not isinstance(cur, dict) or part not in cur:
             return _MISSING
         cur = cur[part]
     return cur
 
 
+def statement_valid(s, depth=0) -> bool:
+    if depth > MAX_POLICY_DEPTH or not isinstance(s, list) or not s:
+        return False
+    op = s[0]
+    if op in OPS:
+        return len(s) == 3 and parse_selector(s[1]) is not None
+    if op == "not":
+        return len(s) == 2 and statement_valid(s[1], depth + 1)
+    if op in ("and", "or"):
+        return len(s) == 2 and isinstance(s[1], list) and \
+            1 <= len(s[1]) <= 64 and \
+            all(statement_valid(x, depth + 1) for x in s[1])
+    if op in ("all", "any"):
+        return len(s) == 3 and parse_selector(s[1]) is not None and \
+            statement_valid(s[2], depth + 1)
+    return False
+
+
 def policy_valid(policy) -> bool:
-    return isinstance(policy, list) and all(
-        isinstance(s, list) and len(s) == 3 and s[0] in OPS and
-        fullmatch(SELECTOR_RE, s[1]) for s in policy)
+    return isinstance(policy, list) and len(policy) <= 64 and \
+        all(statement_valid(s) for s in policy)
 
 
-def policy_ok(policy, obj) -> bool:
-    """All statements must hold (Layer 1, 11.3). Ordering operators compare
-    only decimals; anything else makes them false. Equality compares
+def _compare(op, got, val) -> bool:
+    a, b = as_decimal(got), as_decimal(val)
+    if op in ORDERING_OPS:
+        if a is None or b is None:
+            return False
+        return {"<": a < b, "<=": a <= b, ">": a > b, ">=": a >= b}[op]
+    if a is not None and b is not None:
+        eq = a == b
+    else:
+        try:
+            eq = jcs(got) == jcs(val)
+        except (TypeError, ValueError):
+            return False
+    return eq if op == "==" else not eq
+
+
+def statement_holds(s, obj) -> bool:
+    op = s[0]
+    if op == "not":
+        return not statement_holds(s[1], obj)
+    if op == "and":
+        return all(statement_holds(x, obj) for x in s[1])
+    if op == "or":
+        return any(statement_holds(x, obj) for x in s[1])
+    got = _select(obj, s[1])
+    if op in ("all", "any"):
+        if not isinstance(got, list):
+            return False
+        test = all if op == "all" else any
+        return test(statement_holds(s[2], item) for item in got)
+    return got is not _MISSING and _compare(op, got, s[2])
+
+
+def policy_ok(policy, record) -> bool:
+    """Every statement must hold for the record without its proofs
+    (Layer 1, 11.3). Ordering compares decimals only; equality compares
     decimals numerically and other values by canonical form."""
     if not policy_valid(policy):
         return False
-    for op, sel, val in policy:
-        got = _select(obj, sel)
-        if got is _MISSING:
-            return False
-        a, b = as_decimal(got), as_decimal(val)
-        if op in ORDERING_OPS:
-            if a is None or b is None:
-                return False
-            ok = {"<": a < b, "<=": a <= b, ">": a > b, ">=": a >= b}[op]
-        else:
-            if a is not None and b is not None:
-                eq = a == b
-            else:
-                try:
-                    eq = jcs(got) == jcs(val)
-                except (TypeError, ValueError):
-                    return False
-            ok = eq if op == "==" else not eq
-        if not ok:
-            return False
-    return True
+    obj = {k: v for k, v in record.items() if k != "proof"} \
+        if isinstance(record, dict) else record
+    return all(statement_holds(s, obj) for s in policy)
 
 
 def command_valid(command) -> bool:
@@ -700,13 +798,12 @@ def record_ok(r) -> bool:
         if t in ("Offer", "Commitment"):
             price = r.get("terms", {}).get("price")
             if price is not None and (
-                    not fullmatch(NONNEG_DECIMAL_RE, price.get("amount")) or
+                    not is_amount(price.get("amount")) or
                     not isinstance(price.get("currency"), str)):
                 return False
         if t == "Intent":
             budget = r.get("constraints", {}).get("budget")
-            if budget is not None and \
-               not fullmatch(NONNEG_DECIMAL_RE, budget.get("max")):
+            if budget is not None and not is_amount(budget.get("max")):
                 return False
         if t == "Commitment":
             parties = r["parties"]
@@ -769,6 +866,7 @@ class Verifier:
         self.raw, self.cache, self.store = {}, {}, {}
         self.seen = dict(seen or {})
         self.apply_compromise = True
+        self.visiting = set()
         for log in logs:
             self.add_log(log)
         for r in records:
@@ -782,11 +880,19 @@ class Verifier:
         self.store[content_id(record)] = record
 
     def log(self, mind, depth=0) -> Log:
+        if mind in self.cache:
+            return self.cache[mind]
         if depth > MAX_NESTING:
-            raise ValueError("collective nesting too deep")
-        if mind not in self.cache:
-            self.cache[mind] = verify_log(self.raw[mind], self, depth)
-        return self.cache[mind]
+            raise ValueError("collectives nest at most 4 deep")
+        if mind in self.visiting:
+            raise ValueError("a collective cannot contain itself")
+        self.visiting.add(mind)
+        try:
+            log = verify_log(self.raw[mind], self, depth)
+        finally:
+            self.visiting.discard(mind)
+        self.cache[mind] = log
+        return log
 
     def resolve(self, ref):
         if isinstance(ref, dict):
@@ -833,10 +939,13 @@ class Verifier:
         except (KeyError, ValueError):
             return False
         i = log.index(version)
-        if i is None or mk not in log.states[i].keys:
+        if i is None:
             return False
         if at_position:
-            return verify_proof(record, p, mk)
+            return mk in log.states[i].invocation and \
+                verify_proof(record, p, mk)
+        if mk not in log.states[i].keys:
+            return False
         t = self.t_of(record, p)
         if t is None:
             return False
@@ -888,6 +997,9 @@ class Verifier:
             if collective:
                 times.append(self.role_time(record, mind, log, depth))
         times = [t for t in times if t is not None]
+        if "expires" in record:
+            limit = ts(record["expires"]) + SKEW_NS
+            times = [t for t in times if t <= limit]
         return min(times) if times else None
 
     def counts_for(self, record, mind) -> bool:
@@ -950,19 +1062,21 @@ class Verifier:
 
     # -- delegation (Layer 1, Section 11) ----------------------------------
     def delegated_time(self, record, principal, depth):
-        auth = record.get("authority", [])
-        if not isinstance(auth, list) or len(auth) > MAX_AUTHORITY:
-            return None
-        ds = [d for d in (self.resolve(a) for a in auth)
-              if isinstance(d, dict) and d.get("type") == "Delegation"]
+        """A proof by D counts for P when the delegations listed in that
+        proof's own `authority` form a valid chain from P to D. The chain
+        sits in the proof, so a delegated co-signer can sign at any time
+        without changing the record's content ID."""
         need = "/oip/sign/" + record["type"]
         best = None
         for p in record.get("proof", []):
             ref = parse_key_ref(p.get("verificationMethod")) \
                 if isinstance(p, dict) else None
-            if not ref or ref[0] == principal or \
+            auth = p.get("authority") if isinstance(p, dict) else None
+            if not ref or ref[0] == principal or not auth or \
                not self.valid_key(record, p, ref[0], depth):
                 continue
+            ds = [d for d in (self.resolve(a) for a in auth)
+                  if isinstance(d, dict) and d.get("type") == "Delegation"]
             t = self.t_of(record, p)
             for chain in self.chains(ds, principal, ref[0]):
                 if self.chain_ok(chain, record, need, t, depth):
@@ -989,9 +1103,9 @@ class Verifier:
             td = self.signed_time(d, d["author"], depth)
             if td is None or td > t:
                 return False            # signed by its author, before use
-            if "notBefore" in d and t < ts(d["notBefore"]):
+            if "notBefore" in d and t < ts(d["notBefore"]) - SKEW_NS:
                 return False
-            if t > ts(d["expires"]):
+            if t > ts(d["expires"]) + SKEW_NS:
                 return False
             tr = self.revoked_time(d, depth)
             if tr is not None and tr <= t:
@@ -1197,20 +1311,84 @@ def member_event(etype, mind, prev, created, signers, fields=None):
                                    created) for key, vm in signers])
 
 
-def signed(doc, key, vm, created=None, purpose=None):
+def signed(doc, key, vm, created=None, purpose=None, authority=None):
+    extra = {"authority": authority} if authority else {}
     return sign(doc, create_proof(doc, key, vm,
                                   purpose or purpose_for(doc["type"]),
-                                  created or doc["created"]))
+                                  created or doc["created"], **extra))
+
+# ---------------------------------------------------------------- derived
+
+
+def cid_digest(cid: str) -> bytes:
+    """The 32-byte SHA-256 digest inside a content ID."""
+    body = cid[1:].upper()
+    raw = base64.b32decode(body + "=" * (-len(body) % 8))
+    assert raw[:2] == b"\x12\x20"
+    return raw[2:]
+
+
+def merkle_root(leaves) -> bytes:
+    """RFC 9162 Merkle Tree Hash; each leaf input is a 32-byte digest."""
+    if len(leaves) == 1:
+        return hashlib.sha256(b"\x00" + leaves[0]).digest()
+    k = 1
+    while k * 2 < len(leaves):
+        k *= 2
+    return hashlib.sha256(b"\x01" + merkle_root(leaves[:k]) +
+                          merkle_root(leaves[k:])).digest()
+
+
+def checkpoint_root(entry_cids) -> str:
+    root = merkle_root([cid_digest(c) for c in entry_cids])
+    return "b" + b32lower(b"\x12\x20" + root)
+
+
+def did_document(V, mind, version=None) -> dict:
+    """DID resolution result for a did:oip address (Layer 1, 5.2), from the
+    identity log alone (no location record, no verified aliases)."""
+    log = V.log(mind)
+    st = log.latest if version is None else log.states[log.index(version)]
+
+    def vm_id(mk):
+        return f"{mind}?versionId={st.version}#{mk}" if version \
+            else f"{mind}#{mk}"
+    doc = {"id": mind,
+           "verificationMethod": [
+               {"id": vm_id(mk), "type": "Multikey", "controller": mind,
+                "publicKeyMultibase": mk}
+               for mk in st.keys + st.invocation + st.agreement],
+           "authentication": [vm_id(k) for k in st.keys],
+           "assertionMethod": [vm_id(k) for k in st.keys],
+           "capabilityDelegation": [vm_id(k) for k in st.keys],
+           "capabilityInvocation": [vm_id(k) for k in st.invocation],
+           "keyAgreement": [vm_id(k) for k in st.agreement]}
+    if st.homes:
+        doc["service"] = [{"id": f"{mind}#home-{n}", "type": "OIPHome",
+                           "serviceEndpoint": h}
+                          for n, h in enumerate(st.homes)]
+    meta = {"versionId": st.version, "deactivated": st.retired,
+            "parents": st.parents, "children": st.children}
+    if st.controller == "key":
+        meta["nextKeyHashes"] = st.next
+        if st.next:
+            meta["nextThreshold"] = st.next_threshold
+    else:
+        meta["members"], meta["threshold"] = st.members, st.threshold
+    return {"didDocument": doc, "didDocumentMetadata": meta}
+
+# ---------------------------------------------------------------- build
 
 
 def build():
     V = {"spec_revision": REVISION, "status": "draft",
-         "note": "Keys derive from SHA-256('oip-test-vector:'+label). "
+         "note": "Ed25519 keys derive from SHA-256('oip-test-vector:'+label); "
+                 "X25519 keys from SHA-256('oip-test-vector-x25519:'+label). "
                  "Never use these keys for anything real.",
          "assumption": "Unless a case gives `seen` times, a verifier is "
                        "taken to have obtained each proof at that proof's "
                        "`created` time.",
-         "keys": {}, "cases": {}, "negative": []}
+         "keys": {}, "cases": {}, "valid": [], "negative": []}
 
     def k(label):
         key = Key(label)
@@ -1218,10 +1396,12 @@ def build():
         return key
 
     # --- Amina: a human, key-controlled -------------------------------
-    a_c0, a_c1, a_c2, a_c3 = k("amina-control-0"), k("amina-control-1"), \
-        k("amina-control-2"), k("amina-control-3")
+    a_c0, a_c1, a_c2, a_c3, a_c4 = (k(f"amina-control-{i}") for i in range(5))
     a_op1, a_op2 = k("amina-phone"), k("amina-laptop")
+    a_inv = k("amina-invocation")
     a_x = AgreementKey("amina")
+    V["keys"]["x25519:amina"] = {"seed_hex": a_x.seed_hex,
+                                 "multikey": a_x.mk, "type": "X25519"}
     a_gen = key_controlled_genesis("human", a_c0, a_c1, [a_op1],
                                    agreement=[a_x],
                                    homes=["https://amina.example"])
@@ -1230,9 +1410,12 @@ def build():
                           [a_c1], [a_c2], fields={
                               "keys": [{"key": a_op1.mk, "label": a_op1.label},
                                        {"key": a_op2.mk,
-                                        "label": a_op2.label}]})
+                                        "label": a_op2.label}],
+                              "invocation": [{"key": a_inv.mk,
+                                              "label": a_inv.label}]})
     amina_vm1 = op_vm(amina, a_upd, a_op1.mk)
     amina_vm2 = op_vm(amina, a_upd, a_op2.mk)
+    amina_inv = op_vm(amina, a_upd, a_inv.mk)
 
     # --- Lexis Ltd (institution) and its translation agent -------------
     l_c0, l_c1 = k("lexisltd-control-0"), k("lexisltd-control-1")
@@ -1243,7 +1426,7 @@ def build():
 
     t_c0, t_c1, t_c2 = k("lexis-agent-control-0"), \
         k("lexis-agent-control-1"), k("lexis-agent-control-2")
-    t_op = k("lexis-agent-i1")
+    t_op, t_inv = k("lexis-agent-i1"), k("lexis-agent-invocation")
     agent_gen = key_controlled_genesis("agent", t_c0, t_c1, [t_op],
                                        homes=["https://lexis.example"])
     lexis = did(content_id(agent_gen))
@@ -1256,8 +1439,12 @@ def build():
         parents=[{"mind": lexis, "at": version_id(agent_gen)}])
     child = did(content_id(child_gen))
     fork_ev = control_event("Fork", lexis, agent_gen, "2026-10-30T09:11:00Z",
-                            [t_c1], [t_c2], fields={"child": child})
+                            [t_c1], [t_c2], fields={
+                                "child": child,
+                                "invocation": [{"key": t_inv.mk,
+                                                "label": t_inv.label}]})
     agent_vm = op_vm(lexis, fork_ev, t_op.mk)
+    agent_inv = op_vm(lexis, fork_ev, t_inv.mk)
     child_vm = op_vm(child, child_gen, f_op.mk)
 
     g_c0, g_c1 = k("lexis-fork2-control-0"), k("lexis-fork2-control-1")
@@ -1271,20 +1458,30 @@ def build():
                      t_op, agent_vm)
 
     # --- A researcher agent, and a 2-of-3 collective -------------------
-    r_c0, r_c1 = k("researcher-control-0"), k("researcher-control-1")
-    r_op = k("researcher-ops")
+    r_c0, r_c1, r_c2 = k("researcher-control-0"), k("researcher-control-1"), \
+        k("researcher-control-2")
+    r_op, r_inv = k("researcher-ops"), k("researcher-invocation")
     res_gen = key_controlled_genesis("agent", r_c0, r_c1, [r_op])
     researcher = did(content_id(res_gen))
+    res_upd = control_event("Update", researcher, res_gen,
+                            "2026-10-30T09:02:00Z", [r_c1], [r_c2], fields={
+                                "invocation": [{"key": r_inv.mk,
+                                                "label": r_inv.label}]})
     res_vm = op_vm(researcher, res_gen, r_op.mk)
+    res_inv = op_vm(researcher, res_upd, r_inv.mk)
 
-    coll = {"oip": OIP_VERSION, "type": "Genesis", "kind": "collective",
-            "created": "2026-10-30T09:20:00Z",
-            "controller": {"members": [amina, lexis, researcher],
-                           "threshold": 2}}
-    coll = sign(coll, *[create_proof(coll, key, vm, "capabilityInvocation",
-                                     coll["created"])
-                        for key, vm in ((a_op1, amina_vm1), (t_op, agent_vm),
-                                        (r_op, res_vm))])
+    founders = [(a_inv, amina_inv), (t_inv, agent_inv), (r_inv, res_inv)]
+
+    def coll_genesis(threshold, signers, members=(amina, lexis, researcher),
+                     created="2026-10-30T09:20:00Z"):
+        g = {"oip": OIP_VERSION, "type": "Genesis", "kind": "collective",
+             "created": created,
+             "controller": {"members": list(members),
+                            "threshold": threshold}}
+        return sign(g, *[create_proof(g, key, vm, "capabilityInvocation",
+                                      created) for key, vm in signers])
+
+    coll = coll_genesis(2, founders)
     collective = did(content_id(coll))
 
     # --- A 2-of-3 pre-rotation (thresholds count distinct keys) --------
@@ -1298,13 +1495,22 @@ def build():
     m_upd = control_event("Update", multi, m_gen, "2026-10-30T09:06:00Z",
                           [m_k1, m_k2], [m_k4])
 
+    # --- Amina's assistant agent ---------------------------------------
+    s_c0, s_c1 = k("amina-assistant-control-0"), \
+        k("amina-assistant-control-1")
+    s_op = k("amina-assistant-ops")
+    asst_gen = key_controlled_genesis("agent", s_c0, s_c1, [s_op],
+                                      created="2026-10-30T09:03:00Z")
+    assistant = did(content_id(asst_gen))
+    asst_vm = op_vm(assistant, asst_gen, s_op.mk)
+
     logs = {"amina_log": [a_gen, a_upd], "lexis_ltd_log": [ltd_gen],
             "lexis_agent_log": [agent_gen, fork_ev],
             "lexis_fork_log": [child_gen], "lexis_fork2_log": [child2_gen],
-            "researcher_log": [res_gen], "collective_log": [coll],
-            "multi_log": [m_gen, m_upd]}
+            "researcher_log": [res_gen, res_upd], "collective_log": [coll],
+            "multi_log": [m_gen, m_upd], "assistant_log": [asst_gen]}
 
-    # --- Delegations: Lexis Ltd -> agent -> fork ------------------------
+    # --- Delegations ---------------------------------------------------
     usd_500 = [["==", ".terms.price.currency", "USD"],
                ["<=", ".terms.price.amount", "500"]]
     deleg = signed({"oip": OIP_VERSION, "type": "Delegation",
@@ -1323,6 +1529,18 @@ def build():
                         "expires": "2026-11-15T00:00:00Z",
                         "nonce": "9e4b2a7c1d3f5086"}, t_op, agent_vm)
     sub_ref = record_ref(lexis, sub_deleg)
+    amina_deleg = signed({
+        "oip": OIP_VERSION, "type": "Delegation", "author": amina,
+        "created": "2026-10-30T09:35:00Z", "delegate": assistant,
+        "subject": amina, "command": "/oip/sign/Commitment",
+        "policy": [["==", ".terms.price.currency", "USD"],
+                   ["<=", ".terms.price.amount", "150"],
+                   ["all", ".parties",
+                    ["or", [["==", ".mind", amina],
+                            ["==", ".mind", lexis_ltd]]]]],
+        "expires": "2026-11-30T09:00:00Z", "nonce": "3b7e1f9a0c5d2e84"},
+        a_op2, amina_vm2)
+    amina_deleg_ref = record_ref(amina, amina_deleg)
 
     # --- Layer 2: intent -> offer -> commitment -> receipt -------------
     intent = signed({"oip": OIP_VERSION, "type": "Intent", "author": amina,
@@ -1361,10 +1579,9 @@ def build():
                          "120 USD on delivery.",
               "terms": {"deadline": "2026-11-01T18:00:00Z",
                         "price": {"amount": "120", "currency": "USD"}},
-              "resolves": [intent_ref, offer_ref], "closesIntent": True,
-              "authority": [deleg_ref]}
+              "resolves": [intent_ref, offer_ref], "closesIntent": True}
     p_agent = create_proof(commit, t_op, agent_vm, "assertionMethod",
-                           commit["created"])
+                           commit["created"], authority=[deleg_ref])
     p_amina = create_proof(commit, a_op1, amina_vm1, "assertionMethod",
                            "2026-10-30T10:22:00Z")
     commit_proposed = sign(commit, p_agent)
@@ -1381,6 +1598,26 @@ def build():
                                     "digest": sha256_digest(
                                         b"example deliverable")}]},
                      a_op1, amina_vm1)
+
+    # --- Two agents strike a deal, each for its principal --------------
+    rush = {"oip": OIP_VERSION, "type": "Commitment", "author": lexis,
+            "created": "2026-10-30T10:40:00Z",
+            "parties": [{"mind": lexis_ltd, "role": "debtor",
+                         "required": True},
+                        {"mind": amina, "role": "creditor",
+                         "required": True}],
+            "promise": "Lexis Ltd will deliver the translation by 1 Nov 2026 "
+                       "06:00 UTC, twelve hours early; Amina will pay a "
+                       "30 USD rush fee on delivery.",
+            "terms": {"deadline": "2026-11-01T06:00:00Z",
+                      "price": {"amount": "30", "currency": "USD"}}}
+    rush_agent = create_proof(rush, t_op, agent_vm, "assertionMethod",
+                              rush["created"], authority=[deleg_ref])
+    rush_asst = create_proof(rush, s_op, asst_vm, "assertionMethod",
+                             "2026-10-30T10:41:00Z",
+                             authority=[amina_deleg_ref])
+    rush_accepted = sign(rush, rush_agent, rush_asst)
+    assert content_id(sign(rush, rush_agent)) == content_id(rush_accepted)
 
     # --- The collective's charter, and a commitment by its steward -----
     charter = {"oip": OIP_VERSION, "type": "Collective", "author": collective,
@@ -1418,9 +1655,8 @@ def build():
          "promise": "Lexis Ltd will produce a certified glossary for the "
                     "lease by 3 Nov 2026 for 150 USD.",
          "terms": {"deadline": "2026-11-03T12:00:00Z",
-                   "price": {"amount": "150", "currency": "USD"}},
-         "authority": [deleg_ref, sub_ref]},
-        f_op, child_vm)
+                   "price": {"amount": "150", "currency": "USD"}}},
+        f_op, child_vm, authority=[deleg_ref, sub_ref])
 
     # --- Context packet carrying the session and the offer -------------
     session = {"oip": OIP_VERSION, "type": "Session",
@@ -1441,8 +1677,20 @@ def build():
                      "constraints": {"retention": "P30D",
                                      "prohibitedUses": ["train"]}},
                     t_op, agent_vm)
+    ack = signed({"oip": OIP_VERSION, "type": "Ack", "author": amina,
+                  "packet": content_id(packet),
+                  "received": "2026-10-30T10:04:06Z",
+                  "created": "2026-10-30T10:04:06Z"}, a_op2, amina_vm2)
+    hello = signed({"oip": OIP_VERSION, "type": "Hello", "author": lexis,
+                    "created": "2026-10-30T10:06:00Z"}, t_op, agent_vm)
+    hello = sign({k2: v for k2, v in hello.items() if k2 != "proof"},
+                 create_proof({k2: v for k2, v in hello.items()
+                               if k2 != "proof"}, t_op, agent_vm,
+                              "authentication", hello["created"],
+                              challenge="q8xG3kZ2pV7mT0wR5nY1aB",
+                              domain="https://host.example"))
 
-    # --- Layer 1 records for the agent: profile, feed entry, location --
+    # --- Layer 1 records for the agent: profile, feed, location --------
     participant = signed({
         "oip": OIP_VERSION, "type": "Participant", "author": lexis,
         "created": "2026-10-30T09:40:00Z", "name": "Lexis Translation Agent",
@@ -1464,6 +1712,20 @@ def build():
                     "object": content_id(offer), "objectType": "Offer",
                     "proofs": [proof_digest(p) for p in offer["proof"]]},
                    t_op, agent_vm)
+    entry1 = signed({"oip": OIP_VERSION, "type": "Entry", "author": lexis,
+                     "seq": 1, "prev": content_id(entry),
+                     "created": "2026-10-30T10:23:00Z",
+                     "object": content_id(commit),
+                     "objectType": "Commitment",
+                     "proofs": [proof_digest(p)
+                                for p in commit_accepted["proof"]]},
+                    t_op, agent_vm)
+    checkpoint = signed({"oip": OIP_VERSION, "type": "Checkpoint",
+                         "author": lexis, "created": "2026-10-30T10:30:00Z",
+                         "size": 2, "head": content_id(entry1),
+                         "root": checkpoint_root([content_id(entry),
+                                                  content_id(entry1)])},
+                        t_op, agent_vm)
     location = signed({
         "oip": OIP_VERSION, "type": "Location", "author": lexis, "seq": 1,
         "created": "2026-10-30T10:05:00Z", "ttl": 900, "status": "active",
@@ -1480,20 +1742,29 @@ def build():
         "feed": {"seq": 0, "head": content_id(entry)}}, t_op, agent_vm)
 
     records = {"delegation": deleg, "delegation_sub": sub_deleg,
+               "delegation_amina": amina_deleg,
                "intent": intent, "offer": offer,
                "commitment_proposed": commit_proposed,
                "commitment_accepted": commit_accepted, "receipt": receipt,
+               "commitment_agents": rush_accepted,
                "collective_charter": charter,
                "commitment_by_steward": steward_commit,
                "commitment_via_chain": chain_commit, "lineage": lineage,
-               "session": session, "packet": packet,
-               "participant": participant, "location": location,
-               "feed_entry": entry}
+               "session": session, "packet": packet, "ack": ack,
+               "hello": hello, "participant": participant,
+               "location": location, "feed_entry": entry,
+               "feed_entry_1": entry1, "checkpoint": checkpoint}
+    dv = Verifier(logs=logs.values())
     V["cases"] = {
         **logs, **records,
         "amina": amina, "lexis_ltd": lexis_ltd, "lexis_agent": lexis,
         "lexis_fork": child, "lexis_fork2": child2,
         "researcher": researcher, "collective": collective, "multi": multi,
+        "assistant": assistant,
+        "did_document_amina": did_document(dv, amina),
+        "did_document_amina_at_genesis": did_document(
+            dv, amina, version_id(a_gen)),
+        "did_document_collective": did_document(dv, collective),
         "status": [
             {"of": "intent", "at": "2026-10-30T12:00:00Z",
              "records": ["intent", "commitment_accepted"],
@@ -1512,24 +1783,74 @@ def build():
              "records": ["commitment_accepted"], "expect": "overdue"},
             {"of": "commitment_accepted", "at": "2026-11-01T19:00:00Z",
              "records": ["commitment_accepted", "receipt"],
-             "expect": "fulfilled"}],
+             "expect": "fulfilled"},
+            {"of": "commitment_agents", "at": "2026-10-31T12:00:00Z",
+             "records": ["commitment_agents"], "expect": "accepted"}],
         "content_ids": {n: content_id(o) for n, o in [
             ("amina_genesis", a_gen), ("amina_update", a_upd),
             ("delegation", deleg), ("delegation_sub", sub_deleg),
-            ("intent", intent), ("offer", offer), ("commitment", commit),
-            ("receipt", receipt), ("collective_charter", charter),
-            ("session", session), ("packet", packet)]},
+            ("delegation_amina", amina_deleg), ("intent", intent),
+            ("offer", offer), ("commitment", commit),
+            ("commitment_agents", rush), ("receipt", receipt),
+            ("collective_charter", charter), ("session", session),
+            ("packet", packet), ("checkpoint", checkpoint)]},
         "jcs_example": {"input": {"b": 2, "a": [1, "x"], "é": True},
                         "output": jcs({"b": 2, "a": [1, "x"],
                                        "é": True}).decode()},
     }
 
+    # ------------------------------------------------- must also be valid
+    a_inv_claim = control_event(
+        "Update", amina, a_upd, "2026-11-02T08:00:00Z", [a_c2], [a_c3],
+        fields={"invocation": [],
+                "revoked": [{"key": a_inv.mk,
+                             "compromisedSince": "2026-10-30T09:00:00Z"}]})
+    V["valid"].append({
+        "name": "collective-survives-member-compromise-claim",
+        "reason": "On 2 Nov Amina declares her invocation key compromised "
+                  "since 30 Oct 09:00, before the collective's genesis. "
+                  "Identity events are judged at their position, so the "
+                  "collective's log still verifies.",
+        "kind": "log", "log": [coll],
+        "extraLogs": [[a_gen, a_upd, a_inv_claim]]})
+    late_removal = control_event(
+        "Update", amina, a_upd, "2026-10-30T10:00:00Z", [a_c2], [a_c3],
+        fields={"keys": [{"key": a_op2.mk, "label": a_op2.label}]})
+    V["valid"].append({
+        "name": "backdated-removal-cannot-withdraw",
+        "reason": "Amina removes her phone key in an event dated 30 Oct but "
+                  "first seen on 2 Nov. A removal takes effect from its "
+                  "evaluation time, so her Receipt signed with that key on "
+                  "1 Nov still counts.",
+        "kind": "countsFor", "record": receipt, "mind": amina,
+        "extraLogs": [[a_gen, a_upd, late_removal]],
+        "seen": {content_id(late_removal): "2026-11-02T08:00:00Z"}})
+    revocation = signed({"oip": OIP_VERSION, "type": "Revocation",
+                         "author": lexis_ltd,
+                         "created": "2026-11-10T00:00:00Z",
+                         "revokes": deleg_ref}, l_op, ltd_vm)
+    backdated_rev = signed({"oip": OIP_VERSION, "type": "Revocation",
+                            "author": lexis_ltd,
+                            "created": "2026-10-30T12:00:00Z",
+                            "revokes": deleg_ref}, l_op, ltd_vm)
+    nov5 = signed(variant_of(commit, created="2026-11-05T00:00:00Z"), t_op,
+                  agent_vm, authority=[deleg_ref])
+    V["valid"].append({
+        "name": "revocation-takes-effect-from-evidence",
+        "reason": "A revocation dated 30 Oct but first seen on 10 Nov does "
+                  "not void a commitment first seen on 5 Nov.",
+        "kind": "countsFor", "record": nov5, "mind": lexis_ltd,
+        "extraRecords": [backdated_rev],
+        "seen": {content_id(backdated_rev): "2026-11-10T00:00:00Z"}})
+
     # ------------------------------------------------------------ negatives
     neg = V["negative"]
 
-    def bad_log(name, reason, log):
-        neg.append({"name": name, "reason": reason, "kind": "log",
-                    "log": log})
+    def bad_log(name, reason, log, extra_logs=()):
+        case = {"name": name, "reason": reason, "kind": "log", "log": log}
+        if extra_logs:
+            case["extraLogs"] = list(extra_logs)
+        neg.append(case)
 
     def bad_sig(name, reason, record, mind, extra_logs=(), records=(),
                 seen=None):
@@ -1543,15 +1864,7 @@ def build():
             case["seen"] = seen
         neg.append(case)
 
-    def variant(base, **changes):
-        doc = {k: v for k, v in copy.deepcopy(base).items() if k != "proof"}
-        for path, value in changes.items():
-            cur = doc
-            parts = path.split("__")
-            for part in parts[:-1]:
-                cur = cur[part]
-            cur[parts[-1]] = value
-        return doc
+    variant = variant_of
 
     # identity logs
     bad_upd = control_event("Update", multi, m_gen, "2026-10-30T09:06:00Z",
@@ -1577,33 +1890,26 @@ def build():
             [key_controlled_genesis("agent", z_c0, None, [],
                                     next_keys=[z_c1, k("zero-control-2")],
                                     next_threshold=1)])
-
-    def coll_genesis(threshold, signers, members=(amina, lexis, researcher),
-                     created="2026-10-30T09:20:00Z"):
-        g = {"oip": OIP_VERSION, "type": "Genesis", "kind": "collective",
-             "created": created,
-             "controller": {"members": list(members),
-                            "threshold": threshold}}
-        return sign(g, *[create_proof(g, key, vm, "capabilityInvocation",
-                                      created) for key, vm in signers])
-
-    all3 = [(a_op1, amina_vm1), (t_op, agent_vm), (r_op, res_vm)]
     bad_log("collective-threshold-zero",
             "A collective's threshold must be at least 1.",
-            [coll_genesis(0, all3)])
+            [coll_genesis(0, founders)])
     bad_log("collective-threshold-minority",
             "Threshold 1 of 3 is not a majority, so two disjoint members "
-            "could each sign conflicting events.", [coll_genesis(1, all3)])
+            "could each sign conflicting events.",
+            [coll_genesis(1, founders)])
     bad_log("collective-genesis-missing-founder",
             "Every founding member must sign the genesis.",
-            [coll_genesis(2, all3[:2])])
+            [coll_genesis(2, founders[:2])])
+    bad_log("collective-signed-with-operational-keys",
+            "Members sign a collective's identity events with invocation "
+            "keys; everyday operational keys cannot change any identity.",
+            [coll_genesis(2, [(a_op1, amina_vm1), (t_op, agent_vm),
+                              (r_op, res_vm)])])
     c_retire = member_event("Retire", collective, coll,
-                            "2026-10-31T00:00:00Z",
-                            [(a_op1, amina_vm1), (r_op, res_vm)],
+                            "2026-10-31T00:00:00Z", founders[::2],
                             {"reason": "Work complete."})
     c_after = member_event("Update", collective, c_retire,
-                           "2026-10-31T01:00:00Z",
-                           [(a_op1, amina_vm1), (r_op, res_vm)],
+                           "2026-10-31T01:00:00Z", founders[::2],
                            {"homes": ["https://cell.example"]})
     bad_log("event-after-retire",
             "No event may follow a Retire, for collectives as for "
@@ -1620,6 +1926,31 @@ def build():
             [key_controlled_genesis(
                 "human", z_c0, z_c1, [],
                 extra={"recovery": {"keys": [key_hash(z_c1.mk)]}})])
+    gid = content_id(a_gen)
+    odd = gid[:-1] + chr(ord(gid[-1]) + 1)
+    bad_prev = {kk: v for kk, v in a_upd.items() if kk != "proof"}
+    bad_prev["prev"] = odd
+    bad_prev = sign(bad_prev, create_proof(bad_prev, a_c1,
+                                           did_key_vm(a_c1.mk),
+                                           "capabilityInvocation",
+                                           bad_prev["created"]))
+    bad_log("non-canonical-content-id",
+            "`prev` spells the genesis content ID with non-zero padding "
+            "bits. It decodes to the same bytes, but content IDs have one "
+            "canonical spelling and are compared as strings.",
+            [a_gen, bad_prev])
+    rk1 = control_event("Update", amina, a_upd, "2026-11-02T08:00:00Z",
+                        [a_c2], [a_c3], fields={
+                            "keys": [{"key": a_op2.mk, "label": a_op2.label}],
+                            "revoked": [{"key": a_op1.mk}]})
+    rk2 = control_event("Update", amina, rk1, "2026-11-03T08:00:00Z",
+                        [a_c3], [a_c4], fields={
+                            "keys": [{"key": a_op1.mk, "label": a_op1.label},
+                                     {"key": a_op2.mk,
+                                      "label": a_op2.label}]})
+    bad_log("revoked-key-readded",
+            "A key listed in `revoked` can never be added again.",
+            [a_gen, a_upd, rk1, rk2])
 
     # proof purpose and key ownership
     bad_sig("wrong-proof-purpose",
@@ -1631,7 +1962,13 @@ def build():
     bad_sig("delegated-key-not-in-signers-log",
             "The delegate's proof names a key that is not in the delegate's "
             "identity log (paper Appendix A.5, first draft).",
-            signed(variant(commit), attacker, imp_vm), lexis_ltd)
+            signed(variant(commit), attacker, imp_vm, authority=[deleg_ref]),
+            lexis_ltd)
+    outside = signed(variant(commit, authority=[deleg_ref]), t_op, agent_vm)
+    bad_sig("delegation-outside-the-proof",
+            "A delegate's proof lists the delegations it relies on in its "
+            "own `authority`. A record-level `authority` member is not part "
+            "of the protocol and authorises nothing.", outside, lexis_ltd)
 
     # delegation scope
     d_bad = signed({"oip": OIP_VERSION, "type": "Delegation",
@@ -1642,8 +1979,8 @@ def build():
                     "nonce": "0d3a5c7e9b1f2468"}, l_op, ltd_vm)
     forged_deleg = signed(
         variant(deleg, policy=[], expires="2027-10-30T09:30:00Z",
-                nonce="f00dfeedc0ffee11", authority=[d_bad]),
-        t_op, agent_vm, created="2026-10-30T09:31:00Z")
+                nonce="f00dfeedc0ffee11"),
+        t_op, agent_vm, created="2026-10-30T09:31:00Z", authority=[d_bad])
     bad_sig("delegate-signs-delegation",
             "Delegations are not delegable: a Delegation counts only when "
             "signed by its author's own authority, so a delegate cannot "
@@ -1657,7 +1994,7 @@ def build():
                       "nonce": "b1a2c3d4e5f60718"}, l_op, ltd_vm)
     bad_sig("reserved-blanket-command",
             "/oip is reserved: there are no blanket grants in this revision.",
-            signed(variant(commit, authority=[blanket]), t_op, agent_vm),
+            signed(variant(commit), t_op, agent_vm, authority=[blanket]),
             lexis_ltd)
     for name, amount, currency, why in (
             ("policy-currency", "400", "BTC",
@@ -1677,7 +2014,16 @@ def build():
              "Full-width digits are not decimal digits.")):
         doc = variant(commit, terms__price={"amount": amount,
                                             "currency": currency})
-        bad_sig(name, why, signed(doc, t_op, agent_vm), lexis_ltd)
+        bad_sig(name, why, signed(doc, t_op, agent_vm, authority=[deleg_ref]),
+                lexis_ltd)
+    third = variant(rush, parties=[
+        {"mind": researcher, "role": "debtor", "required": True},
+        {"mind": amina, "role": "creditor", "required": True}])
+    bad_sig("policy-counterparty",
+            "Amina's assistant may commit her only to deals whose parties "
+            "are Amina and Lexis Ltd; a deal with the researcher is outside "
+            "its delegation.",
+            signed(third, s_op, asst_vm, authority=[amina_deleg_ref]), amina)
 
     # time: evidence beats claims
     a_rm = control_event("Update", amina, a_upd, "2026-11-02T08:00:00Z",
@@ -1699,7 +2045,8 @@ def build():
                               "revoked": [{"key": a_op1.mk,
                                            "compromisedSince":
                                            "2026-10-31T00:00:00Z"}]})
-    early_intent = signed(variant(intent, created="2026-10-30T23:00:00Z"),
+    early_intent = signed(variant(intent, created="2026-10-30T23:00:00Z",
+                                  expires="2026-11-08T08:00:00Z"),
                           a_op1, amina_vm1)
     bad_sig("compromised-key-backdated",
             "The phone key is compromised since 31 Oct 00:00. A record "
@@ -1707,37 +2054,29 @@ def build():
             early_intent, amina, extra_logs=[[a_gen, a_upd, a_cmp]],
             seen={content_id(early_intent): "2026-11-01T00:00:00Z"})
     exp_commit = signed(variant(commit, created="2026-11-29T00:00:00Z"),
-                        t_op, agent_vm)
+                        t_op, agent_vm, authority=[deleg_ref])
     bad_sig("expired-delegation-backdated",
             "The delegation expires on 30 Nov. A commitment dated 29 Nov but "
             "first seen on 5 Dec is evaluated at 5 Dec.", exp_commit,
             lexis_ltd, seen={content_id(exp_commit): "2026-12-05T00:00:00Z"})
-    revocation = signed({"oip": OIP_VERSION, "type": "Revocation",
-                         "author": lexis_ltd,
-                         "created": "2026-11-10T00:00:00Z",
-                         "revokes": deleg_ref}, l_op, ltd_vm)
     rev_commit = signed(variant(commit, created="2026-11-05T00:00:00Z"),
-                        t_op, agent_vm)
+                        t_op, agent_vm, authority=[deleg_ref])
     bad_sig("revoked-delegation",
             "The delegation was revoked on 10 Nov. A commitment dated 5 Nov "
             "but first seen on 12 Nov comes after the revocation.",
             rev_commit, lexis_ltd, records=[revocation],
             seen={content_id(rev_commit): "2026-11-12T00:00:00Z"})
     c_rm = member_event("Update", collective, coll, "2026-10-31T00:00:00Z",
-                        [(a_op1, amina_vm1), (t_op, agent_vm)],
+                        founders[:2],
                         {"controller": {"members": [amina, lexis],
                                         "threshold": 2}})
-    coll_intent = sign(
-        {"oip": OIP_VERSION, "type": "Intent", "author": collective,
-         "created": "2026-10-30T23:00:00Z",
-         "want": "Hire a second reviewer for Swahili leases."},
-        *[create_proof({"oip": OIP_VERSION, "type": "Intent",
-                        "author": collective,
-                        "created": "2026-10-30T23:00:00Z",
-                        "want": "Hire a second reviewer for Swahili "
-                                "leases."},
-                       key, vm, "assertionMethod", "2026-10-30T23:00:00Z")
-          for key, vm in ((r_op, res_vm), (a_op1, amina_vm1))])
+    coll_intent = {"oip": OIP_VERSION, "type": "Intent",
+                   "author": collective, "created": "2026-10-30T23:00:00Z",
+                   "want": "Hire a second reviewer for Swahili leases."}
+    coll_intent = sign(coll_intent, *[
+        create_proof(coll_intent, key, vm, "assertionMethod",
+                     "2026-10-30T23:00:00Z")
+        for key, vm in ((r_op, res_vm), (a_op1, amina_vm1))])
     bad_sig("removed-member-backdated",
             "The researcher left the collective on 31 Oct. Its signature on "
             "a record dated 30 Oct but first seen on 1 Nov does not count, "
@@ -1750,6 +2089,11 @@ def build():
             "The proof claims a time more than 300 seconds after the "
             "evidence that it existed.", future, amina,
             seen={content_id(future): "2026-10-30T10:00:00Z"})
+    stale = signed(variant(intent), a_op2, amina_vm2,
+                   created="2026-10-31T11:00:00Z")
+    bad_sig("proof-after-record-expiry",
+            "The Intent expires on 31 Oct 10:00; a proof made after that "
+            "does not count.", stale, amina)
 
     # Layer 2 status and records
     sock = {"oip": OIP_VERSION, "type": "Commitment", "author": researcher,
@@ -1772,6 +2116,21 @@ def build():
                           "close Amina's Intent.",
                 "kind": "status", "of": intent, "records": [intent, sock],
                 "at": "2026-10-30T12:00:00Z", "expect": "open"})
+    a_withdraw = control_event(
+        "Update", amina, a_upd, "2026-11-02T08:00:00Z", [a_c2], [a_c3],
+        fields={"keys": [{"key": a_op2.mk, "label": a_op2.label}],
+                "revoked": [{"key": a_op1.mk,
+                             "compromisedSince": "2026-10-30T10:00:00Z"}]})
+    neg.append({"name": "compromise-claim-shows-dispute",
+                "reason": "Amina declares the key that co-signed the "
+                          "commitment compromised since before she signed. "
+                          "Her signature no longer counts, so the commitment "
+                          "is not accepted; it shows as disputed, not as "
+                          "merely proposed.",
+                "kind": "status", "of": commit_accepted,
+                "records": [commit_accepted], "at": "2026-11-03T12:00:00Z",
+                "extraLogs": [[a_gen, a_upd, a_withdraw]],
+                "expect": "disputed"})
     neg.append({"name": "packet-short-nonce",
                 "reason": "A packet nonce has 8 to 64 characters.",
                 "kind": "record",
@@ -1779,16 +2138,36 @@ def build():
                                  agent_vm)})
     return V
 
+
+def variant_of(base, **changes):
+    """A copy of a record without its proofs, with changes applied
+    (a double underscore selects a nested member)."""
+    doc = {kk: v for kk, v in copy.deepcopy(base).items() if kk != "proof"}
+    for path, value in changes.items():
+        cur = doc
+        parts = path.split("__")
+        for part in parts[:-1]:
+            cur = cur[part]
+        cur[parts[-1]] = value
+    return doc
+
 # ---------------------------------------------------------------- checks
 
 
 LOG_NAMES = ("amina_log", "lexis_ltd_log", "lexis_agent_log",
              "lexis_fork_log", "lexis_fork2_log", "researcher_log",
-             "collective_log", "multi_log")
-RECORD_NAMES = ("delegation", "delegation_sub", "intent", "offer",
-                "commitment_accepted", "receipt", "collective_charter",
+             "collective_log", "multi_log", "assistant_log")
+RECORD_NAMES = ("delegation", "delegation_sub", "delegation_amina", "intent",
+                "offer", "commitment_accepted", "receipt",
+                "commitment_agents", "collective_charter",
                 "commitment_by_steward", "commitment_via_chain", "lineage",
-                "participant", "location", "feed_entry", "packet")
+                "participant", "location", "feed_entry", "feed_entry_1",
+                "checkpoint", "packet", "ack", "hello")
+MINDS = (("amina_log", "amina"), ("lexis_ltd_log", "lexis_ltd"),
+         ("lexis_agent_log", "lexis_agent"), ("lexis_fork_log", "lexis_fork"),
+         ("lexis_fork2_log", "lexis_fork2"), ("researcher_log", "researcher"),
+         ("collective_log", "collective"), ("multi_log", "multi"),
+         ("assistant_log", "assistant"))
 
 
 def verifier_for(c, extra_logs=(), records=(), seen=None) -> Verifier:
@@ -1801,21 +2180,42 @@ def verifier_for(c, extra_logs=(), records=(), seen=None) -> Verifier:
     return V
 
 
+def _all_ids(obj, out):
+    """Every content ID or address that appears anywhere in the vectors."""
+    if isinstance(obj, dict):
+        for v in obj.values():
+            _all_ids(v, out)
+    elif isinstance(obj, list):
+        for v in obj:
+            _all_ids(v, out)
+    elif isinstance(obj, str):
+        out.update(re.findall(r"\bb[a-z2-7]{55}\b", obj))
+
+
+def resign(record, key, **changes):
+    """Re-sign a copy of a single-proof record after changing it."""
+    p = record["proof"][0]
+    doc = variant_of(record, **changes)
+    extra = {"authority": p["authority"]} if "authority" in p else {}
+    return sign(doc, create_proof(doc, key, p["verificationMethod"],
+                                  p["proofPurpose"], doc["created"], **extra))
+
+
 def check(VEC) -> list:
-    """Re-verify every case. Returns a list of check names."""
+    """Re-verify every positive case. Returns the names of the checks."""
     c = VEC["cases"]
     V = verifier_for(c)
     done = []
-    for log, mind in (("amina_log", "amina"), ("lexis_ltd_log", "lexis_ltd"),
-                      ("lexis_agent_log", "lexis_agent"),
-                      ("lexis_fork_log", "lexis_fork"),
-                      ("lexis_fork2_log", "lexis_fork2"),
-                      ("researcher_log", "researcher"),
-                      ("collective_log", "collective"),
-                      ("multi_log", "multi")):
+    for log, mind in MINDS:
         assert did(content_id(c[log][0])) == c[mind]
         V.log(c[mind])
+    assert V.log(c["collective"]).height == 1
     done.append("identity logs verify; addresses derive from genesis")
+    ids = set()
+    _all_ids([VEC["cases"], VEC["valid"]], ids)
+    assert ids and all(CID_RE.fullmatch(i) for i in ids), \
+        [i for i in ids if not CID_RE.fullmatch(i)]
+    done.append(f"all {len(ids)} content IDs use the canonical spelling")
     assert V.log(c["multi"]).latest.next_threshold == 1
     done.append("2-of-3 pre-rotation with distinct keys")
     assert V.lineage(c["lexis_fork"]) == {c["lexis_agent"]: "acknowledged"}
@@ -1823,75 +2223,73 @@ def check(VEC) -> list:
     done.append("lineage acknowledged by a Fork event and by a Lineage record")
     for name, mind in (("intent", "amina"), ("offer", "lexis_agent"),
                        ("receipt", "amina"), ("packet", "lexis_agent"),
+                       ("ack", "amina"), ("hello", "lexis_agent"),
                        ("delegation", "lexis_ltd"),
                        ("delegation_sub", "lexis_agent"),
+                       ("delegation_amina", "amina"),
                        ("participant", "lexis_agent"),
                        ("location", "lexis_agent"),
                        ("feed_entry", "lexis_agent"),
+                       ("feed_entry_1", "lexis_agent"),
+                       ("checkpoint", "lexis_agent"),
                        ("lineage", "lexis_agent")):
         assert V.counts_for(c[name], c[mind]), name
     done.append("signatures count for their authors (purpose and key checks)")
-    entry, offer = c["feed_entry"], c["offer"]
+    for name, mind, version in (("did_document_amina", "amina", None),
+                                ("did_document_amina_at_genesis", "amina",
+                                 version_id(c["amina_log"][0])),
+                                ("did_document_collective", "collective",
+                                 None)):
+        assert did_document(V, c[mind], version) == c[name], name
+    done.append("DID documents, current and versioned")
+    entry, entry1, offer = c["feed_entry"], c["feed_entry_1"], c["offer"]
+    acc, prop = c["commitment_accepted"], c["commitment_proposed"]
     assert entry["object"] == content_id(offer)
     assert entry["proofs"] == [proof_digest(p) for p in offer["proof"]]
+    assert entry1["prev"] == content_id(entry)
+    assert entry1["proofs"] == [proof_digest(p) for p in acc["proof"]]
+    assert c["checkpoint"]["root"] == checkpoint_root(
+        [content_id(entry), content_id(entry1)])
     assert c["location"]["feed"]["head"] == content_id(entry)
-    done.append("feed entry commits to the offer and its proofs")
-    acc, prop = c["commitment_accepted"], c["commitment_proposed"]
+    done.append("feed entries commit to proofs; checkpoint Merkle root")
+    assert c["ack"]["packet"] == content_id(c["packet"])
+    assert c["packet"]["content"]["parts"][0]["body"] == c["session"]
+    assert c["packet"]["session"] == content_id(c["session"])
+    done.append("packet opens its session; Ack names the packet")
     assert content_id(acc) == content_id(prop)
     assert V.counts_for(acc, c["amina"]) and V.counts_for(acc, c["lexis_ltd"])
     assert not V.counts_for(prop, c["amina"])
     done.append("co-signing keeps the content ID; delegated party proof")
+    rush = c["commitment_agents"]
+    assert V.counts_for(rush, c["lexis_ltd"]) and \
+        V.counts_for(rush, c["amina"])
+    assert content_id(sign(variant_of(rush), rush["proof"][0])) == \
+        content_id(rush)
+    done.append("two agents sign for their principals, in either order")
     agent_key = Key("lexis-agent-i1")
-    agent_vm = acc["proof"][0]["verificationMethod"]
     for amount, expected in (("120", True), ("500", True), ("500.01", False),
                              ("900", False)):
-        doc = {k: v for k, v in copy.deepcopy(acc).items() if k != "proof"}
-        doc["terms"]["price"]["amount"] = amount
-        doc = sign(doc, create_proof(doc, agent_key, agent_vm,
-                                     "assertionMethod", doc["created"]))
+        doc = resign(prop, agent_key, terms__price={"amount": amount,
+                                                    "currency": "USD"})
         assert V.counts_for(doc, c["lexis_agent"])
         assert V.counts_for(doc, c["lexis_ltd"]) is expected, amount
     done.append("delegation policy enforced (120, 500 ok; 500.01, 900 not)")
     chain = c["commitment_via_chain"]
     assert V.counts_for(chain, c["lexis_ltd"])
-    fork_key = Key("lexis-fork-i1")
-    doc = {k: v for k, v in copy.deepcopy(chain).items() if k != "proof"}
-    doc["terms"]["price"]["amount"] = "300"
-    doc = sign(doc, create_proof(doc, fork_key,
-                                 chain["proof"][0]["verificationMethod"],
-                                 "assertionMethod", doc["created"]))
-    assert not V.counts_for(doc, c["lexis_ltd"])
+    over = resign(chain, Key("lexis-fork-i1"),
+                  terms__price={"amount": "300", "currency": "USD"})
+    assert not V.counts_for(over, c["lexis_ltd"])
     done.append("two-step delegation chain (150 ok; 300 beyond the sub-limit)")
-    charter = c["collective_charter"]
-    assert V.counts_for(charter, c["collective"])
+    assert V.counts_for(c["collective_charter"], c["collective"])
     assert V.counts_for(c["commitment_by_steward"], c["collective"])
     done.append("collective signs by 2-of-3 threshold and by a charter role")
-    # A revocation dated 30 Oct but first seen on 10 Nov does not void a
-    # commitment first seen on 5 Nov; dated and seen on 30 Oct, it would.
-    revocation = next(n for n in VEC["negative"]
-                      if n["name"] == "revoked-delegation")["extraRecords"][0]
-    backdated = {k: v for k, v in revocation.items() if k != "proof"}
-    backdated["created"] = "2026-10-30T12:00:00Z"
-    backdated = sign(backdated, create_proof(
-        backdated, Key("lexisltd-ops"),
-        revocation["proof"][0]["verificationMethod"], "assertionMethod",
-        backdated["created"]))
-    later = {k: v for k, v in copy.deepcopy(acc).items() if k != "proof"}
-    later["created"] = "2026-11-05T00:00:00Z"
-    later = sign(later, create_proof(later, agent_key, agent_vm,
-                                     "assertionMethod", later["created"]))
-    late_seen = verifier_for(c, records=[backdated], seen={
-        content_id(backdated): "2026-11-10T00:00:00Z"})
-    assert late_seen.counts_for(later, c["lexis_ltd"])
-    assert not verifier_for(c, records=[backdated]).counts_for(
-        later, c["lexis_ltd"])
-    done.append("revocations take effect from their evidence, not their date")
     names = {"intent": c["intent"], "offer": c["offer"],
              "commitment_proposed": prop, "commitment_accepted": acc,
-             "receipt": c["receipt"]}
+             "commitment_agents": rush, "receipt": c["receipt"]}
     fn = {"intent": intent_status, "offer": offer_status,
           "commitment_proposed": commitment_status,
-          "commitment_accepted": commitment_status}
+          "commitment_accepted": commitment_status,
+          "commitment_agents": commitment_status}
     for s in c["status"]:
         got = fn[s["of"]](V, names[s["of"]], [names[n] for n in s["records"]],
                           ts(s["at"]))
@@ -1904,26 +2302,40 @@ def check(VEC) -> list:
     return done
 
 
+def _case_verifier(c, case):
+    return verifier_for(c, case.get("extraLogs", ()),
+                        case.get("extraRecords", ()), case.get("seen"))
+
+
+def check_valid(VEC) -> list:
+    """Cases that look suspicious but must be accepted."""
+    c, done = VEC["cases"], []
+    for case in VEC["valid"]:
+        V = _case_verifier(c, case)
+        if case["kind"] == "log":
+            verify_log(case["log"], V)
+        else:
+            assert V.counts_for(case["record"], case["mind"]), case["name"]
+        done.append(case["name"])
+    return done
+
+
 def check_negative(VEC) -> list:
     """Every negative case must be rejected."""
-    c = VEC["cases"]
-    done = []
+    c, done = VEC["cases"], []
     for case in VEC["negative"]:
+        V = _case_verifier(c, case)
         kind = case["kind"]
         if kind == "log":
-            V = verifier_for(c)
             try:
                 verify_log(case["log"], V)
                 raise AssertionError(f"accepted: {case['name']}")
             except ValueError:
                 pass
         elif kind == "countsFor":
-            V = verifier_for(c, case.get("extraLogs", ()),
-                             case.get("extraRecords", ()), case.get("seen"))
             assert not V.counts_for(case["record"], case["mind"]), \
                 f"accepted: {case['name']}"
         elif kind == "status":
-            V = verifier_for(c)
             fn = {"Intent": intent_status, "Offer": offer_status,
                   "Commitment": commitment_status}[case["of"]["type"]]
             got = fn(V, case["of"], case["records"], ts(case["at"]))
@@ -1935,8 +2347,8 @@ def check_negative(VEC) -> list:
 
 
 def check_controls(VEC):
-    """The negative cases fail for the stated reason: the same records
-    pass when the one tested condition is removed."""
+    """The time-based negative cases fail for the stated reason: the same
+    records pass when first seen in time."""
     c = VEC["cases"]
     by = {n["name"]: n for n in VEC["negative"]}
     for name, ok_seen in (("removed-key-backdated", "2026-11-01T08:00:05Z"),
@@ -1947,11 +2359,10 @@ def check_controls(VEC):
                           ("revoked-delegation", "2026-11-05T00:00:05Z"),
                           ("removed-member-backdated",
                            "2026-10-30T23:00:05Z")):
-        case = by[name]
-        cid = content_id(case["record"])
-        V = verifier_for(c, case.get("extraLogs", ()),
-                         case.get("extraRecords", ()), {cid: ok_seen})
-        assert V.counts_for(case["record"], case["mind"]), name
+        case = dict(by[name])
+        case["seen"] = {content_id(case["record"]): ok_seen}
+        assert _case_verifier(c, case).counts_for(case["record"],
+                                                  case["mind"]), name
     return "time-based negatives pass when first seen in time (controls)"
 
 
@@ -1963,6 +2374,6 @@ if __name__ == "__main__":
     vectors = json.loads(out.read_text(encoding="utf-8"))
     for line in check(vectors):
         print("ok -", line)
-    names = check_negative(vectors)
-    print(f"ok - {len(names)} negative cases rejected")
+    print(f"ok - {len(check_valid(vectors))} must-accept cases accepted")
+    print(f"ok - {len(check_negative(vectors))} negative cases rejected")
     print("ok -", check_controls(vectors))

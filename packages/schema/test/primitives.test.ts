@@ -178,9 +178,10 @@ describe("decimals", () => {
   });
 
   it("accepts scores from 0 to 1 only", () => {
-    for (const value of ["0", "1", "0.5", "1.0", "0.999", "1.000"])
+    // Decimals compare numerically (core 1.3), so "-0" is 0.
+    for (const value of ["0", "1", "0.5", "1.0", "0.999", "1.000", "-0", "-0.0"])
       expect(re.unitDecimal.test(value), value).toBe(true);
-    for (const value of ["1.1", "2", "-0.1", "1.01", ".5", "01"])
+    for (const value of ["1.1", "2", "-0.1", "1.01", ".5", "01", "-1", "-0.01", "-"])
       expect(re.unitDecimal.test(value), value).toBe(false);
   });
 });
@@ -216,7 +217,7 @@ describe("identifiers and references", () => {
     expect(re.recordRef.test(`${address}/${CID}/`)).toBe(false);
   });
 
-  it(`${clause("core 4.2")} checks the prefix and length of a Multikey`, () => {
+  it(`${clause("core 4.1")} matches the form of a Multikey of each type, which is necessary but not sufficient`, () => {
     const ed = "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
     const x = "z6LSbysY2xFMRpGMhb7tFTLMpeuPRaqaWM1yECx2AtzE3KCc";
     expect(re.ed25519Multikey.test(ed)).toBe(true);

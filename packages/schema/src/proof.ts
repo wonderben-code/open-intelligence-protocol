@@ -5,10 +5,8 @@
 
 import { type Static, Type } from "typebox";
 
-import { meta, schemaId } from "./naming.ts";
+import { meta } from "./naming.ts";
 import { patterns, Timestamp } from "./primitives.ts";
-import type { Delegation } from "./records/delegation.ts";
-import type { Collective } from "./records/web.ts";
 
 /** core 5.6. */
 export const PROOF_PURPOSES = [
@@ -19,10 +17,15 @@ export const PROOF_PURPOSES = [
 ] as const;
 export type ProofPurpose = (typeof PROOF_PURPOSES)[number];
 
-/** A `record-ref` or an inline record: one link of a chain, or a charter (core 5.2). */
-export type AuthorityItem = string | Delegation | Collective;
-
-const recordRef = { type: "string", pattern: patterns.recordRef };
+/**
+ * One entry of a proof's `authority`: a `record-ref`, or an inline
+ * `Delegation` or `Collective` record (core 5.2). The proof schema checks only
+ * that an entry is a string or an object. What an entry refers to or contains
+ * is judged when the chain or the charter is evaluated (Layer 1, 11.4;
+ * Layer 2, 7.1): a proof whose `authority` does not hold up still counts for
+ * its signer's own mind, so it must not stop being a proof.
+ */
+export type AuthorityItem = string | Readonly<Record<string, unknown>>;
 
 /**
  * core 5.2: a proof has exactly these members. The schema is closed, unlike a
@@ -39,26 +42,16 @@ export const Proof = Type.Object(
     proofPurpose: Type.Unsafe<ProofPurpose>({ enum: [...PROOF_PURPOSES] }),
     created: Timestamp,
     proofValue: Type.String({ pattern: patterns.proofValue }),
-    challenge: Type.Optional(Type.String({ minLength: 1 })),
-    domain: Type.Optional(Type.String({ minLength: 1 })),
+    challenge: Type.Optional(Type.String()),
+    domain: Type.Optional(Type.String()),
     authority: Type.Optional(
       Type.Unsafe<AuthorityItem[]>({
         description:
-          "Exactly one delegation chain, root first (Layer 1, 11.6), or exactly one charter (Layer 2, 7.1).",
-        anyOf: [
-          {
-            type: "array",
-            minItems: 1,
-            maxItems: 8,
-            items: { anyOf: [recordRef, { $ref: schemaId("Delegation") }] },
-          },
-          {
-            type: "array",
-            minItems: 1,
-            maxItems: 1,
-            items: { anyOf: [recordRef, { $ref: schemaId("Collective") }] },
-          },
-        ],
+          "Exactly one delegation chain, root first (Layer 1, 11.6), or exactly one charter (Layer 2, 7.1). Entries are record-refs or inline records; their content is judged when the chain or charter is evaluated.",
+        type: "array",
+        minItems: 1,
+        maxItems: 8,
+        items: { type: ["string", "object"] },
       }),
     ),
     "@context": Type.Optional(Type.Unknown()),

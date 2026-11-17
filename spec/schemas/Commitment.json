@@ -29,8 +29,7 @@
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "uniqueItems": true
+      }
     },
     "created": {
       "$ref": "urn:oip:schema:def:timestamp"
@@ -45,8 +44,7 @@
       "$ref": "urn:oip:schema:def:recordRef"
     },
     "status": {
-      "type": "string",
-      "minLength": 1
+      "type": "string"
     },
     "links": {
       "type": "array",
@@ -182,8 +180,7 @@
               "$ref": "urn:oip:schema:def:amount"
             },
             "currency": {
-              "type": "string",
-              "minLength": 1
+              "type": "string"
             },
             "payer": {
               "$ref": "urn:oip:schema:def:mindAddress"

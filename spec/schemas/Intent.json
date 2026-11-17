@@ -27,8 +27,7 @@
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "uniqueItems": true
+      }
     },
     "created": {
       "$ref": "urn:oip:schema:def:timestamp"
@@ -43,8 +42,7 @@
       "$ref": "urn:oip:schema:def:recordRef"
     },
     "status": {
-      "type": "string",
-      "minLength": 1
+      "type": "string"
     },
     "links": {
       "type": "array",
@@ -82,16 +80,14 @@
         "budget": {
           "type": "object",
           "required": [
-            "max",
-            "currency"
+            "max"
           ],
           "properties": {
             "max": {
               "$ref": "urn:oip:schema:def:amount"
             },
             "currency": {
-              "type": "string",
-              "minLength": 1
+              "type": "string"
             }
           }
         },

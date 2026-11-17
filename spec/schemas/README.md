@@ -9,10 +9,13 @@ The schemas refer to each other by `$id` (`urn:oip:schema:<name>`), so load them
 A schema says whether a value is a well-formed record. It does not verify anything:
 
 - A few structural rules cannot be written in JSON Schema, and `@oip/schema` checks them in code. Examples: a delegation's delegate differs from its author (Layer 1, 11.1); thresholds are majorities (Layer 1, 3.4); each party to a Commitment appears once (Layer 2, 5.1); policy statements nest at most 8 deep (Layer 1, 11.3).
-- A record's `proof` members are objects here. Each proof is checked against `Proof.json` when it is verified, because a malformed proof never counts but does not make its record malformed (core 5.5).
+- A record's `proof` is an array of objects here. Each proof is checked against `Proof.json` when it is verified, because a proof that does not count does not make its record malformed (core 5.5). `Proof.json` checks the entries of `authority` for shape only; what they contain is judged when the chain or charter is evaluated.
+- `ExtensionRecord.json` checks the members every record shares, for a record whose `type` an extension defines (core Section 7).
 - Signatures, identity logs, delegation chains and every rule about time are checked by verification, not by a schema.
 
 Unknown members are allowed in records, because readers preserve and ignore them (core 1.7). Proofs, controllers and key entries are closed.
+
+Patterns are ECMAScript regular expressions, as JSON Schema specifies, and are matched in Unicode mode. In an engine where `$` also matches before a final line break (Python's `re`, for example), translate `$` to an end-of-input anchor (`\Z`), or a value with a trailing newline will pass.
 
 | Schema | `$id` | Defined in | Description |
 |---|---|---|---|
@@ -47,5 +50,6 @@ Unknown members are allowed in records, because readers preserve and ignore them
 | [`Sealed`](Sealed.json) | `urn:oip:schema:Sealed` | L1 12.6 | A packet encrypted to one of the recipient's agreement keys with HPKE. Unsigned (Layer 1, 12.6). |
 | [`Proof`](Proof.json) | `urn:oip:schema:Proof` |  | One proof of a record's proof set (core 5.2). |
 | [`Policy`](Policy.json) | `urn:oip:schema:Policy` |  | A policy: at most 64 statements, all of which must hold for the record being authorised (Layer 1, 11.3). |
+| [`ExtensionRecord`](ExtensionRecord.json) | `urn:oip:schema:ExtensionRecord` |  | A record of a type this revision does not define, as an extension may define one (core Section 7). Only the members every record shares are checked. |
 | [`Defs`](Defs.json) | `urn:oip:schema:Defs` |  | Value syntaxes and structures that several record types share (core Sections 1, 3, 4, 6 and 8). |
 | [`Record`](Record.json) | `urn:oip:schema:Record` |  | Any record this revision defines (core Section 11). Merge is reserved and matches nothing. |

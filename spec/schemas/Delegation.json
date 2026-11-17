@@ -31,8 +31,7 @@
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "uniqueItems": true
+      }
     },
     "created": {
       "$ref": "urn:oip:schema:def:timestamp"

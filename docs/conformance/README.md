@@ -11,10 +11,14 @@
 2. A test cites the clauses it enforces by putting `clause("L1 6.4")` in its name ([`@oip/testkit`](../../packages/testkit)).
 3. `pnpm spec:coverage` runs the tests, counts the passing tests that cite each clause, and writes [coverage.md](coverage.md).
 4. It fails if:
-   - a MUST-level clause owed by a completed milestone has no passing test;
+   - a clause owed by a completed milestone has no passing test;
    - a kind of vector case, or a positive check, owed by a completed milestone does not pass;
-   - a MUST-level clause is planned for a milestone after M12;
+   - a clause is planned for a milestone after M12;
    - a test cites something that is not a clause.
+
+The gate covers every clause that [plan.json](plan.json) does not list as `informative`, whether or not it contains a key word. Most of the verification algorithms (Layer 1, Sections 4 and 6; Layer 2, Sections 7 and 8) state their rules without one, so a gate on key words alone would miss them. A clause with parts in several milestones is owed by the last; earlier milestones test it in part.
+
+`spec/README.md` has no numbered clauses, so its three conformance requirements are not in `clauses.json`: reproduce every value in the vectors, accept every must-accept case and control, and reject every negative case. The golden-vector part of the gate enforces those.
 
 Completing a milestone means adding it to `completed` in [plan.json](plan.json). From then on its clauses and its vector cases must stay covered.
 

@@ -77,11 +77,12 @@ function summarise(text: string, section: string): string {
   if (/^\s*(\||[-*] )/.test(first))
     return `${section} (${first.trimStart().startsWith("|") ? "table" : "list"})`;
   const plain = text
-    .replace(/<[^>]+>/g, "")
+    // Anchors only: `<seq>` and `<contentId>` in the text are placeholders, not tags.
+    .replace(/<\/?a(?:\s[^>]*)?>/g, "")
     .replace(/\*\*/g, "")
     .replace(/\s+/g, " ")
-    .replace(/^[0-9]+\.[0-9]+\.\s*/, "")
-    .trim();
+    .trim()
+    .replace(/^[0-9]+\.[0-9]+\.\s*/, "");
   return plain.length <= 96 ? plain : `${plain.slice(0, 95).trimEnd()}…`;
 }
 
@@ -119,24 +120,41 @@ export function clausesOf(
   };
 
   let inCode = false;
+  // An anchor on a line of its own belongs to the clause that follows it.
+  let anchors: string[] = [];
   for (const line of markdown.split("\n")) {
     if (line.startsWith("```")) inCode = !inCode;
+    if (!inCode && /^<a id="[^"]*"><\/a>\s*$/.test(line)) {
+      anchors.push(line);
+      continue;
+    }
     const heading = inCode ? null : /^## (?:([0-9]+)\. )?(.*)$/.exec(line);
     if (heading !== null) {
+      current?.lines.push(...anchors);
+      anchors = [];
       close();
       const [, number, title] = heading;
       section = number === undefined ? undefined : { number, title: (title ?? "").trim() };
       if (section !== undefined) current = { id: `${prefix} ${section.number}`, lines: [] };
       continue;
     }
-    if (section === undefined) continue;
-    const numbered = inCode ? null : /^(?:<a id="[^"]*"><\/a>\s*)?([0-9]+)\.([0-9]+)\. /.exec(line);
+    if (section === undefined) {
+      anchors = [];
+      continue;
+    }
+    const numbered = inCode ? null : /^([0-9]+)\.([0-9]+)\. /.exec(line);
     if (numbered !== null && numbered[1] === section.number) {
       close();
       current = { id: `${prefix} ${numbered[1]}.${numbered[2] ?? ""}`, lines: [] };
     }
+    if (line.trim() !== "" || anchors.length === 0) {
+      // The held anchors go with whichever clause this line belongs to.
+      current?.lines.push(...anchors);
+      anchors = [];
+    }
     current?.lines.push(line);
   }
+  current?.lines.push(...anchors);
   close();
   return clauses;
 }

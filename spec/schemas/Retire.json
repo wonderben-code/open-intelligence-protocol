@@ -28,8 +28,7 @@
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "uniqueItems": true
+      }
     },
     "created": {
       "$ref": "urn:oip:schema:def:timestamp"
@@ -82,8 +81,7 @@
     "alsoKnownAs": {
       "type": "array",
       "items": {
-        "type": "string",
-        "minLength": 1
+        "type": "string"
       },
       "maxItems": 16
     },

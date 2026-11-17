@@ -24,6 +24,8 @@ import { type Clause, repoRoot, SPEC_DOCUMENTS } from "./lib/spec.ts";
 interface Plan {
   readonly completed: readonly string[];
   readonly clauses: Readonly<Record<string, string>>;
+  /** Clauses that state no requirement, each with the reason. Every other clause is gated. */
+  readonly informative: Readonly<Record<string, string>>;
   readonly vectors: Readonly<Record<string, string>>;
 }
 
@@ -41,7 +43,8 @@ interface VitestReport {
 }
 
 const CITATION = /\[((?:core|L0|L1|L2) [0-9]+(?:\.[0-9]+)?)\]/g;
-const LAST_MILESTONE_FOR_MUST = 12;
+// BUILD.md, Section 2: by M12 no requirement is left untested.
+const LAST_MILESTONE = 12;
 
 function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
@@ -113,6 +116,11 @@ for (const test of tests) {
 
 if (report.numFailedTests > 0) problems.push(`${report.numFailedTests} tests failed`);
 
+for (const id of Object.keys(plan.informative)) {
+  if (!known.has(id))
+    problems.push(`plan.json lists "${id}" as informative, which is not a clause`);
+}
+
 interface Row {
   clause: Clause;
   milestone: string;
@@ -123,24 +131,23 @@ const rows: Row[] = clauses.map((clause) => {
   const milestone = milestoneFor(plan, clause.id);
   const count = passing.get(clause.id) ?? 0;
   const done = completed.has(milestone);
+  const gated = !Object.hasOwn(plan.informative, clause.id);
   let status: string;
   if (count > 0) status = done ? "tested" : `tested in part (due ${milestone})`;
+  else if (!gated) status = "informative";
   else if (!done) status = `pending ${milestone}`;
-  else if (clause.level === "MUST") status = "**untested**";
-  else status = "no test";
-  if (clause.level === "MUST") {
+  else status = "**untested**";
+  if (gated) {
     if (done && count === 0) {
-      problems.push(
-        `${clause.id} is a MUST-level clause owed by ${milestone}, and no passing test cites it`,
-      );
+      problems.push(`${clause.id} is owed by ${milestone}, and no passing test cites it`);
     }
-    if (milestoneNumber(milestone) > LAST_MILESTONE_FOR_MUST) {
+    if (milestoneNumber(milestone) > LAST_MILESTONE) {
       problems.push(
-        `${clause.id} is a MUST-level clause planned for ${milestone}; none may wait beyond M${LAST_MILESTONE_FOR_MUST}`,
+        `${clause.id} is planned for ${milestone}; no requirement may wait beyond M${LAST_MILESTONE}`,
       );
     }
   }
-  return { clause, milestone, tests: count, status };
+  return { clause, milestone: gated ? milestone : "", tests: count, status };
 });
 
 // The golden vectors: tests named "vectors: <section>: <kind>" and "vectors: positive".
@@ -194,24 +201,32 @@ const lines: string[] = [
   "",
   `- A test cites a clause by putting \`clause("L1 6.4")\` in its name. Only tests that pass count.`,
   "- [plan.json](plan.json) says which milestone of [BUILD.md](../../BUILD.md) owes each clause and each kind of vector case.",
-  `- Completed milestones: ${[...completed].join(", ") || "none"}. A MUST-level clause owed by a completed milestone must have a test, or \`pnpm spec:coverage\` fails.`,
+  `- Completed milestones: ${[...completed].join(", ") || "none"}. A clause owed by a completed milestone must have a test, or \`pnpm spec:coverage\` fails. That holds for every clause not listed as informative in plan.json, with or without a key word: most of the verification algorithms are written without one.`,
+  "- A citation says a test enforces part of a clause, not all of it. The milestone reviews check the rest.",
   '- "Tested in part" means an earlier milestone already tests some of a clause that a later milestone completes.',
   "",
   "## Summary",
   "",
-  "| Document | Clauses | MUST-level | With a passing test | MUST-level with a passing test |",
-  "|---|---:|---:|---:|---:|",
+  "| Document | Clauses | Gated | Gated with a passing test | MUST-level | MUST-level with a passing test |",
+  "|---|---:|---:|---:|---:|---:|",
 ];
-for (const { prefix, file } of SPEC_DOCUMENTS) {
-  const mine = rows.filter((row) => row.clause.document === prefix);
+const isGated = (row: Row) => row.status !== "informative";
+const summary = (label: string, mine: Row[]) => {
+  const gated = mine.filter(isGated);
   const must = mine.filter((row) => row.clause.level === "MUST");
+  const tested = (list: Row[]) => list.filter((row) => row.tests > 0).length;
+  return `| ${label} | ${mine.length} | ${gated.length} | ${tested(gated)} | ${must.length} | ${tested(must)} |`;
+};
+for (const { prefix, file } of SPEC_DOCUMENTS) {
   lines.push(
-    `| [${prefix}](../../${file}) | ${mine.length} | ${must.length} | ${mine.filter((row) => row.tests > 0).length} | ${must.filter((row) => row.tests > 0).length} |`,
+    summary(
+      `[${prefix}](../../${file})`,
+      rows.filter((row) => row.clause.document === prefix),
+    ),
   );
 }
-const allMust = rows.filter((row) => row.clause.level === "MUST");
 lines.push(
-  `| **All** | **${rows.length}** | **${allMust.length}** | **${rows.filter((row) => row.tests > 0).length}** | **${allMust.filter((row) => row.tests > 0).length}** |`,
+  summary("**All**", rows),
   "",
   "## Golden vectors",
   "",

@@ -50,7 +50,7 @@ export const Audience: Type.TUnion<[Type.TLiteral<"public">, Type.TUnsafe<string
 export type Audience = Static<typeof Audience>;
 
 // @public
-export type AuthorityItem = string | Delegation | Collective;
+export type AuthorityItem = string | Readonly<Record<string, unknown>>;
 
 // @public (undocumented)
 export const Branch: Type.TObject<{
@@ -74,8 +74,6 @@ export const Bundle: Type.TObject<{
     mind: Type.TUnsafe<string>;
     log: Type.TArray<Type.TUnion<[Type.TUnsafe<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        expires?: string;
-        critical?: string[];
         keys?: {
             label?: string;
             key: string;
@@ -96,11 +94,10 @@ export const Bundle: Type.TObject<{
         }[];
         homes?: string[];
         alsoKnownAs?: string[];
+        expires?: string;
+        critical?: string[];
         type: "Genesis";
         created: string;
-        proof: Readonly<Record<string, unknown>>[];
-        oip: "1";
-        kind: string;
         controller: {
             nextThreshold?: number;
             keys: string[];
@@ -109,14 +106,11 @@ export const Bundle: Type.TObject<{
             members: string[];
             threshold: number;
         };
+        kind: string;
+        proof: Readonly<Record<string, unknown>>[];
+        oip: "1";
     }>, Type.TUnsafe<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        expires?: string;
-        critical?: string[];
-        revoked?: {
-            compromisedSince?: string;
-            key: string;
-        }[];
         keys?: {
             label?: string;
             key: string;
@@ -139,22 +133,21 @@ export const Bundle: Type.TObject<{
         }[];
         homes?: string[];
         alsoKnownAs?: string[];
+        expires?: string;
+        critical?: string[];
+        revoked?: {
+            compromisedSince?: string;
+            key: string;
+        }[];
         type: "Update";
         created: string;
+        mind: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
-        mind: string;
         seq: number;
         prev: string;
     }>, Type.TUnsafe<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        expires?: string;
-        critical?: string[];
-        terms?: Readonly<Record<string, unknown>>;
-        revoked?: {
-            compromisedSince?: string;
-            key: string;
-        }[];
         keys?: {
             label?: string;
             key: string;
@@ -177,22 +170,23 @@ export const Bundle: Type.TObject<{
         }[];
         homes?: string[];
         alsoKnownAs?: string[];
+        expires?: string;
+        critical?: string[];
+        revoked?: {
+            compromisedSince?: string;
+            key: string;
+        }[];
+        terms?: Readonly<Record<string, unknown>>;
         type: "Fork";
         created: string;
+        mind: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
-        mind: string;
         seq: number;
         prev: string;
         child: string;
     }>, Type.TUnsafe<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        expires?: string;
-        critical?: string[];
-        revoked?: {
-            compromisedSince?: string;
-            key: string;
-        }[];
         keys?: {
             label?: string;
             key: string;
@@ -215,21 +209,27 @@ export const Bundle: Type.TObject<{
         }[];
         homes?: string[];
         alsoKnownAs?: string[];
+        expires?: string;
+        critical?: string[];
+        revoked?: {
+            compromisedSince?: string;
+            key: string;
+        }[];
         successor?: string;
         reason?: string;
         type: "Retire";
         created: string;
+        mind: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
-        mind: string;
         seq: number;
         prev: string;
     }>]>>;
     location: Type.TOptional<Type.TUnsafe<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+        homes?: string[];
         expires?: string;
         critical?: string[];
-        homes?: string[];
         resumeAfter?: string;
         participant?: string;
         feed?: {
@@ -237,12 +237,12 @@ export const Bundle: Type.TObject<{
             head: string;
         };
         type: "Location";
-        author: string;
         created: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
-        status: "active" | "paused" | "migrating";
         seq: number;
+        author: string;
+        status: "active" | "paused" | "migrating";
         ttl: number;
         endpoints: {
             instance?: string;
@@ -259,16 +259,6 @@ export const Bundle: Type.TObject<{
         summary?: string;
         attestations?: string[];
         capabilities?: {
-            subject?: string;
-            tags?: string[];
-            evidence?: {
-                ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-                digest?: string;
-                mediaType?: string;
-                note?: string;
-                kind: string;
-                ref: string;
-            }[];
             terms?: {
                 price?: {
                     amount: string;
@@ -279,6 +269,16 @@ export const Bundle: Type.TObject<{
                 conditions?: string[];
                 summary: string;
             };
+            tags?: string[];
+            evidence?: {
+                ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+                digest?: string;
+                mediaType?: string;
+                note?: string;
+                kind: string;
+                ref: string;
+            }[];
+            subject?: string;
             inputs?: string[];
             outputs?: string[];
             attestations?: string[];
@@ -286,17 +286,17 @@ export const Bundle: Type.TObject<{
             id: string;
         }[];
         actsFor?: {
-            mind: string;
             authority: string;
+            mind: string;
         }[];
         interfaces?: Readonly<Record<string, string>>;
         languages?: string[];
         type: "Participant";
-        author: string;
         created: string;
+        kind: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
-        kind: string;
+        author: string;
         name: string;
     }>>;
     firstSeen: Type.TOptional<Type.TUnsafe<Readonly<Record<string, string>>>>;
@@ -552,6 +552,20 @@ export const Evidence: Type.TUnsafe<{
 // @public (undocumented)
 export type Evidence = Static<typeof Evidence>;
 
+// @public
+export const ExtensionRecord: Type.TObject<{
+    oip: Type.TLiteral<"1">;
+    type: Type.TString;
+    created: Type.TOptional<Type.TUnsafe<string>>;
+    expires: Type.TOptional<Type.TUnsafe<string>>;
+    ext: Type.TOptional<Type.TUnsafe<Readonly<Record<string, Readonly<Record<string, unknown>>>>>>;
+    critical: Type.TOptional<Type.TArray<Type.TString>>;
+    proof: Type.TOptional<Type.TUnsafe<Readonly<Record<string, unknown>>[]>>;
+}>;
+
+// @public (undocumented)
+export type ExtensionRecord = Static<typeof ExtensionRecord>;
+
 // @public (undocumented)
 export const FeedPage: Type.TObject<{
     type: Type.TLiteral<"FeedPage">;
@@ -564,11 +578,11 @@ export const FeedPage: Type.TObject<{
         proofs?: string[];
         object: string;
         type: "Entry";
-        author: string;
         created: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
         seq: number;
+        author: string;
         objectType: string;
     }>>;
     next: Type.TOptional<Type.TUnsafe<number>>;
@@ -636,25 +650,25 @@ export const Forwarded: Type.TObject<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
         expires?: string;
         critical?: string[];
+        seq?: number;
+        prev?: string;
         constraints?: {
             retention?: string;
             allowedUses?: string[];
             prohibitedUses?: string[];
-            confidentiality?: string;
+            confidentiality?: unknown;
             licence?: string;
-            jurisdiction?: string;
+            jurisdiction?: unknown;
             forwardOk?: boolean;
             maxHops?: number;
         };
-        seq?: number;
-        prev?: string;
         session?: string;
         instance?: string;
         thread?: string;
         parentThread?: string;
         replyTo?: string;
         context?: {
-            summary?: string;
+            summary?: unknown;
             refs?: string[];
             assumptions?: unknown;
             language?: string;
@@ -664,9 +678,9 @@ export const Forwarded: Type.TObject<{
             onBehalfOf?: string;
             derivedFrom?: string[];
             generatedBy?: {
-                model?: string;
-                version?: string;
-                tool?: string;
+                model?: unknown;
+                version?: unknown;
+                tool?: unknown;
             };
         };
         hints?: Readonly<Record<string, string[]>>;
@@ -792,7 +806,7 @@ export const Intent: Type.TObject<{
         deadline: Type.TOptional<Type.TUnsafe<string>>;
         budget: Type.TOptional<Type.TObject<{
             max: Type.TUnsafe<string>;
-            currency: Type.TString;
+            currency: Type.TOptional<Type.TString>;
         }>>;
         requires: Type.TOptional<Type.TArray<Type.TString>>;
     }>>;
@@ -904,8 +918,6 @@ export const LogPage: Type.TObject<{
     mind: Type.TUnsafe<string>;
     events: Type.TArray<Type.TUnion<[Type.TUnsafe<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        expires?: string;
-        critical?: string[];
         keys?: {
             label?: string;
             key: string;
@@ -926,11 +938,10 @@ export const LogPage: Type.TObject<{
         }[];
         homes?: string[];
         alsoKnownAs?: string[];
+        expires?: string;
+        critical?: string[];
         type: "Genesis";
         created: string;
-        proof: Readonly<Record<string, unknown>>[];
-        oip: "1";
-        kind: string;
         controller: {
             nextThreshold?: number;
             keys: string[];
@@ -939,14 +950,11 @@ export const LogPage: Type.TObject<{
             members: string[];
             threshold: number;
         };
+        kind: string;
+        proof: Readonly<Record<string, unknown>>[];
+        oip: "1";
     }>, Type.TUnsafe<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        expires?: string;
-        critical?: string[];
-        revoked?: {
-            compromisedSince?: string;
-            key: string;
-        }[];
         keys?: {
             label?: string;
             key: string;
@@ -969,22 +977,21 @@ export const LogPage: Type.TObject<{
         }[];
         homes?: string[];
         alsoKnownAs?: string[];
+        expires?: string;
+        critical?: string[];
+        revoked?: {
+            compromisedSince?: string;
+            key: string;
+        }[];
         type: "Update";
         created: string;
+        mind: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
-        mind: string;
         seq: number;
         prev: string;
     }>, Type.TUnsafe<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        expires?: string;
-        critical?: string[];
-        terms?: Readonly<Record<string, unknown>>;
-        revoked?: {
-            compromisedSince?: string;
-            key: string;
-        }[];
         keys?: {
             label?: string;
             key: string;
@@ -1007,22 +1014,23 @@ export const LogPage: Type.TObject<{
         }[];
         homes?: string[];
         alsoKnownAs?: string[];
+        expires?: string;
+        critical?: string[];
+        revoked?: {
+            compromisedSince?: string;
+            key: string;
+        }[];
+        terms?: Readonly<Record<string, unknown>>;
         type: "Fork";
         created: string;
+        mind: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
-        mind: string;
         seq: number;
         prev: string;
         child: string;
     }>, Type.TUnsafe<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        expires?: string;
-        critical?: string[];
-        revoked?: {
-            compromisedSince?: string;
-            key: string;
-        }[];
         keys?: {
             label?: string;
             key: string;
@@ -1045,13 +1053,19 @@ export const LogPage: Type.TObject<{
         }[];
         homes?: string[];
         alsoKnownAs?: string[];
+        expires?: string;
+        critical?: string[];
+        revoked?: {
+            compromisedSince?: string;
+            key: string;
+        }[];
         successor?: string;
         reason?: string;
         type: "Retire";
         created: string;
+        mind: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
-        mind: string;
         seq: number;
         prev: string;
     }>]>>;
@@ -1191,7 +1205,7 @@ export const Packet: Type.TObject<{
     content: Type.TUnsafe<Content>;
     context: Type.TOptional<Type.TObject<{
         refs: Type.TOptional<Type.TArray<Type.TString>>;
-        summary: Type.TOptional<Type.TString>;
+        summary: Type.TOptional<Type.TUnknown>;
         assumptions: Type.TOptional<Type.TUnknown>;
         language: Type.TOptional<Type.TString>;
         stateDoc: Type.TOptional<Type.TUnknown>;
@@ -1199,9 +1213,9 @@ export const Packet: Type.TObject<{
     provenance: Type.TOptional<Type.TObject<{
         derivedFrom: Type.TOptional<Type.TArray<Type.TString>>;
         generatedBy: Type.TOptional<Type.TObject<{
-            model: Type.TOptional<Type.TString>;
-            version: Type.TOptional<Type.TString>;
-            tool: Type.TOptional<Type.TString>;
+            model: Type.TOptional<Type.TUnknown>;
+            version: Type.TOptional<Type.TUnknown>;
+            tool: Type.TOptional<Type.TUnknown>;
         }>>;
         onBehalfOf: Type.TOptional<Type.TUnsafe<string>>;
     }>>;
@@ -1209,9 +1223,9 @@ export const Packet: Type.TObject<{
         retention: Type.TOptional<Type.TUnion<[Type.TUnsafe<string>, Type.TLiteral<"none">]>>;
         allowedUses: Type.TOptional<Type.TArray<Type.TString>>;
         prohibitedUses: Type.TOptional<Type.TArray<Type.TString>>;
-        confidentiality: Type.TOptional<Type.TString>;
+        confidentiality: Type.TOptional<Type.TUnknown>;
         licence: Type.TOptional<Type.TString>;
-        jurisdiction: Type.TOptional<Type.TString>;
+        jurisdiction: Type.TOptional<Type.TUnknown>;
         forwardOk: Type.TOptional<Type.TBoolean>;
         maxHops: Type.TOptional<Type.TUnsafe<number>>;
     }>>;
@@ -1326,7 +1340,7 @@ export const patterns: {
     readonly proofValue: "^z[1-9A-HJ-NP-Za-km-z]{64,88}$";
     readonly decimal: "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$";
     readonly amount: "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$";
-    readonly unitDecimal: "^(?:0(?:\\.[0-9]+)?|1(?:\\.0+)?)$";
+    readonly unitDecimal: "^(?:-0(?:\\.0+)?|0(?:\\.[0-9]+)?|1(?:\\.0+)?)$";
     readonly timestamp: "^(?:[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8]))|(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29)T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?Z$";
     readonly duration: "^P(?:[0-9]+D(?:T(?:[0-9]+H(?:[0-9]+M)?(?:[0-9]+S)?|[0-9]+M(?:[0-9]+S)?|[0-9]+S))?|T(?:[0-9]+H(?:[0-9]+M)?(?:[0-9]+S)?|[0-9]+M(?:[0-9]+S)?|[0-9]+S))$";
     readonly sha256Digest: "^sha256:[0-9a-f]{64}$";
@@ -1721,6 +1735,9 @@ export const Update: Type.TObject<{
 
 // @public (undocumented)
 export type Update = Static<typeof Update>;
+
+// @public
+export function validateExtensionRecord(value: unknown): Validation<ExtensionRecord>;
 
 // @public
 export function validateProof(value: unknown): Validation<Proof>;

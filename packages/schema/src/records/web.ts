@@ -9,12 +9,13 @@ import { signedRecord } from "../common.ts";
 import { define, meta, ref } from "../naming.ts";
 import {
   Amount,
-  Count,
+  MAX_SAFE_INTEGER,
   Ext,
   JsonObject,
   MindAddress,
   Namespaced,
   RecordRef,
+  SafeInteger,
   Sha256Digest,
   Strings,
   Timestamp,
@@ -35,7 +36,7 @@ export const CapabilityQuery = define(
     ),
     constraints: Type.Optional(JsonObject),
     evidence: Type.Optional(JsonObject),
-    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+    limit: Type.Optional(Type.Integer({ minimum: -MAX_SAFE_INTEGER, maximum: 100 })),
   }),
 );
 export type CapabilityQuery = Static<typeof CapabilityQuery>;
@@ -54,7 +55,7 @@ export const Evidence = define(
         Type.Literal("log"),
         Namespaced,
       ]),
-      ref: Type.String({ minLength: 1 }),
+      ref: Type.String(),
       digest: Type.Optional(Sha256Digest),
       mediaType: Type.Optional(Type.String()),
       note: Type.Optional(Type.String()),
@@ -73,7 +74,7 @@ const layer2 = {
   ...signedRecord,
   author: MindAddress,
   supersedes: Type.Optional(RecordRef),
-  status: Type.Optional(Type.String({ minLength: 1 })),
+  status: Type.Optional(Type.String()),
   links: Type.Optional(Type.Array(Type.Object({ rel: Type.String(), ref: Type.String() }))),
 };
 
@@ -89,7 +90,7 @@ export const Audience = Type.Union([
 ]);
 export type Audience = Static<typeof Audience>;
 
-const Price = Type.Object({ amount: Amount, currency: Type.String({ minLength: 1 }) });
+const Price = Type.Object({ amount: Amount, currency: Type.String() });
 
 export const Intent = Type.Object(
   {
@@ -100,9 +101,7 @@ export const Intent = Type.Object(
     constraints: Type.Optional(
       Type.Object({
         deadline: Type.Optional(Timestamp),
-        budget: Type.Optional(
-          Type.Object({ max: Amount, currency: Type.String({ minLength: 1 }) }),
-        ),
+        budget: Type.Optional(Type.Object({ max: Amount, currency: Type.Optional(Type.String()) })),
         requires: Type.Optional(Strings),
       }),
     ),
@@ -122,7 +121,7 @@ export const OfferTerms = define(
     summary: Type.String(),
     price: Type.Optional(Price),
     deliveryBy: Type.Optional(Timestamp),
-    quantity: Type.Optional(Count),
+    quantity: Type.Optional(SafeInteger),
     conditions: Type.Optional(Strings),
   }),
 );
@@ -188,7 +187,7 @@ export const Commitment = Type.Object(
       price: Type.Optional(
         Type.Object({
           amount: Amount,
-          currency: Type.String({ minLength: 1 }),
+          currency: Type.String(),
           payer: MindAddress,
           payee: MindAddress,
         }),
@@ -267,9 +266,7 @@ export const Collective = Type.Object(
         },
       }),
     ),
-    assignments: Type.Optional(
-      Type.Array(Type.Object({ mind: MindAddress, role: Type.String({ minLength: 1 }) })),
-    ),
+    assignments: Type.Optional(Type.Array(Type.Object({ mind: MindAddress, role: Type.String() }))),
     procedures: Type.Optional(JsonObject),
   },
   {

@@ -29,8 +29,7 @@
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "uniqueItems": true
+      }
     },
     "created": {
       "$ref": "urn:oip:schema:def:timestamp"
@@ -55,15 +54,13 @@
       "$ref": "urn:oip:schema:def:contentId"
     },
     "objectType": {
-      "type": "string",
-      "minLength": 1
+      "type": "string"
     },
     "proofs": {
       "type": "array",
       "items": {
         "$ref": "urn:oip:schema:def:sha256Digest"
-      },
-      "maxItems": 256
+      }
     }
   },
   "if": {

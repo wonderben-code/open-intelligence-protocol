@@ -43,6 +43,22 @@ describe("limits on every value", () => {
     }
   });
 
+  it(`${clause("core 1.1")} rejects an unpaired surrogate in a string or in a member name`, () => {
+    for (const bad of ["\ud800", "a\udc00", "\udc00\ud800", "ok \ud83d"]) {
+      for (const record of [
+        sample("Intent", { want: bad }),
+        sample("Intent", { futureMember: [{ deep: bad }] }),
+        sample("Intent", { [bad]: 1 }),
+        sample("Intent", { futureMember: { [bad]: 1 } }),
+      ]) {
+        const result = validateRecord(record);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.issues[0].clause).toBe("core 1.1");
+      }
+    }
+    expect(validateRecord(sample("Intent", { want: "paired \ud83d\ude00 and 𝛑" })).ok).toBe(true);
+  });
+
   it("accepts nesting up to the implementation limit and rejects anything deeper", () => {
     // The record is level 1 and the member's value starts at level 2.
     expect(validateRecord(sample("Intent", { futureMember: nest(MAX_DEPTH - 1) })).ok).toBe(true);

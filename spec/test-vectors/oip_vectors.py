@@ -3265,10 +3265,12 @@ def judge_stream(c, lines, write):
             continue
         try:
             verdict = judge(c, json.loads(line))
-        except ValueError as e:
+        except (ValueError, RecursionError) as e:
             verdict = {"name": None, "kind": None, "holds": False,
-                       "error": f"not JSON: {e}"}
-        write(json.dumps(verdict, ensure_ascii=False) + "\n")
+                       "error": f"not JSON: {type(e).__name__}: {e}"}
+        # ASCII only, so that no character a line reader treats as a line
+        # break (U+2028, U+2029) can appear inside a verdict.
+        write(json.dumps(verdict, ensure_ascii=True) + "\n")
 
 
 def check_valid(VEC) -> list:
@@ -3323,7 +3325,7 @@ if __name__ == "__main__":
         else:
             given = json.loads(sys.stdin.read())
             for one in given if isinstance(given, list) else [given]:
-                emit(json.dumps(judge(cases, one), ensure_ascii=False) + "\n")
+                emit(json.dumps(judge(cases, one), ensure_ascii=True) + "\n")
         sys.exit(0)
     if "--check" not in sys.argv:
         out.write_text(json.dumps(build(), indent=2, ensure_ascii=False) +

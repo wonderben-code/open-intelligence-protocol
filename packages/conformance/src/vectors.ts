@@ -126,6 +126,41 @@ function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** The members each kind of case must have. */
+const REQUIRED_MEMBERS: Readonly<Record<CaseKind, readonly string[]>> = {
+  log: ["log"],
+  countsFor: ["record", "mind"],
+  sentFor: ["record", "mind"],
+  status: ["of", "records", "at", "expect"],
+  assurance: ["record", "expect"],
+  record: ["record"],
+};
+
+/** The members any case may have. */
+const COMMON_MEMBERS = [
+  "name",
+  "kind",
+  "reason",
+  "extraLogs",
+  "branches",
+  "extraRecords",
+  "seen",
+] as const;
+
+const TOP_LEVEL_MEMBERS = [
+  "spec_revision",
+  "status",
+  "note",
+  "assumption",
+  "baseline",
+  "keys",
+  "cases",
+  ...SECTIONS,
+] as const;
+
+const isLog = (value: unknown) => Array.isArray(value) && value.every(isObject);
+const isLogs = (value: unknown) => Array.isArray(value) && value.every(isLog);
+
 function checkCase(section: Section, value: unknown, index: number): void {
   const where = `${section}[${index}]`;
   if (!isObject(value)) fail(`${where} is not an object`);
@@ -134,16 +169,34 @@ function checkCase(section: Section, value: unknown, index: number): void {
   if (!(CASE_KINDS as readonly unknown[]).includes(kind)) {
     fail(`${where} (${name}) has the unknown kind ${JSON.stringify(kind)}`);
   }
-  const needs: Record<CaseKind, readonly string[]> = {
-    log: ["log"],
-    countsFor: ["record", "mind"],
-    sentFor: ["record", "mind"],
-    status: ["of", "records", "at", "expect"],
-    assurance: ["record", "expect"],
-    record: ["record"],
-  };
-  for (const member of needs[kind as CaseKind]) {
+  const required = REQUIRED_MEMBERS[kind as CaseKind];
+  for (const member of required) {
     if (!(member in value)) fail(`${where} (${name}) has no ${member}`);
+  }
+  // A member this suite does not know would be ignored, and the case judged
+  // with the wrong view: a misspelt `extraLogs` must not pass unnoticed.
+  for (const member of Object.keys(value)) {
+    if (!required.includes(member) && !(COMMON_MEMBERS as readonly string[]).includes(member)) {
+      fail(`${where} (${name}) has the unknown member ${JSON.stringify(member)}`);
+    }
+  }
+  const shapes: [member: string, ok: (found: unknown) => boolean, what: string][] = [
+    ["extraLogs", isLogs, "an array of logs"],
+    ["branches", isLogs, "an array of logs"],
+    ["extraRecords", isLog, "an array of records"],
+    ["log", isLog, "a log"],
+    ["records", isLog, "an array of records"],
+    ["mind", (found) => typeof found === "string", "an address"],
+    ["at", (found) => typeof found === "string", "a timestamp"],
+    ["expect", (found) => typeof found === "string", "a string"],
+    [
+      "seen",
+      (found) => isObject(found) && Object.values(found).every((time) => typeof time === "string"),
+      "a map of timestamps",
+    ],
+  ];
+  for (const [member, ok, what] of shapes) {
+    if (member in value && !ok(value[member])) fail(`${where} (${name}): ${member} is not ${what}`);
   }
 }
 
@@ -154,6 +207,11 @@ function checkCase(section: Section, value: unknown, index: number): void {
  */
 export function parseVectors(value: unknown): Vectors {
   if (!isObject(value)) fail("not an object");
+  for (const member of Object.keys(value)) {
+    if (!(TOP_LEVEL_MEMBERS as readonly string[]).includes(member)) {
+      fail(`unknown member ${JSON.stringify(member)}: this suite would not run what it holds`);
+    }
+  }
   if (typeof value["spec_revision"] !== "string") fail("no spec_revision");
   if (!isObject(value["cases"])) fail("no cases");
   if (!isObject(value["keys"])) fail("no keys");

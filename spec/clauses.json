@@ -458,7 +458,7 @@
       "id": "core 10.2",
       "document": "core",
       "section": "Media type and errors",
-      "summary": "HTTP APIs report errors as RFC 9457 problem details with a `type` of the form `urn:oip:error:`:…",
+      "summary": "HTTP APIs report errors as RFC 9457 problem details with a `type` of the form `urn:oip:error:<c…",
       "level": "none",
       "keywords": {},
       "digest": "9cd9d85669f58a868a91295d5d4add8b4777d8b19dd741bd5bd618dcfb2561c9"
@@ -582,7 +582,7 @@
       "keywords": {
         "MAY": 1
       },
-      "digest": "31288c99609da8e0a37647280ea0fe6aa606f6e8153b6901350f24ed9a36febb"
+      "digest": "de63e7c4a98a0425683cd867d3f929cc2abe9defdff9639bef9e52ddc150d9b8"
     },
     {
       "id": "L0 3.3",
@@ -593,7 +593,7 @@
       "keywords": {
         "MAY": 1
       },
-      "digest": "857dcbd803891ac5089ab92406b449803893322dcb2c1375653d0fac0a4cf8f4"
+      "digest": "a69c176d53a9288b42f736721608bf3a9be5cf3ed86f83a4a9a15d4901110911"
     },
     {
       "id": "L0 4.1",
@@ -732,7 +732,7 @@
       "id": "L1 3.3",
       "document": "L1",
       "section": "Identity-log events",
-      "summary": "Version identifiers. The version identifier of an event is `-`, with `seq` = 0 for the genesis.",
+      "summary": "Version identifiers. The version identifier of an event is `<seq>-<contentId>`, with `seq` = 0…",
       "level": "none",
       "keywords": {},
       "digest": "641645e50626eee5051b8e6a1eefd846b21cdbd1960f26d34a0ca235d27ff460"
@@ -1279,7 +1279,7 @@
       "id": "L1 12.2",
       "document": "L1",
       "section": "Packets and sealing",
-      "summary": "Content. Exactly one of: - `{ \"mediaType\": , \"body\": }`. With `application/oip+json`, `body` is…",
+      "summary": "Content. Exactly one of: - `{ \"mediaType\": <media type>, \"body\": <JSON value> }`. With `applica…",
       "level": "MUST",
       "keywords": {
         "REQUIRED": 1
@@ -1359,7 +1359,7 @@
       "id": "L1 13.3",
       "document": "L1",
       "section": "Bindings",
-      "summary": "Authentication. - A `Hello` record `{ \"oip\": \"1\", \"type\": \"Hello\", \"author\": , \"created\": , \"pr…",
+      "summary": "Authentication. - A `Hello` record `{ \"oip\": \"1\", \"type\": \"Hello\", \"author\": <mind>, \"created\":…",
       "level": "MUST",
       "keywords": {
         "MUST": 4,
@@ -1541,7 +1541,7 @@
       "id": "L1 17.1",
       "document": "L1",
       "section": "Resolvers",
-      "summary": "A resolver MUST implement: - `GET /oip/v1/resolve/`: returns a `Bundle` (13.1) with the log it…",
+      "summary": "A resolver MUST implement: - `GET /oip/v1/resolve/<mindId>`: returns a `Bundle` (13.1) with the…",
       "level": "MUST",
       "keywords": {
         "MUST": 1
@@ -1597,7 +1597,7 @@
       "id": "L1 18.3",
       "document": "L1",
       "section": "Indexers and capability routing",
-      "summary": "A `QueryResult`: `{ \"oip\": \"1\", \"type\": \"QueryResult\", \"author\": , \"created\": , \"query\": , \"res…",
+      "summary": "A `QueryResult`: `{ \"oip\": \"1\", \"type\": \"QueryResult\", \"author\": <indexer's address>, \"created\"…",
       "level": "none",
       "keywords": {},
       "digest": "befc67f5e9bf061620bbe891e54fa2dfcac567cb93023cd09dd143cf211355ea"

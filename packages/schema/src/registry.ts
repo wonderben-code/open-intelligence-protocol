@@ -8,6 +8,7 @@ import type { Static } from "typebox";
 import { Proof } from "./proof.ts";
 import { Bundle, DuplicityEvidence, FeedPage, LogPage } from "./records/containers.ts";
 import { Delegation, Policy, Revocation } from "./records/delegation.ts";
+import { ExtensionRecord } from "./records/extension.ts";
 import { Fork, Genesis, Retire, Update } from "./records/identity.ts";
 import {
   Ack,
@@ -61,7 +62,7 @@ export const recordSchemas = {
 } as const;
 
 /** Named schemas that are not records. */
-export const sharedSchemas = { Proof, Policy } as const;
+export const sharedSchemas = { Proof, Policy, ExtensionRecord } as const;
 
 /** The static type of every record type, by name. */
 export interface RecordTypes {

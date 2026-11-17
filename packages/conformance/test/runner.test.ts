@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   type CaseKind,
+  claimHolds,
   claimMustHold,
   type ConformanceAdapter,
   loadVectors,
@@ -90,15 +91,40 @@ describe("running a case", () => {
     }
   });
 
-  it("counts an adapter that throws as the claim not holding", () => {
+  it("fails every case on which the adapter throws, negative cases included", () => {
+    const crash = () => {
+      throw new TypeError("cannot read properties of undefined");
+    };
     const throwing: ConformanceAdapter = {
       name: "throws",
-      logVerifies: () => {
-        throw new Error("crash");
-      },
+      recordIsWellFormed: crash,
+      logVerifies: crash,
+      countsFor: crash,
+      sentFor: crash,
+      status: crash,
+      assurance: crash,
     };
-    expect(runCase(throwing, vectors, "valid", first("log", "valid")).outcome).toBe("fail");
-    expect(runCase(throwing, vectors, "negative", first("log")).outcome).toBe("pass");
+    for (const section of ["valid", "negative", "controls"] as const) {
+      for (const vectorCase of vectors[section]) {
+        const result = runCase(throwing, vectors, section, vectorCase);
+        expect(result.outcome, vectorCase.name).toBe("fail");
+        expect(result.detail).toMatch(/^the implementation threw: cannot read/);
+      }
+    }
+    expect(tally(runVectors(throwing, vectors)).pass).toBe(0);
+    expect(() => claimHolds(throwing, vectors, first("log"))).toThrow(TypeError);
+  });
+
+  it("takes only the boolean true as acceptance", () => {
+    const truthy = {
+      name: "truthy",
+      logVerifies: () => "yes" as unknown as boolean,
+      countsFor: () => 1 as unknown as boolean,
+      recordIsWellFormed: () => ({}) as unknown as boolean,
+    };
+    expect(runCase(truthy, vectors, "valid", first("log", "valid")).outcome).toBe("fail");
+    expect(runCase(truthy, vectors, "valid", first("countsFor", "valid")).outcome).toBe("fail");
+    expect(claimHolds(truthy, vectors, first("record"))).toBe(false);
   });
 
   it("compares status and assurance with the expected value", () => {
@@ -195,6 +221,39 @@ describe("reading the vectors", () => {
     const broken = raw();
     broken["baseline"] = { logs: ["amina_log", "nobody_log"], records: [] };
     expect(() => parseVectors(broken)).toThrow(/nobody_log/);
+  });
+
+  it("rejects a member it does not know, so that a misspelt one cannot change a case unnoticed", () => {
+    const withMember = (section: string, member: string, value: unknown) => {
+      const broken = raw();
+      const target = section === "" ? broken : (broken[section] as Record<string, unknown>[])[0];
+      if (target === undefined) throw new Error(`the vectors have no ${section} cases`);
+      target[member] = value;
+      return () => parseVectors(broken);
+    };
+    expect(withMember("negative", "extraLog", [])).toThrow(/unknown member "extraLog"/);
+    expect(withMember("valid", "expect", "open")).toThrow(/unknown member "expect"/);
+    expect(withMember("", "must_reject", [])).toThrow(/unknown member "must_reject"/);
+  });
+
+  it("rejects a case whose members have the wrong shape", () => {
+    const withMember = (member: string, value: unknown) => {
+      const broken = raw();
+      const list = broken["negative"] as Record<string, unknown>[];
+      const target = list.find((entry) => entry["kind"] === "countsFor");
+      if (target === undefined) throw new Error("no countsFor case");
+      target[member] = value;
+      return () => parseVectors(broken);
+    };
+    expect(withMember("seen", { "sha256:00": 1793350800 })).toThrow(
+      /seen is not a map of timestamps/,
+    );
+    expect(withMember("seen", ["2026-10-30T09:00:00Z"])).toThrow(/seen is not/);
+    expect(withMember("extraLogs", [{ type: "Genesis" }])).toThrow(
+      /extraLogs is not an array of logs/,
+    );
+    expect(withMember("extraRecords", "none")).toThrow(/extraRecords is not/);
+    expect(withMember("mind", 7)).toThrow(/mind is not an address/);
   });
 
   it("rejects a case with no name, an unknown kind, a missing member or a repeated name", () => {

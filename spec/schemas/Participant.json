@@ -28,8 +28,7 @@
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "uniqueItems": true
+      }
     },
     "created": {
       "$ref": "urn:oip:schema:def:timestamp"
@@ -68,7 +67,6 @@
         "properties": {
           "id": {
             "type": "string",
-            "minLength": 1,
             "maxLength": 128
           },
           "summary": {
@@ -137,8 +135,7 @@
     "interfaces": {
       "type": "object",
       "additionalProperties": {
-        "type": "string",
-        "minLength": 1
+        "type": "string"
       }
     },
     "languages": {

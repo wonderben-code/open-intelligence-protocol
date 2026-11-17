@@ -60,7 +60,7 @@ Each verdict is one line of JSON:
 
 ## Evaluation times
 
-Time rules use evidence, not the signer's own `created` (core, Section 9). `seen` maps evidence to the earliest time the verifier can show, whether from itself, a witness it trusts or an anchor: a proof's digest (`"sha256:"` + hex of SHA-256 of the proof's canonical form) for a proof on a record, and the content ID for an identity event. Evidence for a record therefore never covers a proof added to it later. Unless a case gives `seen` times, a verifier is taken to have obtained each proof and identity event at its own `created` time, as a witness that has followed every log from the start would (core 9.4). The time-based negative cases set `seen` later than `created`, and their controls set it in time.
+Time rules use evidence, not the signer's own `created` (core, Section 9). `seen` maps evidence to the earliest time the verifier can show, whether from itself, a witness it trusts or an anchor: a proof's digest (`"sha256:"` + hex of SHA-256 of the proof's canonical form) for a proof on a record, and the content ID for an identity event. Evidence for a record therefore never covers a proof added to it later. Unless a case gives `seen` times, a verifier is taken to have obtained each proof and identity event at its own `created` time, as a witness that has followed every log from the start would (core 9.4). A `seen` map is partial: it names only the evidence that differs, and every proof and event it does not name keeps that default. The time-based negative cases set `seen` later than `created`, and their controls set it in time.
 
 ## Conformance
 

@@ -30,7 +30,7 @@
     "unitDecimal": {
       "$id": "urn:oip:schema:def:unitDecimal",
       "type": "string",
-      "pattern": "^(?:0(?:\\.[0-9]+)?|1(?:\\.0+)?)$",
+      "pattern": "^(?:-0(?:\\.0+)?|0(?:\\.[0-9]+)?|1(?:\\.0+)?)$",
       "maxLength": 64
     },
     "count": {
@@ -282,7 +282,7 @@
         },
         "limit": {
           "type": "integer",
-          "minimum": 1,
+          "minimum": -9007199254740991,
           "maximum": 100
         }
       }
@@ -327,8 +327,7 @@
           ]
         },
         "ref": {
-          "type": "string",
-          "minLength": 1
+          "type": "string"
         },
         "digest": {
           "$ref": "urn:oip:schema:def:sha256Digest"
@@ -383,8 +382,7 @@
               "$ref": "urn:oip:schema:def:amount"
             },
             "currency": {
-              "type": "string",
-              "minLength": 1
+              "type": "string"
             }
           }
         },
@@ -392,7 +390,7 @@
           "$ref": "urn:oip:schema:def:timestamp"
         },
         "quantity": {
-          "$ref": "urn:oip:schema:def:count"
+          "$ref": "urn:oip:schema:def:safeInteger"
         },
         "conditions": {
           "type": "array",

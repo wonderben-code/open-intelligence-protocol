@@ -10,10 +10,11 @@
  * Every function here takes a value that has already passed its schema.
  */
 
-import { type Issue, pointerToken } from "./issue.ts";
+import { type Issue, pointerToken, quote } from "./issue.ts";
 import type { Proof } from "./proof.ts";
 import type { OipRecord, RecordOf } from "./registry.ts";
 import type { PolicyStatement } from "./records/delegation.ts";
+import type { ExtensionRecord } from "./records/extension.ts";
 import type { Controller, IdentityEvent } from "./records/identity.ts";
 import { parseSelector } from "./selector.ts";
 
@@ -36,7 +37,7 @@ function checkStatement(
     if (parseSelector(value) === undefined) {
       report(
         at,
-        `"${value}" is not a selector: use ".", ".name", "[index]" or ["name"]`,
+        `${quote(value)} is not a selector: use ".", ".name", "[index]" or ["name"]`,
         "L1 11.3",
       );
     }
@@ -67,9 +68,20 @@ function checkPolicy(policy: readonly PolicyStatement[], path: string, report: R
   });
 }
 
-function checkController(controller: Controller, path: string, report: Report): void {
+function checkController(
+  controller: Controller,
+  self: string | undefined,
+  path: string,
+  report: Report,
+): void {
   if ("members" in controller) {
     const count = controller.members.length;
+    // A genesis has no address until its content ID is known, so only later
+    // events are checked here; @oip/identity checks the genesis.
+    const own = self === undefined ? -1 : controller.members.indexOf(self);
+    if (own !== -1) {
+      report(`${path}/members/${own}`, "a mind is not a member of itself", "L1 3.4");
+    }
     if (controller.threshold > count || 2 * controller.threshold <= count) {
       report(
         `${path}/threshold`,
@@ -116,9 +128,22 @@ function checkKeySets(event: IdentityEvent, path: string, report: Report): void 
 }
 
 function checkIdentityEvent(event: IdentityEvent, path: string, report: Report): void {
-  if (event.controller !== undefined)
-    checkController(event.controller, `${path}/controller`, report);
+  const self = event.type === "Genesis" ? undefined : event.mind;
+  if (event.controller !== undefined) {
+    checkController(event.controller, self, `${path}/controller`, report);
+  }
   checkKeySets(event, path, report);
+  if (event.type === "Genesis" || event.revoked === undefined) return;
+  // 4.5: a revoked key is not in the resulting keys or invocation. Sets the
+  // event leaves out are checked against the state, by @oip/identity.
+  const revoked = new Set(event.revoked.map((entry) => entry.key));
+  for (const set of ["keys", "invocation"] as const) {
+    event[set]?.forEach((entry, i) => {
+      if (revoked.has(entry.key)) {
+        report(`${path}/${set}/${i}/key`, `key ${entry.key} is revoked by this event`, "L1 4.5");
+      }
+    });
+  }
 }
 
 function checkCommitment(record: RecordOf<"Commitment">, path: string, report: Report): void {
@@ -151,17 +176,25 @@ function checkCollective(record: RecordOf<"Collective">, path: string, report: R
   }
 }
 
-function checkRecordAt(record: OipRecord, path: string, report: Report): void {
-  // core 8.3: every critical namespace has an extension block.
+/** core 8.3: every critical namespace has an extension block. */
+function checkCritical(
+  record: { readonly critical?: readonly string[]; readonly ext?: object },
+  path: string,
+  report: Report,
+): void {
   record.critical?.forEach((namespace, i) => {
     if (record.ext === undefined || !Object.hasOwn(record.ext, namespace)) {
       report(
         `${path}/critical/${i}`,
-        `critical namespace "${namespace}" is not in ext`,
+        `critical namespace ${quote(namespace)} is not in ext`,
         "core 8.3",
       );
     }
   });
+}
+
+function checkRecordAt(record: OipRecord, path: string, report: Report): void {
+  checkCritical(record, path, report);
 
   switch (record.type) {
     case "Genesis":
@@ -204,7 +237,7 @@ function checkRecordAt(record: OipRecord, path: string, report: Report): void {
         if (ids.has(capability.id)) {
           report(
             `${path}/capabilities/${i}/id`,
-            `capability id "${capability.id}" is used more than once`,
+            `capability id ${quote(capability.id)} is used more than once`,
             "L1 16.2",
           );
         }
@@ -252,6 +285,13 @@ function collect(run: (report: Report) => void): Issue[] {
   return issues;
 }
 
+/** The rule violations in a record of an extension's type that has passed `ExtensionRecord`. */
+export function checkExtensionRules(record: ExtensionRecord): Issue[] {
+  return collect((report) => {
+    checkCritical(record, "", report);
+  });
+}
+
 /** The rule violations in a record that has passed its schema. Empty when there are none. */
 export function checkRecordRules(record: OipRecord): Issue[] {
   return collect((report) => {
@@ -259,7 +299,12 @@ export function checkRecordRules(record: OipRecord): Issue[] {
   });
 }
 
-/** The rule violations in a proof that has passed the `Proof` schema. Empty when there are none. */
+/**
+ * The rule violations in a proof that has passed the `Proof` schema. Empty
+ * when there are none. Inline records in `authority` are not checked here:
+ * a bad chain or charter means the proof counts for nobody but its signer,
+ * not that it stops being a proof.
+ */
 export function checkProofRules(proof: Proof): Issue[] {
   return collect((report) => {
     const method = proof.verificationMethod;
@@ -274,8 +319,5 @@ export function checkProofRules(proof: Proof): Issue[] {
         );
       }
     }
-    proof.authority?.forEach((item, i) => {
-      if (typeof item !== "string") checkRecordAt(item, `/authority/${i}`, report);
-    });
   });
 }

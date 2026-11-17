@@ -20,6 +20,17 @@ export type Validation<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly issues: readonly [Issue, ...Issue[]] };
 
+/**
+ * Quotes a value from the input for a message. Input is hostile and messages
+ * are logged and shown, so the quotation is cut at `max` characters.
+ */
+export function quote(value: string, max = 64): string {
+  const shown = Array.from(value.slice(0, 2 * max))
+    .slice(0, max)
+    .join("");
+  return JSON.stringify(shown.length < value.length ? `${shown}…` : shown);
+}
+
 /** Escapes one reference token of a JSON Pointer (RFC 6901, Section 3). */
 export function pointerToken(token: string | number): string {
   return String(token).replaceAll("~", "~0").replaceAll("/", "~1");

@@ -159,6 +159,30 @@ describe("identity events", () => {
     expect(issuesOf(sample("Update", { keys: many(65) }))).not.toEqual([]);
   });
 
+  it(`${clause("L1 3.4")} rejects a later event whose member controller lists the mind itself`, () => {
+    const collective = `did:oip:${HASH(9)}`;
+    const others = [`did:oip:${HASH(1)}`, `did:oip:${HASH(2)}`];
+    const update = (members: string[]) =>
+      sample("Update", { mind: collective, controller: { members, threshold: 2 } });
+    expect(issuesOf(update(others))).toEqual([]);
+    expect(issuesOf(update([...others, collective]))[0]).toMatch(
+      /^L1 3\.4 \/controller\/members\/2: .*member of itself/,
+    );
+  });
+
+  it(`${clause("L1 4.5")} rejects an event that revokes a key and also lists it in keys or invocation`, () => {
+    const revoked = [{ key: KEY_A, compromisedSince: "2026-10-30T09:00:00Z" }];
+    expect(issuesOf(sample("Update", { revoked, keys: [{ key: KEY_B }] }))).toEqual([]);
+    expect(issuesOf(sample("Update", { revoked, keys: [{ key: KEY_A }] }))[0]).toMatch(
+      /^L1 4\.5 \/keys\/0\/key: .*revoked by this event/,
+    );
+    expect(issuesOf(sample("Fork", { revoked, invocation: [{ key: KEY_A }] }))[0]).toMatch(
+      /^L1 4\.5 \/invocation\/0\/key/,
+    );
+    // Without a new key set, the check needs the state, which is @oip/identity's work.
+    expect(issuesOf(sample("Update", { revoked }))).toEqual([]);
+  });
+
   it(`${clause("L1 3.6")} bounds homes, aliases and parents`, () => {
     const origins = (n: number) =>
       Array.from({ length: n }, (_unused, i) => `https://h${i}.example`);
@@ -411,30 +435,33 @@ describe("proofs", () => {
     ).toEqual([]);
   });
 
-  it(`${clause("L1 11.6")} accepts a chain of 1 to 8 delegations, as record-refs or inline`, () => {
-    const delegation = samples.Delegation;
+  it(`${clause("core 5.2", "L1 11.6")} accepts 1 to 8 authority entries, each a record-ref or an inline record`, () => {
     const refs = (n: number) => Array.from({ length: n }, () => `${AMINA}/${CID}`);
+    expect(rejected(sampleProof({ authority: refs(1) }))).toEqual([]);
     expect(rejected(sampleProof({ authority: refs(8) }))).toEqual([]);
-    expect(rejected(sampleProof({ authority: [`${AMINA}/${CID}`, delegation] }))).toEqual([]);
+    expect(rejected(sampleProof({ authority: [`${AMINA}/${CID}`, samples.Delegation] }))).toEqual(
+      [],
+    );
+    expect(rejected(sampleProof({ authority: [samples.Collective] }))).toEqual([]);
     expect(rejected(sampleProof({ authority: refs(9) }))).not.toEqual([]);
     expect(rejected(sampleProof({ authority: [] }))).not.toEqual([]);
     expect(rejected(sampleProof({ authority: `${AMINA}/${CID}` }))).not.toEqual([]);
-    expect(rejected(sampleProof({ authority: [CID] }))).not.toEqual([]);
+    for (const entry of [7, null, true, [samples.Delegation]]) {
+      expect(rejected(sampleProof({ authority: [entry] }))).not.toEqual([]);
+    }
   });
 
-  it(`${clause("L2 7.1")} accepts exactly one charter, and rejects a charter mixed with anything else`, () => {
-    const charter = samples.Collective;
-    expect(rejected(sampleProof({ authority: [charter] }))).toEqual([]);
-    expect(rejected(sampleProof({ authority: [charter, charter] }))).not.toEqual([]);
-    expect(rejected(sampleProof({ authority: [samples.Delegation, charter] }))).not.toEqual([]);
-    expect(rejected(sampleProof({ authority: [samples.Intent] }))).not.toEqual([]);
-  });
-
-  it(`${clause("L1 11.1")} applies the record rules to a delegation carried inline`, () => {
-    const delegation = copy(samples.Delegation);
-    delegation["delegate"] = delegation["author"];
-    expect(rejected(sampleProof({ authority: [delegation] }))[0]).toMatch(
-      /^L1 11\.1 \/authority\/0\/delegate/,
+  it(`${clause("L2 7.1")} keeps a proof a proof when its chain or charter would not hold up`, () => {
+    // Such a proof still counts for its signer's own mind, so validation must
+    // not reject it. The chain is judged when it is evaluated (Layer 1, 11.4).
+    const toSelf = copy(samples.Delegation);
+    toSelf["delegate"] = toSelf["author"];
+    expect(validateRecord(toSelf).ok).toBe(false);
+    expect(rejected(sampleProof({ authority: [toSelf] }))).toEqual([]);
+    expect(rejected(sampleProof({ authority: [{ not: "a delegation" }] }))).toEqual([]);
+    expect(rejected(sampleProof({ authority: ["not a record-ref"] }))).toEqual([]);
+    expect(rejected(sampleProof({ authority: [samples.Delegation, samples.Collective] }))).toEqual(
+      [],
     );
   });
 });

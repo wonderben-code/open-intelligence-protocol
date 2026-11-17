@@ -13,6 +13,7 @@ import {
   type RecordType,
   SIGNED_RECORD_TYPES,
   UNSIGNED_RECORD_TYPES,
+  validateExtensionRecord,
   validateProof,
   validateRecord,
   validateRecordOfType,
@@ -171,6 +172,11 @@ describe("common members", () => {
     expectRejected(sample("Offer", { ext: [] }), /ext/);
   });
 
+  it(`${clause("core 8.3")} lets critical name a namespace more than once`, () => {
+    const ext = { x402: {} };
+    expect(validateRecord(sample("Offer", { ext, critical: ["x402", "x402"] })).ok).toBe(true);
+  });
+
   it(`${clause("core 8.3")} rejects a critical namespace that has no extension block`, () => {
     const ext = { "com.example.escrow": {} };
     expect(validateRecord(sample("Offer", { ext, critical: ["com.example.escrow"] })).ok).toBe(
@@ -178,6 +184,158 @@ describe("common members", () => {
     );
     expectRejected(sample("Offer", { ext, critical: ["com.example.other"] }), /critical/);
     expectRejected(sample("Offer", { critical: ["com.example.escrow"] }), /critical/);
+  });
+});
+
+describe("readings the specification does not state", () => {
+  // Where the text gives a type and no further limit, validation adds none:
+  // another implementation that follows the text must not be rejected.
+  const accepted: [RecordType, string, Record<string, unknown>][] = [
+    ["Location", "L1 15.1", { seq: -3 }],
+    ["Location", "L1 15.1", { endpoints: [{ binding: "", url: "" }] }],
+    ["Offer", "L2 4.2", { terms: { summary: "", quantity: 0 } }],
+    ["Offer", "L2 4.2", { terms: { summary: "s", price: { amount: "1", currency: "" } } }],
+    ["Intent", "L2 4.1", { constraints: { budget: { max: "5" } } }],
+    ["Intent", "L2 4.1", { audience: { query: { limit: 0 } } }],
+    ["Entry", "L1 10.1", { objectType: "" }],
+    ["Receipt", "L2 6.1", { rating: { score: "-0" } }],
+    ["Receipt", "L2 6.1", { rating: { score: "-0.00" } }],
+    ["Receipt", "L2 9", { evidence: [{ kind: "oip", ref: "" }] }],
+    ["Participant", "L1 16.2", { capabilities: [{ id: "", summary: "" }] }],
+    ["Packet", "L1 12.1", { context: { summary: { en: "structured" } } }],
+    ["Packet", "L1 12.1", { constraints: { maxHops: -1, jurisdiction: ["GB", "SG"] } }],
+    ["Packet", "L1 12.1", { provenance: { generatedBy: { model: 7 } } }],
+    ["Packet", "L1 12.2", { content: { mediaType: "", body: null } }],
+  ];
+
+  it.each(accepted)("%s [%s] accepts %j", (type, id, changes) => {
+    expect(clause(id)).toContain(id);
+    const result = validateRecord(sample(type, changes));
+    expect(result.ok ? [] : result.issues).toEqual([]);
+  });
+
+  it(`${clause("L1 18.3")} sets no maximum on the results of a query`, () => {
+    const one = (samples.QueryResult["results"] as unknown[])[0];
+    const results = Array.from({ length: 101 }, () => one);
+    expect(validateRecord(sample("QueryResult", { results })).ok).toBe(true);
+  });
+
+  it(`${clause("L2 6.1")} keeps a score between 0 and 1`, () => {
+    for (const score of ["-0.1", "1.01", "2", "-1"]) {
+      expectRejected(sample("Receipt", { rating: { score } }), /score/);
+    }
+  });
+});
+
+describe("issues", () => {
+  const first = (record: unknown) => {
+    const result = validateRecord(record);
+    if (result.ok) throw new Error("expected the record to be rejected");
+    return result.issues[0];
+  };
+
+  it("cite the clause that defines the value at fault, not only the record's", () => {
+    expect(first(sample("Intent", { created: "yesterday" }))).toMatchObject({
+      path: "/created",
+      clause: "core 1.4",
+    });
+    expect(first(sample("Intent", { ext: { Bad: {} } }))).toMatchObject({
+      path: "/ext",
+      clause: "core 8.1",
+    });
+    expect(first(sample("Intent", { proof: [] }))).toMatchObject({
+      path: "/proof",
+      clause: "core 5.1",
+    });
+    expect(first(sample("Intent", { author: "did:web:example.com" }))).toMatchObject({
+      path: "/author",
+      clause: "core 6.1",
+    });
+    expect(
+      first(
+        sample("Offer", { terms: { summary: "s", price: { amount: "1e2", currency: "USD" } } }),
+      ),
+    ).toMatchObject({
+      path: "/terms/price/amount",
+      clause: "core 1.3",
+    });
+    expect(first(sample("Checkpoint", { head: "bafy" }))).toMatchObject({
+      path: "/head",
+      clause: "core 3.2",
+    });
+    expect(first(sample("Intent", { want: 5 }))).toMatchObject({ path: "/want", clause: "L2 4.1" });
+  });
+
+  it("put the most specific fault first when a value could have been one of several shapes", () => {
+    const members = ["did:oip:" + "bciqa" + "a".repeat(50) + "a"];
+    const controller = { members: [...members, ...members], threshold: 2 };
+    const issue = first(sample("Genesis", { kind: "collective", controller }));
+    expect(issue.path).toBe("/controller/members");
+    expect(issue.message).toMatch(/duplicate/);
+  });
+
+  it("never quote more than a short piece of the input", () => {
+    const long = "x".repeat(100_000);
+    const cases = [
+      sample("Delegation", { policy: [["==", long, 1]] }),
+      sample("Offer", { ext: {}, critical: [`com.example.${long}`] }),
+      sample("Participant", {
+        capabilities: [1, 2].map(() => ({ id: long.slice(0, 128), summary: "" })),
+      }),
+      { oip: "1", type: long },
+    ];
+    for (const record of cases) {
+      const result = validateRecord(record);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        for (const issue of result.issues) expect(issue.message.length).toBeLessThan(400);
+      }
+    }
+  });
+});
+
+describe(`${clause("core 7")} records of a type an extension defines`, () => {
+  const escrow = {
+    oip: "1",
+    type: "com.example.Escrow",
+    created: "2026-10-30T09:00:00Z",
+    ext: { "com.example.escrow": { v: "1" } },
+    critical: ["com.example.escrow"],
+    holds: { amount: "400", currency: "USD" },
+    proof: [sampleProof()],
+  };
+
+  it("are not records this revision defines, and validateRecord says where to take them", () => {
+    expect(isRecordType(escrow.type)).toBe(false);
+    const result = validateRecord(escrow);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.issues[0].message).toMatch(/validateExtensionRecord/);
+  });
+
+  it("are accepted by validateExtensionRecord when their common members are well formed", () => {
+    const result = validateExtensionRecord(escrow);
+    expect(result.ok ? [] : result.issues).toEqual([]);
+    expect(validateExtensionRecord({ oip: "1", type: "com.example.Minimal" }).ok).toBe(true);
+  });
+
+  it("are rejected when a common member is malformed", () => {
+    const rejected = (changes: Record<string, unknown>) => {
+      const result = validateExtensionRecord({ ...escrow, ...changes });
+      return result.ok ? undefined : result.issues[0].clause;
+    };
+    expect(rejected({ oip: "2" })).toBe("core 7");
+    expect(rejected({ created: "soon" })).toBe("core 1.4");
+    expect(rejected({ expires: 5 })).toBe("core 7");
+    expect(rejected({ ext: { Escrow: {} } })).toBe("core 8.1");
+    expect(rejected({ critical: ["com.example.other"] })).toBe("core 8.3");
+    expect(rejected({ proof: [] })).toBe("core 5.1");
+    expect(rejected({ holds: 1.5 })).toBe("core 1.2");
+  });
+
+  it(`${clause("L1 3.9")} never accept a reserved type or a type this revision defines`, () => {
+    expect(validateExtensionRecord({ ...escrow, type: "Merge" }).ok).toBe(false);
+    expect(validateExtensionRecord(samples.Intent).ok).toBe(false);
+    expect(validateExtensionRecord("Escrow").ok).toBe(false);
   });
 });
 

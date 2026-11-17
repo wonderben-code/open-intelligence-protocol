@@ -12,6 +12,7 @@ export type { Issue, Validation } from "./issue.ts";
 export { MAX_SAFE_INTEGER, OIP_COMMANDS, patterns, SHORT_NAMESPACES } from "./primitives.ts";
 export { type AuthorityItem, type Proof, PROOF_PURPOSES, type ProofPurpose } from "./proof.ts";
 export type { Bundle, DuplicityEvidence, FeedPage, LogPage } from "./records/containers.ts";
+export type { ExtensionRecord } from "./records/extension.ts";
 export type {
   ComparisonOperator,
   Delegation,
@@ -87,6 +88,7 @@ export { parseSelector, type SelectorStep } from "./selector.ts";
 export {
   IMPLEMENTATION_LIMIT,
   MAX_DEPTH,
+  validateExtensionRecord,
   validateProof,
   validateRecord,
   validateRecordOfType,

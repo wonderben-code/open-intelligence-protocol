@@ -47,6 +47,10 @@ export function viewFor(vectors: Vectors, vectorCase: VectorCase): VerifierView 
  * record counts for (or was sent for) the mind, the status or assurance is
  * the one expected, or the record is well formed. `undefined` when the
  * adapter lacks the method the case needs.
+ *
+ * It lets an exception from the adapter through. A verifier judges hostile
+ * input and answers; one that throws has not answered, and must never pass a
+ * negative case by crashing on it.
  */
 export function claimHolds(
   adapter: ConformanceAdapter,
@@ -55,27 +59,22 @@ export function claimHolds(
 ): boolean | undefined {
   if (adapter[METHOD_FOR_KIND[vectorCase.kind]] === undefined) return undefined;
   const view = viewFor(vectors, vectorCase);
-  try {
-    switch (vectorCase.kind) {
-      case "log":
-        return adapter.logVerifies?.(vectorCase.log, view);
-      case "countsFor":
-        return adapter.countsFor?.(vectorCase.record, vectorCase.mind, view);
-      case "sentFor":
-        return adapter.sentFor?.(vectorCase.record, vectorCase.mind, view);
-      case "status":
-        return (
-          adapter.status?.(vectorCase.of, vectorCase.records, vectorCase.at, view) ===
-          vectorCase.expect
-        );
-      case "assurance":
-        return adapter.assurance?.(vectorCase.record, view) === vectorCase.expect;
-      case "record":
-        return adapter.recordIsWellFormed?.(vectorCase.record);
-    }
-  } catch {
-    // An implementation that throws has not shown that the claim holds.
-    return false;
+  switch (vectorCase.kind) {
+    case "log":
+      return adapter.logVerifies?.(vectorCase.log, view) === true;
+    case "countsFor":
+      return adapter.countsFor?.(vectorCase.record, vectorCase.mind, view) === true;
+    case "sentFor":
+      return adapter.sentFor?.(vectorCase.record, vectorCase.mind, view) === true;
+    case "status":
+      return (
+        adapter.status?.(vectorCase.of, vectorCase.records, vectorCase.at, view) ===
+        vectorCase.expect
+      );
+    case "assurance":
+      return adapter.assurance?.(vectorCase.record, view) === vectorCase.expect;
+    case "record":
+      return adapter.recordIsWellFormed?.(vectorCase.record) === true;
   }
 }
 
@@ -89,7 +88,7 @@ export function claimMustHold(section: Section, kind: CaseKind): boolean {
   return section !== "negative" || kind === "status" || kind === "assurance";
 }
 
-/** Runs one case. */
+/** Runs one case. An adapter that throws fails the case, whatever the case requires. */
 export function runCase(
   adapter: ConformanceAdapter,
   vectors: Vectors,
@@ -97,7 +96,13 @@ export function runCase(
   vectorCase: VectorCase,
 ): CaseResult {
   const base = { section, kind: vectorCase.kind, name: vectorCase.name };
-  const holds = claimHolds(adapter, vectors, vectorCase);
+  let holds: boolean | undefined;
+  try {
+    holds = claimHolds(adapter, vectors, vectorCase);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ...base, outcome: "fail", detail: `the implementation threw: ${message}` };
+  }
   if (holds === undefined) return { ...base, outcome: "pending" };
   const required = claimMustHold(section, vectorCase.kind);
   if (holds === required) return { ...base, outcome: "pass" };

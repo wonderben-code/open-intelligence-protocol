@@ -23,9 +23,10 @@ export interface VerifierView {
   readonly extraRecords: readonly JsonObject[];
   /**
    * Evidence of time (core 9.4), keyed by proof digest or by an identity
-   * event's content ID. When `undefined`, the verifier is taken to have
-   * obtained each proof and each identity event at its own `created` time,
-   * as a witness that followed every log from the start would.
+   * event's content ID. The map is partial: a proof or an event it does not
+   * name is taken to have been obtained at its own `created` time, as a
+   * witness that followed every log from the start would have obtained it.
+   * When `seen` is `undefined`, that holds for every proof and event.
    */
   readonly seen: Seen | undefined;
 }
@@ -33,9 +34,12 @@ export interface VerifierView {
 /**
  * An implementation under test. Every member is optional: a case whose kind
  * the adapter does not implement is reported as `pending`, never as passed.
- * An adapter method may throw; the suite counts that as the claim not
- * holding, so a verifier that crashes on an attack case does not pass it by
- * accident on a must-accept case.
+ *
+ * A method answers; it does not throw. A verifier's work is to judge hostile
+ * input, so the suite fails any case on which a method throws, including a
+ * negative case: crashing on an attack is not rejecting it. If your
+ * implementation signals rejection with an exception, catch that exception
+ * (and only that one) in the adapter and return `false`.
  */
 export interface ConformanceAdapter {
   /** The implementation's name, for reports. */

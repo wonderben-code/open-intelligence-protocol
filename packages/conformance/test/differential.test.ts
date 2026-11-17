@@ -12,6 +12,11 @@
  * accept, the checker accepts. M2 extends it to logs with the rule "same".
  */
 
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import fc from "fast-check";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -25,6 +30,7 @@ import {
   type RecordCase,
   referenceAdapter,
   SECTIONS,
+  VECTORS_DIRECTORY,
 } from "../src/index.ts";
 
 const unavailable = pythonJudgeUnavailable();
@@ -183,6 +189,69 @@ describe.skipIf(unavailable !== undefined && !required)("differential: record ca
     expect((await judge.judge("not a case")).holds).toBe(false);
   });
 
+  it("keeps answers matched to questions when a name holds a line separator", async () => {
+    // U+2028 and U+2029 are line breaks to many line readers, and JSON does not escape them.
+    const names = ["has\u2028sep", "g1", "has\u2029sep", "b1", "caf\u00e9 \ud83d\ude00"];
+    const cases = names.map((name, i) =>
+      i % 2 === 1 ? recordCase(records[0], name) : recordCase({ oip: "2" }, name),
+    );
+    const verdicts = await Promise.all(cases.map((entry) => judge.judge(entry)));
+    expect(verdicts.map((verdict) => verdict.name)).toEqual(names);
+    expect(verdicts.map((verdict) => verdict.holds)).toEqual([false, true, false, true, false]);
+  });
+
+  it("rejects a deeply nested record and carries on", async () => {
+    let deep: unknown = "leaf";
+    for (let i = 0; i < 1500; i++) deep = [deep];
+    const verdict = await judge.judge({ name: "deep", kind: "record", record: deep });
+    expect(verdict.holds).toBe(false);
+    expect((await judge.judge(recordCase(records[0], "after"))).holds).toBe(true);
+  });
+
+  it("gets an error verdict, not a dead checker, for a line nested too deeply to parse", () => {
+    // Written as text: JSON.stringify cannot produce nesting this deep.
+    const deepLine = `${"[".repeat(200_000)}${"]".repeat(200_000)}`;
+    const goodLine = JSON.stringify(recordCase(records[0], "after"));
+    const run = spawnSync(
+      "python3",
+      [join(VECTORS_DIRECTORY, "oip_vectors.py"), "--judge", "--lines"],
+      { input: `${deepLine}\n${goodLine}\n`, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+    );
+    expect(run.status).toBe(0);
+    const verdicts = run.stdout
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as { holds: boolean; error?: string; name: unknown });
+    expect(verdicts).toHaveLength(2);
+    expect(verdicts[0]).toMatchObject({ holds: false });
+    expect(verdicts[0]?.error).toMatch(/not JSON/);
+    expect(verdicts[1]).toMatchObject({ holds: true, name: "after" });
+  });
+
+  it("rejects, without sending anything, a case that cannot be written as JSON", async () => {
+    let deep: unknown = "leaf";
+    for (let i = 0; i < 200_000; i++) deep = [deep];
+    await expect(judge.judge({ name: "deep", kind: "record", record: deep })).rejects.toThrow(
+      /cannot be written as JSON/,
+    );
+    await expect(judge.judge({ name: "big", kind: "record", record: 10n })).rejects.toThrow(
+      /cannot be written as JSON/,
+    );
+    expect((await judge.judge(recordCase(records[0], "still in step"))).name).toBe("still in step");
+  });
+
+  it("propagates an exception from the implementation instead of reading it as a verdict", async () => {
+    const crashing = {
+      name: "crashes",
+      recordIsWellFormed: () => {
+        throw new Error("crash");
+      },
+    };
+    await expect(compareVerdicts(crashing, judge, vectors, recordCase(records[0]))).rejects.toThrow(
+      "crash",
+    );
+  });
+
   it("answers in the order asked", async () => {
     const good = recordCase(records[0], "good");
     const bad = recordCase({ oip: "2" }, "bad");
@@ -207,6 +276,29 @@ describe.skipIf(unavailable !== undefined && !required)("the Python judge proces
     const broken = new PythonJudge({ python: "/nonexistent/python3" });
     await expect(broken.judge({})).rejects.toThrow(/could not start|exited/);
     await broken.close();
+  });
+
+  it("stops trusting a checker whose answers do not match the questions", async () => {
+    // A stand-in for the checker that answers every case with the wrong name.
+    const directory = mkdtempSync(join(tmpdir(), "oip-judge-"));
+    const script = join(directory, "wrong.mjs");
+    writeFileSync(
+      script,
+      'process.stdin.on("data", (chunk) => { for (const line of String(chunk).split("\\n")) ' +
+        'if (line) console.log(JSON.stringify({ name: "someone else", kind: "record", holds: true })); });',
+    );
+    const judge = new PythonJudge({ python: process.execPath, script });
+    try {
+      await expect(judge.judge({ name: "mine", kind: "record", record: {} })).rejects.toThrow(
+        /answered "someone else" when asked about "mine"/,
+      );
+      await expect(judge.judge({ name: "next", kind: "record", record: {} })).rejects.toThrow(
+        /answered "someone else"/,
+      );
+    } finally {
+      await judge.close();
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it("closes cleanly, and close can be called twice", async () => {

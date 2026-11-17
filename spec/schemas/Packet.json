@@ -30,8 +30,7 @@
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "uniqueItems": true
+      }
     },
     "created": {
       "$ref": "urn:oip:schema:def:timestamp"
@@ -87,8 +86,7 @@
           ],
           "properties": {
             "subject": {
-              "type": "string",
-              "minLength": 1
+              "type": "string"
             }
           }
         }
@@ -192,8 +190,7 @@
           "maxLength": 256
         },
         "schema": {
-          "type": "string",
-          "minLength": 1
+          "type": "string"
         }
       }
     },
@@ -203,8 +200,7 @@
           "type": "object",
           "properties": {
             "mediaType": {
-              "type": "string",
-              "minLength": 1
+              "type": "string"
             }
           },
           "required": [
@@ -235,12 +231,10 @@
           "type": "object",
           "properties": {
             "mediaType": {
-              "type": "string",
-              "minLength": 1
+              "type": "string"
             },
             "ref": {
-              "type": "string",
-              "minLength": 1
+              "type": "string"
             },
             "digest": {
               "$ref": "urn:oip:schema:def:sha256Digest"
@@ -278,8 +272,7 @@
                     "type": "object",
                     "properties": {
                       "mediaType": {
-                        "type": "string",
-                        "minLength": 1
+                        "type": "string"
                       }
                     },
                     "required": [
@@ -310,12 +303,10 @@
                     "type": "object",
                     "properties": {
                       "mediaType": {
-                        "type": "string",
-                        "minLength": 1
+                        "type": "string"
                       },
                       "ref": {
-                        "type": "string",
-                        "minLength": 1
+                        "type": "string"
                       },
                       "digest": {
                         "$ref": "urn:oip:schema:def:sha256Digest"
@@ -384,9 +375,7 @@
             "type": "string"
           }
         },
-        "summary": {
-          "type": "string"
-        },
+        "summary": {},
         "assumptions": {},
         "language": {
           "type": "string"
@@ -406,15 +395,9 @@
         "generatedBy": {
           "type": "object",
           "properties": {
-            "model": {
-              "type": "string"
-            },
-            "version": {
-              "type": "string"
-            },
-            "tool": {
-              "type": "string"
-            }
+            "model": {},
+            "version": {},
+            "tool": {}
           }
         },
         "onBehalfOf": {
@@ -448,20 +431,16 @@
             "type": "string"
           }
         },
-        "confidentiality": {
-          "type": "string"
-        },
+        "confidentiality": {},
         "licence": {
           "type": "string"
         },
-        "jurisdiction": {
-          "type": "string"
-        },
+        "jurisdiction": {},
         "forwardOk": {
           "type": "boolean"
         },
         "maxHops": {
-          "$ref": "urn:oip:schema:def:count"
+          "$ref": "urn:oip:schema:def:safeInteger"
         }
       }
     },

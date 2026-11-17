@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:ExtensionRecord",
+  "title": "ExtensionRecord",
+  "description": "A record of a type this revision does not define, as an extension may define one (core Section 7). Only the members every record shares are checked.",
+  "type": "object",
+  "required": [
+    "oip",
+    "type"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "type": {
+      "type": "string"
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    }
+  }
+}

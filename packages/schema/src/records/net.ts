@@ -55,8 +55,8 @@ export const Entry = Type.Object(
     seq: Count,
     prev: Type.Optional(ContentId),
     object: ContentId,
-    objectType: Type.String({ minLength: 1 }),
-    proofs: Type.Optional(Type.Array(Sha256Digest, { maxItems: 256 })),
+    objectType: Type.String(),
+    proofs: Type.Optional(Type.Array(Sha256Digest)),
   },
   {
     ...meta(
@@ -122,7 +122,7 @@ export interface MultipartContent {
 
 export type Content = InlineContent | ReferencedContent | MultipartContent;
 
-const mediaType = { type: "string", minLength: 1 };
+const mediaType = { type: "string" };
 const has = (...names: string[]) => ({ anyOf: names.map((name) => ({ required: [name] })) });
 const inlineContent = {
   type: "object",
@@ -132,7 +132,7 @@ const inlineContent = {
 };
 const referencedContent = {
   type: "object",
-  properties: { mediaType, ref: { type: "string", minLength: 1 }, digest: Sha256Digest },
+  properties: { mediaType, ref: { type: "string" }, digest: Sha256Digest },
   required: ["mediaType", "ref", "digest"],
   not: has("body", "parts"),
 };
@@ -165,7 +165,7 @@ export const PacketTo = Type.Union([
     brokers: Type.Optional(Type.Array(MindAddress, { minItems: 1, maxItems: 8 })),
     maxFanout: Type.Optional(Type.Integer({ minimum: 1, maximum: 50 })),
   }),
-  Type.Object({ subject: Type.String({ minLength: 1 }) }),
+  Type.Object({ subject: Type.String() }),
 ]);
 export type PacketTo = Static<typeof PacketTo>;
 
@@ -188,13 +188,13 @@ export const Packet = Type.Object(
     purpose: Type.Object({
       verb: Verb,
       goal: Type.Optional(Type.String({ maxLength: 256 })),
-      schema: Type.Optional(Type.String({ minLength: 1 })),
+      schema: Type.Optional(Type.String()),
     }),
     content: Content,
     context: Type.Optional(
       Type.Object({
         refs: Type.Optional(Strings),
-        summary: Type.Optional(Type.String()),
+        summary: Type.Optional(Type.Unknown()),
         assumptions: Type.Optional(Type.Unknown()),
         language: Type.Optional(Type.String()),
         stateDoc: Type.Optional(Type.Unknown()),
@@ -205,9 +205,9 @@ export const Packet = Type.Object(
         derivedFrom: Type.Optional(Strings),
         generatedBy: Type.Optional(
           Type.Object({
-            model: Type.Optional(Type.String()),
-            version: Type.Optional(Type.String()),
-            tool: Type.Optional(Type.String()),
+            model: Type.Optional(Type.Unknown()),
+            version: Type.Optional(Type.Unknown()),
+            tool: Type.Optional(Type.Unknown()),
           }),
         ),
         onBehalfOf: Type.Optional(MindAddress),
@@ -218,11 +218,11 @@ export const Packet = Type.Object(
         retention: Type.Optional(Type.Union([Duration, Type.Literal("none")])),
         allowedUses: Type.Optional(Strings),
         prohibitedUses: Type.Optional(Strings),
-        confidentiality: Type.Optional(Type.String()),
+        confidentiality: Type.Optional(Type.Unknown()),
         licence: Type.Optional(Type.String()),
-        jurisdiction: Type.Optional(Type.String()),
+        jurisdiction: Type.Optional(Type.Unknown()),
         forwardOk: Type.Optional(Type.Boolean()),
-        maxHops: Type.Optional(Count),
+        maxHops: Type.Optional(SafeInteger),
       }),
     ),
     hints: Type.Optional(
@@ -330,8 +330,8 @@ export type Branch = Static<typeof Branch>;
 
 /** Layer 1, 15.1: one way to reach a mind. Endpoints with unknown bindings are ignored. */
 export const Endpoint = Type.Object({
-  binding: Type.String({ minLength: 1 }),
-  url: Type.String({ minLength: 1 }),
+  binding: Type.String(),
+  url: Type.String(),
   instance: Type.Optional(Type.String({ maxLength: 64 })),
   priority: Type.Optional(SafeInteger),
 });
@@ -342,7 +342,7 @@ export const Location = Type.Object(
     ...signedRecord,
     type: Type.Literal("Location"),
     author: MindAddress,
-    seq: Count,
+    seq: SafeInteger,
     ttl: Type.Integer({ minimum: 60, maximum: 86400 }),
     status: Type.Union([Type.Literal("active"), Type.Literal("paused"), Type.Literal("migrating")]),
     resumeAfter: Type.Optional(Timestamp),
@@ -360,7 +360,7 @@ export type Location = Static<typeof Location>;
 
 /** Layer 1, 16.2: something a mind can do. */
 export const Capability = Type.Object({
-  id: Type.String({ minLength: 1, maxLength: 128 }),
+  id: Type.String({ maxLength: 128 }),
   summary: Type.String(),
   tags: Type.Optional(Type.Array(Namespaced, { maxItems: 64 })),
   subject: Type.Optional(Type.String({ pattern: patterns.capabilitySubject })),
@@ -385,7 +385,7 @@ export const Participant = Type.Object(
     interfaces: Type.Optional(
       Type.Unsafe<Readonly<Record<string, string>>>({
         type: "object",
-        additionalProperties: { type: "string", minLength: 1 },
+        additionalProperties: { type: "string" },
       }),
     ),
     languages: Type.Optional(Strings),
@@ -414,7 +414,6 @@ export const QueryResult = Type.Object(
         why: Type.Optional(Type.String()),
         hints: Type.Optional(Strings),
       }),
-      { maxItems: 100 },
     ),
   },
   meta("QueryResult", "An indexer's signed answer to a capability query (Layer 1, 18.3)."),

@@ -81,7 +81,7 @@ const stateFields = {
   invocation: Type.Optional(Type.Array(SigningKeyEntry, { maxItems: 16 })),
   agreement: Type.Optional(Type.Array(AgreementKeyEntry, { maxItems: 16 })),
   homes: Type.Optional(Type.Array(HttpsOrigin, { maxItems: 8 })),
-  alsoKnownAs: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 16 })),
+  alsoKnownAs: Type.Optional(Type.Array(Type.String(), { maxItems: 16 })),
 };
 
 // Layer 1, 3.12: `recovery` is reserved, and an event that contains it is rejected.

@@ -53,9 +53,14 @@ export const patterns = {
   controlKeyRef: `^did:key:z${BASE58}+#z${BASE58}+$`,
   /** core 6.1 `record-ref`. */
   recordRef: `^${ADDRESS}/${CID}$`,
-  /** core 4.1: an Ed25519 public key as a Multikey (48 characters). */
+  /**
+   * core 4.1: the form of an Ed25519 public key as a Multikey (48 characters).
+   * Necessary, not sufficient: a few strings of this form decode to another
+   * multicodec prefix, and none of them is checked to be a point of order L.
+   * `@oip/core` decodes the key and applies core 4.2 and 4.4.
+   */
   ed25519Multikey: `^${ED25519_MULTIKEY}$`,
-  /** core 4.1: an X25519 public key as a Multikey (48 characters). */
+  /** core 4.1: the form of an X25519 public key as a Multikey (48 characters). Necessary, not sufficient, as above. */
   x25519Multikey: `^${X25519_MULTIKEY}$`,
   /** core 5.2: `z` and the base58btc form of a 64-byte signature. */
   proofValue: `^z${BASE58}{64,88}$`,
@@ -63,8 +68,8 @@ export const patterns = {
   decimal: "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
   /** core 1.3: an amount, which is never negative. */
   amount: "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
-  /** A decimal from 0 to 1 inclusive (scores and ratings). */
-  unitDecimal: "^(?:0(?:\\.[0-9]+)?|1(?:\\.0+)?)$",
+  /** A decimal from 0 to 1 inclusive (scores and ratings). Decimals compare numerically, so "-0" is 0. */
+  unitDecimal: "^(?:-0(?:\\.0+)?|0(?:\\.[0-9]+)?|1(?:\\.0+)?)$",
   /** core 1.4: an RFC 3339 UTC timestamp that names a real date and time. */
   timestamp: `^${DATE}T${TIME}Z$`,
   /** core 1.5: an ISO 8601 duration of days, hours, minutes and seconds. */
@@ -205,4 +210,4 @@ export const Ext = define(
 );
 
 /** core 8.3: the namespaces a reader must understand. Each also appears in `ext` (a rule). */
-export const Critical = Type.Array(Type.String(), { uniqueItems: true });
+export const Critical = Type.Array(Type.String());

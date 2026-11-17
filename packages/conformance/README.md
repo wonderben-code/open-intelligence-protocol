@@ -60,9 +60,9 @@ FAIL negative delegation-to-self: must be rejected. A delegation's delegate must
 - `extraLogs`: logs that replace the baseline logs of the same minds.
 - `branches`: further, conflicting branches of a mind's log.
 - `extraRecords`: records the case adds.
-- `seen`: the verifier's evidence of time (core 9.4), by proof digest or by an identity event's content ID. When it is `undefined`, the verifier is taken to have obtained each proof and event at its own `created` time.
+- `seen`: the verifier's evidence of time (core 9.4), by proof digest or by an identity event's content ID. The map is partial: a proof or an event it does not name is taken to have been obtained at its own `created` time. When `seen` is `undefined`, that holds for every proof and event.
 
-An adapter may throw. The suite counts that as the case's claim not holding, so an implementation that crashes on an attack does not pass a must-accept case by accident.
+An adapter method answers; it does not throw. The suite fails any case on which a method throws, negative cases included: crashing on an attack is not rejecting it. If your implementation signals rejection with an exception, catch that exception, and only that one, in the adapter and return `false`.
 
 ## What a case requires
 

@@ -6,7 +6,6 @@
 import { type ChildProcessWithoutNullStreams, spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
 import { parseVectors, type Vectors } from "./vectors.ts";
@@ -64,7 +63,12 @@ export function pythonJudgeUnavailable(options: PythonJudgeOptions = {}): string
  */
 export class PythonJudge {
   readonly #child: ChildProcessWithoutNullStreams;
-  readonly #waiting: { resolve: (verdict: Verdict) => void; reject: (error: Error) => void }[] = [];
+  readonly #waiting: {
+    name: unknown;
+    resolve: (verdict: Verdict) => void;
+    reject: (error: Error) => void;
+  }[] = [];
+  #buffered = "";
   #failure: Error | undefined;
   #stderr = "";
 
@@ -79,13 +83,15 @@ export class PythonJudge {
     });
     // Writing to a checker that has died raises EPIPE here; `close` reports why it died.
     this.#child.stdin.on("error", () => undefined);
-    createInterface({ input: this.#child.stdout }).on("line", (line) => {
-      const next = this.#waiting.shift();
-      if (next === undefined) return;
-      try {
-        next.resolve(JSON.parse(line) as Verdict);
-      } catch {
-        next.reject(new Error(`the Python checker printed something that is not JSON: ${line}`));
+    // Verdicts are framed by "\n" alone. A line reader would also split on
+    // U+2028 and U+2029, which may appear inside a JSON string, and every
+    // later verdict would then be matched to the wrong case.
+    this.#child.stdout.setEncoding("utf8");
+    this.#child.stdout.on("data", (chunk: string) => {
+      this.#buffered += chunk;
+      for (let end = this.#buffered.indexOf("\n"); end !== -1; end = this.#buffered.indexOf("\n")) {
+        this.#answer(this.#buffered.slice(0, end));
+        this.#buffered = this.#buffered.slice(end + 1);
       }
     });
     this.#child.on("error", (error) => {
@@ -98,6 +104,34 @@ export class PythonJudge {
     });
   }
 
+  #answer(line: string): void {
+    const next = this.#waiting.shift();
+    if (next === undefined) {
+      this.#fail(new Error(`the Python checker printed a verdict nobody asked for: ${line}`));
+      return;
+    }
+    let verdict: Verdict;
+    try {
+      verdict = JSON.parse(line) as Verdict;
+    } catch {
+      this.#fail(new Error(`the Python checker printed something that is not JSON: ${line}`));
+      next.reject(this.#failure ?? new Error("the Python checker failed"));
+      return;
+    }
+    // The checker echoes a case's name. A mismatch means the answers have
+    // slipped out of step with the questions, and none can be trusted.
+    if (typeof next.name === "string" && verdict.name !== next.name) {
+      this.#fail(
+        new Error(
+          `the Python checker answered ${JSON.stringify(verdict.name)} when asked about ${JSON.stringify(next.name)}`,
+        ),
+      );
+      next.reject(this.#failure ?? new Error("the Python checker failed"));
+      return;
+    }
+    next.resolve(verdict);
+  }
+
   #fail(error: Error): void {
     this.#failure ??= error;
     for (const next of this.#waiting.splice(0)) next.reject(this.#failure);
@@ -107,9 +141,23 @@ export class PythonJudge {
   judge(vectorCase: unknown): Promise<Verdict> {
     if (this.#failure !== undefined) return Promise.reject(this.#failure);
     // One case per line: JSON.stringify never emits a raw newline.
-    const line = JSON.stringify(vectorCase);
+    let line: string | undefined;
+    try {
+      // For a value JSON cannot represent at the top level this is undefined, whatever its type says.
+      line = JSON.stringify(vectorCase);
+    } catch {
+      line = undefined;
+    }
+    if (line === undefined) {
+      // Nothing was sent, so the answers stay in step with the questions.
+      return Promise.reject(new Error("the case cannot be written as JSON, so it was not judged"));
+    }
+    const name: unknown =
+      typeof vectorCase === "object" && vectorCase !== null
+        ? (vectorCase as { readonly name?: unknown }).name
+        : undefined;
     return new Promise((resolve, reject) => {
-      this.#waiting.push({ resolve, reject });
+      this.#waiting.push({ name, resolve, reject });
       this.#child.stdin.write(`${line}\n`);
     });
   }

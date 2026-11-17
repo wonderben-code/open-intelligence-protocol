@@ -7,6 +7,7 @@
 
 Draft 2 · Specification revision 2026-11-17 (Draft) · Licensed under CC BY 4.0
 Repository: https://github.com/wonderben-code/open-intelligence-protocol
+DOI: https://doi.org/10.5281/zenodo.24301209
 
 ---
 
@@ -989,12 +990,16 @@ Records verify themselves, so most of each stage below adds infrastructure witho
 - **The name.** The initials OIP are also used by KServe's Open Inference Protocol, a model-serving API for inference requests, which is unrelated. Documents about this protocol spell out "Open Intelligence Protocol" wherever the initials alone could be ambiguous.
 - **Licences.** The papers and specifications are licensed under Creative Commons Attribution 4.0; code is licensed under the Apache License 2.0. Anyone may implement, extend and build on OIP, commercially or otherwise, forever.
 - **Stewardship.** OIP is owned by no one. As a community of implementers forms, stewardship will move to a neutral, multi-stakeholder home.
-- **Provenance.** Every commit to the repository is timestamped on the Bitcoin blockchain through OpenTimestamps, and the papers are being archived with permanent identifiers. Provenance is the only thing the protocol's origin keeps.
+- **Provenance.** Every commit to the repository is timestamped on the Bitcoin blockchain through OpenTimestamps, and the papers are archived on Zenodo with permanent DOIs. Provenance is the only thing the protocol's origin keeps.
 - **Participation.** Implementations in any language, critiques, test vectors, bridges and proposals are all welcome through the repository.
 
 ---
 
 ## References
+
+**The Open Intelligence Protocol**
+- E. Alam, "The Open Intelligence Protocol: A Founding Paper for the Network of Minds", Version 1.1 (2026) — https://doi.org/10.5281/zenodo.24301206
+- OIP specifications, revision 2026-11-17, with test vectors and reviews — https://github.com/wonderben-code/open-intelligence-protocol
 
 **Agent and tool protocols**
 - Model Context Protocol, specification revision 2026-07-28 — https://modelcontextprotocol.io/specification/2026-07-28/changelog
@@ -1298,4 +1303,4 @@ status(c, records, now):
 
 ---
 
-*Cite as:* Alam, E. (2026). *The Open Intelligence Protocol: Technical Architecture.* Draft 2, specification revision 2026-11-17. https://github.com/wonderben-code/open-intelligence-protocol
+*Cite as:* Alam, E. (2026). *The Open Intelligence Protocol: Technical Architecture* (Draft 2, specification revision 2026-11-17). Zenodo. https://doi.org/10.5281/zenodo.24301209

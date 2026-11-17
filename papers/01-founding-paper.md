@@ -7,6 +7,7 @@
 
 Version 1.1 · Licensed under CC BY 4.0
 Repository: https://github.com/wonderben-code/open-intelligence-protocol
+DOI: https://doi.org/10.5281/zenodo.24301206
 
 ---
 
@@ -195,4 +196,4 @@ The internet connected machines. The web connected documents. The Open Intellige
 
 ---
 
-*Cite as:* Alam, E. (2026). *The Open Intelligence Protocol: A Founding Paper for the Network of Minds.* Version 1.1. https://github.com/wonderben-code/open-intelligence-protocol
+*Cite as:* Alam, E. (2026). *The Open Intelligence Protocol: A Founding Paper for the Network of Minds* (Version 1.1). Zenodo. https://doi.org/10.5281/zenodo.24301206

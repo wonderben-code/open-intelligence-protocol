@@ -79,3 +79,18 @@ The second budget is now measured in full, with `@oip/identity`: verifying an id
 The whole log costs 1.08 times the signature checks of its events: replaying adds under a tenth. So the conclusion above stands unchanged for logs. The starting budget of 1 s is missed by the portable implementation for the same reason and by the same factor as the first budget, and the same native engine closes it (decision E12 in [PROGRESS.md](../../PROGRESS.md)).
 
 One cost is new. A verifier keeps a verified log in memory, with the state after each event. A state is of bounded size ([ADR-0008](0008-holding-logs.md)), so what is kept grows with the log and no faster.
+
+## Measured in M3
+
+BUILD.md 3.8 has no row for delegation or for Layer 2, so these have no ceiling in milliseconds. They are measured as ratios against judging one record with one proof, which is one signature check and the reading around it, in the same run. A ratio holds on any machine, and says what the rules add to the signatures a verifier must check in any case. Each is measured in three rounds and the middle one is compared.
+
+| Operation                                                                                    | Measured | Gate  | In                                         |
+| -------------------------------------------------------------------------------------------- | -------- | ----- | ------------------------------------------ |
+| A record whose proof carries the longest chain whole (eight delegations), judged and counted | 10       | 11.5  | `packages/delegation/bench/chain.bench.ts` |
+| The same with the chain named by reference, the delegations held                             | 1.2      | 1.5   | `packages/delegation/bench/chain.bench.ts` |
+| A policy of five statements, with a connective and a quantifier, for one record              | 0.005    | 0.007 | `packages/delegation/bench/chain.bench.ts` |
+| A record signed for a collective through a charter role, judged and counted                  | 1.1      | 1.3   | `packages/web/bench/status.bench.ts`       |
+| The status of a Commitment with two parties and four Receipts                                | 0.075    | 0.1   | `packages/web/bench/status.bench.ts`       |
+| The status of an Intent that an accepted Commitment closes                                   | 0.015    | 0.02  | `packages/web/bench/status.bench.ts`       |
+
+A chain given whole costs its signatures: nine, the record's and each delegation's, and a tenth of one for the rules. Named by reference, with the delegations judged when they were taken in, the eight links cost a fifth of a signature. Status checks no signature at all: the records it reads were judged when the verifier took them in, and the logs it asks about are verified once and remembered. So the conclusion above stands for these too. What a server must make fast is the signature, and nothing in these packages needs another design to be fast.

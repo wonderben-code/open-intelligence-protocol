@@ -13,5 +13,6 @@ export default defineProject({
     environment: "node",
     include: ["test/**/*.test.ts"],
     testTimeout: 60_000,
+    benchmark: { include: ["bench/**/*.bench.ts"] },
   },
 });

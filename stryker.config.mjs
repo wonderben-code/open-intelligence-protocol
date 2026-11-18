@@ -21,6 +21,8 @@ process.env["OIP_DIFFERENTIAL_RUNS"] ??= "100";
 // The identity campaign is left out altogether: nearly every mutant of
 // `@oip/identity` is covered by it, and each would wait for the Python
 // checker on every case. The unit tests are what a mutant has to get past.
+// The properties of identity logs are tried on a quarter of the logs. So a
+// score from here is a lower bound on what the whole suite notices.
 process.env["OIP_MUTATION"] ??= "1";
 
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */

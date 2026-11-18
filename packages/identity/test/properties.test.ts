@@ -128,7 +128,9 @@ function verified(mind: KeyMind): VerifiedLog {
   return log.value;
 }
 
-const RUNS = { numRuns: 40 };
+// A mutation run tries each property on fewer logs: nearly every mutant of the
+// package is covered by all of them, and a fault a property finds, it finds early.
+const RUNS = { numRuns: process.env["OIP_MUTATION"] === undefined ? 40 : 10 };
 
 describe(`${clause("L1 4", "L1 4.2")} what is done to a log shows`, () => {
   it("verifies as written", () => {

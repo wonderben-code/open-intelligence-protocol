@@ -1,0 +1,327 @@
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+// SPDX-License-Identifier: Apache-2.0
+
+import { contentId, formatRecordRef, proofDigest } from "@oip/core";
+import { type DelegationContext, RecordSet } from "@oip/delegation";
+import { FirstSeen, type JudgedRecord, judgeRecord, LogBook } from "@oip/identity";
+import { clause, type JsonObject } from "@oip/testkit";
+import { at, Collective, intentBy, KeyMind, LATER, type Mind, T } from "@oip/testkit/minds";
+import { describe, expect, it } from "vitest";
+
+import {
+  actsFor,
+  charterInForce,
+  countsFor,
+  roleProofTime,
+  roleTime,
+  signedTime,
+} from "../src/index.ts";
+
+type Signed = JsonObject & { proof: JsonObject[] };
+
+/** A club of three with a threshold of two. From 100 on, Cy is no longer a member. */
+const [ann, bo, cy, dee] = ["ann", "bo", "cy", "dee"].map((name) => new KeyMind(name)) as [
+  KeyMind,
+  KeyMind,
+  KeyMind,
+  KeyMind,
+];
+const club = new Collective("club", [ann, bo, cy], 2, 5).update(100, [ann, bo], {
+  controller: { members: [ann.address, bo.address], threshold: 2 },
+});
+const minds: Mind[] = [ann, bo, cy, dee, club];
+
+const refTo = (record: object) => formatRecordRef(club.address, contentId(record));
+
+/** A charter of the club, signed by the club's own key at `seconds`. */
+function charter(seconds: number, more: JsonObject = {}): Signed {
+  return club.sign(
+    {
+      oip: "1",
+      type: "Collective",
+      author: club.address,
+      name: "The club",
+      purpose: "To translate leases.",
+      roles: {
+        clerk: { purpose: "Posts requests.", powers: [{ command: "/oip/sign/Intent" }] },
+        buyer: {
+          purpose: "Buys, up to a limit.",
+          powers: [{ command: "/oip/sign/Intent", policy: [["<=", ".budget", "100"]] }],
+        },
+      },
+      assignments: [
+        { mind: ann.address, role: "clerk" },
+        { mind: cy.address, role: "clerk" },
+        { mind: bo.address, role: "buyer" },
+      ],
+      created: T(seconds),
+      ...more,
+    },
+    { position: 0 },
+  );
+}
+
+/** An Intent of the club's, signed by a member that names an authority. */
+function signedBy(
+  member: Mind,
+  seconds: number,
+  authority: readonly unknown[],
+  more: JsonObject = {},
+) {
+  return member.sign(intentBy(club, seconds, more), { more: { authority: authority as string[] } });
+}
+
+/** What a verifier holds, each proof seen when made unless `seen` says otherwise. */
+function holding(records: readonly object[], seen: ReadonlyMap<object, number> = new Map()) {
+  const evidence = new FirstSeen();
+  for (const mind of minds) {
+    for (const event of mind.events) {
+      evidence.sawEvent(contentId(event), BigInt(Date.parse(event.created)) * 1_000_000n);
+    }
+  }
+  const set = new RecordSet();
+  const see = (record: object, when: number | undefined): void => {
+    for (const proof of (record as Signed).proof) {
+      evidence.sawProof(
+        proofDigest(proof),
+        when === undefined ? BigInt(Date.parse(String(proof["created"]))) * 1_000_000n : at(when),
+      );
+      const carried: unknown = proof["authority"];
+      for (const entry of Array.isArray(carried) ? (carried as unknown[]) : []) {
+        if (typeof entry === "object" && entry !== null && "proof" in entry) see(entry, undefined);
+      }
+    }
+  };
+  for (const record of records) {
+    see(record, seen.get(record));
+    set.add(record);
+  }
+  const identity = new LogBook(evidence);
+  for (const mind of minds) identity.hold(mind.events, LATER);
+  const context: DelegationContext = { identity, records: set };
+  return context;
+}
+
+function judged(record: object): JudgedRecord {
+  const result = judgeRecord(record);
+  if (!result.ok) throw new Error(JSON.stringify(result.issues));
+  return result.value;
+}
+
+const counts = (record: object, held: readonly object[], seen?: ReadonlyMap<object, number>) =>
+  signedTime(judged(record), club.address, holding([...held, record], seen));
+
+/** Why the first proof on a record does not count for the club through a role. */
+function refusal(record: object, held: readonly object[]) {
+  const context = holding([...held, record]);
+  const value = judged(record);
+  const log = context.identity.log(club.address);
+  if (!log.ok) throw new Error("the club's log does not verify");
+  const result = roleProofTime(value, value.proofs[0]!, club.address, log.value, context);
+  if (result.ok) throw new Error("the proof counts");
+  return { clause: result.issues[0].clause, path: result.issues[0].path };
+}
+
+describe(`${clause("L2 7.1")} a collective's role (item 4)`, () => {
+  const rules = charter(10);
+
+  it("lets a member sign for the collective what a power of its role covers", () => {
+    expect(counts(signedBy(ann, 20, [refTo(rules)]), [rules])).toBe(at(20));
+    // With the charter given whole.
+    expect(counts(signedBy(ann, 20, [rules]), [])).toBe(at(20));
+    // From the proof's evidence, not its date.
+    const late = signedBy(ann, 20, [refTo(rules)]);
+    expect(counts(late, [rules], new Map([[late, 60]]))).toBe(at(60));
+  });
+
+  it("holds the record to the power's policy", () => {
+    expect(counts(signedBy(bo, 20, [refTo(rules)], { budget: "100" }), [rules])).toBe(at(20));
+    expect(counts(signedBy(bo, 20, [refTo(rules)], { budget: "100.01" }), [rules])).toBeUndefined();
+    // A member the policy constrains and the record lacks is an error, which fails it.
+    expect(counts(signedBy(bo, 20, [refTo(rules)]), [rules])).toBeUndefined();
+    expect(refusal(signedBy(bo, 20, [refTo(rules)]), [rules])).toStrictEqual({
+      clause: "L2 7.1",
+      path: "/authority/0",
+    });
+  });
+
+  it("is of a member of the collective's state at the proof's time", () => {
+    // Cy is a member until 100, and a clerk in the charter throughout.
+    expect(counts(signedBy(cy, 99, [refTo(rules)]), [rules])).toBe(at(99));
+    expect(counts(signedBy(cy, 100, [refTo(rules)]), [rules])).toBeUndefined();
+    expect(refusal(signedBy(cy, 100, [refTo(rules)]), [rules])).toStrictEqual({
+      clause: "L2 7.1",
+      path: "/verificationMethod",
+    });
+    // Dee was never a member, whatever a charter says of her.
+    const generous = charter(12, { assignments: [{ mind: dee.address, role: "clerk" }] });
+    expect(counts(signedBy(dee, 20, [refTo(generous)]), [generous])).toBeUndefined();
+  });
+
+  it("is a role the charter assigns to the signer, with a power that covers the record", () => {
+    // No assignment; a role the charter does not define; a power for another type.
+    const unassigned = charter(10, { assignments: [] });
+    expect(counts(signedBy(ann, 20, [refTo(unassigned)]), [unassigned])).toBeUndefined();
+    const undefinedRole = charter(10, { assignments: [{ mind: ann.address, role: "treasurer" }] });
+    expect(counts(signedBy(ann, 20, [refTo(undefinedRole)]), [undefinedRole])).toBeUndefined();
+    const offers = charter(10, {
+      roles: { clerk: { powers: [{ command: "/oip/sign/Offer" }] } },
+    });
+    expect(counts(signedBy(ann, 20, [refTo(offers)]), [offers])).toBeUndefined();
+    // A role named like a member every object has gives nothing.
+    const inherited = charter(10, { assignments: [{ mind: ann.address, role: "constructor" }] });
+    expect(counts(signedBy(ann, 20, [refTo(inherited)]), [inherited])).toBeUndefined();
+  });
+
+  it(`${clause("L1 11.2")} grants nothing by a reserved command`, () => {
+    const blanket = charter(10, { roles: { clerk: { powers: [{ command: "/oip/sign" }] } } });
+    expect(judgeRecord(blanket).ok).toBe(true);
+    expect(counts(signedBy(ann, 20, [refTo(blanket)]), [blanket])).toBeUndefined();
+    const everything = charter(10, { roles: { clerk: { powers: [{ command: "/oip" }] } } });
+    expect(counts(signedBy(ann, 20, [refTo(everything)]), [everything])).toBeUndefined();
+  });
+
+  it("names exactly one charter, and one of this collective", () => {
+    expect(refusal(signedBy(ann, 20, [refTo(rules), refTo(rules)]), [rules])).toStrictEqual({
+      clause: "L2 7.1",
+      path: "/authority",
+    });
+    // A record that is no charter; a charter the verifier does not hold.
+    const intent = ann.sign(intentBy(club, 15));
+    expect(refusal(signedBy(ann, 20, [refTo(intent)]), [intent]).path).toBe("/authority/0");
+    expect(refusal(signedBy(ann, 20, [refTo(rules)]), []).path).toBe("/authority/0");
+    // A charter of another collective.
+    const other = new Collective("other", [ann, bo], 2, 5);
+    const theirs = other.sign(
+      {
+        oip: "1",
+        type: "Collective",
+        author: other.address,
+        name: "Other",
+        purpose: "None.",
+        created: T(10),
+      },
+      { position: 0 },
+    );
+    expect(refusal(signedBy(ann, 20, [theirs]), []).path).toBe("/authority/0");
+  });
+
+  it(`${clause("L2 7.2")} signs only the types that can be delegated`, () => {
+    const lineage = ann.sign(
+      { oip: "1", type: "Lineage", author: club.address, child: dee.address, created: T(20) },
+      { more: { authority: [refTo(rules)] } },
+    );
+    const value = judgeRecord(lineage);
+    if (value.ok) {
+      expect(signedTime(value.value, club.address, holding([rules, lineage]))).toBeUndefined();
+      const log = holding([rules]).identity.log(club.address);
+      expect(
+        log.ok &&
+          roleProofTime(
+            value.value,
+            value.value.proofs[0]!,
+            club.address,
+            log.value,
+            holding([rules]),
+          ),
+      ).toMatchObject({
+        ok: false,
+        issues: [{ clause: "L2 7.2" }],
+      });
+    }
+  });
+});
+
+describe(`${clause("L2 6.2")} the charter in force`, () => {
+  it("is the one signed for the collective most recently at or before the time", () => {
+    const [first, second] = [charter(10), charter(50, { name: "The club, revised" })];
+    const context = holding([first, second]);
+    const inForce = (seconds: number) => charterInForce(club.address, at(seconds), context);
+    expect(inForce(9)).toBeUndefined();
+    expect(inForce(10)).toBe(contentId(first));
+    expect(inForce(49)).toBe(contentId(first));
+    expect(inForce(50)).toBe(contentId(second));
+    // A proof counts only by the charter in force at its own time.
+    expect(counts(signedBy(ann, 40, [refTo(first)]), [first, second])).toBe(at(40));
+    expect(counts(signedBy(ann, 60, [refTo(first)]), [first, second])).toBeUndefined();
+    expect(counts(signedBy(ann, 60, [refTo(second)]), [first, second])).toBe(at(60));
+    expect(counts(signedBy(ann, 40, [refTo(second)]), [first, second])).toBeUndefined();
+  });
+
+  it("is, of two signed at the same time, the one with the lower content ID", () => {
+    const pair = [charter(10, { name: "One" }), charter(10, { name: "Two" })];
+    const lower = pair.map((made) => contentId(made)).sort()[0];
+    for (const order of [pair, [...pair].reverse()]) {
+      expect(charterInForce(club.address, at(20), holding(order))).toBe(lower);
+    }
+  });
+
+  it("is signed by the collective's own authority, by evidence of when", () => {
+    // Signed by one member in the collective's name: no charter.
+    const { proof: _, ...content } = charter(10);
+    const forged = ann.sign(content);
+    expect(charterInForce(club.address, at(20), holding([forged]))).toBeUndefined();
+    // Dated 10 and first seen at 30: in force from 30.
+    const backdated = charter(10, { name: "Seen late" });
+    const context = holding([backdated], new Map([[backdated, 30]]));
+    expect(charterInForce(club.address, at(29), context)).toBeUndefined();
+    expect(charterInForce(club.address, at(30), context)).toBe(contentId(backdated));
+    // A charter given with the question counts beside those held: here the verifier has
+    // evidence for it and does not hold it.
+    const given = charter(10, { name: "Given" });
+    const bare = { identity: holding([given]).identity, records: new RecordSet() };
+    expect(charterInForce(club.address, at(20), bare)).toBeUndefined();
+    expect(charterInForce(club.address, at(20), bare, [judged(given)])).toBe(contentId(given));
+    expect(charterInForce(dee.address, at(20), holding([charter(10)]))).toBeUndefined();
+  });
+});
+
+describe(`${clause("L2 7.1")} a record counts for a mind`, () => {
+  const rules = charter(10);
+
+  it("from the earliest time any route gives", () => {
+    // The club's own key at 30, and Ann's role proof at 20, on one record.
+    const both = club.sign(signedBy(ann, 20, [refTo(rules)]), { position: 0, created: T(30) });
+    expect(counts(both, [rules])).toBe(at(20));
+    const own = club.sign(intentBy(club, 30), { position: 0 });
+    expect(counts(own, [])).toBe(at(30));
+    expect(countsFor(judged(own), club.address, holding([own]))).toBe(true);
+    expect(countsFor(judged(own), ann.address, holding([own]))).toBe(false);
+  });
+
+  it(`${clause("core 9.6")} by no route on a proof evaluated more than 300 seconds after it expires`, () => {
+    const expiring = signedBy(ann, 20, [refTo(rules)], { expires: T(50) });
+    expect(counts(expiring, [rules], new Map([[expiring, 350]]))).toBe(at(350));
+    expect(counts(expiring, [rules], new Map([[expiring, 351]]))).toBeUndefined();
+  });
+
+  it(`${clause("L2 5.2")} through a signer that acts for it, by a role or a delegation`, () => {
+    const record = signedBy(ann, 20, [refTo(rules)]);
+    const context = holding([rules, record]);
+    expect(actsFor(judged(record), ann.address, club.address, context)).toBe(true);
+    expect(actsFor(judged(record), bo.address, club.address, context)).toBe(false);
+    expect(actsFor(judged(record), ann.address, dee.address, context)).toBe(false);
+    const log = context.identity.log(club.address);
+    expect(
+      log.ok && roleTime(judged(record), club.address, log.value, context, bo.address),
+    ).toBeUndefined();
+    // Through a delegation: Dee lets Ann sign her Intents.
+    const grant = dee.sign({
+      oip: "1",
+      type: "Delegation",
+      author: dee.address,
+      delegate: ann.address,
+      subject: dee.address,
+      command: "/oip/sign/Intent",
+      expires: T(10_000),
+      nonce: "nonce-0001",
+      created: T(10),
+    });
+    const forDee = ann.sign(intentBy(dee, 20), {
+      more: { authority: [formatRecordRef(dee.address, contentId(grant))] },
+    });
+    const held = holding([grant, forDee]);
+    expect(actsFor(judged(forDee), ann.address, dee.address, held)).toBe(true);
+    expect(signedTime(judged(forDee), dee.address, held)).toBe(at(20));
+  });
+});

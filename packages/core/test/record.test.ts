@@ -6,6 +6,7 @@ import {
   containerParts,
   IMPLEMENTATION_LIMIT,
   type OipRecord,
+  UnfitProcess,
   validateRecord,
 } from "@oip/schema";
 import {
@@ -15,7 +16,6 @@ import {
   type JsonObject,
   sampleRecords,
   withAmbientTrapped,
-  withStackSpent,
 } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -139,24 +139,28 @@ describe("reading a record from text", () => {
     );
   });
 
-  it("answers and does not throw with the stack all but spent", () => {
+  it("reads, and hashes nothing, in a process where nothing can be serialised", () => {
+    // Other code has put a `toJSON` on every object. Reading needs no canonical form: the
+    // size is counted without writing it. Nothing is hashed in that state (core 2).
     const text = JSON.stringify(named("intent"));
-    const readers: (() => Validation<unknown>)[] = [
-      () => parseRecord(text),
-      () => parseRecord(utf8(text)),
-      () => parseExtensionRecord(text),
-    ];
-    for (const read of readers) {
-      const answers = withStackSpent(read);
-      expect(answers).toHaveLength(200);
-      for (const answer of answers) {
-        if (!answer.ok) expect(answer.issues[0].message.length).toBeGreaterThan(0);
-      }
+    Object.defineProperty(Object.prototype, "toJSON", {
+      value: () => "rewritten",
+      configurable: true,
+      writable: true,
+    });
+    let thrown: unknown;
+    let read = false;
+    try {
+      read = parseRecord(text).ok;
+      const parsed = parseRecord(text);
+      if (parsed.ok) contentId(parsed.value);
+    } catch (error) {
+      thrown = error;
+    } finally {
+      delete (Object.prototype as { toJSON?: unknown }).toJSON;
     }
-    expect(parseRecord(text).ok).toBe(true);
-    for (const answer of withStackSpent(() => unsupportedCritical(named("intent")))) {
-      expect(Array.isArray(answer)).toBe(true);
-    }
+    expect(read).toBe(true);
+    expect(thrown).toBeInstanceOf(UnfitProcess);
   });
 
   it("reads no clock and no randomness", () => {

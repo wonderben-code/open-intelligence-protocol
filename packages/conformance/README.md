@@ -34,10 +34,10 @@ export function report(recordIsWellFormed: (record: unknown) => boolean): string
 }
 ```
 
-This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the 16 malformed records it should have rejected:
+This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the 17 malformed records it should have rejected:
 
 ```
-my implementation: 23 passed, 16 failed, 214 pending
+my implementation: 23 passed, 17 failed, 246 pending
 FAIL negative packet-short-nonce: must be rejected. A packet nonce has 8 to 64 characters.
 FAIL negative delegation-to-self: must be rejected. A delegation's delegate must differ from its author.
 FAIL negative policy-nested-nine-deep: must be rejected. A statement of a policy is at depth 0, and no statement is deeper than 8 (Layer 1, 11.3). Here a comparison stands under nine negations.
@@ -54,6 +54,7 @@ FAIL negative duplicity-evidence-carries-a-record-nested-65-deep: must be reject
 FAIL negative feed-page-carries-a-record-nested-65-deep: must be rejected. The rule for containers holds for a `FeedPage` and the entries it carries.
 FAIL negative bundle-carries-a-location-nested-65-deep: must be rejected. A `Bundle` carries records in three members: `log`, `location` and `participant`. Each is held to the limit.
 FAIL negative container-nested-65-deep-without-its-records: must be rejected. The limit also applies to the container without the members that hold its records: here a member of the page's own nests 65 deep.
+FAIL negative packet-without-a-sender: must be rejected. A packet names its sender in `from` (Layer 1, 12.1). This one has none.
 ```
 
 ## The adapter

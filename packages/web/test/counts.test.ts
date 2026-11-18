@@ -141,12 +141,14 @@ describe(`${clause("L2 7.1")} a collective's role (item 4)`, () => {
     expect(counts(signedBy(ann, 20, [refTo(rules)]), [rules])).toBe(at(20));
     // With the charter given whole.
     expect(counts(signedBy(ann, 20, [rules]), [])).toBe(at(20));
-    // Given whole, it is judged with the proofs it carries there: without them it is
-    // no charter of the club's, whatever copy of it the verifier holds besides.
+    // Given whole, it is the same charter as any copy held (Section 2), and is judged
+    // with the proofs of them all: a copy without the club's proof names the charter as
+    // a reference would. Where no copy held is signed for the club, it is no charter.
     const { proof: _signatures, ...bare } = rules;
     const signedByAnother = dee.sign(bare, { created: T(10) });
     expect(contentId(signedByAnother)).toBe(contentId(rules));
-    expect(counts(signedBy(ann, 20, [signedByAnother]), [rules])).toBeUndefined();
+    expect(counts(signedBy(ann, 20, [signedByAnother]), [rules])).toBe(at(20));
+    expect(counts(signedBy(ann, 20, [signedByAnother]), [])).toBeUndefined();
     // From the proof's evidence, not its date.
     const late = signedBy(ann, 20, [refTo(rules)]);
     expect(counts(late, [rules], new Map([[late, 60]]))).toBe(at(60));
@@ -515,5 +517,104 @@ describe(`${clause("L2 7.1")} a record counts for a mind`, () => {
     const held = holding([grant, forDee]);
     expect(actsFor(judged(forDee), ann.address, dee.address, held)).toBe(true);
     expect(signedTime(judged(forDee), dee.address, held)).toBe(at(20));
+  });
+});
+
+describe(`${clause("L2 6.2")} a charter, its copies and what replaces it`, () => {
+  /** A charter that makes one member the clerk, not yet signed. */
+  const draft = (
+    name: string,
+    clerk: Mind,
+    seconds: number,
+    more: JsonObject = {},
+  ): JsonObject => ({
+    oip: "1",
+    type: "Collective",
+    author: club.address,
+    name,
+    purpose: "To translate leases.",
+    roles: { clerk: { powers: [{ command: "/oip/sign/Intent" }] } },
+    assignments: [{ mind: clerk.address, role: "clerk" }],
+    created: T(seconds),
+    ...more,
+  });
+  const byBoth = (content: JsonObject) => bo.sign(ann.sign(content)) as Signed;
+  // The first charter makes Cy the clerk. Ann and Bo sign it at 10.
+  const first = draft("First", cy, 10);
+  const early = byBoth(first);
+  // At 30 Cy adds his own signature to it.
+  const late = (cy.sign(first, { created: T(30) }) as Signed).proof[0]!;
+  /** The first charter with Ann's proof and Cy's, and without Bo's: completed at 30, by this copy. */
+  const withheld = { ...first, proof: [early.proof[0]!, late] } as Signed;
+  const whole = { ...first, proof: [...early.proof, late] } as Signed;
+  const inForce = (seconds: number, held: readonly object[], also: readonly object[] = []) =>
+    charterInForce(
+      club.address,
+      at(seconds),
+      holding([...held, ...also]),
+      also.map((copy) => judged(copy)),
+    );
+
+  it("is completed when it is first signed, with the proofs of every copy held", () => {
+    // The second charter makes Ann the clerk and Cy nothing. Ann and Bo sign it at 20.
+    const second = byBoth(draft("Second", ann, 20));
+    expect(contentId(withheld)).toBe(contentId(early));
+    for (const held of [
+      [early, second],
+      [whole, second],
+      [second, withheld, early],
+    ]) {
+      expect(inForce(15, held)).toBe(contentId(first));
+      expect(inForce(40, held)).toBe(contentId(second));
+      // A copy that leaves out the proof that completed it early does not make it later.
+      expect(inForce(40, held, [withheld])).toBe(contentId(second));
+    }
+    // So Cy does not sign for the club at 40 by the charter that was replaced at 20,
+    // whether he gives it whole, with the proofs he chooses, or names it.
+    const given = signedBy(cy, 40, [withheld]);
+    const named = signedBy(cy, 40, [refTo(first)]);
+    expect(counts(given, [early, second])).toBeUndefined();
+    expect(counts(named, [early, second])).toBeUndefined();
+    expect(refusal(given, [early, second])).toStrictEqual({
+      clause: "L2 6.2",
+      path: "/authority/0",
+    });
+    // Ann does, by the second.
+    expect(counts(signedBy(ann, 40, [refTo(second)]), [early, second])).toBe(at(40));
+  });
+
+  it("is, for a verifier that holds no earlier proof, the later charter it looks like", () => {
+    // A threshold can be completed at any time. A verifier that never saw Bo's proof on
+    // the first charter cannot tell this copy from a charter completed at 30.
+    const second = byBoth(draft("Second", ann, 20));
+    expect(inForce(40, [withheld, second])).toBe(contentId(first));
+    expect(inForce(25, [withheld, second])).toBe(contentId(second));
+  });
+
+  it("is in force at no time from the completion of a charter that supersedes it", () => {
+    // The second charter names the first in `supersedes`. That ends the first for good,
+    // whoever signs it later and whichever of its proofs a verifier holds.
+    const second = byBoth(draft("Second", ann, 20, { supersedes: refTo(first) }));
+    for (const held of [
+      [withheld, second],
+      [whole, second],
+    ]) {
+      expect(inForce(40, held)).toBe(contentId(second));
+      expect(inForce(40, held, [withheld])).toBe(contentId(second));
+      expect(inForce(1000, held)).toBe(contentId(second));
+    }
+    expect(inForce(15, [whole, second])).toBe(contentId(first));
+    expect(counts(signedBy(cy, 40, [withheld]), [second])).toBeUndefined();
+    // A superseding charter that is not completed ends nothing.
+    const proposed = ann.sign(draft("Third", ann, 25, { supersedes: refTo(second) })) as Signed;
+    expect(inForce(40, [whole, second, proposed])).toBe(contentId(second));
+    // One that supersedes a charter it does not follow in time ends it all the same.
+    const third = byBoth(draft("Third", bo, 5, { supersedes: refTo(first) }));
+    expect(inForce(40, [whole, third])).toBe(contentId(third));
+    expect(inForce(12, [whole, third])).toBe(contentId(third));
+    // With the last of a line superseded, nothing earlier comes back.
+    const fourth = byBoth(draft("Fourth", bo, 50, { supersedes: refTo(second) }));
+    expect(inForce(60, [whole, second, fourth])).toBe(contentId(fourth));
+    expect(inForce(45, [whole, second, fourth])).toBe(contentId(second));
   });
 });

@@ -153,6 +153,7 @@ describe("the exported JSON Schemas", () => {
       "feed-page-carries-a-record-nested-65-deep",
       "offer-with-a-quantity-of-zero",
       "packet-short-nonce",
+      "packet-without-a-sender",
       "policy-nested-nine-deep",
       "proof-entry-not-an-object",
       "record-nested-65-deep",

@@ -9,6 +9,7 @@
 
 import { type ValidatorError, validators } from "./generated/validators.ts";
 import { containerParts, depthOf } from "./containers.ts";
+import { noteCutShort } from "./cut-short.ts";
 import { type Issue, pointerDepth, quote, shown, type Validation } from "./issue.ts";
 import { patterns } from "./primitives.ts";
 import type { Proof } from "./proof.ts";
@@ -376,7 +377,8 @@ const UNREADABLE: Issue = {
 function answering<T>(run: () => Validation<T>): Validation<T> {
   try {
     return run();
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     return fail(UNREADABLE);
   }
 }

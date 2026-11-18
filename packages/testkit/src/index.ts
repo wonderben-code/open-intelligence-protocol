@@ -13,6 +13,7 @@ import { repoRoot } from "./vectors.ts";
 
 export { type AmbientAllowance, withAmbientTrapped } from "./ambient.ts";
 export { heapInUse, heapKeptBy } from "./heap.ts";
+export { inNode, tally } from "./node.ts";
 export {
   AMINA,
   CID,

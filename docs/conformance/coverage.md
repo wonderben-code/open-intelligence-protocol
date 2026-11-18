@@ -27,19 +27,20 @@ Cases the implementation cannot answer yet are pending, never passed.
 | Section | Kind | Owed by | Passing | Pending | Failing |
 |---|---|---|---:|---:|---:|
 | valid | `log` | M2 | 3 | 0 | 0 |
-| valid | `countsFor` | M3 | 8 | 0 | 0 |
-| valid | `status` | M3 | 5 | 0 | 0 |
+| valid | `countsFor` | M3 | 10 | 0 | 0 |
+| valid | `status` | M3 | 7 | 0 | 0 |
 | valid | `record` | M0 | 10 | 0 | 0 |
 | valid | `json` | M1 | 5 | 0 | 0 |
 | negative | `log` | M2 | 31 | 0 | 0 |
-| negative | `countsFor` | M3 | 61 | 0 | 0 |
-| negative | `sentFor` | M3 | 1 | 0 | 0 |
-| negative | `status` | M3 | 4 | 0 | 0 |
+| negative | `countsFor` | M3 | 73 | 0 | 0 |
+| negative | `sentFor` | M3 | 2 | 0 | 0 |
+| negative | `status` | M3 | 6 | 0 | 0 |
 | negative | `assurance` | M9 | 0 | 1 | 0 |
-| negative | `record` | M0 | 16 | 0 | 0 |
+| negative | `record` | M0 | 17 | 0 | 0 |
 | negative | `json` | M1 | 12 | 0 | 0 |
 | controls | `log` | M2 | 16 | 0 | 0 |
-| controls | `countsFor` | M3 | 43 | 0 | 0 |
+| controls | `countsFor` | M3 | 55 | 0 | 0 |
+| controls | `sentFor` | M3 | 1 | 0 | 0 |
 | controls | `record` | M0 | 12 | 0 | 0 |
 | controls | `json` | M1 | 4 | 0 | 0 |
 
@@ -91,7 +92,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 4.1 |  | M1 | 7 | tested | Public keys are written as Multikey strings: `"z"` followed by the base58btc encoding of a mult… |
 | core 4.2 | MUST | M1 | 6 | tested | Implementations MUST check the prefix and length of every Multikey they use and reject any that… |
 | core 4.3 |  | M1 | 2 | tested | This revision requires Ed25519 for signatures and X25519 for encryption. Other key types are re… |
-| core 4.4 | MUST | M1 | 24 | tested | Ed25519 verification. Every implementation MUST apply the same rule, so that all verifiers agre… |
+| core 4.4 | MUST | M1 | 31 | tested | Ed25519 verification. Every implementation MUST apply the same rule, so that all verifiers agre… |
 | core 5.1 | MUST | M1 | 6 | tested | A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 p… |
 | core 5.2 | MUST | M1 | 13 | tested | Each proof object MUST conform to W3C Data Integrity 1.0 with the `eddsa-jcs-2022` cryptosuite,… |
 | core 5.3 |  | M1 | 15 | tested | Creating a proof. Let `options` be the proof object without `proofValue`. Compute ``` hashData… |
@@ -112,9 +113,9 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 9.1 | MUST | M2 | 2 | tested | Implementations MUST tolerate clock skew of up to 300 seconds when checking whether a record is… |
 | core 9.2 |  | M2 | 2 | tested | `created`, in a record or in a proof, is asserted by the signer. A signer holding a stolen, rem… |
 | core 9.3 | MUST | M2 | 11 | tested | Evaluation time. Every rule that depends on when a proof was made (key removal and compromise,… |
-| core 9.4 | MUST | M2 | 34 | tested | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
-| core 9.5 |  | M2 | 31 | tested | Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where… |
-| core 9.6 |  | M2 | 7 | tested | Expiry. A proof whose evaluation time is more than 300 seconds after its record's `expires` doe… |
+| core 9.4 | MUST | M2 | 38 | tested | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
+| core 9.5 |  | M2 | 41 | tested | Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where… |
+| core 9.6 |  | M2 | 8 | tested | Expiry. A proof whose evaluation time is more than 300 seconds after its record's `expires` doe… |
 | core 9.7 |  | M2 | 1 | tested | Consequence. A verifier that first sees a record long after it was made can count its proofs on… |
 | core 10.1 |  | M1 | 1 | tested | OIP records are exchanged as `application/oip+json`. |
 | core 10.2 |  | M1 | 3 | tested | HTTP APIs report errors as RFC 9457 problem details with a `type` of the form `urn:oip:error:<c… |
@@ -186,9 +187,9 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 6.2 |  | M2 | 5 | tested | Removing a key stops it signing anything new while leaving what it signed earlier valid, provid… |
 | L1 6.3 | MUST | M2 | 1 | tested | When a verifier encounters a `versionId` it does not have, it SHOULD fetch the missing events f… |
 | L1 6.4 |  | M2 | 11 | tested | Member proofs on identity events. A proof `p` by member `M` on another mind's identity event `e… |
-| L1 7.1 |  | M2 | 105 | tested | Two events with different content IDs in logs with the same genesis, at the same `seq`, each va… |
-| L1 7.2 | MUST | M5 | 2 | tested in part (due M5) | Resolvers MUST retain the first valid event they saw at each position of each log, MUST record… |
-| L1 7.3 | MUST | M2 | 30 | tested | Resolution. A verifier MUST NOT choose between conflicting branches by their length or by which… |
+| L1 7.1 |  | M2 | 115 | tested | Two events with different content IDs in logs with the same genesis, at the same `seq`, each va… |
+| L1 7.2 | MUST | M5 | 4 | tested in part (due M5) | Resolvers MUST retain the first valid event they saw at each position of each log, MUST record… |
+| L1 7.3 | MUST | M2 | 32 | tested | Resolution. A verifier MUST NOT choose between conflicting branches by their length or by which… |
 | L1 7.4 | MUST | M6 | 0 | pending M6 | Protecting the log. Implementations MUST destroy a control key's private part once the event it… |
 | L1 8.1 |  | M2 | 4 | tested | A fork is a new mind whose genesis lists a parent in `parents`, with `at` naming the version of… |
 | L1 8.2 |  | M2 | 5 | tested | Lineage is acknowledged when the child's `at` names a version of the parent and either the pare… |
@@ -207,11 +208,11 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 10.4 |  | M4 | 0 | pending M4 | After an operational key is revoked with a compromise time, entries it signed whose evaluation… |
 | L1 10.5 |  | M4 | 2 | tested in part (due M4) | A `Checkpoint` has `author`, `created`, `size` (the number of entries covered, from `seq` 0), `… |
 | L1 10.6 | MAY | M4 | 0 | pending M4 | A checkpoint MAY be anchored in a public append-only log or in the Bitcoin blockchain through O… |
-| L1 11.1 | MUST | M3 | 14 | tested | A `Delegation` record: \| Member \| Required \| Value \| UCAN 1.0 \| \|---\|---\|---\|---\| \| `author` \|… |
+| L1 11.1 | MUST | M3 | 16 | tested | A `Delegation` record: \| Member \| Required \| Value \| UCAN 1.0 \| \|---\|---\|---\|---\| \| `author` \|… |
 | L1 11.2 | MUST | M3 | 19 | tested | Commands match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` covers a command `c` when… |
-| L1 11.3 | SHOULD | M3 | 46 | tested | Policies. A policy is an array of at most 64 statements, all of which must hold for the record… |
-| L1 11.4 |  | M3 | 17 | tested | Validity of a delegation chain for a record `r` carrying a proof `p` by a valid operational key… |
-| L1 11.5 | SHOULD | M3 | 6 | tested | A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco… |
+| L1 11.3 | SHOULD | M3 | 50 | tested | Policies. A policy is an array of at most 64 statements, all of which must hold for the record… |
+| L1 11.4 |  | M3 | 21 | tested | Validity of a delegation chain for a record `r` carrying a proof `p` by a valid operational key… |
+| L1 11.5 | SHOULD | M3 | 8 | tested | A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco… |
 | L1 11.6 | MUST | M3 | 15 | tested | Use. A proof that relies on delegation lists, in its own `authority` member (core 5.2), exactly… |
 | L1 12.1 | MUST | M4 | 21 | tested in part (due M4) | A `Packet`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `from` \| yes \| Sender's address; the… |
 | L1 12.2 | MUST | M4 | 7 | tested in part (due M4) | Content. Exactly one of: - `{ "mediaType": <media type>, "body": <JSON value> }`. With `applica… |
@@ -246,7 +247,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 18.3 |  | M5 | 1 | tested in part (due M5) | A `QueryResult`: `{ "oip": "1", "type": "QueryResult", "author": <indexer's address>, "created"… |
 | L1 18.4 | MUST | M6 | 0 | pending M6 | Clients MUST fetch and verify the records named in results before acting on them. Ranking is th… |
 | L1 18.5 | MUST | M5 | 0 | pending M5 | Brokered delivery. An indexer MAY accept `POST {endpoint}/inbox` packets whose `to` is a capabi… |
-| L1 19 |  | M4 | 2 | tested in part (due M4) | Limits (table) |
+| L1 19 |  | M4 | 4 | tested in part (due M4) | Limits (table) |
 
 ## L2
 
@@ -257,18 +258,18 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L2 1.1 | MUST | M3 | 3 | tested | The meaning of a Layer 2 record is fixed by its signed content. Implementations MUST NOT infer… |
 | L2 1.2 |  | M3 | 1 | tested | Records are immutable. A change of state is expressed by a new record that links to the old one. |
 | L2 1.3 |  | M3 | 1 | tested | The status of a record is computed by the functions in Section 8 from the set of records a veri… |
-| L2 2 | MUST | M3 | 9 | tested | Every Layer 2 record has the core common members (core, Section 7) and MAY have: \| Member \| Val… |
+| L2 2 | MUST | M3 | 11 | tested | Every Layer 2 record has the core common members (core, Section 7) and MAY have: \| Member \| Val… |
 | L2 3 |  |  | 0 | informative | The Participant record is defined in Layer 1, Section 16. |
 | L2 4.1 | MUST | M3 | 6 | tested | `Intent`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `want` \| yes \| Plain-language statement… |
 | L2 4.2 | MUST | M3 | 10 | tested | `Offer`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `provides` \| yes \| Plain-language statem… |
 | L2 4.3 |  | M3 | 1 | tested | Withdrawals and edits. A withdrawal is a superseding record (Section 2) with `status` `withdraw… |
 | L2 5.1 | MUST | M3 | 8 | tested | `Commitment`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `parties` \| yes \| 2–64 objects `{ "… |
-| L2 5.2 | MUST | M3 | 4 | tested | The `author` of a Commitment MUST be one of its parties, or a mind whose proof on it counts for… |
+| L2 5.2 | MUST | M3 | 6 | tested | The `author` of a Commitment MUST be one of its parties, or a mind whose proof on it counts for… |
 | L2 5.3 | SHOULD | M3 | 3 | tested | Additional signatures are added by appending proofs. Adding proofs does not change the content… |
 | L2 5.4 | SHOULD | M3 | 1 | tested | Parties bound through a delegate. A party whose proof on a Commitment counts only through a del… |
 | L2 6.1 | MUST | M3 | 10 | tested | `Receipt`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `about` \| yes \| `record-ref` of the re… |
-| L2 6.2 | MUST | M3 | 8 | tested | `Collective` (a charter): \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The co… |
-| L2 7.1 | SHOULD | M3 | 17 | tested | A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an… |
+| L2 6.2 | MUST | M3 | 11 | tested | `Collective` (a charter): \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The co… |
+| L2 7.1 | SHOULD | M3 | 20 | tested | A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an… |
 | L2 7.2 |  | M3 | 1 | tested | Delegable types are `Intent`, `Offer`, `Commitment` and `Receipt`. Every other signed record (i… |
 | L2 7.3 |  | M3 | 3 | tested | A Commitment is accepted when it counts for its `author`, its author is a party or signs for on… |
 | L2 8 | MUST | M3 | 4 | tested | Status is computed from the records known to the verifier and the time of computation, and so c… |

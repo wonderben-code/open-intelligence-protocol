@@ -12,7 +12,14 @@
 export { charterInForce, roleProofTime, roleTime } from "./charter.ts";
 export { actsFor, countsFor, signedTime } from "./counts.ts";
 export { evidenceIsChecked, evidenceMatches } from "./evidence.ts";
-export { referenced, type WebContext, type WebRecords, WebRecordSet } from "./records.ts";
+export {
+  referenced,
+  type WebContext,
+  type WebRecords,
+  WebRecordSet,
+  withCopy,
+  withHeld,
+} from "./records.ts";
 export {
   type CharterStatus,
   charterStatus,

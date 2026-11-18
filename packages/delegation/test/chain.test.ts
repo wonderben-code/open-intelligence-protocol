@@ -4,7 +4,16 @@
 import { contentId, formatRecordRef, type Instant, proofDigest } from "@oip/core";
 import { FirstSeen, type JudgedRecord, judgeRecord, LogBook } from "@oip/identity";
 import { clause, type JsonObject } from "@oip/testkit";
-import { at, intentBy, KeyMind, LATER, type Mind, rawSign, T } from "@oip/testkit/minds";
+import {
+  at,
+  Collective,
+  intentBy,
+  KeyMind,
+  LATER,
+  type Mind,
+  rawSign,
+  T,
+} from "@oip/testkit/minds";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -423,6 +432,78 @@ describe(`${clause("L1 11.5")} revocation`, () => {
     );
   });
 
+  it("stands whatever is later declared of the key that signed it", () => {
+    // Ines delegates at 10 and revokes at 30. At 100 she replaces her key and declares
+    // it compromised since 20: before her revocation, and after her delegation.
+    const [ines, bot] = [new KeyMind("ines"), new KeyMind("bot")];
+    const grant = ines.sign({
+      oip: "1",
+      type: "Delegation",
+      author: ines.address,
+      delegate: bot.address,
+      subject: ines.address,
+      command: "/oip/sign/Intent",
+      expires: T(10_000),
+      nonce: "compromise-0001",
+      created: T(10),
+    }) as Signed;
+    const revoked = ines.sign({
+      oip: "1",
+      type: "Revocation",
+      author: ines.address,
+      revokes: formatRecordRef(ines.address, contentId(grant)),
+      created: T(30),
+    });
+    const used = bot.sign(intentBy(ines, 40), {
+      more: { authority: [formatRecordRef(ines.address, contentId(grant))] },
+    });
+    const told = (mind: KeyMind) => {
+      const evidence = new FirstSeen();
+      const set = new RecordSet();
+      for (const event of [...mind.events, ...bot.events]) {
+        evidence.sawEvent(contentId(event), BigInt(Date.parse(event.created)) * 1_000_000n);
+      }
+      for (const record of [grant, revoked, used]) {
+        for (const proof of record.proof) {
+          evidence.sawProof(
+            proofDigest(proof),
+            BigInt(Date.parse(String((proof as JsonObject)["created"]))) * 1_000_000n,
+          );
+        }
+        set.add(record);
+      }
+      const identity = new LogBook(evidence);
+      for (const held of [mind, bot]) identity.hold(held.events, LATER);
+      return {
+        counts: delegatedTime(judged(used), ines.address, { identity, records: set }),
+        revokedAt: revokedTime(contentId(grant), ines.address, set, identity),
+      };
+    };
+    expect(told(ines)).toStrictEqual({ counts: undefined, revokedAt: at(30) });
+    const declared = new KeyMind("ines").update(100, {
+      keys: [{ key: ines.operational(1).publicKey }],
+      revoked: [{ key: ines.operational(0).publicKey, compromisedSince: T(20) }],
+    });
+    expect(declared.address).toBe(ines.address);
+    // The declaration takes back what the key signed from 20 on, and not her taking back.
+    expect(told(declared)).toStrictEqual({ counts: undefined, revokedAt: at(30) });
+  });
+
+  it("is of the delegation's author by its own account: signed under another author, it revokes nothing", () => {
+    // Amina signs a revocation that names the stranger as its author.
+    const misnamed = amina.sign({
+      oip: "1",
+      type: "Revocation",
+      author: stranger.address,
+      revokes: refTo(grant),
+      created: T(15),
+    });
+    const { context, set } = holding([grant, misnamed]);
+    expect(set.revocationsOf(contentId(grant))).toHaveLength(1);
+    expect(revokedTime(contentId(grant), amina.address, set, context.identity)).toBeUndefined();
+    expect(counts(signedFor(agent, 20, [refTo(grant)]), [grant, misnamed])).toBe(at(20));
+  });
+
   it("is the earliest of those held", () => {
     const [first, second] = [revocation(amina, 50), revocation(amina, 30)];
     const { context, set } = holding([grant, first, second]);
@@ -457,6 +538,199 @@ describe(`${clause("L1 11.5")} revocation`, () => {
     expect(revokedTime(contentId(grant), amina.address, both.set, both.context.identity)).toBe(
       at(30),
     );
+  });
+});
+
+describe(`${clause("L1 11.4")} a delegation's author, at the proof's time`, () => {
+  /** A delegation by one mind to another, for itself, signed at `seconds`. */
+  const grantBy = (author: Mind, delegate: Mind, seconds: number, principal: Mind = author) =>
+    author.sign({
+      oip: "1",
+      type: "Delegation",
+      author: author.address,
+      delegate: delegate.address,
+      subject: principal.address,
+      command: "/oip/sign/Intent",
+      expires: T(100_000),
+      nonce: `author-${String(nonce++).padStart(4, "0")}`,
+      created: T(seconds),
+    }) as Signed;
+  /** An Intent of the principal's, signed at `seconds` by a delegate that lists the chain. */
+  const usedBy = (delegate: Mind, principal: Mind, seconds: number, chain: readonly object[]) =>
+    delegate.sign(intentBy(principal, seconds), {
+      more: { authority: chain.map((link) => formatRecordRef(principal.address, contentId(link))) },
+    }) as Signed;
+  /**
+   * What a verifier holds: the records, each proof seen when it was made, and each mind's
+   * log as its events were made, known up to the time given for it, or to the end of time.
+   */
+  function knowing(
+    minds: readonly Mind[],
+    records: readonly object[],
+    upTo: ReadonlyMap<Mind, number> = new Map(),
+  ): DelegationContext {
+    const evidence = new FirstSeen();
+    const set = new RecordSet();
+    for (const mind of minds) {
+      for (const event of mind.events) {
+        evidence.sawEvent(contentId(event), BigInt(Date.parse(event.created)) * 1_000_000n);
+      }
+    }
+    for (const record of records) {
+      for (const proof of (record as Signed).proof) {
+        evidence.sawProof(
+          proofDigest(proof),
+          BigInt(Date.parse(String(proof["created"]))) * 1_000_000n,
+        );
+      }
+      set.add(record);
+    }
+    const identity = new LogBook(evidence);
+    for (const mind of minds) {
+      const known = upTo.get(mind);
+      identity.hold(mind.events, known === undefined ? LATER : at(known));
+    }
+    return { identity, records: set };
+  }
+  const verdict = (record: Signed, principal: Mind, context: DelegationContext) => {
+    const value = judged(record);
+    const result = delegatedProofTime(value, value.proofs[0]!, principal.address, context);
+    return result.ok
+      ? result.value
+      : { clause: result.issues[0].clause, path: result.issues[0].path };
+  };
+
+  it(`${clause("core 9.4")} is known from a log held up to the evidence for the proof`, () => {
+    // Ines delegates at 10 and revokes at 1500. Her agent signs for her at 2000.
+    const [ines, bot] = [new KeyMind("ines"), new KeyMind("bot")];
+    const grant = grantBy(ines, bot, 10);
+    const revocation = ines.sign({
+      oip: "1",
+      type: "Revocation",
+      author: ines.address,
+      revokes: formatRecordRef(ines.address, contentId(grant)),
+      created: T(1500),
+    });
+    const used = usedBy(bot, ines, 2000, [grant]);
+    const held = [grant, revocation, used];
+    // With her log known in full, the revocation counts and the proof does not.
+    expect(verdict(used, ines, knowing([ines, bot], held))).toStrictEqual({
+      clause: "L1 11.5",
+      path: "/authority/0",
+    });
+    // With her log as it was obtained at 1000, the verifier cannot judge the revocation it
+    // holds. It does not take that for "not revoked".
+    const stale = { clause: "core 9.4", path: "/authority/0" };
+    expect(verdict(used, ines, knowing([ines, bot], held, new Map([[ines, 1000]])))).toStrictEqual(
+      stale,
+    );
+    // Nor without the revocation: the copy may lack what ended the delegation.
+    const unaware = knowing([ines, bot], [grant, used], new Map([[ines, 1999.999999999]]));
+    expect(verdict(used, ines, unaware)).toStrictEqual(stale);
+    // Known up to the evidence for the proof, to the nanosecond, it counts.
+    expect(verdict(used, ines, knowing([ines, bot], [grant, used], new Map([[ines, 2000]])))).toBe(
+      at(2000),
+    );
+    // Every author of the chain, not only the first.
+    const sub = new KeyMind("sub");
+    const further = grantBy(bot, sub, 20, ines);
+    const deeper = usedBy(sub, ines, 2000, [grant, further]);
+    const all = [grant, further, deeper];
+    expect(verdict(deeper, ines, knowing([ines, bot, sub], all))).toBe(at(2000));
+    expect(
+      verdict(deeper, ines, knowing([ines, bot, sub], all, new Map([[bot, 1000]]))),
+    ).toStrictEqual({ clause: "core 9.4", path: "/authority/1" });
+  });
+
+  it(`${clause("core 9.4")} is known, for a collective, from its members' logs as well`, () => {
+    // A club of two delegates by its threshold. Either member may have signed a revocation.
+    const [ann, bo, bot] = [new KeyMind("ann"), new KeyMind("bo"), new KeyMind("bot")];
+    const club = new Collective("club", [ann, bo], 2, 5);
+    const content = {
+      oip: "1",
+      type: "Delegation",
+      author: club.address,
+      delegate: bot.address,
+      subject: club.address,
+      command: "/oip/sign/Intent",
+      expires: T(100_000),
+      nonce: "club-0001",
+      created: T(10),
+    };
+    const grant = bo.sign(ann.sign(content)) as Signed;
+    const used = usedBy(bot, club, 2000, [grant]);
+    const minds = [ann, bo, bot, club];
+    expect(verdict(used, club, knowing(minds, [grant, used]))).toBe(at(2000));
+    for (const member of [ann, bo, club]) {
+      expect(
+        verdict(used, club, knowing(minds, [grant, used], new Map([[member, 1000]]))),
+        member.name,
+      ).toStrictEqual({ clause: "core 9.4", path: "/authority/0" });
+    }
+    // A member that joined later may have signed a revocation too, from when it joined.
+    const cy = new KeyMind("cy");
+    // A mind that joins signs the event that adds it.
+    club.update(20, [ann, bo, cy], {
+      controller: { members: [ann.address, bo.address, cy.address], threshold: 2 },
+    });
+    const wider = [...minds, cy];
+    expect(verdict(used, club, knowing(wider, [grant, used]))).toBe(at(2000));
+    expect(verdict(used, club, knowing(wider, [grant, used], new Map([[cy, 1000]])))).toStrictEqual(
+      { clause: "core 9.4", path: "/authority/0" },
+    );
+    // A change of membership after the proof's time changes nothing for it.
+    const dee = new KeyMind("dee");
+    club.update(3000, [ann, bo, cy, dee], {
+      controller: { members: [ann.address, bo.address, cy.address, dee.address], threshold: 3 },
+    });
+    expect(verdict(used, club, knowing([...wider, dee], [grant, used]))).toBe(at(2000));
+  });
+
+  it("is not retired: a mind that can sign nothing can revoke nothing (item 8)", () => {
+    // Ines delegates at 10 and retires at 50.
+    const [ines, bot] = [new KeyMind("ines"), new KeyMind("bot")];
+    const grant = grantBy(ines, bot, 10);
+    ines.retire(50);
+    const at40 = usedBy(bot, ines, 40, [grant]);
+    const at50 = usedBy(bot, ines, 50, [grant]);
+    const later = usedBy(bot, ines, 5000, [grant]);
+    const context = knowing([ines, bot], [grant, at40, at50, later]);
+    expect(verdict(at40, ines, context)).toBe(at(40));
+    const retired = { clause: "L1 11.4", path: "/authority/0" };
+    expect(verdict(at50, ines, context)).toStrictEqual(retired);
+    expect(verdict(later, ines, context)).toStrictEqual(retired);
+    // A delegate that passed its authority on and then retired has ended what it passed on.
+    const [pia, mid, end] = [new KeyMind("pia"), new KeyMind("mid"), new KeyMind("end")];
+    const first = grantBy(pia, mid, 10);
+    const second = grantBy(mid, end, 20, pia);
+    mid.retire(50);
+    const before = usedBy(end, pia, 40, [first, second]);
+    const after = usedBy(end, pia, 60, [first, second]);
+    const chain = knowing([pia, mid, end], [first, second, before, after]);
+    expect(verdict(before, pia, chain)).toBe(at(40));
+    expect(verdict(after, pia, chain)).toStrictEqual({ clause: "L1 11.4", path: "/authority/1" });
+  });
+
+  it(`${clause("L1 7.3")} is not duplicitous at or after its first conflicting event`, () => {
+    // Two events of Ines's stand at one position, both first seen at 100.
+    const [ines, bot] = [new KeyMind("ines"), new KeyMind("bot")];
+    const grant = grantBy(ines, bot, 10);
+    const rival = new KeyMind("ines").update(100, { homes: ["https://ines.example"] });
+    ines.update(100);
+    const before = usedBy(bot, ines, 99, [grant]);
+    const after = usedBy(bot, ines, 100, [grant]);
+    const context = knowing([ines, bot], [grant, before, after]);
+    (context.identity.evidence as FirstSeen).sawEvent(contentId(rival.events[1]), at(100));
+    (context.identity as LogBook).hold(rival.events, LATER);
+    expect(context.identity.log(ines.address)).toMatchObject({ value: { duplicitous: true } });
+    expect(verdict(before, ines, context)).toBe(at(99));
+    expect(verdict(after, ines, context)).toStrictEqual({
+      clause: "L1 7.3",
+      path: "/authority/0",
+    });
+    // With either branch alone, she is not duplicitous, and both count.
+    const single = knowing([ines, bot], [grant, before, after]);
+    expect(verdict(after, ines, single)).toBe(at(100));
   });
 });
 
@@ -563,6 +837,34 @@ describe("the records a verifier holds", () => {
       );
       expect(Object.isFrozen(held)).toBe(true);
     }
+  });
+
+  it("keep a proof held when a copy without it brings another", () => {
+    // The author's copy first, then a copy that has only a stranger's proof.
+    const { proof: _, ...content } = grant;
+    const strangers = stranger.sign(content);
+    const set = new RecordSet();
+    set.add(grant);
+    set.add(strangers);
+    expect(
+      set
+        .record(contentId(grant))
+        ?.proofs.map((proof) => proof.digest)
+        .sort(),
+    ).toStrictEqual(
+      [...grant.proof, ...strangers.proof].map((proof) => proofDigest(proof as never)).sort(),
+    );
+    // A revocation shown signed and then without its author's proof is signed still.
+    const revocation = amina.sign({
+      oip: "1",
+      type: "Revocation",
+      author: amina.address,
+      revokes: refTo(grant),
+      created: T(30),
+    });
+    const { proof: _signature, ...bare } = revocation;
+    const { context, set: held } = holding([grant, revocation, stranger.sign(bare)]);
+    expect(revokedTime(contentId(grant), amina.address, held, context.identity)).toBe(at(30));
   });
 
   it("find the revocations that name a record, whoever made them", () => {

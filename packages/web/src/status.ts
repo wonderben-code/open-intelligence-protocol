@@ -13,7 +13,7 @@ import { disregardingCompromise, type JudgedRecord, latestState } from "@oip/ide
 import type { Commitment, Intent, Offer, Receipt, Validation } from "@oip/schema";
 
 import { actsFor, countsFor } from "./counts.ts";
-import { referenced, type WebContext } from "./records.ts";
+import { referenced, type WebContext, withHeld } from "./records.ts";
 import { no, ok } from "./result.ts";
 
 /** Layer 2, 8.1. */
@@ -38,8 +38,10 @@ export type CharterStatus = "active" | "dissolved";
  * `author`; its author is a party, or signs for one through a delegation or
  * a charter role (5.2); and it counts for every party with `required` true.
  */
-export function commitmentAccepted(judged: JudgedRecord, context: WebContext): boolean {
-  if (judged.record.type !== "Commitment") return false;
+export function commitmentAccepted(given: JudgedRecord, context: WebContext): boolean {
+  if (given.record.type !== "Commitment") return false;
+  // Section 2: with the proofs of every copy held, the one asked about among them.
+  const judged = withHeld(given, context.records);
   const { author, parties } = judged.record as Commitment;
   if (!countsFor(judged, author, context)) return false;
   const signsForAParty =
@@ -79,9 +81,12 @@ function supersession(
     return record.status as (typeof STANDING)[number];
   }
   const found = new Set<string>();
-  for (const other of context.records.supersedersOf(contentId(record))) {
+  const id = contentId(record);
+  for (const other of context.records.supersedersOf(id)) {
     const later = other.record as Intent | Offer;
+    // Whatever the view answers with: of the same type, by the same author, and naming this record.
     if (later.type !== record.type || later.author !== record.author) continue;
+    if (referenced(later.supersedes) !== id) continue;
     if (!countsFor(other, later.author, context)) continue;
     if (later.status === undefined) found.add("superseded");
     else if (allowed.includes(later.status)) found.add(later.status);
@@ -101,7 +106,10 @@ function resolving(
 ): number {
   let count = 0;
   for (const other of context.records.resolversOf(id)) {
+    // Whatever the view answers with: a Commitment that lists this record in `resolves`.
     if (other.record.type !== "Commitment" || !only(other.record as Commitment)) continue;
+    const resolved = (other.record as Commitment).resolves ?? [];
+    if (!resolved.some((ref) => referenced(ref) === id)) continue;
     if (commitmentAccepted(other, context) && countsFor(other, author, context)) count++;
   }
   return count;
@@ -159,13 +167,16 @@ export function commitmentStatus(
     return commitmentAccepted(judged, lenient) ? "disputed" : "proposed";
   }
   const parties = new Set(commitment.parties.map((party) => party.mind));
-  const receipts = context.records.receiptsAbout(contentId(commitment)).filter((receipt) => {
-    // Whatever the view answers with, only a Receipt is one.
+  const id = contentId(commitment);
+  const receipts = context.records.receiptsAbout(id).filter((receipt) => {
+    // Whatever the view answers with, only a Receipt about this Commitment is one.
     if (receipt.record.type !== "Receipt") return false;
-    const { author } = receipt.record as Receipt;
+    const { author, about } = receipt.record as Receipt;
+    if (referenced(about) !== id) return false;
     return parties.has(author) && countsFor(receipt, author, context);
   });
-  // `R`: without the Receipts another Receipt of the same author supersedes, and the revoked.
+  // `R`: without the Receipts that another Receipt about this Commitment, of the same author,
+  // supersedes, and without the revoked.
   const authors = new Map(
     receipts.map((receipt) => [contentId(receipt.record), (receipt.record as Receipt).author]),
   );

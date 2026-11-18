@@ -22,6 +22,17 @@ function earliest(times: readonly (Instant | undefined)[]): Instant | undefined 
 }
 
 /**
+ * Layer 2, 7.1, last paragraph, and core 9.6: whether a proof evaluated at
+ * `time` counts on a record, as far as the record's own `expires` goes. The
+ * earliest time of a route is the one to ask of: if it is too late, so is
+ * every other.
+ */
+function inTime(judged: JudgedRecord, time: Instant | undefined): time is Instant {
+  if (time === undefined) return false;
+  return judged.expires === undefined || time <= judged.expires + CLOCK_SKEW;
+}
+
+/**
  * Layer 2, 7.1: the earliest evaluation time at which a record counts for a
  * mind, or `undefined` if it never does. A verdict is a time.
  *
@@ -43,10 +54,7 @@ export function signedTime(
       times.push(roleTime(judged, mind, log.value, context));
     }
   }
-  const limit = judged.expires === undefined ? undefined : judged.expires + CLOCK_SKEW;
-  return earliest(
-    times.filter((time) => time === undefined || limit === undefined || time <= limit),
-  );
+  return earliest(times.filter((time) => inTime(judged, time)));
 }
 
 /** Layer 2, 7.1: whether a record counts for a mind. */
@@ -57,6 +65,8 @@ export function countsFor(judged: JudgedRecord, mind: string, context: Delegatio
 /**
  * Layer 2, 5.2: whether a proof by `signer` on a record counts for
  * `principal` through a delegation or a charter role (7.1, items 2 and 4).
+ * As by every route, a proof evaluated more than 300 seconds after the
+ * record's `expires` does not count (core 9.6).
  */
 export function actsFor(
   judged: JudgedRecord,
@@ -64,11 +74,11 @@ export function actsFor(
   principal: string,
   context: DelegationContext,
 ): boolean {
-  if (delegatedTime(judged, principal, context, { signer }) !== undefined) return true;
+  if (inTime(judged, delegatedTime(judged, principal, context, { signer }))) return true;
   const log = context.identity.log(principal);
   return (
     log.ok &&
     latestState(log.value).controller.kind === "member" &&
-    roleTime(judged, principal, log.value, context, signer) !== undefined
+    inTime(judged, roleTime(judged, principal, log.value, context, signer))
   );
 }

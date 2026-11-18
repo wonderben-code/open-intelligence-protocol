@@ -108,6 +108,7 @@ ORIGIN_RE = re.compile(r"https://[A-Za-z0-9.:\[\]-]+")
 SEL_TOKEN = re.compile(r'\.([A-Za-z0-9_]+)|\[(0|[1-9][0-9]*)\]|'
                        r'\[("(?:[^"\\]|\\.)*")\]')
 MAX_POLICY_DEPTH = 8
+MAX_POLICY_WORK = 2**18         # one policy for one record (Layer 1, 11.3)
 ORDERING_OPS = ("<", "<=", ">", ">=")
 OPS = ("==", "!=") + ORDERING_OPS
 
@@ -1424,7 +1425,15 @@ class PolicyError(Exception):
     over a non-array. Any error makes the whole policy fail."""
 
 
-def _compare(op, got, val) -> bool:
+def _count(work, units=1) -> None:
+    """Layer 1, 11.3: the work of evaluating one policy for one record is
+    bounded. `work` is a one-element list holding the count so far."""
+    work[0] += units
+    if work[0] > MAX_POLICY_WORK:
+        raise PolicyError("the policy asks for more work than is allowed")
+
+
+def _compare(op, got, val, work) -> bool:
     a, b = as_decimal(got), as_decimal(val)
     if op in ORDERING_OPS:
         if a is None or b is None:
@@ -1434,20 +1443,25 @@ def _compare(op, got, val) -> bool:
         eq = a == b
     else:
         try:
-            eq = jcs(got) == jcs(val)
+            mine, theirs = jcs(got), jcs(val)
         except (TypeError, ValueError):
             raise PolicyError("value has no canonical form")
+        # A comparison by canonical form counts the bytes of both forms.
+        _count(work, len(mine) + len(theirs))
+        eq = mine == theirs
     return eq if op == "==" else not eq
 
 
-def statement_holds(s, obj) -> bool:
+def statement_holds(s, obj, work) -> bool:
     """Evaluate a statement in full, without short-circuiting, so that an
-    error anywhere is raised (and fails the policy) rather than skipped."""
+    error anywhere is raised (and fails the policy) rather than skipped.
+    Each time a statement is tried on a value counts one."""
+    _count(work)
     op = s[0]
     if op == "not":
-        return not statement_holds(s[1], obj)
+        return not statement_holds(s[1], obj, work)
     if op in ("and", "or"):
-        results = [statement_holds(x, obj) for x in s[1]]
+        results = [statement_holds(x, obj, work) for x in s[1]]
         return all(results) if op == "and" else any(results)
     got = _select(obj, s[1])
     if got is _MISSING:
@@ -1455,9 +1469,9 @@ def statement_holds(s, obj) -> bool:
     if op in ("all", "any"):
         if not isinstance(got, list):
             raise PolicyError(f"{s[1]} is not an array")
-        results = [statement_holds(s[2], item) for item in got]
+        results = [statement_holds(s[2], item, work) for item in got]
         return all(results) if op == "all" else any(results)
-    return _compare(op, got, s[2])
+    return _compare(op, got, s[2], work)
 
 
 def policy_ok(policy, record) -> bool:
@@ -1465,13 +1479,15 @@ def policy_ok(policy, record) -> bool:
     (Layer 1, 11.3). Ordering compares decimals only; equality compares
     decimals numerically and other values by canonical form. An error
     anywhere fails the policy, so negation and disjunction cannot turn a
-    missing or malformed value into a pass."""
+    missing or malformed value into a pass. A policy that asks for more
+    work than MAX_POLICY_WORK for the record does not hold."""
     if not policy_valid(policy):
         return False
     obj = {k: v for k, v in record.items() if k != "proof"} \
         if isinstance(record, dict) else record
+    work = [0]
     try:
-        return all([statement_holds(s, obj) for s in policy])
+        return all([statement_holds(s, obj, work) for s in policy])
     except PolicyError:
         return False
 
@@ -1643,6 +1659,10 @@ def record_ok(r) -> bool:
         if t == "Packet" and "session" not in r and "expires" not in r:
             return False
         if t == "Packet":
+            # Layer 1, 12.1: a packet has a sender.
+            if not isinstance(r.get("from"), str) or \
+               not fullmatch(ADDR_RE, r["from"]):
+                return False
             retention = r.get("constraints", {}).get("retention", "none")
             if retention != "none" and not is_duration(retention):
                 return False                # core 1.5
@@ -1692,7 +1712,19 @@ class Verifier:
         self.cache.clear()
 
     def add(self, record):
-        self.store[content_id(record)] = record
+        """Holds a record. The same record with other proofs is the same
+        record (core 3.1): every proof it was shown with is kept, and no
+        copy takes one away."""
+        cid = content_id(record)
+        held = self.store.get(cid)
+        if held is None or not isinstance(held.get("proof"), list) or \
+           not isinstance(record.get("proof"), list):
+            self.store[cid] = record
+            return
+        seen = {jcs(p) for p in held["proof"]}
+        more = [p for p in record["proof"] if jcs(p) not in seen]
+        if more:
+            self.store[cid] = {**held, "proof": held["proof"] + more}
 
     def log(self, mind, depth=0) -> Log:
         if mind in self.cache:
@@ -1974,16 +2006,35 @@ class Verifier:
     def charter_in_force(self, mind, t, depth, also=()):
         """Layer 2, 6.2: the charter whose signature for the collective was
         completed most recently at or before t; on a tie, the one with the
-        lower content ID."""
-        best = None
-        known = {content_id(c): c for c in list(self.store.values()) +
-                 list(also) if isinstance(c, dict)}
-        for cid, c in sorted(known.items()):
-            if c.get("type") != "Collective" or c.get("author") != mind:
+        lower content ID. A charter is completed when it is first signed,
+        judged with the proofs of every copy held, a copy given inline
+        among them. One that a completed charter names in `supersedes` is
+        in force no longer."""
+        known = {}
+        for c in list(self.store.values()) + list(also):
+            if not isinstance(c, dict) or c.get("type") != "Collective" or \
+               c.get("author") != mind:
                 continue
+            cid, held = content_id(c), None
+            held = known.get(cid)
+            if held is not None and isinstance(held.get("proof"), list) and \
+               isinstance(c.get("proof"), list):
+                seen = {jcs(p) for p in held["proof"]}
+                c = {**held, "proof": held["proof"] +
+                     [p for p in c["proof"] if jcs(p) not in seen]}
+            known[cid] = c
+        completed = {}
+        for cid, c in known.items():
             tc = self.signed_time(c, mind, depth)
-            if tc is not None and tc <= t and (best is None or tc > best[0]):
-                best = (tc, c)
+            if tc is not None and tc <= t:
+                completed[cid] = tc
+        replaced = {ref_cid(known[cid].get("supersedes"))
+                    for cid in completed}
+        best = None
+        for cid in sorted(completed):
+            tc = completed[cid]
+            if cid not in replaced and (best is None or tc > best[0]):
+                best = (tc, known[cid])
         return best[1] if best else None
 
     def role_time(self, record, mind, log, depth, signer=None):
@@ -2030,16 +2081,21 @@ class Verifier:
 
     def acts_for(self, record, signer, principal) -> bool:
         """True if a proof by `signer` counts for `principal` through a
-        delegation or a charter role (the Layer 2, 5.2 author rule)."""
-        if self.delegated_time(record, principal, 0,
-                               signer=signer) is not None:
+        delegation or a charter role (the Layer 2, 5.2 author rule). As by
+        every route, a proof evaluated more than 300 seconds after the
+        record's `expires` does not count (Layer 2, 7.1; core 9.6)."""
+        def in_time(t) -> bool:
+            return t is not None and (
+                "expires" not in record or
+                t <= ts(record["expires"]) + SKEW_NS)
+        if in_time(self.delegated_time(record, principal, 0, signer=signer)):
             return True
         try:
             log = self.log(principal)
         except (KeyError, ValueError):
             return False
         return log.latest.controller == "member" and \
-            self.role_time(record, principal, log, 0, signer) is not None
+            in_time(self.role_time(record, principal, log, 0, signer))
 
     # -- delegation (Layer 1, Section 11) ----------------------------------
     def delegated_time(self, record, principal, depth, need=None,
@@ -2092,6 +2148,15 @@ class Verifier:
             tr = self.revoked_time(d, depth)
             if tr is not None and tr <= t:
                 return False
+            # Item 8: an author that can no longer revoke grants nothing.
+            try:
+                log = self.log(d["author"], depth)
+            except (KeyError, ValueError):
+                return False
+            at = log.state_at(t)
+            if at is None or at.retired or \
+               any(t >= when for when, _, _ in log.branch_tails):
+                return False
             if i > 0:
                 parent = chain[i - 1]
                 if not command_covers(parent["command"], d["command"]):
@@ -2107,15 +2172,22 @@ class Verifier:
         return all(policy_ok(d.get("policy", []), record) for d in chain)
 
     def revoked_time(self, d, depth=0):
-        """Evaluation time of the earliest valid revocation of d."""
+        """Evaluation time of the earliest valid revocation of d. A
+        revocation takes authority away and grants none, so it stands
+        whatever is later declared of the key that signed it: compromise
+        declarations are disregarded for its signature (Layer 1, 11.5)."""
         cid, best = content_id(d), None
-        for r in list(self.store.values()):
-            if r.get("type") == "Revocation" and \
-               r.get("author") == d.get("author") and \
-               ref_cid(r.get("revokes")) == cid:
-                t = self.signed_time(r, r["author"], depth)
-                if t is not None:
-                    best = t if best is None else min(best, t)
+        applying, self.apply_compromise = self.apply_compromise, False
+        try:
+            for r in list(self.store.values()):
+                if r.get("type") == "Revocation" and \
+                   r.get("author") == d.get("author") and \
+                   ref_cid(r.get("revokes")) == cid:
+                    t = self.signed_time(r, r["author"], depth)
+                    if t is not None:
+                        best = t if best is None else min(best, t)
+        finally:
+            self.apply_compromise = applying
         return best
 
     def sent_for(self, packet, subject) -> bool:
@@ -2126,8 +2198,10 @@ class Verifier:
            not isinstance(packet.get("provenance"), dict) or \
            packet["provenance"].get("onBehalfOf") != subject:
             return False
+        if not isinstance(packet.get("from"), str):
+            return False                # signed by its sender (11.2)
         t = self.delegated_time(packet, subject, 0, need="/oip/send",
-                                signer=packet.get("from"))
+                                signer=packet["from"])
         return t is not None and (
             "expires" not in packet or t <= ts(packet["expires"]) + SKEW_NS)
 
@@ -2155,6 +2229,33 @@ class Verifier:
         return out
 
 # ---------------------------------------------------------------- status
+
+
+def _merged(records) -> list:
+    """Layer 2, Section 2: each record once, with the proofs of every copy
+    given. The same record with other proofs is the same record (core
+    3.1), and no copy takes a proof away."""
+    out = {}
+    for r in records:
+        if not isinstance(r, dict):
+            continue
+        cid = content_id(r)
+        held = out.get(cid)
+        if held is None:
+            out[cid] = r
+        elif isinstance(held.get("proof"), list) and \
+                isinstance(r.get("proof"), list):
+            seen = {jcs(p) for p in held["proof"]}
+            out[cid] = {**held, "proof": held["proof"] +
+                        [p for p in r["proof"] if jcs(p) not in seen]}
+    return list(out.values())
+
+
+def _with_copies(record, records) -> dict:
+    """A record with the proofs of every copy of it among `records`."""
+    cid = content_id(record)
+    return next(r for r in _merged([record, *records])
+                if content_id(r) == cid)
 
 
 def commitment_accepted(V, c) -> bool:
@@ -2224,6 +2325,7 @@ def _supersession(V, record, records):
 
 
 def intent_status(V, intent, records, at) -> str:
+    records = _merged(records)
     icid = content_id(intent)
     status = _supersession(V, intent, records)
     if status:
@@ -2240,6 +2342,7 @@ def intent_status(V, intent, records, at) -> str:
 
 
 def offer_status(V, offer, records, at) -> str:
+    records = _merged(records)
     ocid = content_id(offer)
     status = _supersession(V, offer, records)
     if status:
@@ -2258,6 +2361,8 @@ def offer_status(V, offer, records, at) -> str:
 
 
 def commitment_status(V, c, records, at) -> str:
+    records = _merged(records)
+    c = _with_copies(c, records)
     if not commitment_accepted(V, c):
         V.apply_compromise = False
         try:
@@ -4702,6 +4807,298 @@ def build():
         "extraLogs": [[a_gen, a_upd]],
         "branches": [[a_gen, a_upd, a_junk]]})
 
+    # ---- OEP-0003, items 17 to 24: what the reviews of M3 found ----------
+    # Layer 1, 11.3: the work of a policy is bounded, and counted alike.
+    batch_path = '.ext["com.example.batch"].xs'
+
+    def working(more, nonce):
+        """Lexis Ltd's delegation with a policy that asks, of a record
+        with 4,032 elements, 262,081 units of work and `more` besides: one
+        for the `all`, and for each element one for the `and` and one for
+        each of its 64 comparisons; then one for a second `and` and one for
+        each of its comparisons."""
+        return with_policy(
+            [["all", batch_path, ["and", [["==", ".", 0]] * 64]],
+             ["and", [["==", batch_path + "[0]", 0]] * (more - 1)]], nonce)
+
+    batch_doc = variant(commit, ext={"com.example.batch": {"xs": [0] * 4032}})
+    at_limit = signed(batch_doc, t_op, agent_vm,
+                      authority=[working(63, "a1c3e5f7092b4d6e")])
+    V["valid"].append({
+        "name": "policy-work-at-the-limit",
+        "reason": "The policy of the delegation asks for 262,144 units of "
+                  "work for this record: one each time a statement is "
+                  "tried on a value. That is the most a policy may ask "
+                  "(Layer 1, 11.3 and Section 19), and it holds.",
+        "kind": "countsFor", "record": at_limit, "mind": lexis_ltd})
+    bad_sig("policy-work-over-the-limit",
+            "The policy of the delegation has one comparison more, and "
+            "asks for 262,145 units of work for this record. A policy that "
+            "would count more than 262,144 is an error for the record, and "
+            "does not hold (Layer 1, 11.3 and Section 19), whatever its "
+            "statements would have come to.",
+            signed(batch_doc, t_op, agent_vm,
+                   authority=[working(64, "b2d4f6a8103c5e7f")]), lexis_ltd)
+
+    # Layer 1, 11.5: a revocation stands whatever is later declared of the
+    # key that signed it.
+    phone_revokes = signed({"oip": OIP_VERSION, "type": "Revocation",
+                            "author": amina,
+                            "created": "2026-11-01T00:00:00Z",
+                            "revokes": amina_deleg_ref}, a_op1, amina_vm1)
+    asst_late = signed(variant(rush, created="2026-11-01T12:00:00Z"),
+                       s_op, asst_vm, authority=[amina_deleg_ref])
+    bad_sig("revocation-by-a-key-later-declared-compromised",
+            "Amina revoked her assistant's delegation on 1 Nov, with her "
+            "phone key. On 2 Nov she declared that key compromised since "
+            "31 Oct. The declaration takes back what the key signed from "
+            "then on, and not the revocation: a revocation takes "
+            "authority away and grants none, so it stands whatever is "
+            "later declared of the key that signed it (Layer 1, 11.5). "
+            "The assistant's commitment of 1 Nov 12:00 does not count for "
+            "her.", asst_late, amina,
+            extra_logs=[[a_gen, a_upd, a_cmp]], records=[phone_revokes])
+
+    # Layer 1, 11.4, item 8: an author that can sign nothing can revoke
+    # nothing, so what it delegated ends with it.
+    ltd_retired = control_event("Retire", lexis_ltd, ltd_gen,
+                                "2026-11-20T00:00:00Z", [l_c1], [])
+    nov21 = signed(variant(commit, created="2026-11-21T00:00:00Z"), t_op,
+                   agent_vm, authority=[deleg_ref])
+    bad_sig("delegation-of-a-retired-author",
+            "Lexis Ltd retired on 20 Nov. Its delegation to the agent runs "
+            "to 30 Nov, and nobody can revoke it now. At the evaluation "
+            "time of a proof that relies on a delegation, the "
+            "delegation's author is not retired (Layer 1, 11.4, item 8): "
+            "the agent's commitment of 21 Nov does not count for Lexis "
+            "Ltd.", nov21, lexis_ltd, extra_logs=[[ltd_gen, ltd_retired]])
+    ltd_homed, ltd_moved = (
+        control_event("Update", lexis_ltd, ltd_gen, "2026-11-01T00:00:00Z",
+                      [l_c1], [k("lexisltd-control-2")],
+                      fields={"homes": [home]})
+        for home in ("https://lexis.example", "https://lexis-two.example"))
+    bad_sig("delegation-of-a-duplicitous-author",
+            "On 1 Nov two events of Lexis Ltd's log were signed for one "
+            "position, and evidence cannot separate them: Lexis Ltd is "
+            "duplicitous. From its first conflicting event on it can sign "
+            "nothing, so it can revoke nothing, and what it delegated "
+            "does not count (Layer 1, 11.4, item 8, and 7.3). The agent's "
+            "commitment of 5 Nov does not count for it.", nov5, lexis_ltd,
+            extra_logs=[[ltd_gen, ltd_homed]],
+            branches=[[ltd_gen, ltd_moved]])
+
+    # core 3.1: a record held in two copies keeps every proof it was shown
+    # with.
+    rev_by_another = signed(variant(revocation), r_op, res_vm)
+    assert content_id(rev_by_another) == content_id(revocation)
+    bad_sig("revocation-held-with-a-copy-its-author-did-not-sign",
+            "The verifier holds Lexis Ltd's revocation of 10 Nov, and "
+            "then a second copy of it that carries only a stranger's "
+            "proof. A content ID does not cover proofs, so the two are one "
+            "record, and no copy takes a proof away (core 3.1; Layer 2, "
+            "Section 2): the delegation is revoked still, and a "
+            "commitment first seen on 12 Nov does not count.",
+            rev_commit, lexis_ltd, records=[revocation, rev_by_another],
+            seen=seen_at(rev_commit, "2026-11-12T00:00:00Z"))
+
+    # Layer 1, 12.1 and 11.2: a packet is signed by its sender.
+    senderless = signed({kk: v for kk, v in sent.items()
+                         if kk not in ("from", "proof")}, s_op, asst_vm,
+                        authority=[send_ref])
+    neg.append({"name": "packet-without-a-sender",
+                "reason": "A packet names its sender in `from` (Layer 1, "
+                          "12.1). This one has none.",
+                "kind": "record", "record": senderless})
+    bad_sig("packet-without-a-sender-is-sent-for-nobody",
+            "The assistant signed this packet with a chain from Amina "
+            "that covers `/oip/send`, and it names her in "
+            "`provenance.onBehalfOf`. It has no `from`. A packet sent on "
+            "another's behalf is signed by its sender (Layer 1, 11.2), "
+            "and a packet without one was sent by nobody.",
+            senderless, amina, kind="sentFor")
+
+    # Layer 1, 11.4, item 1: a delegation by a collective's threshold.
+    coll_grant = {"oip": OIP_VERSION, "type": "Delegation",
+                  "author": collective, "created": "2026-10-30T09:40:00Z",
+                  "delegate": child, "subject": collective,
+                  "command": "/oip/sign/Intent",
+                  "expires": "2026-11-30T00:00:00Z",
+                  "nonce": "c3e5a7b9214d6f80"}
+
+    def granted_by(*members):
+        return sign(coll_grant, *[
+            create_proof(coll_grant, key, vm, purpose_for("Delegation"),
+                         coll_grant["created"]) for key, vm in members])
+
+    coll_wants = {"oip": OIP_VERSION, "type": "Intent", "author": collective,
+                  "created": "2026-10-30T10:50:00Z",
+                  "want": "A second reader for a Swahili lease."}
+    V["valid"].append({
+        "name": "delegation-by-a-collectives-threshold",
+        "reason": "Two of the collective's three members signed its "
+                  "delegation to the fork. That is the collective's own "
+                  "authority (Layer 1, 9.5 and 11.4, item 1), so the "
+                  "fork's Intent counts for the collective.",
+        "kind": "countsFor", "mind": collective,
+        "record": signed(coll_wants, f_op, child_vm, authority=[
+            granted_by((a_op1, amina_vm1), (r_op, res_vm))])})
+    bad_sig("delegation-by-one-member-of-a-collective",
+            "One of the collective's three members signed its delegation "
+            "to the fork. The threshold is two, so the delegation is not "
+            "signed by its author's own authority (Layer 1, 9.5 and 11.4, "
+            "item 1), and the fork's Intent does not count for the "
+            "collective.",
+            signed(coll_wants, f_op, child_vm,
+                   authority=[granted_by((a_op1, amina_vm1))]), collective)
+
+    # Layer 2, 5.2 and 7.1: an author that signs for a party, in time.
+    watch_grant = signed({"oip": OIP_VERSION, "type": "Delegation",
+                          "author": lexis,
+                          "created": "2026-10-30T09:50:00Z",
+                          "delegate": researcher, "subject": lexis,
+                          "command": "/oip/sign/Commitment",
+                          "expires": "2026-11-30T00:00:00Z",
+                          "nonce": "d4f6b8c0325e7a91"}, t_op, agent_vm)
+    watched = variant(rush, author=researcher,
+                      expires="2026-10-31T00:00:00Z",
+                      parties=rush["parties"] + [
+                          {"mind": lexis, "role": "witness"}])
+
+    def watched_with(proof_for_witness_at):
+        """The researcher is the author and no party. Lexis Ltd, Amina and
+        the researcher sign at 10:40; the researcher's proof for the
+        witness, through the witness's delegation, is made at the time
+        given."""
+        made = watched["created"]
+        return sign(
+            watched,
+            create_proof(watched, l_op, ltd_vm, "assertionMethod", made),
+            create_proof(watched, a_op1, amina_vm1, "assertionMethod", made),
+            create_proof(watched, r_op, res_vm, "assertionMethod", made),
+            create_proof(watched, r_op, res_vm, "assertionMethod",
+                         proof_for_witness_at, authority=[watch_grant]))
+
+    watched_late = watched_with("2026-10-31T00:05:01Z")
+    neg.append({"name": "author-signs-for-a-party-after-the-record-expired",
+                "reason": "The author of this Commitment is no party. Its "
+                          "only proof for a party, the witness, was made "
+                          "301 seconds after the Commitment's `expires`, "
+                          "and by no route does such a proof count (Layer "
+                          "2, 7.1; core 9.6). So the author signs for no "
+                          "party, the Commitment is not accepted (5.2, "
+                          "7.3), and it is `proposed`.",
+                "kind": "status", "of": watched_late,
+                "records": [watched_late],
+                "at": "2026-10-31T12:00:00Z", "expect": "proposed"})
+    watched_in_time = watched_with("2026-10-31T00:05:00Z")
+    V["valid"].append({
+        "name": "author-signs-for-a-party-as-the-record-expires",
+        "reason": "The same Commitment, with the author's proof for the "
+                  "witness made 300 seconds after `expires`: the last "
+                  "moment at which it counts (core 9.6). The author signs "
+                  "for a party, and the Commitment is accepted.",
+        "kind": "status", "of": watched_in_time,
+        "records": [watched_in_time],
+        "at": "2026-10-31T12:00:00Z", "expect": "accepted"})
+
+    # Layer 2, 6.2: a charter that another supersedes is ended for good.
+    recharter = variant(charter, created="2026-10-30T10:00:00Z",
+                        name="Open Translation Cell, revised",
+                        assignments=[{"mind": researcher, "role": "steward"}],
+                        supersedes=charter_ref)
+    recharter = sign(recharter, *[
+        create_proof(recharter, key, vm, "assertionMethod",
+                     recharter["created"])
+        for key, vm in ((a_op1, amina_vm1), (r_op, res_vm))])
+    bad_sig("role-under-a-superseded-charter",
+            "At 10:00 two members signed a new charter that names the "
+            "first in `supersedes` and makes the researcher the steward. "
+            "From its completion on, the first is in force at no time "
+            "(Layer 2, 6.2). The agent's commitment of 10:30 names the "
+            "first charter, and does not count for the collective.",
+            steward_commit, collective, records=[recharter])
+
+    # Layer 2, 7.1, item 4: the role route, one condition at a time.
+    bad_sig("role-of-a-member-the-charter-does-not-assign",
+            "The researcher is a member of the collective, and the "
+            "charter assigns the role of steward to the Lexis agent "
+            "alone. A member signs for the collective through a role it "
+            "is assigned to (Layer 2, 7.1, item 4), so the researcher's "
+            "proof that names the charter does not count for the "
+            "collective.",
+            signed(steward_doc, r_op, res_vm, authority=[charter_ref]),
+            collective)
+    over_steward = variant(steward_doc,
+                           terms__price=usd("501", payee=collective))
+    bad_sig("role-policy-that-does-not-hold",
+            "The steward's power lets it commit the collective to at most "
+            "500 USD. This commitment is for 501, so the power's policy "
+            "does not hold for it (Layer 2, 7.1, item 4).",
+            signed(over_steward, t_op, agent_vm, authority=[charter_ref]),
+            collective)
+    steward_wants = {"oip": OIP_VERSION, "type": "Intent",
+                     "author": collective,
+                     "created": "2026-10-30T10:30:00Z",
+                     "want": "A reviewer for a Swahili lease."}
+    bad_sig("role-power-that-does-not-cover-the-record",
+            "The steward's power is `/oip/sign/Commitment`. An Intent "
+            "needs `/oip/sign/Intent`, which that power does not cover "
+            "(Layer 2, 7.1, item 4; Layer 1, 11.2).",
+            signed(steward_wants, t_op, agent_vm, authority=[charter_ref]),
+            collective)
+    lone_charter = variant(charter, name="Open Translation Cell, by one")
+    lone_charter = sign(lone_charter, create_proof(
+        lone_charter, a_op1, amina_vm1, "assertionMethod",
+        lone_charter["created"]))
+    bad_sig("role-under-a-charter-signed-by-one-member",
+            "This charter is signed by one of the collective's three "
+            "members. A charter is signed by the collective's own "
+            "authority, its threshold of two (Layer 2, 6.2), so it is no "
+            "charter in force, and a proof that names it counts for "
+            "nobody but its signer.",
+            signed(steward_doc, t_op, agent_vm, authority=[lone_charter]),
+            collective)
+    bad_sig("role-of-a-member-removed-before-the-proof",
+            "At 22:00 on 30 Oct the collective removed the Lexis agent. "
+            "An assignment is effective only while the assigned mind is a "
+            "member (Layer 2, 6.2), and the agent's proof of 23:00 is by "
+            "no member of the collective's state at that time (7.1, item "
+            "4).", steward_signs("2026-10-30T23:00:00Z"), collective,
+            extra_logs=[[coll, c_without_agent]])
+
+    # Layer 2, Section 2: a record is judged with the proofs of every copy
+    # held.
+    V["valid"].append({
+        "name": "commitment-held-in-two-copies",
+        "reason": "The verifier holds two copies of one Commitment: one "
+                  "with the agent's proof for Lexis Ltd, one with Amina's. "
+                  "Proofs do not change a content ID, so the two are one "
+                  "record, judged with the proofs of both (Layer 2, "
+                  "Section 2 and 5.3). Asked about either copy, the "
+                  "Commitment is accepted.",
+        "kind": "status", "of": commit_proposed,
+        "records": [commit_proposed, sign(commit, p_amina)],
+        "at": "2026-10-30T12:00:00Z", "expect": "accepted"})
+
+    # Layer 2, 8.3: a Receipt is superseded by a Receipt about the same
+    # Commitment.
+    rush_ref = record_ref(lexis, rush)
+    receipt_elsewhere = signed({
+        "oip": OIP_VERSION, "type": "Receipt", "author": amina,
+        "created": "2026-11-01T19:30:00Z", "about": rush_ref,
+        "outcome": "revoked",
+        "supersedes": record_ref(amina, receipt_broken)}, a_op1, amina_vm1)
+    neg.append({"name": "receipt-superseded-from-another-commitment",
+                "reason": "Amina's `revoked` Receipt names her `broken` "
+                          "Receipt in `supersedes`, and is about another "
+                          "Commitment. A Receipt is superseded by a "
+                          "Receipt about the same Commitment (Layer 2, "
+                          "8.3), so the `broken` one stands.",
+                "kind": "status", "of": commit_accepted,
+                "records": [commit_accepted, receipt_broken,
+                            receipt_elsewhere],
+                "at": "2026-11-01T20:00:00Z", "expect": "broken"})
+
     # Controls: each negative case above, changed only in the respect its
     # reason names, must be accepted, so it fails for that reason alone.
     by_name = {case["name"]: case for case in neg}
@@ -4723,6 +5120,26 @@ def build():
             seen=seen_at(exp_commit, "2026-11-29T00:00:05Z"))
     control("revoked-delegation",
             seen=seen_at(rev_commit, "2026-11-05T00:00:05Z"))
+    control("policy-work-over-the-limit", record=at_limit)
+    control("revocation-by-a-key-later-declared-compromised",
+            extraRecords=None)
+    control("delegation-of-a-retired-author", extraLogs=None)
+    control("delegation-of-a-duplicitous-author", branches=None)
+    control("revocation-held-with-a-copy-its-author-did-not-sign",
+            seen=seen_at(rev_commit, "2026-11-05T00:00:05Z"))
+    control("packet-without-a-sender-is-sent-for-nobody", record=sent)
+    control("delegation-by-one-member-of-a-collective",
+            record=signed(coll_wants, f_op, child_vm, authority=[
+                granted_by((a_op1, amina_vm1), (r_op, res_vm))]))
+    control("role-under-a-superseded-charter", extraRecords=None)
+    control("role-of-a-member-the-charter-does-not-assign",
+            record=steward_commit)
+    control("role-policy-that-does-not-hold", record=steward_commit)
+    control("role-power-that-does-not-cover-the-record",
+            record=steward_commit)
+    control("role-under-a-charter-signed-by-one-member",
+            record=signed(steward_doc, t_op, agent_vm, authority=[charter]))
+    control("role-of-a-member-removed-before-the-proof", extraLogs=None)
     control("removed-member-backdated",
             seen=seen_at(coll_intent, "2026-10-30T23:00:05Z"))
     control("collective-update-with-removed-invocation-keys",

@@ -21,6 +21,7 @@ import {
   quote,
   textFault,
   type Validation,
+  noteCutShort,
 } from "@oip/schema";
 
 import { decodeUtf8 } from "./bytes.ts";
@@ -447,7 +448,8 @@ export function parseForRecord(
     const limit = lengthLimit(options);
     if (typeof input === "string") return parseText(input, limit, MAX_CONTAINER_DEPTH);
     if (input instanceof Uint8Array) return parseBytes(input, limit, MAX_CONTAINER_DEPTH);
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     // A value that cannot even be examined, such as a revoked proxy.
   }
   return rejection("a record is read from text or from bytes", "core 1.1");
@@ -474,7 +476,8 @@ export function parseJson(text: string, options?: ParseOptions): Validation<Json
     if (typeof text === "string") {
       return valueOf(parseText(text, lengthLimit(options), MAX_DEPTH));
     }
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     // Options that cannot be read.
   }
   return rejection("not text", "core 1.1");
@@ -489,7 +492,8 @@ export function parseJsonBytes(bytes: Uint8Array, options?: ParseOptions): Valid
     if (bytes instanceof Uint8Array) {
       return valueOf(parseBytes(bytes, lengthLimit(options), MAX_DEPTH));
     }
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     // A value that cannot even be examined, such as a revoked proxy.
   }
   return rejection("not bytes", "core 1.1");

@@ -29,6 +29,7 @@ import {
   type Validation,
   validateJson,
   validateRecord,
+  noteCutShort,
 } from "@oip/schema";
 
 import {
@@ -101,7 +102,8 @@ export function understoodOf(given: unknown): ReadonlySet<string> {
     for (const namespace of (given ?? []) as Iterable<unknown>) {
       if (typeof namespace === "string") understood.add(namespace);
     }
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     // Not a list of names: nothing more is understood than was read.
   }
   return understood;
@@ -716,7 +718,8 @@ export function cannotRead(
           "core 8.3",
           `${path}/critical`,
         );
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     // A value that fails when it is asked what it is has not been shown to be
     // invalid, so it is one the verifier cannot judge (Layer 1, 4.9, last
     // sentence but one). Plain data never fails so.
@@ -1053,7 +1056,8 @@ export function verifyLog(events: unknown, context: LogContext): Validation<Veri
     if (opened.value.tooLong) return tooLong(opened.value.most);
     const { log, failure } = replay(opened.value.events, context);
     return failure ?? (log === undefined ? EMPTY : ok(log));
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     return unreadable;
   }
 }
@@ -1075,7 +1079,8 @@ export function verifyLogPrefix(events: unknown, context: LogContext): Replayed 
     const replayed = replay(opened.value.events, context);
     if (replayed.failure !== undefined || !opened.value.tooLong) return replayed;
     return { log: replayed.log, failure: tooLong(opened.value.most), undecided: true };
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     return { log: undefined, failure: unreadable, undecided: true };
   }
 }

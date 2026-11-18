@@ -244,8 +244,8 @@ export class LogBook implements IdentityView {
     forget(): void;
     hold(events: unknown, asOf: Instant): Validation<string>;
     log(mind: string): Validation<VerifiedLog>;
-    witness(events: unknown, now: Instant, seen: FirstSeen): Validation<string>;
-    witnessHeld(now: Instant, seen: FirstSeen): void;
+    witness(events: unknown, now: Instant, seen: FirstSeen, options?: ReadingOptions): Validation<string>;
+    witnessHeld(now: Instant, seen: FirstSeen, options?: ReadingOptions): void;
 }
 
 // @public
@@ -302,6 +302,11 @@ export interface Parent {
 
 // @public
 export function proofTime(created: Instant, seen: Instant | undefined): Validation<Evaluation>;
+
+// @public
+export interface ReadingOptions {
+    readonly following?: Iterable<string> | string;
+}
 
 // @public
 export function removalTime(log: VerifiedLog, position: number, key: string, set: "keys" | "invocation"): Instant | undefined;

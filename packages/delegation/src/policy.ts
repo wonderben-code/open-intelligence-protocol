@@ -11,7 +11,7 @@
  * or malformed value into a pass.
  */
 
-import { canonicalize, compareDecimals, isDecimal, type JsonObject } from "@oip/core";
+import { canonicalSizeUpTo, compareDecimals, isDecimal, type JsonObject } from "@oip/core";
 import {
   IMPLEMENTATION_LIMIT,
   type Issue,
@@ -20,20 +20,24 @@ import {
   MAX_POLICY_DEPTH,
   parseSelector,
   type SelectorStep,
+  validateJson,
   type Validation,
 } from "@oip/schema";
 
 import { ok, type Rejection } from "./result.ts";
 
 /**
- * The most statements one policy is evaluated for, counting a statement
- * once for each value it is tried on. A quantifier tries its statement on
- * every element of an array, so a policy of a few statements can ask for
- * work in proportion to the record, and one of many for the product of the
- * two. The specification sets no bound; a policy that needs more than this
- * does not hold.
+ * Layer 1, 11.3 and Section 19: the most work one policy may ask for one
+ * record. Each time a statement is tried on a value counts one, and a
+ * comparison by canonical form counts, besides, the bytes of the two
+ * canonical forms it compares. A policy that would count more does not hold.
+ *
+ * A quantifier tries its statement on every element of an array, so a policy
+ * of a few statements can ask for work in proportion to the record, and one
+ * of many for the product of the two. The count is of what is asked, in
+ * terms every verifier counts alike, so that all of them give one answer.
  */
-export const MAX_POLICY_STEPS = 100_000;
+export const MAX_POLICY_WORK = 262_144;
 
 const CLAUSE = "L1 11.3";
 const ORDERING = ["<", "<=", ">", ">="];
@@ -71,9 +75,16 @@ function decimalOf(value: unknown): string | undefined {
 /** One evaluation of a policy: the errors found, and the work done. */
 interface Run {
   readonly errors: Issue[];
-  steps: number;
+  /** The work counted so far (Layer 1, 11.3). */
+  work: number;
   /** Set once the work allowed is spent. Nothing more is evaluated. */
   spent: boolean;
+  /**
+   * The path of each statement's selector, read once when the policy is
+   * checked. A quantifier tries its statement on every element, and the
+   * selector says the same thing each time.
+   */
+  readonly paths: Map<unknown, readonly SelectorStep[]>;
 }
 
 function error(run: Run, path: string, message: string, clause = CLAUSE): false {
@@ -83,13 +94,44 @@ function error(run: Run, path: string, message: string, clause = CLAUSE): false 
 }
 
 /** Notes that the work allowed for one policy is spent. Nothing more is read or evaluated. */
-function spent(run: Run, path: string): false {
+function spent(run: Run, path: string, clause = CLAUSE): false {
   run.spent = true;
-  return error(
-    run,
-    path,
-    `the policy asks for more than ${MAX_POLICY_STEPS} evaluations of a statement`,
-    IMPLEMENTATION_LIMIT,
+  return error(run, path, `the policy asks for more work than ${MAX_POLICY_WORK}`, clause);
+}
+
+/** A selector as an error message shows it: one of any length would make a message of that length. */
+function shown(selector: unknown): string {
+  const text = String(selector);
+  return text.length > 64 ? `${text.slice(0, 64)}…` : text;
+}
+
+/**
+ * Whether two values have the same canonical form (core Section 2), without
+ * writing either: the same value, the same elements in the same order, or
+ * the same members whatever their order.
+ *
+ * @param budget - How many values to look at before giving up. Two values
+ *   of one canonical size have no more values than that size.
+ */
+function sameCanonicalForm(left: unknown, right: unknown, budget: { left: number }): boolean {
+  if (--budget.left < 0) return false;
+  if (typeof left !== "object" || left === null || typeof right !== "object" || right === null) {
+    return left === right;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((element, index) => sameCanonicalForm(element, right[index], budget));
+  }
+  const names = Object.keys(left);
+  if (names.length !== Object.keys(right).length) return false;
+  return names.every(
+    (name) =>
+      Object.hasOwn(right, name) &&
+      sameCanonicalForm(
+        (left as Readonly<Record<string, unknown>>)[name],
+        (right as Readonly<Record<string, unknown>>)[name],
+        budget,
+      ),
   );
 }
 
@@ -102,7 +144,9 @@ function spent(run: Run, path: string): false {
  */
 function wellFormed(statement: unknown, path: string, depth: number, run: Run): boolean {
   if (run.spent) return false;
-  if (++run.steps > MAX_POLICY_STEPS) return spent(run, path);
+  // A policy read from text has far fewer statements than this. One built in memory,
+  // with one statement standing in many places, is read no further.
+  if (++run.work > MAX_POLICY_WORK) return spent(run, path, IMPLEMENTATION_LIMIT);
   if (depth > MAX_POLICY_DEPTH) {
     return error(run, path, `a policy statement nests more than ${MAX_POLICY_DEPTH} deep`);
   }
@@ -129,10 +173,16 @@ function wellFormed(statement: unknown, path: string, depth: number, run: Run): 
   if ((!quantifier && !comparison) || size !== 3) {
     return error(run, path, "the statement is none that the policy language defines");
   }
-  if (parseSelector(second) === undefined) {
-    return error(run, `${path}/1`, "the selector is not well formed");
+  const steps = parseSelector(second);
+  if (steps === undefined) return error(run, `${path}/1`, "the selector is not well formed");
+  run.paths.set(statement, steps);
+  if (quantifier) return wellFormed(third, `${path}/2`, depth + 1, run);
+  // What is compared by canonical form has one: a JSON value of the profile. An
+  // ordering takes a decimal, and says so when it is asked of the record.
+  if (EQUALITY.includes(op as string) && !validateJson(third, "container").ok) {
+    return error(run, `${path}/2`, "the value compared with is not a JSON value of the profile");
   }
-  return quantifier ? wellFormed(third, `${path}/2`, depth + 1, run) : true;
+  return true;
 }
 
 /**
@@ -142,7 +192,7 @@ function wellFormed(statement: unknown, path: string, depth: number, run: Run): 
  */
 function holds(statement: unknown, value: JsonValue, path: string, run: Run): boolean {
   if (run.spent) return false;
-  if (++run.steps > MAX_POLICY_STEPS) return spent(run, path);
+  if (++run.work > MAX_POLICY_WORK) return spent(run, path);
   const [op, second, third] = statement as readonly unknown[];
 
   if (op === "not") return !holds(second, value, `${path}/1`, run);
@@ -154,14 +204,14 @@ function holds(statement: unknown, value: JsonValue, path: string, run: Run): bo
     return op === "and" ? results.every(Boolean) : results.some(Boolean);
   }
 
-  const selected = select(value, parseSelector(second) as readonly SelectorStep[]);
+  const selected = select(value, run.paths.get(statement) ?? []);
   if (selected === MISSING) {
-    return error(run, `${path}/1`, `the selector ${String(second)} does not resolve to a value`);
+    return error(run, `${path}/1`, `the selector ${shown(second)} does not resolve to a value`);
   }
 
   if (op === "all" || op === "any") {
     if (!Array.isArray(selected)) {
-      return error(run, `${path}/1`, `the selector ${String(second)} does not resolve to an array`);
+      return error(run, `${path}/1`, `the selector ${shown(second)} does not resolve to an array`);
     }
     const results = (selected as readonly JsonValue[]).map((element) =>
       holds(third, element, `${path}/2`, run),
@@ -182,11 +232,15 @@ function holds(statement: unknown, value: JsonValue, path: string, run: Run): bo
   let equal: boolean;
   if (order !== undefined) equal = order === 0;
   else {
-    try {
-      equal = canonicalize(selected) === canonicalize(third);
-    } catch {
-      return error(run, `${path}/2`, "the value compared with has no canonical form");
-    }
+    // The comparison counts the bytes of both forms. Each is measured only as far as
+    // the work left allows, so a value too large to compare is not read to its end.
+    const left = MAX_POLICY_WORK - run.work;
+    const mine = canonicalSizeUpTo(selected, left);
+    const theirs = mine > left ? 0 : canonicalSizeUpTo(third as JsonValue, left - mine);
+    run.work += mine + theirs;
+    if (run.work > MAX_POLICY_WORK) return spent(run, path);
+    // Two forms of different sizes differ. Two of one size are compared value by value.
+    equal = mine === theirs && sameCanonicalForm(selected, third, { left: mine });
   }
   return op === "==" ? equal : !equal;
 }
@@ -225,7 +279,7 @@ export function evaluatePolicy(policy: unknown, record: JsonValue): Validation<t
     const { proof: _proof, ...content } = record as JsonObject;
     subject = content;
   }
-  const run: Run = { errors: [], steps: 0, spent: false };
+  const run: Run = { errors: [], work: 0, spent: false, paths: new Map() };
   // Validate, then use. The whole policy is read before any of it is asked of the
   // record: a part that this record does not reach is part of the policy too.
   (statements as readonly unknown[]).forEach((statement, i) =>
@@ -233,7 +287,7 @@ export function evaluatePolicy(policy: unknown, record: JsonValue): Validation<t
   );
   const [malformed, ...others] = run.errors;
   if (malformed !== undefined) return failed([malformed, ...others]);
-  run.steps = 0;
+  run.work = 0;
   const unmet: Issue[] = [];
   (statements as readonly unknown[]).forEach((statement, i) => {
     if (!holds(statement, subject, `/${i}`, run) && unmet.length < MAX_ISSUES) {

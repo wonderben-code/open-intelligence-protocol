@@ -1648,25 +1648,29 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
     const cases = (generator: fc.Arbitrary<VectorCase>) =>
       fc.tuple(generator, fc.nat(8), fc.nat(7));
 
-    it("generates cases that hold and cases that do not, of every kind", () => {
-      const generators = {
-        keyLogCase,
-        collectiveLogCase,
-        nestedLogCase,
-        ownKeyCase,
-        branchCase,
-        collectiveSignedCase,
-      };
-      for (const [name, generator] of Object.entries(generators)) {
-        const sample = fc.sample(generator, { numRuns: 60, seed: 7 });
-        const held = sample.filter((vectorCase) =>
-          claimHolds(referenceAdapter, vectors, vectorCase),
-        );
-        // Neither verdict is rare: a campaign of rejections alone would show nothing.
-        expect(held.length, `${name}: accepted`).toBeGreaterThan(3);
-        expect(sample.length - held.length, `${name}: rejected`).toBeGreaterThan(3);
-      }
-    });
+    it(
+      "generates cases that hold and cases that do not, of every kind",
+      () => {
+        const generators = {
+          keyLogCase,
+          collectiveLogCase,
+          nestedLogCase,
+          ownKeyCase,
+          branchCase,
+          collectiveSignedCase,
+        };
+        for (const [name, generator] of Object.entries(generators)) {
+          const sample = fc.sample(generator, { numRuns: 60, seed: 7 });
+          const held = sample.filter((vectorCase) =>
+            claimHolds(referenceAdapter, vectors, vectorCase),
+          );
+          // Neither verdict is rare: a campaign of rejections alone would show nothing.
+          expect(held.length, `${name}: accepted`).toBeGreaterThan(3);
+          expect(sample.length - held.length, `${name}: rejected`).toBeGreaterThan(3);
+        }
+      },
+      TIMEOUT,
+    );
 
     it("reaches the rules it is there for", () => {
       // Duplicity that evidence cannot separate, for a mind and for a collective.

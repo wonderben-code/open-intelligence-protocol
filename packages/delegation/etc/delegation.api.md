@@ -77,7 +77,7 @@ export function isDelegableType(type: unknown): type is DelegableType;
 export const MAX_CHAIN = 8;
 
 // @public
-export const MAX_POLICY_STEPS = 100000;
+export const MAX_POLICY_WORK = 262144;
 
 // @public
 export function policyHolds(policy: unknown, record: JsonValue): boolean;

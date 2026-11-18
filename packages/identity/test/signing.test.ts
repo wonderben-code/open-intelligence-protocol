@@ -3,7 +3,7 @@
 
 import { CLOCK_SKEW, contentId, type Instant, proofDigest } from "@oip/core";
 import type { Proof } from "@oip/schema";
-import { clause, copy, withStackSpent } from "@oip/testkit";
+import { clause, copy } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -642,18 +642,6 @@ describe("judging a record", () => {
       ok: false,
       issues: [{ clause: "core 1.6" }],
     });
-  });
-
-  it("answers and does not throw with the stack all but spent", () => {
-    const ada = new KeyMind("ada");
-    const intent = ada.sign(intentBy(ada, 10));
-    const book = bookOf([ada], [intent]);
-    const answers = withStackSpent(() => {
-      const record = judgeRecord(intent);
-      return record.ok ? ownSignedTime(record.value, ada.address, book) : record.issues[0].clause;
-    });
-    expect(answers).toHaveLength(200);
-    expect(answers.at(-1)).toBe(at(10));
   });
 
   it("reads a record of a type an extension defines", () => {

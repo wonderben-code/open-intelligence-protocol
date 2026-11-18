@@ -24,12 +24,13 @@ import { fileURLToPath } from "node:url";
  * Runs a script in a Node.js process of its own, with the packages read
  * from their sources, and returns what it printed, read as JSON.
  *
+ * @param args - Arguments for the script, which it reads from `process.argv`.
  * @throws Error if the script fails, with what it wrote to standard error.
  */
-export function inNode(script: URL): unknown {
+export function inNode(script: URL, args: readonly string[] = []): unknown {
   const printed = execFileSync(
     process.execPath,
-    ["--conditions=@oip/source", fileURLToPath(script)],
+    ["--conditions=@oip/source", fileURLToPath(script), ...args],
     {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],

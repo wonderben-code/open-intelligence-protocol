@@ -21,6 +21,17 @@ const report = inNode(new URL("./spent-stack.node.ts", import.meta.url)) as {
   readonly records: { readonly signed: Tally; readonly last: string; readonly after: string };
 };
 
+/** The same script, told to ask a book's own operations first, in a process of their own. */
+const { books } = inNode(new URL("./spent-stack.node.ts", import.meta.url), ["books"]) as {
+  readonly books: {
+    readonly witness: Tally;
+    readonly witnessHeld: Tally;
+    readonly hold: Tally;
+    readonly log: Tally;
+    readonly after: readonly string[];
+  };
+};
+
 const total = (tally: Tally) => Object.values(tally).reduce((sum, count) => sum + count, 0);
 
 describe(`${clause("core 4.4")} a book asked for the first time with the stack all but spent`, () => {
@@ -38,13 +49,52 @@ describe(`${clause("core 4.4")} a book asked for the first time with the stack a
   });
 });
 
+describe(`${clause("core 4.4", "core 9.5")} a book's own operations with the stack all but spent`, () => {
+  const others = (tally: Tally, ...expected: string[]) =>
+    Object.keys(tally).filter((kind) => !expected.includes(kind));
+
+  it("never answers `ok` for a look that passed over an event that verifies", () => {
+    // Ada's update removes a key. A look that reports nothing wrong and has not recorded it
+    // would let that key sign until the next look.
+    for (const looks of [books.witness, books.witnessHeld]) {
+      expect(total(looks)).toBe(200);
+      expect(
+        others(looks, "ok, removal recorded", "implementation limit, removal not recorded"),
+      ).toStrictEqual([]);
+    }
+  });
+
+  it("takes a copy in whole or not at all, and answers for a log or refuses for want of room", () => {
+    expect(total(books.hold)).toBe(200);
+    expect(
+      others(
+        books.hold,
+        "held, 2 events",
+        // Taken in, and the log then asked for with no room to verify it.
+        "held, implementation limit",
+        "implementation limit, no log is held",
+      ),
+    ).toStrictEqual([]);
+    expect(total(books.log)).toBe(200);
+    expect(others(books.log, "2 events", "implementation limit")).toStrictEqual([]);
+    // With room again, each is right.
+    expect(books.after).toStrictEqual([
+      "ok, removal recorded",
+      "ok, removal recorded",
+      "held, 2 events",
+      "2 events",
+    ]);
+  });
+});
+
 describe("judging with the stack all but spent", () => {
   it("answers for a log and does not throw, and is right again afterwards", () => {
     expect(total(report.logs.verified)).toBe(200);
-    // A log that is not verified is refused with a reason, never in part.
+    // A log is verified whole, or refused for want of room: never in part, and never for a
+    // reason that would be a verdict on it.
     expect(
       Object.keys(report.logs.verified).filter(
-        (kind) => kind !== "2 events" && kind !== "refused with a reason",
+        (kind) => kind !== "2 events" && kind !== "implementation limit",
       ),
     ).toStrictEqual([]);
     expect(report.logs.after).toBe(true);

@@ -121,15 +121,18 @@ export function example(keys: readonly [Uint8Array, Uint8Array, Uint8Array, Uint
     const take = (given: unknown, when: Instant): void => {
       const judged = judgeRecord(given);
       if (!judged.ok) return;
-      // First sight of the proofs that verify, the delegation's own among them.
-      witnessProofs(judged.value, when, seen);
+      // First sight of the proofs that verify, the delegation's own among them. A look that
+      // was cut short says so: a verifier then takes the record in again, at the same reading.
+      if (!witnessProofs(judged.value, when, seen).ok) return;
       records.add(given);
     };
     const obtained = at(record.created) + 1_000_000_000n;
     const revoked = at(revocation.created) + 1_000_000_000n;
     // The logs, as known when the record is judged; and the revocation, if it came first.
-    for (const log of [firm.log, agent.log])
-      identity.witness(log, at("2026-11-18T08:00:01Z"), seen);
+    for (const log of [firm.log, agent.log]) {
+      const looked = identity.witness(log, at("2026-11-18T08:00:01Z"), seen);
+      if (!looked.ok) return "could not be judged";
+    }
     for (const log of [firm.log, agent.log]) identity.hold(log, at("2026-11-18T13:00:00Z"));
     if (revoked <= obtained) take(revocation, revoked);
     take(record, obtained);
@@ -162,12 +165,12 @@ The Intent, the agent's key and the delegation are the same in the first and thi
 | Export                                                                                                                            | What it does                                                                                                                                                                                                          |
 | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `delegatedTime`, `delegatedProofTime`, `DelegationContext`, `DelegatedOptions`, `MAX_CHAIN`                                       | Layer 1, 11.4 and 11.6: whether a record, or one proof on it, counts for a principal through the chain the proof lists, and from when. A refusal names the entry of `authority` at fault. A chain has at most 8 links |
-| `revokedTime`                                                                                                                     | Layer 1, 11.5: the time from which a delegation is revoked, by a revocation its own author signed                                                                                                                     |
+| `revokedTime`                                                                                                                     | Layer 1, 11.5: the time from which a delegation is revoked, by a revocation its own author signed. A result: its value is `undefined` for a delegation that is not revoked                                            |
 | `sentFor`                                                                                                                         | Layer 1, 11.2: whether a packet counts as sent on another mind's behalf                                                                                                                                               |
 | `evaluatePolicy`, `policyHolds`, `select`, `MAX_POLICY_WORK`                                                                      | Layer 1, 11.3: whether a policy holds for a record, and why not                                                                                                                                                       |
 | `covers`, `isCommand`, `isDelegableCommand`, `isDelegableType`, `signCommand`, `DELEGABLE_TYPES`, `DelegableType`, `SEND_COMMAND` | Layer 1, 11.2: commands, which of them may be granted, and the command that signing a type of record needs                                                                                                            |
 | `RecordSet`, `RecordView`                                                                                                         | The records a verifier holds: delegations a proof names by reference, revocations and charters                                                                                                                        |
-| `witnessProofs`                                                                                                                   | Records a verifier's own first sight of the proofs on a record that arrives, and of the proofs on the delegations and charters those proofs carry whole                                                               |
+| `witnessProofs`                                                                                                                   | Records a verifier's own first sight of the proofs on a record that arrives, and of the proofs on the delegations and charters those proofs carry whole. A result: read it                                            |
 | `draftDelegation`, `draftSubDelegation`, `draftRevocation`, `authorityOf`, `DelegationFields`, `SubDelegationFields`              | Writing a delegation, the next link of a chain, a revocation, and the `authority` a proof lists                                                                                                                       |
 
 ## Chains (Layer 1, 11.4 to 11.6)
@@ -186,7 +189,7 @@ The Intent, the agent's key and the delegation are the same in the first and thi
 
 A delegation may be carried whole in the proof or named by reference. By reference, the verifier must hold it: give the records you hold as a `RecordView`. `RecordSet` is one in memory. It keeps what it is shown: the same record given again adds the proofs not seen before and takes none away, so a revocation shown once with its author's signature stays signed.
 
-**If you keep your own first sight**, take a record in with `witnessProofs(judged, now, seen)`, not with `witnessRecord` of `@oip/identity`. A delegation carried inline is as new to you as the record, and its author's signature needs evidence of its own: seen with the record's proofs alone, a proof that carries its chain would never count.
+**If you keep your own first sight**, take a record in with `witnessProofs(judged, now, seen)`, not with `witnessRecord` of `@oip/identity`, and read its answer: a refusal with the clause `implementation limit` means the look was cut short, and you look again with the same reading of your clock. A delegation carried inline is as new to you as the record, and its author's signature needs evidence of its own: seen with the record's proofs alone, a proof that carries its chain would never count.
 
 A proof counts for its signer and for at most one other mind. A proof whose chain does not hold still counts for its signer, by the signer's own key.
 
@@ -230,4 +233,9 @@ The whole policy is read before any of it is asked of the record. A statement th
 
 ## Results and errors
 
-Nothing here does I/O or reads a clock, and nothing throws on what arrives from outside. A function that judges answers with a time or `undefined`, or with a rejection that names the clause and the place. The arguments a caller builds itself are another matter: `draftSubDelegation` throws `TypeError` when asked for more than the parent grants ([ADR-0007](../../docs/adr/0007-programming-errors.md)).
+Nothing here does I/O or reads a clock, and nothing throws on what arrives from outside. A function that judges answers with a time or `undefined`, or with a rejection that names the clause and the place.
+
+**A check that was cut short is refused, and is never the answer that lets a delegate act** ([ADR-0010](../../docs/adr/0010-checks-cut-short.md)). With the call stack all but spent, or in a process where nothing can be serialised, a check cannot be made. `delegatedProofTime`, `revokedTime`, `evaluatePolicy`, `witnessProofs` and `RecordSet.add` then refuse with the clause `implementation limit`, which says nothing of what was judged: ask again. `delegatedTime` and `sentFor` give no time, and `policyHolds` says no. A delegation is revoked when a revocation that counts is found, so a look for one that could not be finished is not an answer: `revokedTime` answers with a result for that reason, and no chain counts on the strength of such a look.
+The arguments a caller builds itself are another matter: `draftSubDelegation` throws `TypeError` when asked for more than the parent grants ([ADR-0007](../../docs/adr/0007-programming-errors.md)).
+
+With the stack really spent, in a process of its own, a chain through a revoked delegation never counts and `revokedTime` never answers that the delegation is not revoked (`packages/web/test/spent-stack.node.ts`, with the Layer 2 cases). `test/cut-short.test.ts` makes the same faults in the runner.

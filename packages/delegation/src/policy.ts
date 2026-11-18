@@ -16,6 +16,7 @@ import {
   IMPLEMENTATION_LIMIT,
   type Issue,
   type JsonValue,
+  judging,
   MAX_ISSUES,
   MAX_POLICY_DEPTH,
   parseSelector,
@@ -266,6 +267,11 @@ function holds(statement: unknown, value: JsonValue, path: string, run: Run): bo
  * @param record - The record being authorised.
  */
 export function evaluatePolicy(policy: unknown, record: JsonValue): Validation<true> {
+  return judging(() => evaluated(policy, record));
+}
+
+/** The verdict, as `evaluatePolicy` answers when no check is cut short. */
+function evaluated(policy: unknown, record: JsonValue): Validation<true> {
   // A record with no `policy` member has the empty policy. `null` is not a policy.
   const statements: unknown = policy === undefined ? [] : policy;
   if (!Array.isArray(statements) || statements.length > 64) {

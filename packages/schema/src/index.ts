@@ -8,7 +8,15 @@
  * @packageDocumentation
  */
 
-export { CUT_SHORT, cutShortCount, noteCutShort, UnfitProcess } from "./cut-short.ts";
+export {
+  CUT_SHORT,
+  cutShort,
+  cutShortCount,
+  finding,
+  judging,
+  noteCutShort,
+  UnfitProcess,
+} from "./cut-short.ts";
 export { type ContainerParts, containerParts } from "./containers.ts";
 export { type Issue, quote, type Validation } from "./issue.ts";
 export { MAX_SAFE_INTEGER, OIP_COMMANDS, patterns, SHORT_NAMESPACES } from "./primitives.ts";

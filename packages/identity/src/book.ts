@@ -22,7 +22,10 @@ import {
   type Validation,
   validateJson,
   validateWithoutProof,
+  CUT_SHORT,
+  cutShort,
   cutShortCount,
+  judging,
   noteCutShort,
 } from "@oip/schema";
 
@@ -36,7 +39,7 @@ import {
   understoodOf,
   Unread,
 } from "./log.ts";
-import { cutShort, deepFreeze, isJsonObject, no, ok, own, type Rejection } from "./result.ts";
+import { deepFreeze, isJsonObject, no, ok, own, type Rejection } from "./result.ts";
 import type { LogEntry, Revocation, VerifiedLog } from "./state.ts";
 
 /** The verified logs a verifier holds, and its evidence of time. */
@@ -300,6 +303,9 @@ function latestBelow(held: Held): Instant | undefined {
   return latest;
 }
 
+/** What `witnessHeld` answers when its look went through. */
+const LOOKED: Validation<true> = Object.freeze({ ok: true, value: true });
+
 /**
  * The identity logs a verifier holds, verified when first asked for against
  * the evidence the book was made with.
@@ -344,10 +350,17 @@ export class LogBook implements IdentityView {
   /** How often a log was refused for where it was asked from, and not for what it is. */
   #refusals = 0;
 
+  /**
+   * @throws Error if the options could not be read for want of room on the
+   *   call stack: a book keeps them for as long as it lives, so one made
+   *   then would keep what it never read (ADR-0010). Make it again.
+   */
   constructor(evidence: EvidenceView, options?: LogBookOptions) {
+    const before = cutShortCount();
     this.evidence = evidence;
     this.#maxEvents = maxEventsOf(own(options, "maxEvents"));
     this.#understood = understoodOf(own(options, "understood"));
+    if (cutShortCount() !== before) throw new Error(CUT_SHORT);
   }
 
   /**
@@ -370,6 +383,10 @@ export class LogBook implements IdentityView {
    *   longer, until the mind is dropped.
    */
   hold(events: unknown, asOf: Instant): Validation<string> {
+    return judging(() => this.#hold(events, asOf));
+  }
+
+  #hold(events: unknown, asOf: Instant): Validation<string> {
     const before = cutShortCount();
     const taken = this.#take(events, asOf);
     // A value that could not be read for want of room would be held as one the
@@ -483,6 +500,13 @@ export class LogBook implements IdentityView {
    *   refused for showing more proofs than the book holds for one event is
    *   the one refusal that changes something: the book answers for that mind
    *   no longer, as `hold` says.
+   *
+   *   A refusal with the clause `implementation limit` is another matter:
+   *   the look was cut short, for want of room on the call stack. The copy
+   *   may be held, and an event that verifies may not be recorded. Call
+   *   again with the same copy and the same reading: a look that ends a
+   *   reading late records a removal late, and a proof by the removed key
+   *   seen in between counts.
    */
   witness(
     events: unknown,
@@ -490,8 +514,20 @@ export class LogBook implements IdentityView {
     seen: FirstSeen,
     options?: ReadingOptions,
   ): Validation<string> {
+    // A look that was cut short, anywhere in it, has recorded nothing of what it could not
+    // judge. The caller must know, to look again: the copy is held, and the answer is a
+    // refusal for want of room (ADR-0010).
+    return judging(() => this.#witnessed(events, now, seen, options));
+  }
+
+  #witnessed(
+    events: unknown,
+    now: Instant,
+    seen: FirstSeen,
+    options: ReadingOptions | undefined,
+  ): Validation<string> {
     const following = followingOf(options);
-    const held = this.hold(events, now);
+    const held = this.#hold(events, now);
     if (!held.ok) return held;
     const minds = [held.value];
     const reached = new Set(minds);
@@ -534,12 +570,18 @@ export class LogBook implements IdentityView {
    *
    * @param now - The present: the verifier's own clock, read by the caller.
    * @param seen - The verifier's own record, as for `witness`.
+   * @returns That the look went through. Or a refusal with the clause
+   *   `implementation limit`: the look was cut short, and an event that
+   *   verifies may not be recorded. Call again with the same reading.
    * @throws TypeError if `now` is not a time.
    */
-  witnessHeld(now: Instant, seen: FirstSeen, options?: ReadingOptions): void {
+  witnessHeld(now: Instant, seen: FirstSeen, options?: ReadingOptions): Validation<true> {
     if (typeof (now as unknown) !== "bigint") throw new TypeError("now is not a time");
-    this.#follow(followingOf(options), now);
-    this.#witness([...this.#held.keys()], now, seen);
+    return judging(() => {
+      this.#follow(followingOf(options), now);
+      this.#witness([...this.#held.keys()], now, seen);
+      return LOOKED;
+    });
   }
 
   /**
@@ -804,7 +846,7 @@ export class LogBook implements IdentityView {
     if (typeof (mind as unknown) !== "string") {
       return no("a mind is named by its address, a string", "L1 2.2");
     }
-    return this.#log(mind, 0);
+    return judging(() => this.#log(mind, 0));
   }
 
   /** `depth` counts the collectives between the log asked for and this one (Layer 1, 4.7). */

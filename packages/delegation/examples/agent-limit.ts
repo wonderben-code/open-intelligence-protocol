@@ -113,15 +113,18 @@ export function example(keys: readonly [Uint8Array, Uint8Array, Uint8Array, Uint
     const take = (given: unknown, when: Instant): void => {
       const judged = judgeRecord(given);
       if (!judged.ok) return;
-      // First sight of the proofs that verify, the delegation's own among them.
-      witnessProofs(judged.value, when, seen);
+      // First sight of the proofs that verify, the delegation's own among them. A look that
+      // was cut short says so: a verifier then takes the record in again, at the same reading.
+      if (!witnessProofs(judged.value, when, seen).ok) return;
       records.add(given);
     };
     const obtained = at(record.created) + 1_000_000_000n;
     const revoked = at(revocation.created) + 1_000_000_000n;
     // The logs, as known when the record is judged; and the revocation, if it came first.
-    for (const log of [firm.log, agent.log])
-      identity.witness(log, at("2026-11-18T08:00:01Z"), seen);
+    for (const log of [firm.log, agent.log]) {
+      const looked = identity.witness(log, at("2026-11-18T08:00:01Z"), seen);
+      if (!looked.ok) return "could not be judged";
+    }
     for (const log of [firm.log, agent.log]) identity.hold(log, at("2026-11-18T13:00:00Z"));
     if (revoked <= obtained) take(revocation, revoked);
     take(record, obtained);

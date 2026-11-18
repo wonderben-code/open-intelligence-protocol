@@ -92,12 +92,12 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 4.1 |  | M1 | 7 | tested | Public keys are written as Multikey strings: `"z"` followed by the base58btc encoding of a mult… |
 | core 4.2 | MUST | M1 | 6 | tested | Implementations MUST check the prefix and length of every Multikey they use and reject any that… |
 | core 4.3 |  | M1 | 2 | tested | This revision requires Ed25519 for signatures and X25519 for encryption. Other key types are re… |
-| core 4.4 | MUST | M1 | 31 | tested | Ed25519 verification. Every implementation MUST apply the same rule, so that all verifiers agre… |
+| core 4.4 | MUST | M1 | 56 | tested | Ed25519 verification. Every implementation MUST apply the same rule, so that all verifiers agre… |
 | core 5.1 | MUST | M1 | 6 | tested | A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 p… |
 | core 5.2 | MUST | M1 | 13 | tested | Each proof object MUST conform to W3C Data Integrity 1.0 with the `eddsa-jcs-2022` cryptosuite,… |
 | core 5.3 |  | M1 | 15 | tested | Creating a proof. Let `options` be the proof object without `proofValue`. Compute ``` hashData… |
 | core 5.4 |  | M1 | 12 | tested | Verifying a proof. Check that the proof has exactly the members 5.2 allows; remove `proofValue`… |
-| core 5.5 | MAY | M1 | 3 | tested | A record MAY carry proofs that are irrelevant to its validity. Each proof is evaluated independ… |
+| core 5.5 | MAY | M1 | 7 | tested | A record MAY carry proofs that are irrelevant to its validity. Each proof is evaluated independ… |
 | core 5.6 | MUST | M1 | 7 | tested | Proof purposes. \| Records \| `proofPurpose` \| \|---\|---\| \| Identity-log events (`Genesis`, `Updat… |
 | core 5.7 | SHOULD | M1 | 6 | tested | A proof's `created` SHOULD NOT be earlier than the record's `created`. |
 | core 6.1 |  | M1 | 12 | tested | References use DID syntax (W3C DID Core) and are defined by this grammar (ABNF, RFC 5234): ```… |
@@ -113,8 +113,8 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 9.1 | MUST | M2 | 2 | tested | Implementations MUST tolerate clock skew of up to 300 seconds when checking whether a record is… |
 | core 9.2 |  | M2 | 2 | tested | `created`, in a record or in a proof, is asserted by the signer. A signer holding a stolen, rem… |
 | core 9.3 | MUST | M2 | 11 | tested | Evaluation time. Every rule that depends on when a proof was made (key removal and compromise,… |
-| core 9.4 | MUST | M2 | 38 | tested | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
-| core 9.5 |  | M2 | 41 | tested | Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where… |
+| core 9.4 | MUST | M2 | 39 | tested | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
+| core 9.5 |  | M2 | 43 | tested | Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where… |
 | core 9.6 |  | M2 | 8 | tested | Expiry. A proof whose evaluation time is more than 300 seconds after its record's `expires` doe… |
 | core 9.7 |  | M2 | 1 | tested | Consequence. A verifier that first sees a record long after it was made can count its proofs on… |
 | core 10.1 |  | M1 | 1 | tested | OIP records are exchanged as `application/oip+json`. |
@@ -209,10 +209,10 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 10.5 |  | M4 | 2 | tested in part (due M4) | A `Checkpoint` has `author`, `created`, `size` (the number of entries covered, from `seq` 0), `… |
 | L1 10.6 | MAY | M4 | 0 | pending M4 | A checkpoint MAY be anchored in a public append-only log or in the Bitcoin blockchain through O… |
 | L1 11.1 | MUST | M3 | 16 | tested | A `Delegation` record: \| Member \| Required \| Value \| UCAN 1.0 \| \|---\|---\|---\|---\| \| `author` \|… |
-| L1 11.2 | MUST | M3 | 19 | tested | Commands match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` covers a command `c` when… |
+| L1 11.2 | MUST | M3 | 22 | tested | Commands match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` covers a command `c` when… |
 | L1 11.3 | SHOULD | M3 | 50 | tested | Policies. A policy is an array of at most 64 statements, all of which must hold for the record… |
 | L1 11.4 |  | M3 | 21 | tested | Validity of a delegation chain for a record `r` carrying a proof `p` by a valid operational key… |
-| L1 11.5 | SHOULD | M3 | 8 | tested | A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco… |
+| L1 11.5 | SHOULD | M3 | 13 | tested | A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco… |
 | L1 11.6 | MUST | M3 | 15 | tested | Use. A proof that relies on delegation lists, in its own `authority` member (core 5.2), exactly… |
 | L1 12.1 | MUST | M4 | 21 | tested in part (due M4) | A `Packet`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `from` \| yes \| Sender's address; the… |
 | L1 12.2 | MUST | M4 | 7 | tested in part (due M4) | Content. Exactly one of: - `{ "mediaType": <media type>, "body": <JSON value> }`. With `applica… |
@@ -268,11 +268,11 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L2 5.3 | SHOULD | M3 | 3 | tested | Additional signatures are added by appending proofs. Adding proofs does not change the content… |
 | L2 5.4 | SHOULD | M3 | 1 | tested | Parties bound through a delegate. A party whose proof on a Commitment counts only through a del… |
 | L2 6.1 | MUST | M3 | 10 | tested | `Receipt`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `about` \| yes \| `record-ref` of the re… |
-| L2 6.2 | MUST | M3 | 11 | tested | `Collective` (a charter): \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The co… |
-| L2 7.1 | SHOULD | M3 | 20 | tested | A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an… |
+| L2 6.2 | MUST | M3 | 15 | tested | `Collective` (a charter): \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The co… |
+| L2 7.1 | SHOULD | M3 | 21 | tested | A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an… |
 | L2 7.2 |  | M3 | 1 | tested | Delegable types are `Intent`, `Offer`, `Commitment` and `Receipt`. Every other signed record (i… |
 | L2 7.3 |  | M3 | 3 | tested | A Commitment is accepted when it counts for its `author`, its author is a party or signs for on… |
-| L2 8 | MUST | M3 | 4 | tested | Status is computed from the records known to the verifier and the time of computation, and so c… |
+| L2 8 | MUST | M3 | 10 | tested | Status is computed from the records known to the verifier and the time of computation, and so c… |
 | L2 8.1 |  | M3 | 12 | tested | Intent. `withdrawn` or `satisfied` if a valid superseding Intent by the same author has that `s… |
 | L2 8.2 |  | M3 | 7 | tested | Offer. `withdrawn` if a valid superseding Offer by the same author has that status; otherwise `… |
 | L2 8.3 | SHOULD | M3 | 24 | tested | Commitment. Let `R` be the set of Receipts about the Commitment whose `author` is a party and t… |

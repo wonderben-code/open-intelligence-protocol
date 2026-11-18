@@ -9,6 +9,7 @@
 import { CLOCK_SKEW, type Instant } from "@oip/core";
 import { delegatedTime, type DelegationContext, isDelegableType } from "@oip/delegation";
 import { type JudgedRecord, latestState, ownSignedTime } from "@oip/identity";
+import { finding } from "@oip/schema";
 
 import { roleTime } from "./charter.ts";
 
@@ -46,15 +47,19 @@ export function signedTime(
   mind: string,
   context: DelegationContext,
 ): Instant | undefined {
-  const times = [ownSignedTime(judged, mind, context.identity)];
-  if (isDelegableType(judged.record.type)) {
-    times.push(delegatedTime(judged, mind, context));
-    const log = context.identity.log(mind);
-    if (log.ok && latestState(log.value).controller.kind === "member") {
-      times.push(roleTime(judged, mind, log.value, context));
+  // The earliest of the routes that were judged is not the earliest if one was cut short:
+  // no time is given then (ADR-0010).
+  return finding(() => {
+    const times = [ownSignedTime(judged, mind, context.identity)];
+    if (isDelegableType(judged.record.type)) {
+      times.push(delegatedTime(judged, mind, context));
+      const log = context.identity.log(mind);
+      if (log.ok && latestState(log.value).controller.kind === "member") {
+        times.push(roleTime(judged, mind, log.value, context));
+      }
     }
-  }
-  return earliest(times.filter((time) => inTime(judged, time)));
+    return earliest(times.filter((time) => inTime(judged, time)));
+  });
 }
 
 /** Layer 2, 7.1: whether a record counts for a mind. */
@@ -74,6 +79,8 @@ export function actsFor(
   principal: string,
   context: DelegationContext,
 ): boolean {
+  // A route whose check was cut short gives no time (ADR-0010), so it is yes only by a
+  // route that was judged.
   if (inTime(judged, delegatedTime(judged, principal, context, { signer }))) return true;
   const log = context.identity.log(principal);
   return (

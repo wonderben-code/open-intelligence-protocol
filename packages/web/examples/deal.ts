@@ -139,7 +139,8 @@ export function example(keys: readonly Uint8Array[]): string[] {
   const records = new WebRecordSet();
   const context = { identity, records };
   for (const log of [amina.log, firm.log, agent.log]) {
-    identity.witness(log, at("2026-11-18T08:00:01Z"), seen);
+    const looked = identity.witness(log, at("2026-11-18T08:00:01Z"), seen);
+    if (!looked.ok) throw new Error("the example's logs verify");
   }
   const lines: string[] = [];
   const steps: [what: string, record: object, when: string][] = [
@@ -154,7 +155,8 @@ export function example(keys: readonly Uint8Array[]): string[] {
     for (const log of [amina.log, firm.log, agent.log]) identity.hold(log, now);
     const taken = judgeRecord(record);
     if (!taken.ok) throw new Error("the example's records are well formed");
-    witnessProofs(taken.value, now, seen);
+    // A look that was cut short says so, and is made again at the same reading.
+    if (!witnessProofs(taken.value, now, seen).ok) throw new Error("the look was cut short");
     records.add(record);
     const of = (given: object): string => {
       const judged = records.record(contentId(given));

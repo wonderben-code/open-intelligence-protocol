@@ -12,6 +12,8 @@ import {
   witnessRecord,
 } from "@oip/identity";
 
+import { judging, type Validation } from "@oip/schema";
+
 import { MAX_CHAIN } from "./chain.ts";
 
 /**
@@ -34,22 +36,33 @@ import { MAX_CHAIN } from "./chain.ts";
  * @param now - The time the verifier obtained the record: its own clock.
  * @param seen - The verifier's own record, which is written to.
  * @param options - What the carried records are judged with: see `judgeRecord`.
+ * @returns A refusal with the clause `implementation limit` if the look was
+ *   cut short ([ADR-0010](../../../docs/adr/0010-checks-cut-short.md)): a
+ *   delegation carried whole may not be recorded then. Call again with the
+ *   same reading of the clock. A delegation first recorded at a later
+ *   reading would be seen after the proof that uses it, and the record
+ *   would never count.
  */
 export function witnessProofs(
   judged: JudgedRecord,
   now: Instant,
   seen: FirstSeen,
   options?: JudgeOptions,
-): void {
-  witnessRecord(judged, now, seen);
-  for (const proof of judged.proofs) {
-    const listed: unknown = proof.proof.authority;
-    if (!Array.isArray(listed)) continue;
-    // No chain is longer, and a longer list is no chain (Layer 1, 11.4).
-    for (const entry of (listed as readonly unknown[]).slice(0, MAX_CHAIN)) {
-      if (typeof entry !== "object" || entry === null) continue;
-      const carried = judgeRecord(entry, options);
-      if (carried.ok) witnessRecord(carried.value, now, seen);
+): Validation<true> {
+  return judging(() => {
+    witnessRecord(judged, now, seen);
+    for (const proof of judged.proofs) {
+      const listed: unknown = proof.proof.authority;
+      if (!Array.isArray(listed)) continue;
+      // No chain is longer, and a longer list is no chain (Layer 1, 11.4).
+      for (const entry of (listed as readonly unknown[]).slice(0, MAX_CHAIN)) {
+        if (typeof entry !== "object" || entry === null) continue;
+        const carried = judgeRecord(entry, options);
+        if (carried.ok) witnessRecord(carried.value, now, seen);
+      }
     }
-  }
+    return LOOKED;
+  });
 }
+
+const LOOKED: Validation<true> = Object.freeze({ ok: true, value: true });

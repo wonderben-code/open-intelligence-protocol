@@ -36,6 +36,7 @@ export function sentFor(
   };
   if (record.type !== "Packet" || typeof record.from !== "string") return undefined;
   if (record.provenance?.onBehalfOf !== subject) return undefined;
+  // No time is given for a chain whose check was cut short (ADR-0010): `delegatedTime` gives none.
   const time = delegatedTime(packet, subject, context, { need: SEND_COMMAND, signer: record.from });
   if (time === undefined) return undefined;
   return packet.expires !== undefined && time > packet.expires + CLOCK_SKEW ? undefined : time;

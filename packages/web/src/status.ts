@@ -10,7 +10,14 @@
 
 import { contentId, type Instant, parseTimestamp } from "@oip/core";
 import { disregardingCompromise, type JudgedRecord, latestState } from "@oip/identity";
-import type { Commitment, Intent, Offer, Receipt, Validation } from "@oip/schema";
+import {
+  type Commitment,
+  type Intent,
+  judging,
+  type Offer,
+  type Receipt,
+  type Validation,
+} from "@oip/schema";
 
 import { actsFor, countsFor } from "./counts.ts";
 import { referenced, type WebContext, withHeld } from "./records.ts";
@@ -40,6 +47,8 @@ export type CharterStatus = "active" | "dissolved";
  */
 export function commitmentAccepted(given: JudgedRecord, context: WebContext): boolean {
   if (given.record.type !== "Commitment") return false;
+  // Every check below answers no for a check that was cut short (ADR-0010), so it is yes
+  // only where each signature it needs was judged.
   // Section 2: with the proofs of every copy held, the one asked about among them.
   const judged = withHeld(given, context.records);
   const { author, parties } = judged.record as Commitment;
@@ -122,7 +131,16 @@ function resolving(
  *
  * @param at - The time of computation. It is the caller's: nothing here reads a clock.
  */
-export function intentStatus(judged: JudgedRecord, at: Instant, context: WebContext): IntentStatus {
+export function intentStatus(
+  judged: JudgedRecord,
+  at: Instant,
+  context: WebContext,
+): Validation<IntentStatus> {
+  return judging(() => ok(statusOfIntent(judged, at, context)));
+}
+
+/** The status, as `intentStatus` answers when no check is cut short. */
+function statusOfIntent(judged: JudgedRecord, at: Instant, context: WebContext): IntentStatus {
   expect(judged, "Intent", at);
   const intent = judged.record as Intent;
   const superseded = supersession(judged, ["satisfied", "withdrawn"], context);
@@ -134,7 +152,16 @@ export function intentStatus(judged: JudgedRecord, at: Instant, context: WebCont
 }
 
 /** Layer 2, 8.2: the status of an Offer at a time. */
-export function offerStatus(judged: JudgedRecord, at: Instant, context: WebContext): OfferStatus {
+export function offerStatus(
+  judged: JudgedRecord,
+  at: Instant,
+  context: WebContext,
+): Validation<OfferStatus> {
+  return judging(() => ok(statusOfOffer(judged, at, context)));
+}
+
+/** The status, as `offerStatus` answers when no check is cut short. */
+function statusOfOffer(judged: JudgedRecord, at: Instant, context: WebContext): OfferStatus {
   expect(judged, "Offer", at);
   const offer = judged.record as Offer;
   const superseded = supersession(judged, ["withdrawn"], context);
@@ -155,6 +182,15 @@ export function offerStatus(judged: JudgedRecord, at: Instant, context: WebConte
  * not a finding: show who made it.
  */
 export function commitmentStatus(
+  judged: JudgedRecord,
+  at: Instant,
+  context: WebContext,
+): Validation<CommitmentStatus> {
+  return judging(() => ok(statusOfCommitment(judged, at, context)));
+}
+
+/** The status, as `commitmentStatus` answers when no check is cut short. */
+function statusOfCommitment(
   judged: JudgedRecord,
   at: Instant,
   context: WebContext,
@@ -229,6 +265,11 @@ export function commitmentStatus(
  * @returns The status, or why the collective's log is not known.
  */
 export function charterStatus(collective: string, context: WebContext): Validation<CharterStatus> {
+  return judging(() => statusOfCharter(collective, context));
+}
+
+/** The status, as `charterStatus` answers when no check is cut short. */
+function statusOfCharter(collective: string, context: WebContext): Validation<CharterStatus> {
   const log = context.identity.log(collective);
   if (!log.ok) return log;
   return ok(latestState(log.value).retired ? "dissolved" : "active");
@@ -244,17 +285,19 @@ export type Status = IntentStatus | OfferStatus | CommitmentStatus | CharterStat
  *   status, or it is a charter and the collective's log is not known.
  */
 export function status(judged: JudgedRecord, at: Instant, context: WebContext): Validation<Status> {
-  const record = judged.record;
-  switch (record.type) {
-    case "Intent":
-      return ok(intentStatus(judged, at, context));
-    case "Offer":
-      return ok(offerStatus(judged, at, context));
-    case "Commitment":
-      return ok(commitmentStatus(judged, at, context));
-    case "Collective":
-      return charterStatus((record as { readonly author: string }).author, context);
-    default:
-      return no(`a record of type ${record.type} has no status`, "L2 8");
-  }
+  return judging(() => {
+    const record = judged.record;
+    switch (record.type) {
+      case "Intent":
+        return ok(statusOfIntent(judged, at, context));
+      case "Offer":
+        return ok(statusOfOffer(judged, at, context));
+      case "Commitment":
+        return ok(statusOfCommitment(judged, at, context));
+      case "Collective":
+        return statusOfCharter((record as { readonly author: string }).author, context);
+      default:
+        return no(`a record of type ${record.type} has no status`, "L2 8");
+    }
+  });
 }

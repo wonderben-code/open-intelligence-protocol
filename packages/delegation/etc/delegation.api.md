@@ -102,7 +102,7 @@ export interface RecordView {
 }
 
 // @public
-export function revokedTime(id: string, author: string, records: RecordView, identity: IdentityView): Instant | undefined;
+export function revokedTime(id: string, author: string, records: RecordView, identity: IdentityView): Validation<Instant | undefined>;
 
 // @public
 export function select(value: JsonValue, path: readonly SelectorStep[]): JsonValue | undefined;
@@ -128,6 +128,6 @@ export interface SubDelegationFields {
 }
 
 // @public
-export function witnessProofs(judged: JudgedRecord, now: Instant, seen: FirstSeen, options?: JudgeOptions): void;
+export function witnessProofs(judged: JudgedRecord, now: Instant, seen: FirstSeen, options?: JudgeOptions): Validation<true>;
 
 ```

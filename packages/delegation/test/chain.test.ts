@@ -22,9 +22,16 @@ import {
   type DelegationContext,
   MAX_CHAIN,
   RecordSet,
-  revokedTime,
+  revokedTime as revokedTimeOf,
   sentFor,
 } from "../src/index.ts";
+
+/** The time from which a delegation is revoked, or `undefined`: the value `revokedTime` answers with. */
+function revokedTime(...asked: Parameters<typeof revokedTimeOf>): Instant | undefined {
+  const answer = revokedTimeOf(...asked);
+  if (!answer.ok) throw new Error(JSON.stringify(answer.issues));
+  return answer.value;
+}
 
 /** Amina, who delegates; her agent; and the agent's own helper. */
 const amina = new KeyMind("amina");

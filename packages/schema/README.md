@@ -38,19 +38,19 @@ Every issue names a clause of the specification: the one that defines the syntax
 
 ## What it exports
 
-| Export                                                                                                           | What it is                                                                                                 |
-| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `validateRecord(value)`                                                                                          | Validates any record this revision defines, choosing the schema by its `type`                              |
-| `validateRecordOfType(type, value)`                                                                              | Validates a record whose type you already know                                                             |
-| `validateProof(value)`                                                                                           | Validates one proof against core 5.2                                                                       |
-| `validateExtensionRecord(value)`                                                                                 | Validates the common members of a record whose type an extension defines (core 7)                          |
-| `Genesis`, `Delegation`, `Commitment`, …                                                                         | The TypeScript type of each record type                                                                    |
-| `OipRecord`, `RecordOf<"Offer">`, `RecordType`                                                                   | The union of all records, one by name, and the names                                                       |
-| `jsonSchemas`                                                                                                    | Every schema as a JSON Schema document, by name                                                            |
-| `patterns`                                                                                                       | The value syntaxes (content IDs, addresses, timestamps, decimals, …) as regular expressions                |
-| `parseSelector(selector)`                                                                                        | The selector grammar of the policy language (Layer 1, 11.3)                                                |
-| `noteCutShort(error)`, `cutShortCount()`, `CUT_SHORT`, `UnfitProcess`                                            | How a check that could not be made is told from a verdict ([ADR-0004](../../docs/adr/0004-error-model.md)) |
-| `RECORD_TYPES`, `SIGNED_RECORD_TYPES`, `UNSIGNED_RECORD_TYPES`, `CONTAINER_RECORD_TYPES`, `IDENTITY_EVENT_TYPES` | The record types, grouped as core Section 11 groups them                                                   |
+| Export                                                                                                                | What it is                                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `validateRecord(value)`                                                                                               | Validates any record this revision defines, choosing the schema by its `type`                                   |
+| `validateRecordOfType(type, value)`                                                                                   | Validates a record whose type you already know                                                                  |
+| `validateProof(value)`                                                                                                | Validates one proof against core 5.2                                                                            |
+| `validateExtensionRecord(value)`                                                                                      | Validates the common members of a record whose type an extension defines (core 7)                               |
+| `Genesis`, `Delegation`, `Commitment`, …                                                                              | The TypeScript type of each record type                                                                         |
+| `OipRecord`, `RecordOf<"Offer">`, `RecordType`                                                                        | The union of all records, one by name, and the names                                                            |
+| `jsonSchemas`                                                                                                         | Every schema as a JSON Schema document, by name                                                                 |
+| `patterns`                                                                                                            | The value syntaxes (content IDs, addresses, timestamps, decimals, …) as regular expressions                     |
+| `parseSelector(selector)`                                                                                             | The selector grammar of the policy language (Layer 1, 11.3)                                                     |
+| `noteCutShort(error)`, `cutShortCount()`, `judging(work)`, `finding(work)`, `cutShort()`, `CUT_SHORT`, `UnfitProcess` | How a check that could not be made is told from a verdict ([ADR-0010](../../docs/adr/0010-checks-cut-short.md)) |
+| `RECORD_TYPES`, `SIGNED_RECORD_TYPES`, `UNSIGNED_RECORD_TYPES`, `CONTAINER_RECORD_TYPES`, `IDENTITY_EVENT_TYPES`      | The record types, grouped as core Section 11 groups them                                                        |
 
 The API report is [`etc/schema.api.md`](etc/schema.api.md).
 

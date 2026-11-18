@@ -33,25 +33,6 @@ interface Issue {
 - A verifier never throws on input it was asked to judge, whatever the input: a value that did not come from JSON text, a proxy, an object that throws when read. Each package has a property test that gives it arbitrary values and requires a result, and tests for the hostile inputs that once broke it.
 - An answer is bounded. A validation reports at most `MAX_ISSUES` issues (32), with paths of at most 256 characters, however many faults the input has: hostile input must not buy megabytes of output.
 
-### A check that could not be made is refused, and never kept
-
-Added in M2, after a review of `@oip/identity`.
-
-A function that judges answers and does not throw. So a failure inside it becomes a refusal, whatever failed. Two failures say nothing of the value judged:
-
-- **The call stack was all but spent.** The engine raises a `RangeError`, or refuses to compile a regular expression, at whatever call came next.
-- **The process can serialise nothing.** Other code has put a `toJSON` on every object, and the canonical form of every record would be the same. `canonicalize` and `contentId` throw `UnfitProcess` (in `@oip/schema`) there, and nothing is hashed or signed.
-
-A refusal reached so is true of the moment. A caller that asks again gets the right answer. A component that keeps answers would keep the wrong one: a book asked for a log from a deep stack refused that mind until the log changed.
-
-The rule:
-
-- Every `catch` that turns a failure into an answer first calls `noteCutShort(error)`, which counts the failure if it is one of the two.
-- Everything that keeps an answer, or builds one from answers, reads `cutShortCount()` before the work and after it. If the count moved, it refuses with the clause `implementation limit` and keeps nothing: `judgeRecord`, and `LogBook` for a copy taken in, a verdict on a log and a first sight.
-- A `RangeError` of any origin counts, and so does a failure that cannot be looked at. To refuse once more than was needed costs a second call. To keep one wrong answer costs a mind its signatures.
-
-The count is module state in `@oip/schema`, the only state the pure packages have. It says nothing of any input and is read only as a difference, so it is no channel between callers and no clock. Work that runs between two readings on other inputs can move it, for code that judges within callbacks of its own: the answer is then refused once, and never wrong.
-
 ### Exceptions are for the third kind
 
 `OipError` (M1, in `@oip/core`) is thrown when the caller or the environment is at fault:

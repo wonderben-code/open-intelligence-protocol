@@ -8,7 +8,7 @@
 
 import { contentId, type PlacedProof } from "@oip/core";
 import { type JudgedRecord, type JudgeOptions, judgeRecord } from "@oip/identity";
-import type { Validation } from "@oip/schema";
+import { judging, type Validation } from "@oip/schema";
 
 import { ok } from "./result.ts";
 
@@ -77,16 +77,23 @@ export class RecordSet implements RecordView {
    *   implement (core 8.3).
    */
   add(record: unknown): Validation<string> {
+    return judging(() => this.#add(record));
+  }
+
+  #add(record: unknown): Validation<string> {
     const judged = judgeRecord(record, this.#options);
     if (!judged.ok) return judged;
     const id = contentId(judged.value.record);
     const held = this.#records.get(id);
     if (held === undefined) {
-      this.#records.set(id, judged.value);
+      // The record is held by the last thing done. If anything before that fails, a
+      // revocation is not left held and unlisted, where taking it in again would change
+      // nothing: what is listed and not held is passed over, and listed again next time.
       const target = revoked(judged.value);
       if (target !== undefined) index(this.#revocations, target, id);
       const { type, author } = judged.value.record as { type: string; author?: unknown };
       if (type === "Collective" && typeof author === "string") index(this.#charters, author, id);
+      this.#records.set(id, judged.value);
       return ok(id);
     }
     // The same record, perhaps with proofs not seen before: each is kept, once.

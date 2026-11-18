@@ -11,15 +11,27 @@ import {
   actsFor,
   charterStatus,
   commitmentAccepted,
-  commitmentStatus,
+  commitmentStatus as commitmentStatusOf,
   countsFor,
-  intentStatus,
-  offerStatus,
+  intentStatus as intentStatusOf,
+  offerStatus as offerStatusOf,
   status,
   type WebContext,
   type WebRecords,
   WebRecordSet,
 } from "../src/index.ts";
+
+/** The value a status function answers with. A refusal here is a fault of the test. */
+function valueOf<T>(answer: { ok: true; value: T } | { ok: false; issues: unknown }): T {
+  if (!answer.ok) throw new Error(JSON.stringify(answer.issues));
+  return answer.value;
+}
+const intentStatus = (...asked: Parameters<typeof intentStatusOf>) =>
+  valueOf(intentStatusOf(...asked));
+const offerStatus = (...asked: Parameters<typeof offerStatusOf>) =>
+  valueOf(offerStatusOf(...asked));
+const commitmentStatus = (...asked: Parameters<typeof commitmentStatusOf>) =>
+  valueOf(commitmentStatusOf(...asked));
 
 type Signed = JsonObject & { proof: JsonObject[] };
 

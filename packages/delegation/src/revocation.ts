@@ -5,8 +5,10 @@
 
 import type { Instant } from "@oip/core";
 import { disregardingCompromise, type IdentityView, ownSignedTime } from "@oip/identity";
+import { judging, type Validation } from "@oip/schema";
 
 import type { RecordView } from "./records.ts";
+import { ok } from "./result.ts";
 
 /** The view a revocation is judged with, for each view asked: made once. */
 const withoutCompromise = new WeakMap<IdentityView, IdentityView>();
@@ -27,11 +29,26 @@ const withoutCompromise = new WeakMap<IdentityView, IdentityView>();
  * compromised from before one of its own revocations does not, by that,
  * give back what it took away.
  *
+ * It answers with a result, whose value is `undefined` for a delegation
+ * that is not revoked. "Not revoked" is the answer that lets a delegate
+ * act, so it is never given for a check that could not be made: the
+ * answer is then a refusal ([ADR-0010](../../../docs/adr/0010-checks-cut-short.md)).
+ *
  * @param id - The delegation's content ID.
  * @param author - The delegation's author. Nobody else's revocation counts,
  *   the root principal's of a delegation further down a chain included.
  */
 export function revokedTime(
+  id: string,
+  author: string,
+  records: RecordView,
+  identity: IdentityView,
+): Validation<Instant | undefined> {
+  return judging(() => ok(revokedAt(id, author, records, identity)));
+}
+
+/** The time, as `revokedTime` answers when no check is cut short. Not part of the interface. */
+export function revokedAt(
   id: string,
   author: string,
   records: RecordView,

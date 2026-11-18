@@ -24,7 +24,13 @@ import {
   stateAt,
   type VerifiedLog,
 } from "@oip/identity";
-import type { JsonValue, PolicyStatement, Validation } from "@oip/schema";
+import {
+  finding,
+  type JsonValue,
+  judging,
+  type PolicyStatement,
+  type Validation,
+} from "@oip/schema";
 
 import { referenced, withCopy } from "./records.ts";
 import { no, ok } from "./result.ts";
@@ -54,6 +60,11 @@ interface Charter {
  * is in force at no time from that other's completion on, so that a
  * collective can end a charter for good, whoever signs it later.
  *
+ * It answers with a result. Which charter is in force decides who may sign
+ * for the collective, and an older charter is in force only for as long as
+ * no later one is found: so the answer is never given for a check that
+ * could not be made ([ADR-0010](../../../docs/adr/0010-checks-cut-short.md)).
+ *
  * @param also - A charter given with the question, such as one a proof
  *   carries whole, besides those the verifier holds.
  * @returns The charter's content ID, or `undefined` if none is in force.
@@ -63,6 +74,16 @@ export function charterInForce(
   time: Instant,
   context: DelegationContext,
   also: readonly JudgedRecord[] = [],
+): Validation<string | undefined> {
+  return judging(() => ok(charterAt(mind, time, context, also)));
+}
+
+/** The charter, as `charterInForce` answers when no check is cut short. */
+function charterAt(
+  mind: string,
+  time: Instant,
+  context: DelegationContext,
+  also: readonly JudgedRecord[],
 ): string | undefined {
   const known = new Map<string, JudgedRecord>();
   for (const charter of [...context.records.chartersOf(mind), ...also]) {
@@ -107,6 +128,17 @@ export function charterInForce(
  * @param log - The collective's verified log.
  */
 export function roleProofTime(
+  judged: JudgedRecord,
+  proof: VerifiedProof,
+  mind: string,
+  log: VerifiedLog,
+  context: DelegationContext,
+): Validation<Instant> {
+  return judging(() => proofTimeByRole(judged, proof, mind, log, context));
+}
+
+/** The time, as `roleProofTime` answers when no check is cut short. */
+function proofTimeByRole(
   judged: JudgedRecord,
   proof: VerifiedProof,
   mind: string,
@@ -176,7 +208,7 @@ export function roleProofTime(
       "/verificationMethod",
     );
   }
-  if (charterInForce(mind, time, context, [charter]) !== contentId(charter.record)) {
+  if (charterAt(mind, time, context, [charter]) !== contentId(charter.record)) {
     return no(
       "the charter named is not the one in force at the proof's time",
       "L2 6.2",
@@ -221,13 +253,17 @@ export function roleTime(
   context: DelegationContext,
   signer?: string,
 ): Instant | undefined {
-  let earliest: Instant | undefined;
-  for (const proof of judged.proofs) {
-    if (proof.proof.authority === undefined) continue;
-    if (signer !== undefined && (proof.method.kind !== "key" || proof.method.mind !== signer))
-      continue;
-    const time = roleProofTime(judged, proof, mind, log, context);
-    if (time.ok && (earliest === undefined || time.value < earliest)) earliest = time.value;
-  }
-  return earliest;
+  // A proof whose check was cut short has not been found not to count: no time is given
+  // then, and not the time of another proof as if it were the earliest (ADR-0010).
+  return finding(() => {
+    let earliest: Instant | undefined;
+    for (const proof of judged.proofs) {
+      if (proof.proof.authority === undefined) continue;
+      if (signer !== undefined && (proof.method.kind !== "key" || proof.method.mind !== signer))
+        continue;
+      const time = proofTimeByRole(judged, proof, mind, log, context);
+      if (time.ok && (earliest === undefined || time.value < earliest)) earliest = time.value;
+    }
+    return earliest;
+  });
 }

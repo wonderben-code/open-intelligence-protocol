@@ -10,7 +10,7 @@ import { Instant } from '@oip/core';
 import { JudgedRecord } from '@oip/identity';
 import type { JudgeOptions } from '@oip/identity';
 import { RecordView } from '@oip/delegation';
-import type { Validation } from '@oip/schema';
+import { Validation } from '@oip/schema';
 import { VerifiedLog } from '@oip/identity';
 import { VerifiedProof } from '@oip/core';
 
@@ -18,7 +18,7 @@ import { VerifiedProof } from '@oip/core';
 export function actsFor(judged: JudgedRecord, signer: string, principal: string, context: DelegationContext): boolean;
 
 // @public
-export function charterInForce(mind: string, time: Instant, context: DelegationContext, also?: readonly JudgedRecord[]): string | undefined;
+export function charterInForce(mind: string, time: Instant, context: DelegationContext, also?: readonly JudgedRecord[]): Validation<string | undefined>;
 
 // @public
 export type CharterStatus = "active" | "dissolved";
@@ -33,7 +33,7 @@ export function commitmentAccepted(given: JudgedRecord, context: WebContext): bo
 export type CommitmentStatus = "proposed" | "disputed" | "accepted" | "cancelled" | "fulfilled" | "claimed-fulfilled" | "broken" | "overdue";
 
 // @public
-export function commitmentStatus(judged: JudgedRecord, at: Instant, context: WebContext): CommitmentStatus;
+export function commitmentStatus(judged: JudgedRecord, at: Instant, context: WebContext): Validation<CommitmentStatus>;
 
 // @public
 export function countsFor(judged: JudgedRecord, mind: string, context: DelegationContext): boolean;
@@ -48,13 +48,13 @@ export function evidenceMatches(item: Evidence, bytes: Uint8Array): boolean;
 export type IntentStatus = "open" | "withdrawn" | "satisfied" | "superseded" | "expired";
 
 // @public
-export function intentStatus(judged: JudgedRecord, at: Instant, context: WebContext): IntentStatus;
+export function intentStatus(judged: JudgedRecord, at: Instant, context: WebContext): Validation<IntentStatus>;
 
 // @public
 export type OfferStatus = "open" | "withdrawn" | "superseded" | "expired" | "exhausted";
 
 // @public
-export function offerStatus(judged: JudgedRecord, at: Instant, context: WebContext): OfferStatus;
+export function offerStatus(judged: JudgedRecord, at: Instant, context: WebContext): Validation<OfferStatus>;
 
 // @public
 export function referenced(ref: unknown): string | undefined;

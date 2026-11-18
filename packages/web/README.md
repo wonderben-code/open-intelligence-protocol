@@ -150,7 +150,8 @@ export function example(keys: readonly Uint8Array[]): string[] {
   const records = new WebRecordSet();
   const context = { identity, records };
   for (const log of [amina.log, firm.log, agent.log]) {
-    identity.witness(log, at("2026-11-18T08:00:01Z"), seen);
+    const looked = identity.witness(log, at("2026-11-18T08:00:01Z"), seen);
+    if (!looked.ok) throw new Error("the example's logs verify");
   }
   const lines: string[] = [];
   const steps: [what: string, record: object, when: string][] = [
@@ -165,7 +166,8 @@ export function example(keys: readonly Uint8Array[]): string[] {
     for (const log of [amina.log, firm.log, agent.log]) identity.hold(log, now);
     const taken = judgeRecord(record);
     if (!taken.ok) throw new Error("the example's records are well formed");
-    witnessProofs(taken.value, now, seen);
+    // A look that was cut short says so, and is made again at the same reading.
+    if (!witnessProofs(taken.value, now, seen).ok) throw new Error("the look was cut short");
     records.add(record);
     const of = (given: object): string => {
       const judged = records.record(contentId(given));
@@ -199,16 +201,16 @@ it counts for: Amina, the firm, the agent
 
 ## What it exports
 
-| Export                                                                           | What it does                                                                                                                                                                                      |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `signedTime`, `countsFor`                                                        | Layer 2, 7.1: the earliest evaluation time at which a record counts for a mind, by any route, or whether it does at all                                                                           |
-| `actsFor`                                                                        | Layer 2, 5.2: whether a proof by one mind on a record counts for another through a delegation or a charter role                                                                                   |
-| `charterInForce`, `roleProofTime`, `roleTime`                                    | Layer 2, 6.2 and 7.1 item 4: the charter of a collective in force at a time, and whether a member's proof counts for the collective through a role of it                                          |
-| `commitmentAccepted`                                                             | Layer 2, 7.3: whether a Commitment is accepted                                                                                                                                                    |
-| `status`, `intentStatus`, `offerStatus`, `commitmentStatus`, `charterStatus`     | Layer 2, Section 8: the status of a record at a time                                                                                                                                              |
-| `IntentStatus`, `OfferStatus`, `CommitmentStatus`, `CharterStatus`, `Status`     | The values a status takes                                                                                                                                                                         |
-| `WebRecordSet`, `WebRecords`, `WebContext`, `referenced`, `withCopy`, `withHeld` | The records a verifier holds, found by what they refer to: what supersedes a record, the Commitments that resolve it, the Receipts about it. `referenced` gives the content ID a record-ref names |
-| `evidenceMatches`, `evidenceIsChecked`                                           | Layer 2, Section 9: whether bytes a verifier fetched are the bytes an evidence item names by its digest                                                                                           |
+| Export                                                                           | What it does                                                                                                                                                                                                           |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `signedTime`, `countsFor`                                                        | Layer 2, 7.1: the earliest evaluation time at which a record counts for a mind, by any route, or whether it does at all                                                                                                |
+| `actsFor`                                                                        | Layer 2, 5.2: whether a proof by one mind on a record counts for another through a delegation or a charter role                                                                                                        |
+| `charterInForce`, `roleProofTime`, `roleTime`                                    | Layer 2, 6.2 and 7.1 item 4: the charter of a collective in force at a time, as a result whose value is `undefined` when none is, and whether a member's proof counts for the collective through a role, and from when |
+| `commitmentAccepted`                                                             | Layer 2, 7.3: whether a Commitment is accepted                                                                                                                                                                         |
+| `status`, `intentStatus`, `offerStatus`, `commitmentStatus`, `charterStatus`     | Layer 2, Section 8: the status of a record at a time, as a result                                                                                                                                                      |
+| `IntentStatus`, `OfferStatus`, `CommitmentStatus`, `CharterStatus`, `Status`     | The values a status takes                                                                                                                                                                                              |
+| `WebRecordSet`, `WebRecords`, `WebContext`, `referenced`, `withCopy`, `withHeld` | The records a verifier holds, found by what they refer to: what supersedes a record, the Commitments that resolve it, the Receipts about it. `referenced` gives the content ID a record-ref names                      |
+| `evidenceMatches`, `evidenceIsChecked`                                           | Layer 2, Section 9: whether bytes a verifier fetched are the bytes an evidence item names by its digest                                                                                                                |
 
 ## Signing for a party (Layer 2, Section 7)
 
@@ -263,4 +265,6 @@ A status is only as complete as the set. A verifier that does not hold the Recei
 ## Results and errors
 
 - **Nothing here throws on what arrives from outside.** A record that does not count gives `undefined` or `false`; `status` gives a result or a rejection with the clause.
+- **A check that was cut short is refused, and is never read as a record that is not there** ([ADR-0010](../../docs/adr/0010-checks-cut-short.md)). With the call stack all but spent, or in a process where nothing can be serialised, a check cannot be made. A status is worked out from the records that count: a withdrawal, a Receipt, a charter that supersedes another. One whose check could not be finished has not been found not to count, and leaving it out gives the status it was there to change. So every status function, `charterInForce`, `roleProofTime` and `WebRecordSet.add` answer with a result, and refuse with the clause `implementation limit`: ask again. `signedTime` and `roleTime` give no time, and `countsFor`, `actsFor` and `commitmentAccepted` say no.
 - **The arguments a caller builds itself are another matter**: a judged record that is not one, a context without a view, a time that is no time. Those are mistakes in the calling program, and a `TypeError`.
+- **With the stack really spent**, in a process of its own (`test/spent-stack.node.ts`), a status is the status or a refusal: never `open` for a withdrawn Intent, never `accepted` or `proposed` for a Commitment with a `broken` Receipt, and never the charter that a later one replaced. `test/cut-short.test.ts` makes the same faults in the runner.

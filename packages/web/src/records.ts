@@ -10,7 +10,7 @@
 import { contentId } from "@oip/core";
 import { type DelegationContext, RecordSet, type RecordView } from "@oip/delegation";
 import type { JudgedRecord, JudgeOptions } from "@oip/identity";
-import type { Validation } from "@oip/schema";
+import { judging, type Validation } from "@oip/schema";
 
 /** The records a verifier holds, as far as status (Layer 2, Section 8) asks for them. */
 export interface WebRecords extends RecordView {
@@ -90,6 +90,12 @@ export class WebRecordSet implements WebRecords {
    * @returns The record's content ID, or why the record is not held.
    */
   add(record: unknown): Validation<string> {
+    // What a record names is listed each time it is taken in, so that a listing that was
+    // cut short is made good by taking the record in again (ADR-0010).
+    return judging(() => this.#add(record));
+  }
+
+  #add(record: unknown): Validation<string> {
     const added = this.#records.add(record);
     if (!added.ok) return added;
     const id = added.value;

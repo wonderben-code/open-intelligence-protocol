@@ -29,13 +29,13 @@ import {
   ownSignedTime,
   stateAt,
 } from "@oip/identity";
-import type { Delegation, JsonValue, Validation } from "@oip/schema";
+import { type Delegation, finding, type JsonValue, judging, type Validation } from "@oip/schema";
 
 import { covers, isDelegableType, signCommand } from "./command.ts";
 import { evaluatePolicy } from "./policy.ts";
 import type { RecordView } from "./records.ts";
 import { no, ok, type Rejection } from "./result.ts";
-import { revokedTime } from "./revocation.ts";
+import { revokedAt } from "./revocation.ts";
 
 /** Layer 1, 11.4 and Section 19: the most delegations in one chain. */
 export const MAX_CHAIN = 8;
@@ -265,8 +265,8 @@ function chainHolds(
     const fallen = authorStands(delegation.author, time, evidenced, context.identity, at(index));
     if (fallen !== undefined) return fallen;
     // Item 7: not revoked by the time the proof is evaluated.
-    const revokedAt = revokedTime(id, delegation.author, context.records, context.identity);
-    if (revokedAt !== undefined && revokedAt <= time) {
+    const revoked = revokedAt(id, delegation.author, context.records, context.identity);
+    if (revoked !== undefined && revoked <= time) {
       return no(
         "the delegation was revoked before the proof that relies on it",
         "L1 11.5",
@@ -339,6 +339,17 @@ export function delegatedProofTime(
   context: DelegationContext,
   options?: DelegatedOptions,
 ): Validation<Instant> {
+  return judging(() => proofTimeThrough(judged, proof, principal, context, options));
+}
+
+/** The time, as `delegatedProofTime` answers when no check is cut short. */
+function proofTimeThrough(
+  judged: JudgedRecord,
+  proof: VerifiedProof,
+  principal: string,
+  context: DelegationContext,
+  options?: DelegatedOptions,
+): Validation<Instant> {
   const type = judged.record.type;
   const need = options?.need ?? (isDelegableType(type) ? signCommand(type) : undefined);
   if (need === undefined) {
@@ -388,17 +399,21 @@ export function delegatedTime(
   context: DelegationContext,
   options?: DelegatedOptions & { readonly signer?: string },
 ): Instant | undefined {
-  let earliest: Instant | undefined;
-  for (const proof of judged.proofs) {
-    if (proof.proof.authority === undefined) continue;
-    if (
-      options?.signer !== undefined &&
-      (proof.method.kind !== "key" || proof.method.mind !== options.signer)
-    ) {
-      continue;
+  // A proof whose check was cut short has not been found not to count: no time is given
+  // then, and not the time of another proof as if it were the earliest (ADR-0010).
+  return finding(() => {
+    let earliest: Instant | undefined;
+    for (const proof of judged.proofs) {
+      if (proof.proof.authority === undefined) continue;
+      if (
+        options?.signer !== undefined &&
+        (proof.method.kind !== "key" || proof.method.mind !== options.signer)
+      ) {
+        continue;
+      }
+      const time = proofTimeThrough(judged, proof, principal, context, options);
+      if (time.ok && (earliest === undefined || time.value < earliest)) earliest = time.value;
     }
-    const time = delegatedProofTime(judged, proof, principal, context, options);
-    if (time.ok && (earliest === undefined || time.value < earliest)) earliest = time.value;
-  }
-  return earliest;
+    return earliest;
+  });
 }

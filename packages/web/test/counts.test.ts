@@ -19,12 +19,19 @@ import { describe, expect, it } from "vitest";
 
 import {
   actsFor,
-  charterInForce,
+  charterInForce as charterInForceOf,
   countsFor,
   roleProofTime,
   roleTime,
   signedTime,
 } from "../src/index.ts";
+
+/** The charter in force, or `undefined`: the value `charterInForce` answers with. */
+function charterInForce(...asked: Parameters<typeof charterInForceOf>): string | undefined {
+  const answer = charterInForceOf(...asked);
+  if (!answer.ok) throw new Error(JSON.stringify(answer.issues));
+  return answer.value;
+}
 
 type Signed = JsonObject & { proof: JsonObject[] };
 

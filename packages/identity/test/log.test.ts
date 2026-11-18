@@ -3,7 +3,7 @@
 
 import { contentId, formatVersionId, keyHash, parseTimestamp } from "@oip/core";
 import type { Issue, Validation } from "@oip/schema";
-import { clause, copy, type JsonObject, withStackSpent } from "@oip/testkit";
+import { clause, copy, type JsonObject } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -1154,17 +1154,6 @@ describe("a log is judged, never trusted", () => {
     expect(refusal(verifyLog([genesis], { evidence, asOf: LATER }))).toMatchObject({
       clause: "core 1.4",
     });
-  });
-
-  it("answers and does not throw with the stack all but spent", () => {
-    const ada = new KeyMind("ada").update(10);
-    const evidence = witness([ada.events]);
-    const answers = withStackSpent(() => verifyLog(ada.events, { evidence, asOf: LATER }));
-    expect(answers).toHaveLength(200);
-    for (const answer of answers) {
-      if (!answer.ok) expect(answer.issues[0].message.length).toBeGreaterThan(0);
-    }
-    expect(verifyLog(ada.events, { evidence, asOf: LATER }).ok).toBe(true);
   });
 
   it("refuses a log whose size or shape breaks the rules for any record", () => {

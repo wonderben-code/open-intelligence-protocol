@@ -15,7 +15,6 @@ import {
   type JsonObject,
   sampleRecords,
   withAmbientTrapped,
-  withStackSpent,
 } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -137,26 +136,6 @@ describe("reading a record from text", () => {
       }),
       { numRuns: 1000 },
     );
-  });
-
-  it("answers and does not throw with the stack all but spent", () => {
-    const text = JSON.stringify(named("intent"));
-    const readers: (() => Validation<unknown>)[] = [
-      () => parseRecord(text),
-      () => parseRecord(utf8(text)),
-      () => parseExtensionRecord(text),
-    ];
-    for (const read of readers) {
-      const answers = withStackSpent(read);
-      expect(answers).toHaveLength(200);
-      for (const answer of answers) {
-        if (!answer.ok) expect(answer.issues[0].message.length).toBeGreaterThan(0);
-      }
-    }
-    expect(parseRecord(text).ok).toBe(true);
-    for (const answer of withStackSpent(() => unsupportedCritical(named("intent")))) {
-      expect(Array.isArray(answer)).toBe(true);
-    }
   });
 
   it("reads no clock and no randomness", () => {

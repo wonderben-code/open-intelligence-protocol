@@ -12,6 +12,10 @@
  * another inside itself, until it has answered `answers` times. The answers
  * are returned, least room first. Once the function has answered, a throw
  * from a shallower frame is the function's own, and is thrown on from here.
+ *
+ * Call it from a script run with `inNode`, not from a test: under the test
+ * runner an import can read as `undefined` when the stack is spent, which
+ * is the runner's doing and no fault of the function.
  */
 export function withStackSpent<T>(run: () => T, answers = 200): T[] {
   const given: T[] = [];

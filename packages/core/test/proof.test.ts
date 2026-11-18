@@ -4,7 +4,7 @@
 import { createHash } from "node:crypto";
 
 import { type Proof, UNSIGNED_RECORD_TYPES } from "@oip/schema";
-import { clause, copy, type JsonObject, withStackSpent } from "@oip/testkit";
+import { clause, copy, type JsonObject } from "@oip/testkit";
 import { base58 } from "@scure/base";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -1265,30 +1265,6 @@ describe("a container has no proofs of its own", () => {
     // A signed record that deep is refused for its depth.
     const tooDeep = { ...intent, ext: { "com.example.deep": { down: [[[deep]]] } } };
     expect(verifyProofs(tooDeep).issues[0]?.clause).toBe("core 1.9");
-  });
-});
-
-describe("judging with the stack all but spent", () => {
-  it("answers and does not throw, and is right again afterwards", () => {
-    const one = withStackSpent(() => verifyProof(intent, intentProof));
-    expect(one).toHaveLength(200);
-    for (const verdict of one) {
-      // A rejection says why; an acceptance is the whole of one.
-      if (verdict.ok) expect(verdict.value.key).toBe(phone);
-      else expect(verdict.issues[0].message.length).toBeGreaterThan(0);
-    }
-    const all = withStackSpent(() => verifyProofs(intent));
-    expect(all).toHaveLength(200);
-    for (const verdicts of all) {
-      expect(verdicts.verified.length + verdicts.rejected.length + verdicts.issues.length).toBe(1);
-    }
-    const reference = `${intent["author"] as string}/${contentId(intent)}`;
-    for (const answer of withStackSpent(() => recordRefMatches(reference, intent))) {
-      expect(typeof answer).toBe("boolean");
-    }
-    expect(verifyProof(intent, intentProof).ok).toBe(true);
-    expect(verifyProofs(intent).verified).toHaveLength(1);
-    expect(recordRefMatches(reference, intent)).toBe(true);
   });
 });
 

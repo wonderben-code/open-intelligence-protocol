@@ -1187,31 +1187,35 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
       expect(made.length).toBeGreaterThan(10);
     });
 
-    it("generates chains that count and chains that do not, for each thing done to them", () => {
-      const sample = fc.sample(chainPlan, { numRuns: 300, seed: 5 });
-      const counted = new Map<Twist, [counts: number, not: number]>();
-      for (const plan of sample) {
-        const holds = claimHolds(referenceAdapter, vectors, chainCase(plan)) === true;
-        for (const twist of plan.twists) {
-          const tallied = counted.get(twist) ?? [0, 0];
-          counted.set(twist, tallied);
-          tallied[holds ? 0 : 1]++;
+    it(
+      "generates chains that count and chains that do not, for each thing done to them",
+      () => {
+        const sample = fc.sample(chainPlan, { numRuns: 300, seed: 5 });
+        const counted = new Map<Twist, [counts: number, not: number]>();
+        for (const plan of sample) {
+          const holds = claimHolds(referenceAdapter, vectors, chainCase(plan)) === true;
+          for (const twist of plan.twists) {
+            const tallied = counted.get(twist) ?? [0, 0];
+            counted.set(twist, tallied);
+            tallied[holds ? 0 : 1]++;
+          }
         }
-      }
-      // An untouched chain counts and does not, by the amount and by who is asked.
-      expect(counted.get("nothing")?.[0]).toBeGreaterThan(3);
-      expect(counted.get("nothing")?.[1]).toBeGreaterThan(3);
-      // Every twist is reached, and those that leave a chain valid leave some counting.
-      for (const twist of TWISTS) expect(counted.get(twist), twist).toBeDefined();
-      for (const twist of [
-        "at its start",
-        "at its end",
-        "revoked after",
-        "revoked by another",
-      ] as const) {
-        expect(counted.get(twist)?.[0], twist).toBeGreaterThan(0);
-      }
-    });
+        // An untouched chain counts and does not, by the amount and by who is asked.
+        expect(counted.get("nothing")?.[0]).toBeGreaterThan(3);
+        expect(counted.get("nothing")?.[1]).toBeGreaterThan(3);
+        // Every twist is reached, and those that leave a chain valid leave some counting.
+        for (const twist of TWISTS) expect(counted.get(twist), twist).toBeDefined();
+        for (const twist of [
+          "at its start",
+          "at its end",
+          "revoked after",
+          "revoked by another",
+        ] as const) {
+          expect(counted.get(twist)?.[0], twist).toBeGreaterThan(0);
+        }
+      },
+      TIMEOUT,
+    );
 
     it(
       "agrees with it, and with the rule, on each thing done alone to a chain that counts",

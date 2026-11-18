@@ -8,6 +8,19 @@
  * @packageDocumentation
  */
 
+export {
+  ConfigError,
+  type ConfigOf,
+  describeConfig,
+  flag,
+  integer,
+  list,
+  origin,
+  readConfig,
+  type Setting,
+  type Settings,
+  text,
+} from "./config.ts";
 export { type Clock, type Randomness, systemClock, systemRandomness } from "./edges.ts";
 export {
   DEFAULT_FETCH_LIMITS,

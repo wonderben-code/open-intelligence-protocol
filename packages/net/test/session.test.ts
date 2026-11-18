@@ -491,6 +491,44 @@ describe(`${clause("L1 12.4")} a session packet older than the receiver remember
   });
 });
 
+describe(`${clause("L1 14.3", "L1 14.4")} a gap, repaired by a Resume`, () => {
+  it("is detected by the receiver, said in a Resume, and filled by what the sender sends again", () => {
+    // Ada sends five packets. The second and the third are lost on the way to Bob.
+    const sent = chainOf(ada, 5);
+    const sessions = new Sessions(bob.address);
+    const delivered: string[] = [];
+    const arrive = (packet: object) => {
+      const placed = take(sessions, packet);
+      if ("delivered" in placed) delivered.push(...ids(placed.delivered));
+      return placed;
+    };
+    arrive(sent[0]!);
+    // The fourth arrives: Bob sees the gap, keeps the packet, and treats nothing after the
+    // first as in order.
+    expect(arrive(sent[3]!)).toStrictEqual({ kind: "waiting", next: 1 });
+    expect(arrive(sent[4]!)).toStrictEqual({ kind: "waiting", next: 1 });
+    expect(delivered).toStrictEqual([contentId(sent[0] as object)]);
+
+    // Bob says where each chain stands for him.
+    const resume = sessions.resume(sid, undefined, T(60))!;
+    expect(resume.lastReceived).toStrictEqual([
+      { mind: ada.address, seq: 0, packet: contentId(sent[0] as object) },
+    ]);
+
+    // Ada checks the Resume against what she sent, and sends again from where Bob stands.
+    const own = { address: ada.address, sent: sent.map((packet) => contentId(packet)) };
+    const from = lacking(resume, own);
+    expect(from).toStrictEqual({ ok: true, value: 1 });
+    for (const packet of sent.slice(from.ok ? from.value : 0)) arrive(packet);
+
+    // Every packet was delivered to Bob once, in the order Ada sent them.
+    expect(delivered).toStrictEqual(sent.map((packet) => contentId(packet)));
+    // And Bob now stands where Ada does.
+    const after = sessions.resume(sid, undefined, T(70))!;
+    expect(lacking(after, own)).toStrictEqual({ ok: true, value: 5 });
+  });
+});
+
 describe(`${clause("L1 14.4")} a Resume`, () => {
   const mine = chainOf(ada, 3);
   const cys = chainOf(cy, 2);

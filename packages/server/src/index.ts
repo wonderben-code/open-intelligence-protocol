@@ -43,6 +43,16 @@ export {
 } from "./http.ts";
 export { type Address, inRange, isPublicAddress, parseAddress } from "./ip.ts";
 export { type Fields, type FieldValue, type Level, Log, type LogOptions } from "./log.ts";
+export {
+  type Counter,
+  DURATION_BUCKETS,
+  type Gauge,
+  type Histogram,
+  type Labels,
+  MAX_SERIES,
+  Metrics,
+  METRICS_MEDIA_TYPE,
+} from "./metrics.ts";
 export { addressKey, type Allowance, type RateLimit, RateLimiter } from "./rate.ts";
 export {
   appendOnly,

@@ -20,6 +20,7 @@ export {
   type IdentityView,
   LogBook,
   type LogBookOptions,
+  type ReadingOptions,
 } from "./book.ts";
 export {
   draftFork,

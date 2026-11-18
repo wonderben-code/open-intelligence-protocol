@@ -12,7 +12,7 @@ import type { Participant, Validation } from "@oip/schema";
 
 import type { VerifiedFeed } from "./feed.ts";
 import type { HeldLocation } from "./location.ts";
-import { no, ok } from "./result.ts";
+import { finding, judging, no, ok } from "./result.ts";
 
 /** A profile that counts for its mind. */
 export interface HeldParticipant {
@@ -39,6 +39,11 @@ export function verifyParticipant(
   judged: JudgedRecord,
   view: IdentityView,
 ): Validation<HeldParticipant> {
+  return judging(() => participantOf(judged, view));
+}
+
+/** The profile, as `verifyParticipant` answers when no check is cut short. */
+function participantOf(judged: JudgedRecord, view: IdentityView): Validation<HeldParticipant> {
   if (judged.record.type !== "Participant") {
     return no("the record is not a Participant", "L1 16.1", "/type");
   }
@@ -84,6 +89,16 @@ export function currentParticipant(
   view: IdentityView,
   sources: ProfileSources,
 ): HeldParticipant | undefined {
+  return finding(() => participantAmong(profiles, mind, view, sources));
+}
+
+/** The current profile, as `currentParticipant` answers when no check is cut short. */
+function participantAmong(
+  profiles: Iterable<JudgedRecord>,
+  mind: string,
+  view: IdentityView,
+  sources: ProfileSources,
+): HeldParticipant | undefined {
   const held = new Map<string, JudgedRecord>();
   for (const judged of profiles) {
     const { type, author } = judged.record as { type: string; author?: unknown };
@@ -92,7 +107,7 @@ export function currentParticipant(
   /** The profile with this content ID, if it is held and counts. */
   const counted = (id: string | undefined): HeldParticipant | undefined => {
     const judged = id === undefined ? undefined : held.get(id);
-    const verified = judged && verifyParticipant(judged, view);
+    const verified = judged && participantOf(judged, view);
     return verified?.ok === true ? verified.value : undefined;
   };
   const { location, feed } = sources;

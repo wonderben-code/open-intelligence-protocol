@@ -22,7 +22,7 @@ import {
 import type { Checkpoint, Entry, Issue, Validation } from "@oip/schema";
 
 import { checkpointRoot } from "./merkle.ts";
-import { no, ok } from "./result.ts";
+import { finding, judging, no, ok } from "./result.ts";
 
 /** One entry of a feed that has verified. */
 export interface FeedEntry {
@@ -84,6 +84,16 @@ interface Candidate {
  * @param view - The identity logs held, and the evidence of time.
  */
 export function verifyFeed(
+  entries: unknown,
+  author: string,
+  view: IdentityView,
+  options?: JudgeOptions,
+): Validation<VerifiedFeed> {
+  return judging(() => feedOf(entries, author, view, options));
+}
+
+/** The feed, as `verifyFeed` answers when no check is cut short. */
+function feedOf(
   entries: unknown,
   author: string,
   view: IdentityView,
@@ -190,6 +200,15 @@ export function verifyCheckpoint(
   feed: VerifiedFeed,
   view: IdentityView,
 ): Validation<CoveredFeed> {
+  return judging(() => checkpointOver(checkpoint, feed, view));
+}
+
+/** The checkpoint against its feed, as `verifyCheckpoint` answers when no check is cut short. */
+function checkpointOver(
+  checkpoint: JudgedRecord,
+  feed: VerifiedFeed,
+  view: IdentityView,
+): Validation<CoveredFeed> {
   if (checkpoint.record.type !== "Checkpoint") {
     return no("the record is not a Checkpoint", "L1 10.5", "/type");
   }
@@ -235,6 +254,11 @@ export function verifyCheckpoint(
  *   that verify. Or `undefined` if the entry is not about this record.
  */
 export function committedProofs(entry: Entry, record: JudgedRecord): string[] | undefined {
+  return finding(() => proofsCommitted(entry, record));
+}
+
+/** The proofs an entry commits to, as `committedProofs` answers when no check is cut short. */
+function proofsCommitted(entry: Entry, record: JudgedRecord): string[] | undefined {
   if (entry.object !== contentId(record.record) || entry.objectType !== record.record.type) {
     return undefined;
   }

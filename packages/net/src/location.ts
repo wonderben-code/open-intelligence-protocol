@@ -10,6 +10,8 @@ import { contentId, type Instant } from "@oip/core";
 import { type IdentityView, type JudgedRecord, ownSignedTime } from "@oip/identity";
 import type { Endpoint, Location } from "@oip/schema";
 
+import { finding } from "./result.ts";
+
 /** A location record that counts for its mind. */
 export interface HeldLocation {
   /** The record's content ID. */
@@ -35,6 +37,15 @@ export interface HeldLocation {
  * @returns `undefined` if no record held counts.
  */
 export function currentLocation(
+  records: Iterable<JudgedRecord>,
+  mind: string,
+  view: IdentityView,
+): HeldLocation | undefined {
+  return finding(() => locationAmong(records, mind, view));
+}
+
+/** The current location record, as `currentLocation` answers when no check is cut short. */
+function locationAmong(
   records: Iterable<JudgedRecord>,
   mind: string,
   view: IdentityView,

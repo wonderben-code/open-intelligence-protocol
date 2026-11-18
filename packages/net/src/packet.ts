@@ -27,7 +27,7 @@ import {
 import type { Forwarded, Packet, Validation } from "@oip/schema";
 
 import { packetDates } from "./dates.ts";
-import { no, ok, under } from "./result.ts";
+import { judging, no, ok, under } from "./result.ts";
 
 /** A sending chain of a session (Layer 1, 14.3): one instance of one participant. */
 export interface SendingChain {
@@ -130,6 +130,11 @@ export interface ReceivedPacket {
  * @param value - What arrived, as parsed.
  */
 export function receivePacket(value: unknown, receiver: Receiver): Validation<ReceivedPacket> {
+  return judging(() => received(value, receiver));
+}
+
+/** The packet, as `receivePacket` answers when no check is cut short. */
+function received(value: unknown, receiver: Receiver): Validation<ReceivedPacket> {
   if (typeof (receiver.now as unknown) !== "bigint") throw new TypeError("now is not a time");
   if (typeof (receiver.window as unknown) !== "bigint") {
     throw new TypeError("the window is a duration in nanoseconds, a bigint");

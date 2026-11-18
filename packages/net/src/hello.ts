@@ -23,7 +23,7 @@ import {
 } from "@oip/identity";
 import type { Validation } from "@oip/schema";
 
-import { no, ok } from "./result.ts";
+import { judging, no, ok } from "./result.ts";
 
 /** A server's memory of the challenges it has issued and not yet seen answered. */
 export interface IssuedChallenges {
@@ -90,6 +90,15 @@ export function verifyHello(value: unknown, server: HelloServer): Validation<Aut
   if (typeof (server.origin as unknown) !== "string") {
     throw new TypeError("a server's origin is a string");
   }
+  const answer = judging(() => authenticated(value, server));
+  // The challenge is used up last, by an answer that stands: a check that was cut short uses
+  // nothing (ADR-0004).
+  if (answer.ok) server.challenges.use(answer.value.challenge);
+  return answer;
+}
+
+/** The mind a `Hello` authenticates, as `verifyHello` answers when no check is cut short. */
+function authenticated(value: unknown, server: HelloServer): Validation<Authenticated> {
   const judged = judgeRecord(
     value,
     server.understood === undefined ? undefined : { understood: server.understood },
@@ -144,7 +153,6 @@ export function verifyHello(value: unknown, server: HelloServer): Validation<Aut
       "/proof/0",
     );
   }
-  server.challenges.use(challenge);
   return ok({ mind: record.author, challenge, key: verified.key });
 }
 

@@ -31,7 +31,7 @@ import {
 } from "@oip/schema";
 
 import type { ReceivedPacket, SendingChain } from "./packet.ts";
-import { no, ok } from "./result.ts";
+import { finding, judging, no, ok } from "./result.ts";
 
 /** core 10.1: the media type with which a packet's content is a record (Layer 1, 12.2). */
 const RECORD = "application/oip+json";
@@ -53,15 +53,18 @@ export function recordsCarried<T extends "Session" | "Resume" | "Branch">(
     readonly body?: unknown;
     readonly parts?: readonly { readonly mediaType?: string; readonly body?: unknown }[];
   };
-  const found: unknown[] = [];
-  // The content is one body, or has parts, each of which may be one (12.2).
-  for (const part of content.parts ?? [content]) {
-    if (part.mediaType !== RECORD) continue;
-    // A part that names its content by reference has no body, and no record is read from it.
-    const record = validateRecordOfType(type, part.body);
-    if (record.ok) found.push(record.value);
-  }
-  return found as Extract<Session | Resume | Branch, { type: T }>[];
+  const carried = finding(() => {
+    const found: unknown[] = [];
+    // The content is one body, or has parts, each of which may be one (12.2).
+    for (const part of content.parts ?? [content]) {
+      if (part.mediaType !== RECORD) continue;
+      // A part that names its content by reference has no body, and no record is read from it.
+      const record = validateRecordOfType(type, part.body);
+      if (record.ok) found.push(record.value);
+    }
+    return found;
+  });
+  return (carried ?? []) as Extract<Session | Resume | Branch, { type: T }>[];
 }
 
 /**
@@ -70,7 +73,9 @@ export function recordsCarried<T extends "Session" | "Resume" | "Branch">(
  */
 export function sessionCarried(packet: Packet): Session | undefined {
   if (packet.session === undefined) return undefined;
-  return recordsCarried(packet, "Session").find((record) => contentId(record) === packet.session);
+  return finding(() =>
+    recordsCarried(packet, "Session").find((record) => contentId(record) === packet.session),
+  );
 }
 
 /**
@@ -156,7 +161,28 @@ const chainKey = (from: string, instance: string | undefined): string =>
   // instance (14.3), and not the instance named by the empty string.
   instance === undefined ? from : `${from} ${instance}`;
 
-const sortedPair = (a: string, b: string): [string, string] => (a < b ? [a, b] : [b, a]);
+/** Two packets at one place of a chain, named in the order of their content IDs. */
+const equivocationAt = (seq: number, a: string, b: string): ChainEquivocation => ({
+  kind: "equivocation",
+  seq,
+  packets: a < b ? [a, b] : [b, a],
+});
+
+/** Marks a chain as equivocated. Nothing of it is in order after that, so nothing waits for it. */
+function equivocated(chain: Chain, found: ChainEquivocation): void {
+  chain.equivocation = found;
+  chain.waiting.clear();
+  chain.waits = 0;
+}
+
+/** What `take` answers, and what it keeps once the answer stands. */
+interface Plan {
+  readonly answer: Validation<Placed>;
+  readonly keep: (() => void) | undefined;
+}
+
+const plan = (placed: Placed, keep?: () => void): Validation<Plan> =>
+  ok({ answer: ok(placed), keep });
 
 /**
  * Layer 1, 14.2 and 14.3: the sessions one participant follows, and where
@@ -244,15 +270,26 @@ export class Sessions {
    *   accepted it before does not matter here.
    */
   take(received: ReceivedPacket): Validation<Placed> {
+    // The answer and what to keep are worked out first. Nothing is kept of an answer reached
+    // while a check was cut short (ADR-0004).
+    const planned = judging(() => this.#place(received));
+    if (!planned.ok) return planned;
+    planned.value.keep?.();
+    return planned.value.answer;
+  }
+
+  /** What `take` answers for a packet, and what it then keeps. It changes nothing itself. */
+  #place(received: ReceivedPacket): Validation<Plan> {
     const { packet, id } = received;
-    if (packet.session === undefined || packet.seq === undefined) {
+    const { session: sessionId, seq, from } = packet;
+    if (sessionId === undefined || seq === undefined) {
       return no("the packet names no session", "L1 14.3", "/session");
     }
     if (!Array.isArray(packet.to)) {
       return no("a packet in a session is addressed to its participants", "L1 14.3", "/to");
     }
-    const carried = this.#held.has(packet.session) ? undefined : sessionCarried(packet);
-    const session = this.#held.get(packet.session)?.session ?? carried;
+    const held = this.#held.get(sessionId);
+    const session = held?.session ?? sessionCarried(packet);
     if (session === undefined) {
       return no(
         "the receiver does not hold the Session record of this session, and the packet does not carry it",
@@ -260,39 +297,40 @@ export class Sessions {
         "/content",
       );
     }
-    if (!session.participants.includes(packet.from)) {
+    if (!session.participants.includes(from)) {
       return no("the sender is not a participant of the session", "L1 14.3", "/from");
     }
     if (!session.participants.includes(this.#self)) {
       return no("the receiver is not a participant of the session", "L1 14.3", "/session");
     }
     const to = packet.to as readonly string[];
-    if (!session.participants.every((mind) => mind === packet.from || to.includes(mind))) {
+    if (!session.participants.every((mind) => mind === from || to.includes(mind))) {
       return no("`to` does not list every other participant of the session", "L1 14.3", "/to");
     }
-    if (packet.seq === 0 && packet.prev !== undefined) {
+    if (seq === 0 && packet.prev !== undefined) {
       return no("the first packet of a chain names none before it", "L1 14.3", "/prev");
     }
-    let held = this.#held.get(packet.session);
-    const key = chainKey(packet.from, packet.instance);
-    let chain = held?.chains.get(key);
-    if (chain?.equivocation !== undefined) return ok(chain.equivocation);
-    const there = chain?.ids[packet.seq];
+    const key = chainKey(from, packet.instance);
+    const chain = held?.chains.get(key);
+    if (chain?.equivocation !== undefined) return plan(chain.equivocation);
+    const there = chain?.ids[seq];
     if (chain !== undefined && there !== undefined) {
       // A place the chain has filled: the same packet again, another link, or no link at all.
-      if (there === id) return ok({ kind: "duplicate" });
-      if (packet.seq > 0 && chain.ids[packet.seq - 1] !== packet.prev) {
+      if (there === id) return plan({ kind: "duplicate" });
+      if (seq > 0 && chain.ids[seq - 1] !== packet.prev) {
         return no("`prev` is not the packet before this one in its chain", "L1 14.3", "/prev");
       }
-      return ok(this.#equivocated(chain, packet.seq, there, id));
+      const found = equivocationAt(seq, there, id);
+      return plan(found, () => {
+        equivocated(chain, found);
+      });
     }
     const next = chain?.ids.length ?? 0;
-    if (packet.seq === next && next > 0 && chain?.ids[next - 1] !== packet.prev) {
+    if (seq === next && next > 0 && chain?.ids[next - 1] !== packet.prev) {
       return no("`prev` is not the packet before this one in its chain", "L1 14.3", "/prev");
     }
-    if (packet.seq > next) {
-      const waitingHere = chain?.waiting.get(packet.seq);
-      if (waitingHere?.has(id) !== true && (chain?.waits ?? 0) >= this.#maxWaiting) {
+    if (seq > next && chain?.waiting.get(seq)?.has(id) !== true) {
+      if ((chain?.waits ?? 0) >= this.#maxWaiting) {
         return no(
           `the packet is ahead of a gap, and ${this.#maxWaiting} packets of its chain wait already`,
           IMPLEMENTATION_LIMIT,
@@ -300,82 +338,93 @@ export class Sessions {
         );
       }
     }
-    if (chain === undefined && (held?.instances.get(packet.from) ?? 0) >= this.#maxInstances) {
+    if (chain === undefined && (held?.instances.get(from) ?? 0) >= this.#maxInstances) {
       return no(
         `the sender has ${this.#maxInstances} sending chains in this session already`,
         IMPLEMENTATION_LIMIT,
         "/instance",
       );
     }
-    // The packet has a place, or may have one: from here on something is kept.
-    if (held === undefined) {
-      if (this.#held.size >= this.#maxSessions) {
-        return no(
-          `the receiver follows ${this.#maxSessions} sessions already`,
-          IMPLEMENTATION_LIMIT,
-          "/session",
-        );
-      }
-      held = { session, chains: new Map(), instances: new Map() };
-      this.#held.set(packet.session, held);
+    if (held === undefined && this.#held.size >= this.#maxSessions) {
+      return no(
+        `the receiver follows ${this.#maxSessions} sessions already`,
+        IMPLEMENTATION_LIMIT,
+        "/session",
+      );
     }
-    if (chain === undefined) {
-      held.instances.set(packet.from, (held.instances.get(packet.from) ?? 0) + 1);
-      chain = {
-        from: packet.from,
-        instance: packet.instance,
-        ids: [],
-        waiting: new Map(),
-        waits: 0,
-        equivocation: undefined,
-      };
-      held.chains.set(key, chain);
-    }
-    if (packet.seq > next) {
-      let here = chain.waiting.get(packet.seq);
-      if (here === undefined) {
-        here = new Map();
-        chain.waiting.set(packet.seq, here);
-      }
-      if (!here.has(id)) {
-        here.set(id, received);
-        chain.waits++;
-      }
-      return ok({ kind: "waiting", next });
+    // The packet has a place, or may have one, and something is kept of it.
+    const open = (): Chain => this.#open(sessionId, session, key, from, packet.instance);
+    if (seq > next) {
+      return plan({ kind: "waiting", next }, () => {
+        const kept = open();
+        let here = kept.waiting.get(seq);
+        if (here === undefined) {
+          here = new Map();
+          kept.waiting.set(seq, here);
+        }
+        if (!here.has(id)) {
+          here.set(id, received);
+          kept.waits++;
+        }
+      });
     }
     // The next link. Those that waited on it follow, for as long as exactly one fits.
     const delivered: ReceivedPacket[] = [received];
-    chain.ids.push(id);
-    for (;;) {
-      const seq = chain.ids.length;
-      const here = chain.waiting.get(seq);
+    const taken: string[] = [id];
+    const consumed: number[] = [];
+    let found: ChainEquivocation | undefined;
+    for (let head = id, place = next + 1; ; place++) {
+      const here = chain?.waiting.get(place);
       if (here === undefined) break;
-      chain.waiting.delete(seq);
-      chain.waits -= here.size;
-      const head = chain.ids[seq - 1];
+      consumed.push(place);
       const links = [...here.values()].filter((waited) => waited.packet.prev === head);
       const [only, other] = links;
       // None fits: the place is open still, and what waited for it was no link.
       if (only === undefined) break;
       if (other !== undefined) {
-        // The links at this place in the order of their content IDs, so that every receiver
-        // names the same two whatever order they came in.
+        // The first two links at this place in the order of their content IDs, so that every
+        // receiver names the same two whatever order they came in.
         const [first, second] = links.map((link) => link.id).sort() as [string, string];
-        this.#equivocated(chain, seq, first, second);
+        found = equivocationAt(place, first, second);
         break;
       }
-      chain.ids.push(only.id);
       delivered.push(only);
+      taken.push(only.id);
+      head = only.id;
     }
-    return ok({ kind: "in order", delivered, equivocation: chain.equivocation });
+    return plan({ kind: "in order", delivered, equivocation: found }, () => {
+      const kept = open();
+      // What waited goes first, and the links last. If anything fails on the way, the packet
+      // is not yet taken, and it is taken when it comes again.
+      for (const place of consumed) {
+        kept.waits -= kept.waiting.get(place)?.size ?? 0;
+        kept.waiting.delete(place);
+      }
+      kept.ids.push(...taken);
+      if (found !== undefined) equivocated(kept, found);
+    });
   }
 
-  #equivocated(chain: Chain, seq: number, a: string, b: string): ChainEquivocation {
-    chain.equivocation = { kind: "equivocation", seq, packets: sortedPair(a, b) };
-    // Nothing of the chain is in order after this, so nothing waits for it.
-    chain.waiting.clear();
-    chain.waits = 0;
-    return chain.equivocation;
+  /** The chain a packet belongs to, opened if it is the first of its chain or of its session. */
+  #open(
+    id: string,
+    session: Session,
+    key: string,
+    from: string,
+    instance: string | undefined,
+  ): Chain {
+    let held = this.#held.get(id);
+    if (held === undefined) {
+      held = { session, chains: new Map(), instances: new Map() };
+      this.#held.set(id, held);
+    }
+    let chain = held.chains.get(key);
+    if (chain === undefined) {
+      held.instances.set(from, (held.instances.get(from) ?? 0) + 1);
+      chain = { from, instance, ids: [], waiting: new Map(), waits: 0, equivocation: undefined };
+      held.chains.set(key, chain);
+    }
+    return chain;
   }
 
   /** Layer 1, 14.3: the equivocation found in a chain, if any. */

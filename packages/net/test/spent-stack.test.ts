@@ -22,6 +22,7 @@ const report = inNode(new URL("./spent-stack.node.ts", import.meta.url)) as {
     readonly deliveredOnce: boolean;
     readonly delivered: number;
   };
+  readonly acks: { readonly evidence: Tally; readonly after: string; readonly verified: Tally };
   readonly packets: { readonly received: Tally; readonly after: string };
   readonly feeds: { readonly verified: Tally; readonly after: string };
   readonly locations: { readonly current: Tally; readonly after: string };
@@ -73,6 +74,16 @@ describe(`${clause("core 4.4")} judging with the stack all but spent`, () => {
     expect(total(report.locations.current)).toBe(200);
     expect(others(report.locations.current, "seq 1", "none")).toStrictEqual([]);
     expect(report.locations.after).toBe("seq 1");
+  });
+
+  it("takes an Ack as evidence for every proof it covers or for none, and never for some", () => {
+    expect(total(report.acks.evidence)).toBe(200);
+    expect(others(report.acks.evidence, "2 proofs", "none")).toStrictEqual([]);
+    expect(report.acks.after).toBe("2 proofs");
+    expect(total(report.acks.verified)).toBe(200);
+    expect(others(report.acks.verified, "signed", "refused: implementation limit")).toStrictEqual(
+      [],
+    );
   });
 
   it("authenticates a Hello once, and uses its challenge up only then", () => {

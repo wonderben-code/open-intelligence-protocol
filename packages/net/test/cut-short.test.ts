@@ -24,15 +24,19 @@ import { describe, expect, it } from "vitest";
 
 import {
   AcceptedPackets,
+  ackEvidence,
+  acknowledges,
   Challenges,
   checkpointRoot,
   committedProofs,
   currentLocation,
   currentParticipant,
+  draftAck,
   receivePacket,
   recordsCarried,
   sessionCarried,
   Sessions,
+  verifyAck,
   verifyCheckpoint,
   verifyFeed,
   verifyHello,
@@ -301,6 +305,75 @@ describe(`${clause("core 4.4")} a check that was cut short, for a Hello`, () => 
     cut.now = false;
     expect(verifyHello(hello, server).ok).toBe(true);
     expect(challenges.size).toBe(0);
+  });
+});
+
+describe(`${clause("core 4.4")} a check that was cut short, for an acknowledgement`, () => {
+  it("is no Ack refused for its signature, and no evidence for some proofs and not others", () => {
+    const { view, cut, seen } = cutting();
+    const packet = ada.sign({
+      oip: "1",
+      type: "Packet",
+      from: ada.address,
+      to: [bob.address],
+      created: T(10),
+      expires: T(3610),
+      nonce: "nonce-0001",
+      purpose: { verb: "propose" },
+      content: { mediaType: RECORD, body: intent(5) },
+    });
+    const got = receivePacket(packet, {
+      address: bob.address,
+      now: at(20),
+      view,
+      seen,
+      accepted: () => false,
+      window: 3_600_000_000_000n,
+    });
+    if (!got.ok) throw new Error(JSON.stringify(got.issues));
+    const ack = bob.sign(
+      draftAck({ received: got.value, recipient: bob.address, at: T(20), created: T(21) }),
+    );
+    cut.now = true;
+    expect(verifyAck(ack, { view, seen, now: at(30) })).toMatchObject(SPENT);
+    cut.now = false;
+    const held = verifyAck(ack, { view, seen, now: at(30) });
+    if (!held.ok) throw new Error(JSON.stringify(held.issues));
+    expect(ackEvidence(held.value, got.value.judged)?.proofs).toHaveLength(2);
+    // Where nothing is hashed, nothing is acknowledged and nothing is evidence.
+    expect(unfit(() => acknowledges(held.value, got.value.judged))).toBe(false);
+    expect(unfit(() => ackEvidence(held.value, got.value.judged))).toBeUndefined();
+
+    // A check cut short while the proofs of the record the packet carries are verified. The
+    // carried record reads as it is, counts its readings, and notes a check cut short from
+    // one reading on.
+    const carried = (got.value.packet.content as { body: object }).body;
+    const reading = (from: number) => {
+      const read = { times: 0 };
+      const body = new Proxy(carried, {
+        ownKeys: (target) => {
+          if (++read.times >= from)
+            noteCutShort(new RangeError("Maximum call stack size exceeded"));
+          return Reflect.ownKeys(target);
+        },
+      });
+      const packet = {
+        ...got.value.judged,
+        record: { ...got.value.packet, content: { mediaType: RECORD, body } },
+      } as unknown as JudgedRecord;
+      return { read, packet };
+    };
+    // Read without a fault, the packet is the one acknowledged, with both its proofs.
+    const whole = reading(Number.POSITIVE_INFINITY);
+    expect(acknowledges(held.value, whole.packet)).toBe(true);
+    const whileNamed = whole.read.times;
+    expect(whileNamed).toBeGreaterThan(0);
+    expect(ackEvidence(held.value, reading(Number.POSITIVE_INFINITY).packet)?.proofs).toHaveLength(
+      2,
+    );
+    // Cut short after the packet was found to be the one acknowledged: no evidence at all,
+    // and not evidence for the packet's own proof alone.
+    expect(ackEvidence(held.value, reading(whileNamed + 1).packet)).toBeUndefined();
   });
 });
 

@@ -14,11 +14,14 @@ import { at, KeyMind, LATER, type Mind, T, witness } from "@oip/testkit/minds";
 
 import {
   AcceptedPackets,
+  ackEvidence,
   Challenges,
   currentLocation,
+  draftAck,
   receivePacket,
   type Receiver,
   Sessions,
+  verifyAck,
   verifyFeed,
   verifyHello,
 } from "../src/index.ts";
@@ -235,9 +238,60 @@ function hellos(): unknown {
   };
 }
 
+/** What an acknowledgement is evidence for: all of it, or nothing. */
+function acks(): unknown {
+  const { book, seen } = coldBook();
+  const carried = ada.sign({
+    oip: "1",
+    type: "Intent",
+    author: ada.address,
+    created: T(5),
+    want: "A translation.",
+  });
+  const packet = ada.sign({
+    oip: "1",
+    type: "Packet",
+    from: ada.address,
+    to: [bob.address],
+    created: T(10),
+    expires: T(4000),
+    nonce: "nonce-0002",
+    purpose: { verb: "propose" },
+    content: { mediaType: "application/oip+json", body: carried },
+  });
+  const got = receivePacket(packet, {
+    address: bob.address,
+    now: at(20),
+    view: book,
+    seen,
+    accepted: () => false,
+    window: 3_600_000_000_000n,
+  });
+  if (!got.ok) return { error: got.issues[0].message };
+  const ack = bob.sign(
+    draftAck({ received: got.value, recipient: bob.address, at: T(20), created: T(21) }),
+  );
+  const held = verifyAck(ack, { view: book, seen, now: at(30) });
+  if (!held.ok) return { error: held.issues[0].message };
+  const kind = (): string => {
+    const evidence = ackEvidence(held.value, got.value.judged);
+    return evidence === undefined ? "none" : `${evidence.proofs.length} proofs`;
+  };
+  const verify = (): string => {
+    const again = verifyAck(ack, { view: book, seen, now: at(30) });
+    return again.ok ? "signed" : `refused: ${again.issues[0].clause}`;
+  };
+  return {
+    evidence: tally(withStackSpent(kind), (answer) => answer),
+    after: kind(),
+    verified: tally(withStackSpent(verify), (answer) => answer),
+  };
+}
+
 // The session comes first, while the code is as cold as the books.
 const report = {
   sessions: sessions(),
+  acks: acks(),
   packets: packets(),
   feeds: feeds(),
   locations: locations(),

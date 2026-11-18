@@ -431,7 +431,7 @@
       "keywords": {
         "MUST": 2
       },
-      "digest": "3fd3bf74b30898398c09b00727ac7c74f06ba2778cacb957b7c8486eb8f47568"
+      "digest": "17d0e6e82a0298bbac488666b6bfe1a1337b8c1a1af077c97fcaee5e6ad76efa"
     },
     {
       "id": "core 9.5",
@@ -1003,7 +1003,7 @@
       "summary": "A proof `p` on a record of type `T`, whose verification method is `did:oip:X?versionId=V#K`, is…",
       "level": "none",
       "keywords": {},
-      "digest": "717ecd634bc151608472f66ee615cee0d288871143231c783e4b4d94acc92bba"
+      "digest": "7816649e681c17e43991a62f9da990d836cd617a860cff94b9d43b1be4fbb9f5"
     },
     {
       "id": "L1 6.2",
@@ -1193,7 +1193,7 @@
       "summary": "A mind's public feed is a sequence of `Entry` records: | Member | Required | Value | |---|---|-…",
       "level": "none",
       "keywords": {},
-      "digest": "96aa19d03ccdcb6278da1d4bd1e6ff0c8e5c8bc7ec452b816281552629fb6088"
+      "digest": "81a2f483f3c60734a06fe581ad6429f83ee85fe108aea97d2f5b5c3d8f041cd7"
     },
     {
       "id": "L1 10.2",
@@ -1214,7 +1214,7 @@
       "summary": "A feed has a single writer at a time: a mind that runs several instances coordinates them so th…",
       "level": "none",
       "keywords": {},
-      "digest": "72cd74b89963b979b58cfed71def4cb6b6a9fa315d9a9939879e63b95235623b"
+      "digest": "a572334c17165e2a630f8044cafe0ffa4b3f01eb28f18cf79eb2c317505c466f"
     },
     {
       "id": "L1 10.4",
@@ -1351,9 +1351,10 @@
       "level": "MUST",
       "keywords": {
         "MUST": 6,
-        "MAY": 1
+        "MAY": 1,
+        "SHOULD": 1
       },
-      "digest": "03810918b77c8ece8988f0df6039a4af7c2a14b15b0c1417d307dbff0ff99cc4"
+      "digest": "91bf3918552749188d9fa01c6c666a7f91b0dec6ed9d8636145b2bd8f957b0c8"
     },
     {
       "id": "L1 12.5",
@@ -1396,10 +1397,10 @@
       "summary": "Inbox and acknowledgement. `POST {endpoint}/inbox` with a body of a `Packet` or `Sealed` record…",
       "level": "SHOULD",
       "keywords": {
-        "MAY": 1,
-        "SHOULD": 1
+        "MAY": 2,
+        "SHOULD": 2
       },
-      "digest": "d9e7626f068f4b034522f815e09c36bbb1b45ec211c94c58e18cb627fab18a8c"
+      "digest": "3584d0dda193af8cf06ac04ac1a9b114cac94a71c08bf8eb91d972a42805c183"
     },
     {
       "id": "L1 13.3",
@@ -1455,12 +1456,13 @@
       "id": "L1 14.2",
       "document": "L1",
       "section": "Sessions",
-      "summary": "The first packet each participant sends in a session MUST include the `Session` record in its `…",
+      "summary": "The first packet of each sending chain (14.3) in a session MUST include the `Session` record in…",
       "level": "MUST",
       "keywords": {
-        "MUST": 1
+        "MUST": 2,
+        "MAY": 1
       },
-      "digest": "1e41dabb9246b69564d225433ffa64b5f66a83226e941b68b029392c9f7e831b"
+      "digest": "d0f3cecdcbfdaff18a72fb83542d5837a844ccf76e92ebf0c2f488b90fbcfa17"
     },
     {
       "id": "L1 14.3",
@@ -1469,11 +1471,12 @@
       "summary": "Each sending chain in a session is identified by the sender's address and its `instance` (absen…",
       "level": "MUST",
       "keywords": {
-        "MUST": 1,
+        "MUST": 2,
+        "MAY": 1,
         "MUST NOT": 1,
         "SHOULD": 1
       },
-      "digest": "f1fea8fdb57791ab9b02b64a24f5babf72946252ca6475c42bc079de2ed1c785"
+      "digest": "5cff616d95bb6cb887621f4f271e2b6f5f657202e5cbe544c7d8b94467912099"
     },
     {
       "id": "L1 14.4",
@@ -1482,7 +1485,7 @@
       "summary": "`Resume` (the content of a packet with verb `resume`): `{ \"oip\": \"1\", \"type\": \"Resume\", \"sessio…",
       "level": "none",
       "keywords": {},
-      "digest": "8e952edcaf58ae58d23e7106c92251938c4efda62ac5b6f6ca171c27afa4f4e9"
+      "digest": "7dacfe448bc76935afe85a6953ef49ff14269e6c2ff4fa5d1dbd9a5b9ed10599"
     },
     {
       "id": "L1 14.5",

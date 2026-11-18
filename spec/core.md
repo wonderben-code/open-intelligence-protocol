@@ -190,7 +190,7 @@ where `τ(p)` is the earliest time for which the verifier holds evidence (9.4) t
 1. the verifier's own record that it obtained the proof at `t`;
 2. the record of a witness the verifier chooses to trust, such as its resolver or indexer, that it first saw the proof at `t` (Layer 1, Section 17);
 3. an anchored checkpoint (Layer 1, Section 10) covering a feed entry that commits to the proof, where `t` is the anchor's time;
-4. an `Ack` (Layer 1, Section 13.2) covering a packet that carries the proof, signed by a recipient the verifier trusts for this purpose, where `t` is its `received` time.
+4. an `Ack` (Layer 1, Section 13.2) signed by a recipient the verifier trusts for this purpose, where `t` is its `received` time: for a proof on a record in the `content` of the packet the `Ack` names, and for a proof on that packet itself whose digest the `Ack` lists.
 
 A proof's own `created` is never evidence, and neither is another proof on the same record (5.5). Evidence concerns one proof: adding a proof does not change a record's content ID (5.3), so evidence that a record existed with some proofs is not evidence for a proof added to it later. Implementations therefore key evidence by the proof's digest, `"sha256:" + hex(SHA-256(JCS(proof)))` (Layer 1, Section 10.1). For identity events, evidence concerns the event as a whole (9.5).
 

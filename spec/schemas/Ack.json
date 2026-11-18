@@ -51,6 +51,13 @@
     },
     "sealed": {
       "$ref": "urn:oip:schema:def:contentId"
+    },
+    "proofs": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:oip:schema:def:sha256Digest"
+      },
+      "maxItems": 256
     }
   }
 }

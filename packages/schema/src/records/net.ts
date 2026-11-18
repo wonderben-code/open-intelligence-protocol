@@ -262,6 +262,8 @@ export const Ack = Type.Object(
     packet: ContentId,
     received: Timestamp,
     sealed: Type.Optional(ContentId),
+    // 13.2: the digests of the proofs the packet carried on itself when it was received.
+    proofs: Type.Optional(Type.Array(Sha256Digest, { maxItems: 256 })),
   },
   meta(
     "Ack",

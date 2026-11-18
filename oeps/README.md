@@ -10,6 +10,7 @@ An OEP proposes a change to the Open Intelligence Protocol: to a record format, 
 | [0001](oep-0001-core-clarifications.md)                    | Core clarifications found while building the reference implementation                    | Core    | Review |
 | [0002](oep-0002-identity-clarifications.md)                | Identity clarifications found while building the reference implementation                | Layer 1 | Review |
 | [0003](oep-0003-delegation-and-mind-web-clarifications.md) | Delegation and Mind Web clarifications found while building the reference implementation | Layer 2 | Review |
+| [0004](oep-0004-mind-network-clarifications.md)            | Mind Network clarifications found while building the reference implementation            | Layer 1 | Review |
 
 ## Do you need an OEP?
 

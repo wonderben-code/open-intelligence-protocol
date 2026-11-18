@@ -11,6 +11,16 @@
  * @packageDocumentation
  */
 
+export {
+  type AckContext,
+  type AckDraft,
+  type AckEvidence,
+  ackEvidence,
+  acknowledges,
+  draftAck,
+  verifyAck,
+  type VerifiedAck,
+} from "./ack.ts";
 export { isStale, type PacketClock, packetDates } from "./dates.ts";
 export {
   committedProofs,

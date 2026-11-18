@@ -89,6 +89,15 @@ Two independent reviews of `@oip/delegation` and `@oip/web` found eight more (OE
 
 **Test vectors.** For the items above (OEP-0003 lists them): 33 negative cases, 29 controls and thirteen must-accept cases, among them the items of Layer 1, 11.4 broken one at a time on a two-step chain, and the conditions of a charter role one at a time. The vectors now hold 35 must-accept cases, 142 negative cases and 88 controls. Every value that was there is byte for byte what it was.
 
+**Mind Network clarifications ([OEP-0004](../oeps/oep-0004-mind-network-clarifications.md), found while building `@oip/net`).** The milestone is not finished, and more may follow.
+
+- **A feed that equivocates (Layer 1, 10.3).** A verifier treats the feed as verified up to the entry before the two, and no further.
+- **Entries (10.1).** An entry at `seq` 0 has no `prev`. The same entry with other proofs is one entry, judged with the proofs of every copy held.
+- **Collectives sign by their threshold (6.1).** Where a clause asks for a valid operational key of a mind, a record signed by a collective under 9.5 meets it. A `Hello` is the exception.
+- **An `Ack` may list proofs (13.2; core 9.4, item 4).** `proofs` is an optional array of at most 256 digests of the proofs the packet carried on itself. An `Ack` is evidence for the proofs on the records in the packet's `content` and for the packet's own proofs it lists, and for no other. Before, the text called it evidence for "the sender's proof", which the content ID it names does not cover. This is the one change to a record format.
+- **Receiving (12.4).** A packet addressed to a query is rejected if it expires more than one hour after `created`, as 12.1 limits it. A packet addressed by a list is judged by its own proof, whatever `Forwarded` record carries it. The duplicate-detection window is the receiver's to choose, and SHOULD be at least one hour.
+- **Sessions (14.2 to 14.4).** The first packet of each sending chain carries the `Session` record; a receiver that does not hold the record rejects a packet without it. `to` may list minds that are not participants. A packet has a place in its chain only as a link (`seq` 0 and no `prev`, or a `prev` that is the link before it), and two links at one place are equivocation: so the order packets arrive in decides nothing. A `Resume` that names a packet its receiver's chain does not have there is invalid, and the packet that carries a `Resume` has its place in its sender's chain.
+
 ## Revision 2026-11-17 (Draft)
 
 Security and consistency fixes from two independent reviews of revision 2026-10-30, one of the technical paper and one of the specifications, and from a third independent check of those fixes before publication ([reviews/](../reviews/)). Record formats change little; most changes are clearer rules about who may sign what, and when. Every mind address in the test vectors is unchanged.

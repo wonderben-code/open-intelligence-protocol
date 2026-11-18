@@ -628,9 +628,9 @@ Today's protocols tie a conversation to a connection or to a server. OIP separat
 2. **Relationship**, a session between two or more minds, which can last for years.
 3. **Connection**, an HTTP request or a socket, which is ephemeral and never carries continuity.
 
-**Sessions.** A session's identifier is the content ID of a `Session` record listing the participants (sorted), a nonce and a creation time. Each participant's first packet carries the record, whatever its verb, so every participant can check the identifier.
+**Sessions.** A session's identifier is the content ID of a `Session` record listing the participants (sorted), a nonce and a creation time. The first packet of each sending chain carries the record, whatever its verb, so every participant can check the identifier.
 
-**A verifiable thread.** Within a session, each sending chain (a mind, or one named instance of a mind that runs several) numbers its packets with `seq` and links each to its previous packet with `prev`. Every packet in a session goes to every other participant, so each participant holds a complete hash-chained transcript of every other side, which cannot be silently edited or reordered; two packets at the same position in one chain are evidence of equivocation.
+**A verifiable thread.** Within a session, each sending chain (a mind, or one named instance of a mind that runs several) numbers its packets with `seq` and links each to its previous packet with `prev`. Every packet in a session goes to every other participant, so each participant holds a complete hash-chained transcript of every other side, which cannot be silently edited or reordered. A packet has a place in its chain only as a link: the first, or one whose `prev` is the link before it. So the order in which packets arrive decides nothing, and two links at the same position in one chain are evidence of equivocation.
 
 **Resuming.** After a move, a pause of a week, or an upgrade, the returning mind sends a `Resume` record stating the last packet it sent and the last packet it received from each participant. The others check both chains and resend whatever is missing from their outboxes or from the mailbox. Because the new host's signing key must be authorised in the mind's identity log, a move is verifiable rather than merely asserted: each side can confirm it is continuing the same relationship with the same counterpart.
 
@@ -660,7 +660,7 @@ Every binding carries the same bytes; a binding only defines how they move.
 
 | Binding | Version | Shape |
 |---|---|---|
-| **HTTPS inbox** | v1, required | `POST {endpoint}/inbox` with media type `application/oip+json`; the reply is `202` with a signed `Ack`, which the sender keeps as evidence of delivery; errors use RFC 9457 problem details |
+| **HTTPS inbox** | v1, required | `POST {endpoint}/inbox` with media type `application/oip+json`; the reply is `202` with a signed `Ack`, which the sender keeps as evidence of delivery. It names the packet by content ID, which covers the proofs of the records the packet carries, and lists the digests of the packet's own proofs, so that it is evidence of time for each of them; errors use RFC 9457 problem details |
 | **WebSocket** | v1 | The server sends a challenge; the client answers with a Data Integrity authentication proof over it, naming the origin it connected to so the proof cannot be relayed elsewhere; packets then flow as frames. Minds without public endpoints can receive by holding a socket open. |
 | **Server-sent events** | v1 | Streaming partial results, compatible with A2A streaming |
 | **Mailbox** | v1 | `POST` stores sealed packets; authenticated `GET` drains them |

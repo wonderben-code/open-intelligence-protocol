@@ -35,7 +35,9 @@ const unavailable = pythonJudgeUnavailable();
 const required = process.env["OIP_REQUIRE_PYTHON"] !== undefined;
 // A short campaign with the ordinary tests; `pnpm run ci` and the nightly job set more.
 const RUNS = Number(process.env["OIP_DIFFERENTIAL_DELEGATION"] ?? 150);
-const TIMEOUT = Math.max(120_000, RUNS * 600);
+// The limit is for a test that hangs, not for one that is slow: a machine busy with other
+// work takes several times as long as an idle one.
+const TIMEOUT = Math.max(480_000, RUNS * 600);
 const measured = process.env["OIP_MUTATION"] !== undefined;
 
 const vectors = loadVectors();

@@ -45,19 +45,30 @@ describe("the budgets of BUILD.md 3.8", () => {
   test("verify an identity log of 1,000 events", async ({ bench }) => {
     const check = verifyLog(events, { evidence, asOf: LATER });
     expect(check.ok && check.value.entries).toHaveLength(EVENTS);
+    /** The median time to read and check one event of the log. */
+    const one = async (when: string): Promise<number> =>
+      (
+        await bench(`parseRecord + verifyProofs: one event of the log (${when})`, () => {
+          const parsed = parseRecord(oneEvent);
+          return parsed.ok && verifyProofs(parsed.value).verified.length;
+        }).run()
+      ).latency.p50;
+    const before = await one("before");
     const whole = await bench("verifyLog: 1,000 events", () =>
       verifyLog(events, { evidence, asOf: LATER }),
     )
       // A few runs of some seconds each say enough; the default would take minutes.
       .run({ iterations: 3, time: 0, warmupIterations: 1, warmupTime: 0 });
     expect(whole.latency.min).toBeLessThan(BUDGETS.logOfAThousandEvents);
-    const one = await bench("parseRecord + verifyProofs: one event of the log", () => {
-      const parsed = parseRecord(oneEvent);
-      return parsed.ok && verifyProofs(parsed.value).verified.length;
-    }).run();
+    const after = await one("after");
     // A ratio of medians: the best case of one event is one sample of thousands, and a
     // lucky one moved this ratio between 1.2 and 1.45 where the medians give about 1.1.
-    expect(whole.latency.p50 / (EVENTS * one.latency.p50)).toBeLessThan(BUDGETS.overTheSignatures);
+    // One event is measured before the log and after it, and the faster of the two is
+    // what the log is compared with: other work on the machine while one of them is
+    // measured cannot make the log look cheaper than it is.
+    expect(whole.latency.p50 / (EVENTS * Math.min(before, after))).toBeLessThan(
+      BUDGETS.overTheSignatures,
+    );
   });
 
   test("answer at once for a log a book has verified", async ({ bench }) => {

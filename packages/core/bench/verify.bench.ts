@@ -36,10 +36,15 @@ import {
  * The budgets, in milliseconds, for this implementation on one core of the
  * reference machine. ADR-0006 says how they were set.
  *
- * Each is compared with the fastest sample of a run, not the median. On a
- * shared machine other work only ever adds time, so the fastest sample is
- * the steadiest measure of what the code costs, and a regression moves it
- * as surely as it moves the median.
+ * A limit in milliseconds is compared with the fastest sample of a run, not
+ * the median. On a shared machine other work only ever adds time, so the
+ * fastest sample is the steadiest measure of what the code costs, and a
+ * regression moves it as surely as it moves the median.
+ *
+ * A ratio is of two medians measured one after the other, taken in several
+ * rounds, and the middle ratio is compared. Other work on the machine while
+ * one side is measured moves that round's ratio, up or down, and leaves the
+ * middle one where it was: it neither fails a build nor hides a regression.
  */
 export const BUDGETS = {
   /** Verify a record with two proofs, read from text. */
@@ -100,6 +105,15 @@ const signature = signer.sign(message);
 const selfMethod = `did:key:${signer.publicKey}#${signer.publicKey}`;
 let fresh = 0;
 
+/** How many times each ratio is measured. Odd, so that one of them is the middle. */
+const ROUNDS = 3;
+
+/** The middle of an odd number of values. */
+function middle(values: readonly number[]): number {
+  const sorted = values.toSorted((a, b) => a - b);
+  return sorted[(sorted.length - 1) / 2] ?? Number.NaN;
+}
+
 describe("the budgets of BUILD.md 3.8", () => {
   test("verify a record with two proofs, from text", async ({ bench }) => {
     expect((commitment["proof"] as unknown[]).length).toBe(2);
@@ -129,27 +143,34 @@ describe("the budgets of BUILD.md 3.8", () => {
   test("stay close to the bare library: the regression check that does not depend on the machine", async ({
     bench,
   }) => {
-    const bare = await bench("the library alone: one signature, strict mode", () =>
-      libraryVerify(signature, message, publicKey, { zip215: false }),
-    ).run();
-    const ours = await bench("verifyEd25519: one signature, public key seen before", () =>
-      verify(signature, message, publicKey),
-    ).run();
-    // The ratios are of medians. A best case is one sample, and the two best cases of a
-    // ratio are taken at different moments: measured so, the first ratio moved between
-    // 1.5 and 2.0 on one machine, and between 1.5 and 1.8 by medians, idle or busy.
     // core 4.4 adds one scalar multiplication, the order check of R, to the library's two.
-    const ratio = ours.latency.p50 / bare.latency.p50;
-    expect(ratio).toBeLessThan(BUDGETS.overLibrary);
-    // The two budgets as ratios: what this package adds to the signatures themselves.
-    const record = await bench("parseRecord + verifyProofs: two proofs, for the ratio", () =>
-      receive(commitmentText),
-    ).run();
-    expect(record.latency.p50 / bare.latency.p50).toBeLessThan(BUDGETS.recordOverLibrary);
-    const event = await bench("parseRecord + verifyProofs: one event, for the ratio", () =>
-      receive(genesisText),
-    ).run();
-    expect(event.latency.p50 / bare.latency.p50).toBeLessThan(BUDGETS.eventOverLibrary);
+    // The other two ratios are the two budgets: what this package adds to the signatures.
+    const ratios = { overLibrary: [] as number[], record: [] as number[], event: [] as number[] };
+    for (let round = 1; round <= ROUNDS; round++) {
+      const measure = async (name: string, run: () => unknown): Promise<number> =>
+        (await bench(`${name} (round ${round})`, run).run()).latency.p50;
+      const bare = await measure("the library alone: one signature, strict mode", () =>
+        libraryVerify(signature, message, publicKey, { zip215: false }),
+      );
+      ratios.overLibrary.push(
+        (await measure("verifyEd25519: one signature, public key seen before", () =>
+          verify(signature, message, publicKey),
+        )) / bare,
+      );
+      ratios.record.push(
+        (await measure("parseRecord + verifyProofs: two proofs, for the ratio", () =>
+          receive(commitmentText),
+        )) / bare,
+      );
+      ratios.event.push(
+        (await measure("parseRecord + verifyProofs: one event, for the ratio", () =>
+          receive(genesisText),
+        )) / bare,
+      );
+    }
+    expect(middle(ratios.overLibrary)).toBeLessThan(BUDGETS.overLibrary);
+    expect(middle(ratios.record)).toBeLessThan(BUDGETS.recordOverLibrary);
+    expect(middle(ratios.event)).toBeLessThan(BUDGETS.eventOverLibrary);
   });
 });
 

@@ -5,6 +5,7 @@
 ```ts
 
 import type { Delegation } from '@oip/schema';
+import { FirstSeen } from '@oip/identity';
 import { IdentityView } from '@oip/identity';
 import { Instant } from '@oip/core';
 import { JsonValue } from '@oip/schema';
@@ -125,5 +126,8 @@ export interface SubDelegationFields {
     readonly notBefore?: string;
     readonly policy?: readonly PolicyStatement[];
 }
+
+// @public
+export function witnessProofs(judged: JudgedRecord, now: Instant, seen: FirstSeen, options?: JudgeOptions): void;
 
 ```

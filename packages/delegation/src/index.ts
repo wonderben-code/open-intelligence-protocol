@@ -38,3 +38,4 @@ export { evaluatePolicy, MAX_POLICY_STEPS, policyHolds, select } from "./policy.
 export { RecordSet, type RecordView } from "./records.ts";
 export { revokedTime } from "./revocation.ts";
 export { sentFor } from "./send.ts";
+export { witnessProofs } from "./witness.ts";

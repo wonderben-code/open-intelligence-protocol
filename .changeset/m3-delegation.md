@@ -12,3 +12,4 @@ First version: delegation (Layer 1, Section 11).
 - `sentFor`: whether a packet counts as sent on another mind's behalf (Layer 1, 11.2): it names the subject, and a proof by its own sender lists a chain from the subject that covers `/oip/send`.
 - `draftDelegation`, `draftSubDelegation`, `draftRevocation`, `authorityOf`: write a delegation, the next link of a chain (with the subject, every statement and no later expiry than its parent, Layer 1, 11.4), a revocation, and the `authority` a proof lists.
 - A policy is read whole before any of it is asked of a record. A statement that is none makes the policy not hold wherever it stands, the statement of a quantifier over an empty array among them. `null` is not a policy.
+- `witnessProofs`: a verifier's own first sight of a record that arrives, with the delegations and charters its proofs carry whole. Their signatures need evidence of their own (Layer 1, 11.4, item 1).

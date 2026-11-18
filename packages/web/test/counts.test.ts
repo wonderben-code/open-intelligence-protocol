@@ -129,6 +129,12 @@ describe(`${clause("L2 7.1")} a collective's role (item 4)`, () => {
     expect(counts(signedBy(ann, 20, [refTo(rules)]), [rules])).toBe(at(20));
     // With the charter given whole.
     expect(counts(signedBy(ann, 20, [rules]), [])).toBe(at(20));
+    // Given whole, it is judged with the proofs it carries there: without them it is
+    // no charter of the club's, whatever copy of it the verifier holds besides.
+    const { proof: _signatures, ...bare } = rules;
+    const signedByAnother = dee.sign(bare, { created: T(10) });
+    expect(contentId(signedByAnother)).toBe(contentId(rules));
+    expect(counts(signedBy(ann, 20, [signedByAnother]), [rules])).toBeUndefined();
     // From the proof's evidence, not its date.
     const late = signedBy(ann, 20, [refTo(rules)]);
     expect(counts(late, [rules], new Map([[late, 60]]))).toBe(at(60));

@@ -63,7 +63,7 @@ Whether a record counts for a mind decides who is bound by a Commitment. Two ver
 
 > the log of a collective under whose threshold the proof is counted (Layer 1, Section 9.5), or for which it is counted through a charter role (Layer 2, Section 7.1), held as served no earlier than `τ(p)`
 
-**Layer 2, 7.1**, item 4, add at its end:
+**Layer 2, 7.1**, item 4. After "or the inline `Collective` record" add ", which is judged with the proofs it carries there", as 11.6 says of a delegation. And add at its end:
 
 > As for a threshold, the verifier holds `P`'s log as served no earlier than the evidence for `p` (core 9.4), for a copy older than that may lack the event that removed `M`; and if `P` is duplicitous, `t(p)` is before its first conflicting event, from which on its members are not known (Layer 1, Section 7.3).
 

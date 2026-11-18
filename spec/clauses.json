@@ -440,7 +440,7 @@
       "summary": "Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where…",
       "level": "none",
       "keywords": {},
-      "digest": "ea8f84a82ae62066e7cfbdbac2b82478f11442d38e60ac0113512a29995c3ae0"
+      "digest": "90d354e5b00867b715e83749ef15437da468888e55f1bb8cae05b8b912a68f1b"
     },
     {
       "id": "core 9.6",

@@ -22,7 +22,6 @@ import {
   LogBook,
   ownSignedTime,
   signEventSync,
-  witnessLog,
   witnessRecord,
 } from "@oip/identity";
 
@@ -96,8 +95,7 @@ export function example(
       [[genesis, update], "2026-11-17T13:00:00Z"],
     ];
     for (const [log, when] of served) {
-      witnessLog(log, at(when), seen);
-      book.hold(log, at(when));
+      book.witness(log, at(when), seen);
     }
     const record = judgeRecord(intent);
     if (!record.ok) return "is not well formed";

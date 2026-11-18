@@ -55,11 +55,12 @@ export interface WitnessOptions {
  * @returns The events that verified, why the next one did not, if there is
  *   one, and whether that event is invalid or undecided by this copy alone.
  *
- * What to hold of the log is the copy as it came: `book.hold(events, now)`.
- * A book keeps every event of it and judges each with the proofs of every
- * copy it holds (Layer 1, 7.1), so an event that is invalid here, for the
- * proofs this copy lacks, may verify there. Holding only the events that
- * verified here would lose it.
+ * This judges one copy alone. A verifier that holds logs in a book takes a
+ * copy in with `LogBook.witness` instead: the book keeps every event of the
+ * copy as it came and judges each with the proofs of every copy it holds
+ * (Layer 1, 7.1), so an event that is invalid here, for the proofs this copy
+ * lacks, may verify there, and is recorded as seen when it does (core 9.5).
+ * Holding only the events that verified here would lose it.
  */
 export function witnessLog(
   events: unknown,

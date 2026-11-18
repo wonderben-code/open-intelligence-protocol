@@ -16,9 +16,9 @@ This page lists every numbered clause of the specifications (revision 2026-11-17
 |---|---:|---:|---:|---:|---:|
 | [core](../../spec/core.md) | 47 | 46 | 46 | 26 | 26 |
 | [L0](../../spec/layer-0-bridge.md) | 17 | 12 | 0 | 6 | 0 |
-| [L1](../../spec/layer-1-mind-network.md) | 96 | 95 | 63 | 45 | 28 |
+| [L1](../../spec/layer-1-mind-network.md) | 96 | 95 | 64 | 45 | 29 |
 | [L2](../../spec/layer-2-mind-web.md) | 28 | 27 | 8 | 10 | 6 |
-| **All** | 188 | 180 | 117 | 87 | 60 |
+| **All** | 188 | 180 | 118 | 87 | 61 |
 
 ## Golden vectors
 
@@ -112,7 +112,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 9.2 |  | M2 | 2 | tested | `created`, in a record or in a proof, is asserted by the signer. A signer holding a stolen, rem… |
 | core 9.3 | MUST | M2 | 11 | tested | Evaluation time. Every rule that depends on when a proof was made (key removal and compromise,… |
 | core 9.4 | MUST | M2 | 26 | tested | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
-| core 9.5 |  | M2 | 11 | tested | Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where… |
+| core 9.5 |  | M2 | 21 | tested | Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where… |
 | core 9.6 |  | M2 | 5 | tested | Expiry. A proof whose evaluation time is more than 300 seconds after its record's `expires` doe… |
 | core 9.7 |  | M2 | 1 | tested | Consequence. A verifier that first sees a record long after it was made can count its proofs on… |
 | core 10.1 |  | M1 | 1 | tested | OIP records are exchanged as `application/oip+json`. |
@@ -175,7 +175,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 4.4 |  | M2 | 5 | tested | Member-controlled authority. For each later event `e` with predecessor state `S`: at least `S.t… |
 | L1 4.5 | MUST | M2 | 6 | tested | Fields. `keys`, `invocation`, `agreement`, `homes` and `alsoKnownAs` replace the state's values… |
 | L1 4.6 |  | M2 | 5 | tested | Types and termination. Every event's `type` is checked: the first is `Genesis` and every later… |
-| L1 4.7 | MUST | M2 | 10 | tested | Nesting and work. Verifying a member's proof requires verifying that member's own log. The heig… |
+| L1 4.7 | MUST | M2 | 11 | tested | Nesting and work. Verifying a member's proof requires verifying that member's own log. The heig… |
 | L1 4.8 | MUST | M2 | 3 | tested | Well-formed events. Every event is a well-formed record of its type: it satisfies core, Section… |
 | L1 4.9 | MUST | M2 | 38 | tested | Invalid, and undecided. A log with an event that fails this section is rejected. What a verifie… |
 | L1 5.1 |  | M2 | 2 | tested | Replaying a log produces the identity state: address, kind, controller state (`next` and `nextT… |
@@ -185,8 +185,8 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 6.2 |  | M2 | 1 | tested | Removing a key stops it signing anything new while leaving what it signed earlier valid, provid… |
 | L1 6.3 | MUST | M2 | 1 | tested | When a verifier encounters a `versionId` it does not have, it SHOULD fetch the missing events f… |
 | L1 6.4 |  | M2 | 11 | tested | Member proofs on identity events. A proof `p` by member `M` on another mind's identity event `e… |
-| L1 7.1 |  | M2 | 86 | tested | Two events with different content IDs in logs with the same genesis, at the same `seq`, each va… |
-| L1 7.2 | MUST | M5 | 0 | pending M5 | Resolvers MUST retain the first valid event they saw at each position of each log, MUST record… |
+| L1 7.1 |  | M2 | 96 | tested | Two events with different content IDs in logs with the same genesis, at the same `seq`, each va… |
+| L1 7.2 | MUST | M5 | 1 | tested in part (due M5) | Resolvers MUST retain the first valid event they saw at each position of each log, MUST record… |
 | L1 7.3 | MUST | M2 | 29 | tested | Resolution. A verifier MUST NOT choose between conflicting branches by their length or by which… |
 | L1 7.4 | MUST | M6 | 0 | pending M6 | Protecting the log. Implementations MUST destroy a control key's private part once the event it… |
 | L1 8.1 |  | M2 | 4 | tested | A fork is a new mind whose genesis lists a parent in `parents`, with `at` naming the version of… |

@@ -4,10 +4,53 @@
 
 ```ts
 
+import type { Entry } from '@oip/schema';
+import { IdentityView } from '@oip/identity';
+import { Instant } from '@oip/core';
+import type { Issue } from '@oip/schema';
+import { JudgedRecord } from '@oip/identity';
+import { JudgeOptions } from '@oip/identity';
+import type { Validation } from '@oip/schema';
+
 // @public
 export function checkpointRoot(entries: readonly unknown[]): string | undefined;
 
 // @public
+export function committedProofs(entry: Entry, record: JudgedRecord): string[] | undefined;
+
+// @public
+export interface CoveredFeed {
+    readonly entries: readonly FeedEntry[];
+    readonly proofs: ReadonlySet<string>;
+    readonly time: Instant;
+}
+
+// @public
+export interface FeedEntry {
+    readonly entry: Entry;
+    readonly id: string;
+    readonly judged: JudgedRecord;
+    readonly time: Instant;
+}
+
+// @public
 export function merkleTreeHash(inputs: Iterable<Uint8Array>): Uint8Array;
+
+// @public
+export interface VerifiedFeed {
+    readonly author: string;
+    readonly entries: readonly FeedEntry[];
+    readonly equivocation: readonly FeedEntry[];
+    readonly refused: readonly {
+        readonly index: number;
+        readonly issues: readonly Issue[];
+    }[];
+}
+
+// @public
+export function verifyCheckpoint(checkpoint: JudgedRecord, feed: VerifiedFeed, view: IdentityView): Validation<CoveredFeed>;
+
+// @public
+export function verifyFeed(entries: unknown, author: string, view: IdentityView, options?: JudgeOptions): Validation<VerifiedFeed>;
 
 ```

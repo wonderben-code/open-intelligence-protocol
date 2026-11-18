@@ -11,4 +11,12 @@
  * @packageDocumentation
  */
 
+export {
+  committedProofs,
+  type CoveredFeed,
+  type FeedEntry,
+  type VerifiedFeed,
+  verifyCheckpoint,
+  verifyFeed,
+} from "./feed.ts";
 export { checkpointRoot, merkleTreeHash } from "./merkle.ts";

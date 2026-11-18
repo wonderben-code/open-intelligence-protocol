@@ -135,18 +135,21 @@ describe("the budgets of BUILD.md 3.8", () => {
     const ours = await bench("verifyEd25519: one signature, public key seen before", () =>
       verify(signature, message, publicKey),
     ).run();
+    // The ratios are of medians. A best case is one sample, and the two best cases of a
+    // ratio are taken at different moments: measured so, the first ratio moved between
+    // 1.5 and 2.0 on one machine, and between 1.5 and 1.8 by medians, idle or busy.
     // core 4.4 adds one scalar multiplication, the order check of R, to the library's two.
-    const ratio = ours.latency.min / bare.latency.min;
+    const ratio = ours.latency.p50 / bare.latency.p50;
     expect(ratio).toBeLessThan(BUDGETS.overLibrary);
     // The two budgets as ratios: what this package adds to the signatures themselves.
     const record = await bench("parseRecord + verifyProofs: two proofs, for the ratio", () =>
       receive(commitmentText),
     ).run();
-    expect(record.latency.min / bare.latency.min).toBeLessThan(BUDGETS.recordOverLibrary);
+    expect(record.latency.p50 / bare.latency.p50).toBeLessThan(BUDGETS.recordOverLibrary);
     const event = await bench("parseRecord + verifyProofs: one event, for the ratio", () =>
       receive(genesisText),
     ).run();
-    expect(event.latency.min / bare.latency.min).toBeLessThan(BUDGETS.eventOverLibrary);
+    expect(event.latency.p50 / bare.latency.p50).toBeLessThan(BUDGETS.eventOverLibrary);
   });
 });
 

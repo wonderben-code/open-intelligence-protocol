@@ -55,7 +55,9 @@ describe("the budgets of BUILD.md 3.8", () => {
       const parsed = parseRecord(oneEvent);
       return parsed.ok && verifyProofs(parsed.value).verified.length;
     }).run();
-    expect(whole.latency.min / (EVENTS * one.latency.min)).toBeLessThan(BUDGETS.overTheSignatures);
+    // A ratio of medians: the best case of one event is one sample of thousands, and a
+    // lucky one moved this ratio between 1.2 and 1.45 where the medians give about 1.1.
+    expect(whole.latency.p50 / (EVENTS * one.latency.p50)).toBeLessThan(BUDGETS.overTheSignatures);
   });
 
   test("answer at once for a log a book has verified", async ({ bench }) => {

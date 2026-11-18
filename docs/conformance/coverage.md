@@ -16,9 +16,9 @@ This page lists every numbered clause of the specifications (revision 2026-11-17
 |---|---:|---:|---:|---:|---:|
 | [core](../../spec/core.md) | 47 | 46 | 46 | 26 | 26 |
 | [L0](../../spec/layer-0-bridge.md) | 17 | 12 | 0 | 6 | 0 |
-| [L1](../../spec/layer-1-mind-network.md) | 96 | 95 | 64 | 45 | 29 |
-| [L2](../../spec/layer-2-mind-web.md) | 28 | 27 | 8 | 10 | 6 |
-| **All** | 188 | 180 | 118 | 87 | 61 |
+| [L1](../../spec/layer-1-mind-network.md) | 96 | 95 | 66 | 45 | 29 |
+| [L2](../../spec/layer-2-mind-web.md) | 28 | 27 | 16 | 10 | 8 |
+| **All** | 188 | 180 | 128 | 87 | 63 |
 
 ## Golden vectors
 
@@ -27,18 +27,18 @@ Cases the implementation cannot answer yet are pending, never passed.
 | Section | Kind | Owed by | Passing | Pending | Failing |
 |---|---|---|---:|---:|---:|
 | valid | `log` | M2 | 3 | 0 | 0 |
-| valid | `countsFor` | M3 | 5 | 1 | 0 |
+| valid | `countsFor` | M3 | 6 | 0 | 0 |
 | valid | `record` | M0 | 8 | 0 | 0 |
 | valid | `json` | M1 | 5 | 0 | 0 |
 | negative | `log` | M2 | 31 | 0 | 0 |
-| negative | `countsFor` | M3 | 30 | 18 | 0 |
-| negative | `sentFor` | M3 | 0 | 1 | 0 |
-| negative | `status` | M3 | 0 | 3 | 0 |
+| negative | `countsFor` | M3 | 48 | 0 | 0 |
+| negative | `sentFor` | M3 | 1 | 0 | 0 |
+| negative | `status` | M3 | 3 | 0 | 0 |
 | negative | `assurance` | M9 | 0 | 1 | 0 |
 | negative | `record` | M0 | 13 | 0 | 0 |
 | negative | `json` | M1 | 12 | 0 | 0 |
 | controls | `log` | M2 | 16 | 0 | 0 |
-| controls | `countsFor` | M3 | 24 | 4 | 0 |
+| controls | `countsFor` | M3 | 28 | 0 | 0 |
 | controls | `record` | M0 | 11 | 0 | 0 |
 | controls | `json` | M1 | 4 | 0 | 0 |
 
@@ -55,13 +55,13 @@ Cases the implementation cannot answer yet are pending, never passed.
 | lineage acknowledged by a Fork event and by a Lineage record (M2) | passed |
 | signatures count for their authors (purpose and key checks) (M2) | passed |
 | DID documents, current and versioned (M2) | passed |
-| packet sent on Amina's behalf under a /oip/send delegation (M3) | pending |
-| co-signing keeps the content ID; delegated party proof (M3) | pending |
-| two agents sign for their principals, in either order (M3) | pending |
-| delegation policy enforced (120, 500 ok; 500.01, 900 not) (M3) | pending |
-| two-step delegation chain (150 ok; 300 beyond the sub-limit) (M3) | pending |
-| collective signs by 2-of-3 threshold and by a charter role (M3) | pending |
-| Layer 2 status (every state of Intent, Offer and Commitment) (M3) | pending |
+| packet sent on Amina's behalf under a /oip/send delegation (M3) | passed |
+| co-signing keeps the content ID; delegated party proof (M3) | passed |
+| two agents sign for their principals, in either order (M3) | passed |
+| delegation policy enforced (120, 500 ok; 500.01, 900 not) (M3) | passed |
+| two-step delegation chain (150 ok; 300 beyond the sub-limit) (M3) | passed |
+| collective signs by 2-of-3 threshold and by a charter role (M3) | passed |
+| Layer 2 status (every state of Intent, Offer and Commitment) (M3) | passed |
 | feed entries commit to proofs; checkpoint Merkle root (M4) | pending |
 | packet opens its session; Ack names the packet (M4) | pending |
 | a bridged mind, attested in its gateway's feed (M9) | pending |
@@ -83,7 +83,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 1.9 | MUST | M1 | 22 | tested | Depth. The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is… |
 | core 2.1 |  | M1 | 10 | tested | The canonical form of a JSON value is its serialisation under the JSON Canonicalization Scheme,… |
 | core 2.2 |  | M1 | 3 | tested | Because Section 1.2 restricts numbers to safe integers, JCS number serialisation reduces to the… |
-| core 3.1 |  | M1 | 20 | tested | The content ID of a record `r` is: ``` contentId(r) = "b" + base32lower( 0x12 ‖ 0x20 ‖ SHA-256(… |
+| core 3.1 |  | M1 | 21 | tested | The content ID of a record `r` is: ``` contentId(r) = "b" + base32lower( 0x12 ‖ 0x20 ‖ SHA-256(… |
 | core 3.2 | MUST | M1 | 5 | tested | In this revision a content ID MUST match `^bciq[a-p][a-z2-7]{50}[aiqy]$` (56 characters, lower… |
 | core 3.3 |  | M1 | 2 | tested | The 32-byte digest inside a content ID equals the `transformedDocumentHash` of every `eddsa-jcs… |
 | core 3.4 | MUST | M1 | 4 | tested | The key hash of a Multikey string `k`, used for pre-rotation commitments, is `"b" + base32lower… |
@@ -113,7 +113,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 9.3 | MUST | M2 | 11 | tested | Evaluation time. Every rule that depends on when a proof was made (key removal and compromise,… |
 | core 9.4 | MUST | M2 | 26 | tested | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
 | core 9.5 |  | M2 | 21 | tested | Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where… |
-| core 9.6 |  | M2 | 5 | tested | Expiry. A proof whose evaluation time is more than 300 seconds after its record's `expires` doe… |
+| core 9.6 |  | M2 | 7 | tested | Expiry. A proof whose evaluation time is more than 300 seconds after its record's `expires` doe… |
 | core 9.7 |  | M2 | 1 | tested | Consequence. A verifier that first sees a record long after it was made can count its proofs on… |
 | core 10.1 |  | M1 | 1 | tested | OIP records are exchanged as `application/oip+json`. |
 | core 10.2 |  | M1 | 3 | tested | HTTP APIs report errors as RFC 9457 problem details with a `type` of the form `urn:oip:error:<c… |
@@ -182,7 +182,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 5.2 |  | M2 | 7 | tested | DID document. Resolving a `did:oip` address produces a DID Core document: - `id`: the address.… |
 | L1 5.3 | MUST | M6 | 0 | pending M6 | Aliases. An entry in `alsoKnownAs` is verified only when the alias points back to the mind: ano… |
 | L1 6.1 |  | M2 | 14 | tested | A proof `p` on a record of type `T`, whose verification method is `did:oip:X?versionId=V#K`, is… |
-| L1 6.2 |  | M2 | 1 | tested | Removing a key stops it signing anything new while leaving what it signed earlier valid, provid… |
+| L1 6.2 |  | M2 | 5 | tested | Removing a key stops it signing anything new while leaving what it signed earlier valid, provid… |
 | L1 6.3 | MUST | M2 | 1 | tested | When a verifier encounters a `versionId` it does not have, it SHOULD fetch the missing events f… |
 | L1 6.4 |  | M2 | 11 | tested | Member proofs on identity events. A proof `p` by member `M` on another mind's identity event `e… |
 | L1 7.1 |  | M2 | 96 | tested | Two events with different content IDs in logs with the same genesis, at the same `seq`, each va… |
@@ -206,12 +206,12 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 10.4 |  | M4 | 0 | pending M4 | After an operational key is revoked with a compromise time, entries it signed whose evaluation… |
 | L1 10.5 |  | M4 | 2 | tested in part (due M4) | A `Checkpoint` has `author`, `created`, `size` (the number of entries covered, from `seq` 0), `… |
 | L1 10.6 | MAY | M4 | 0 | pending M4 | A checkpoint MAY be anchored in a public append-only log or in the Bitcoin blockchain through O… |
-| L1 11.1 | MUST | M3 | 5 | tested in part (due M3) | A `Delegation` record: \| Member \| Required \| Value \| UCAN 1.0 \| \|---\|---\|---\|---\| \| `author` \|… |
-| L1 11.2 | MUST | M3 | 8 | tested in part (due M3) | Commands match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` covers a command `c` when… |
-| L1 11.3 | SHOULD | M3 | 19 | tested in part (due M3) | Policies. A policy is an array of at most 64 statements, all of which must hold for the record… |
-| L1 11.4 |  | M3 | 0 | pending M3 | Validity of a delegation chain for a record `r` carrying a proof `p` by a valid operational key… |
-| L1 11.5 | SHOULD | M3 | 0 | pending M3 | A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco… |
-| L1 11.6 | MUST | M3 | 1 | tested in part (due M3) | Use. A proof that relies on delegation lists, in its own `authority` member (core 5.2), exactly… |
+| L1 11.1 | MUST | M3 | 11 | tested | A `Delegation` record: \| Member \| Required \| Value \| UCAN 1.0 \| \|---\|---\|---\|---\| \| `author` \|… |
+| L1 11.2 | MUST | M3 | 19 | tested | Commands match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` covers a command `c` when… |
+| L1 11.3 | SHOULD | M3 | 42 | tested | Policies. A policy is an array of at most 64 statements, all of which must hold for the record… |
+| L1 11.4 |  | M3 | 7 | tested | Validity of a delegation chain for a record `r` carrying a proof `p` by a valid operational key… |
+| L1 11.5 | SHOULD | M3 | 4 | tested | A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco… |
+| L1 11.6 | MUST | M3 | 6 | tested | Use. A proof that relies on delegation lists, in its own `authority` member (core 5.2), exactly… |
 | L1 12.1 | MUST | M4 | 21 | tested in part (due M4) | A `Packet`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `from` \| yes \| Sender's address; the… |
 | L1 12.2 | MUST | M4 | 7 | tested in part (due M4) | Content. Exactly one of: - `{ "mediaType": <media type>, "body": <JSON value> }`. With `applica… |
 | L1 12.3 | MUST | M4 | 1 | tested in part (due M4) | Verbs (advisory): `inform`, `request`, `query`, `propose`, `accept`, `decline`, `deliver`, `ack… |
@@ -245,7 +245,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 18.3 |  | M5 | 1 | tested in part (due M5) | A `QueryResult`: `{ "oip": "1", "type": "QueryResult", "author": <indexer's address>, "created"… |
 | L1 18.4 | MUST | M6 | 0 | pending M6 | Clients MUST fetch and verify the records named in results before acting on them. Ranking is th… |
 | L1 18.5 | MUST | M5 | 0 | pending M5 | Brokered delivery. An indexer MAY accept `POST {endpoint}/inbox` packets whose `to` is a capabi… |
-| L1 19 |  | M4 | 1 | tested in part (due M4) | Limits (table) |
+| L1 19 |  | M4 | 2 | tested in part (due M4) | Limits (table) |
 
 ## L2
 
@@ -262,19 +262,19 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L2 4.2 | MUST | M3 | 8 | tested in part (due M3) | `Offer`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `provides` \| yes \| Plain-language statem… |
 | L2 4.3 |  | M3 | 0 | pending M3 | Withdrawals and edits. A withdrawal is a superseding record (Section 2) with `status` `withdraw… |
 | L2 5.1 | MUST | M3 | 6 | tested in part (due M3) | `Commitment`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `parties` \| yes \| 2–64 objects `{ "… |
-| L2 5.2 | MUST | M3 | 0 | pending M3 | The `author` of a Commitment MUST be one of its parties, or a mind whose proof on it counts for… |
+| L2 5.2 | MUST | M3 | 4 | tested | The `author` of a Commitment MUST be one of its parties, or a mind whose proof on it counts for… |
 | L2 5.3 | SHOULD | M3 | 0 | pending M3 | Additional signatures are added by appending proofs. Adding proofs does not change the content… |
 | L2 5.4 | SHOULD | M3 | 0 | pending M3 | Parties bound through a delegate. A party whose proof on a Commitment counts only through a del… |
 | L2 6.1 | MUST | M3 | 8 | tested in part (due M3) | `Receipt`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `about` \| yes \| `record-ref` of the re… |
-| L2 6.2 | MUST | M3 | 4 | tested in part (due M3) | `Collective` (a charter): \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The co… |
-| L2 7.1 | SHOULD | M3 | 1 | tested in part (due M3) | A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an… |
-| L2 7.2 |  | M3 | 0 | pending M3 | Delegable types are `Intent`, `Offer`, `Commitment` and `Receipt`. Every other signed record (i… |
-| L2 7.3 |  | M3 | 0 | pending M3 | A Commitment is accepted when it counts for its `author`, its author is a party or signs for on… |
-| L2 8 | MUST | M3 | 0 | pending M3 | Status is computed from the records known to the verifier and the time of computation, and so c… |
-| L2 8.1 |  | M3 | 0 | pending M3 | Intent. `withdrawn` or `satisfied` if a valid superseding Intent by the same author has that `s… |
-| L2 8.2 |  | M3 | 0 | pending M3 | Offer. `withdrawn` if a valid superseding Offer by the same author has that status; otherwise `… |
-| L2 8.3 | SHOULD | M3 | 0 | pending M3 | Commitment. Let `R` be the set of Receipts about the Commitment whose `author` is a party and t… |
-| L2 8.4 |  | M3 | 0 | pending M3 | Collective charter. `dissolved` if the collective's identity log is retired; otherwise `active`. |
+| L2 6.2 | MUST | M3 | 7 | tested | `Collective` (a charter): \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The co… |
+| L2 7.1 | SHOULD | M3 | 11 | tested | A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an… |
+| L2 7.2 |  | M3 | 1 | tested | Delegable types are `Intent`, `Offer`, `Commitment` and `Receipt`. Every other signed record (i… |
+| L2 7.3 |  | M3 | 3 | tested | A Commitment is accepted when it counts for its `author`, its author is a party or signs for on… |
+| L2 8 | MUST | M3 | 2 | tested | Status is computed from the records known to the verifier and the time of computation, and so c… |
+| L2 8.1 |  | M3 | 12 | tested | Intent. `withdrawn` or `satisfied` if a valid superseding Intent by the same author has that `s… |
+| L2 8.2 |  | M3 | 7 | tested | Offer. `withdrawn` if a valid superseding Offer by the same author has that status; otherwise `… |
+| L2 8.3 | SHOULD | M3 | 23 | tested | Commitment. Let `R` be the set of Receipts about the Commitment whose `author` is a party and t… |
+| L2 8.4 |  | M3 | 2 | tested | Collective charter. `dissolved` if the collective's identity log is retired; otherwise `active`. |
 | L2 9 | MUST | M3 | 3 | tested in part (due M3) | An evidence item is an object: \| Member \| Required \| Value \| \|---\|---\|---\| \| `kind` \| yes \| `oi… |
 | L2 10.1 | MAY | M3 | 0 | pending M3 | Records MAY be published in feeds (Layer 1, Section 10), exchanged privately in packets, or bot… |
 | L2 10.2 | SHOULD | M3 | 0 | pending M3 | A party to a Commitment SHOULD list it in its own feed once it has signed, with the entry commi… |

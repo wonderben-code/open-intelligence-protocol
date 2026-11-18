@@ -277,6 +277,57 @@ function sameMembers(a: unknown, b: unknown): boolean {
   );
 }
 
+/**
+ * Whether a record counts for a mind the positive part names, as the
+ * baseline verifier sees it. `undefined` if the adapter cannot say yet.
+ */
+function countsIn(
+  adapter: ConformanceAdapter,
+  vectors: Vectors,
+): ((record: JsonObject, mind: string) => boolean) | undefined {
+  const countsFor = adapter.countsFor?.bind(adapter);
+  if (countsFor === undefined) return undefined;
+  const view = baselineView(vectors);
+  const probe = countsFor(
+    namedRecord(vectors, "commitment_agents"),
+    addressOf(vectors, "amina"),
+    view,
+  );
+  // An adapter that does not judge delegated proofs yet cannot run these checks.
+  if (probe === NOT_JUDGED) return undefined;
+  return (record, mind) => verdict(countsFor(record, addressOf(vectors, mind), view));
+}
+
+/**
+ * Signs a changed copy of a record that carried one proof, as its signer
+ * would: with the test key named, the same verification method and the same
+ * `authority`, at the record's own `created`. `undefined` if the adapter
+ * cannot sign.
+ */
+function resigner(
+  adapter: ConformanceAdapter,
+  vectors: Vectors,
+): ((changed: JsonObject, key: string) => JsonObject) | undefined {
+  const createProof = adapter.createProof?.bind(adapter);
+  if (createProof === undefined) return undefined;
+  return (changed, key) => {
+    const seed = vectors.keys[key]?.seed_hex;
+    const [proof] = proofsOf(changed);
+    if (seed === undefined || proof === undefined) {
+      throw new Error(`the vectors have no test key ${key}, or the record has no proof`);
+    }
+    const { proof: _signed, ...content } = changed;
+    const { verificationMethod, authority } = proof as Readonly<Record<string, unknown>> &
+      ProofRequest;
+    const request: ProofRequest = {
+      verificationMethod,
+      created: String(content["created"]),
+      ...(authority === undefined ? {} : { authority }),
+    };
+    return { ...content, proof: [createProof(content, request, hexToBytes(seed))] };
+  };
+}
+
 /** One check of the positive part of the vectors: values an implementation must reproduce. */
 export interface PositiveCheck {
   readonly name: string;
@@ -547,19 +598,204 @@ export const POSITIVE_CHECKS: readonly PositiveCheck[] = [
         .map(([name]) => `${name} was not reproduced`);
     },
   },
-  later("packet sent on Amina's behalf under a /oip/send delegation", "M3"),
-  later("co-signing keeps the content ID; delegated party proof", "M3"),
-  later("two agents sign for their principals, in either order", "M3"),
-  later("delegation policy enforced (120, 500 ok; 500.01, 900 not)", "M3"),
-  later("two-step delegation chain (150 ok; 300 beyond the sub-limit)", "M3"),
-  later("collective signs by 2-of-3 threshold and by a charter role", "M3"),
-  later("Layer 2 status (every state of Intent, Offer and Commitment)", "M3"),
+  {
+    name: "packet sent on Amina's behalf under a /oip/send delegation",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const sentFor = adapter.sentFor?.bind(adapter);
+      if (sentFor === undefined) return undefined;
+      const view = baselineView(vectors);
+      const packet = namedRecord(vectors, "packet_on_behalf");
+      const mismatches: string[] = [];
+      if (!verdict(sentFor(packet, addressOf(vectors, "amina"), view))) {
+        mismatches.push("packet_on_behalf was not sent for amina");
+      }
+      if (verdict(sentFor(packet, addressOf(vectors, "lexis_ltd"), view))) {
+        mismatches.push("packet_on_behalf was sent for lexis_ltd, and must not be");
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "co-signing keeps the content ID; delegated party proof",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const contentId = adapter.contentId?.bind(adapter);
+      const counts = countsIn(adapter, vectors);
+      const status = adapter.status?.bind(adapter);
+      if (contentId === undefined || counts === undefined || status === undefined) {
+        return undefined;
+      }
+      const accepted = namedRecord(vectors, "commitment_accepted");
+      const proposed = namedRecord(vectors, "commitment_proposed");
+      const mismatches: string[] = [];
+      if (contentId(accepted) !== contentId(proposed)) {
+        mismatches.push("a second proof changed the content ID of the commitment");
+      }
+      for (const mind of ["amina", "lexis_ltd"]) {
+        if (!counts(accepted, mind))
+          mismatches.push(`commitment_accepted does not count for ${mind}`);
+      }
+      if (counts(proposed, "amina")) mismatches.push("commitment_proposed counts for amina");
+      // Layer 2, 7.3: accepted with both parties' proofs, and proposed with one.
+      const view = baselineView(vectors);
+      const at = "2026-10-31T12:00:00Z";
+      if (named(status(accepted, [accepted], at, view)) !== "accepted") {
+        mismatches.push("commitment_accepted is not accepted");
+      }
+      if (named(status(proposed, [proposed], at, view)) !== "proposed") {
+        mismatches.push("commitment_proposed is not proposed");
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "two agents sign for their principals, in either order",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const contentId = adapter.contentId?.bind(adapter);
+      const counts = countsIn(adapter, vectors);
+      if (contentId === undefined || counts === undefined) return undefined;
+      const rush = namedRecord(vectors, "commitment_agents");
+      const turned = { ...rush, proof: [...proofsOf(rush)].reverse() };
+      const mismatches: string[] = [];
+      for (const [order, record] of [
+        ["as signed", rush],
+        ["with its proofs in the other order", turned],
+      ] as const) {
+        for (const mind of ["lexis_ltd", "amina"]) {
+          if (!counts(record, mind)) {
+            mismatches.push(`commitment_agents ${order} does not count for ${mind}`);
+          }
+        }
+      }
+      if (contentId(turned) !== contentId(rush)) {
+        mismatches.push("the order of the proofs changed the content ID");
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "delegation policy enforced (120, 500 ok; 500.01, 900 not)",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const counts = countsIn(adapter, vectors);
+      const sign = resigner(adapter, vectors);
+      if (counts === undefined || sign === undefined) return undefined;
+      const proposed = namedRecord(vectors, "commitment_proposed");
+      const terms = proposed["terms"] as JsonObject;
+      const mismatches: string[] = [];
+      for (const [amount, within] of [
+        ["120", true],
+        ["500", true],
+        ["500.01", false],
+        ["900", false],
+      ] as const) {
+        const record = sign(
+          {
+            ...proposed,
+            terms: { ...terms, price: { ...(terms["price"] as JsonObject), amount } },
+          },
+          "lexis-agent-i1",
+        );
+        if (!counts(record, "lexis_agent")) {
+          mismatches.push(
+            `for ${amount}, the commitment does not count for the agent that signed it`,
+          );
+        }
+        if (counts(record, "lexis_ltd") !== within) {
+          mismatches.push(
+            `for ${amount}, the commitment ${within ? "does not count" : "counts"} for lexis_ltd`,
+          );
+        }
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "two-step delegation chain (150 ok; 300 beyond the sub-limit)",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const counts = countsIn(adapter, vectors);
+      const sign = resigner(adapter, vectors);
+      const status = adapter.status?.bind(adapter);
+      if (counts === undefined || sign === undefined || status === undefined) return undefined;
+      const chain = namedRecord(vectors, "commitment_via_chain");
+      const terms = chain["terms"] as JsonObject;
+      const mismatches: string[] = [];
+      if (!counts(chain, "lexis_ltd")) {
+        mismatches.push("commitment_via_chain does not count for lexis_ltd");
+      }
+      if (
+        named(status(chain, [chain], "2026-10-30T12:00:00Z", baselineView(vectors))) !== "accepted"
+      ) {
+        mismatches.push("commitment_via_chain is not accepted");
+      }
+      const over = sign(
+        {
+          ...chain,
+          terms: { ...terms, price: { ...(terms["price"] as JsonObject), amount: "300" } },
+        },
+        "lexis-fork-i1",
+      );
+      if (counts(over, "lexis_ltd")) {
+        mismatches.push(
+          "for 300, beyond the sub-delegation's limit, the commitment counts for lexis_ltd",
+        );
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "collective signs by 2-of-3 threshold and by a charter role",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const counts = countsIn(adapter, vectors);
+      if (counts === undefined) return undefined;
+      return ["collective_charter", "commitment_by_steward"]
+        .filter((name) => !counts(namedRecord(vectors, name), "collective"))
+        .map((name) => `${name} does not count for the collective`);
+    },
+  },
+  {
+    name: "Layer 2 status (every state of Intent, Offer and Commitment)",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const status = adapter.status?.bind(adapter);
+      if (status === undefined) return undefined;
+      const expected = vectors.cases["status"];
+      if (!Array.isArray(expected)) return ["the vectors have no cases.status"];
+      const view = baselineView(vectors);
+      const mismatches: string[] = [];
+      for (const entry of expected as readonly JsonObject[]) {
+        const { of, at, records, expect } = entry as {
+          readonly of: string;
+          readonly at: string;
+          readonly records: readonly string[];
+          readonly expect: string;
+        };
+        const got = named(
+          status(
+            namedRecord(vectors, of),
+            records.map((name) => namedRecord(vectors, name)),
+            at,
+            view,
+          ),
+        );
+        if (got !== expect) {
+          mismatches.push(`${of} at ${at} with ${records.join(", ")}: ${got}, not ${expect}`);
+        }
+      }
+      return mismatches;
+    },
+  },
   later("feed entries commit to proofs; checkpoint Merkle root", "M4"),
   later("packet opens its session; Ack names the packet", "M4"),
   later("a bridged mind, attested in its gateway's feed", "M9"),
 ];
 
-function runPositive(
+/** Runs one check of the positive part. A check that throws has failed. */
+export function runPositiveCheck(
   check: PositiveCheck,
   adapter: ConformanceAdapter,
   vectors: Vectors,
@@ -579,7 +815,7 @@ function runPositive(
 /** Runs every positive check and every case. */
 export function runVectors(adapter: ConformanceAdapter, vectors: Vectors): CaseResult[] {
   return [
-    ...POSITIVE_CHECKS.map((check) => runPositive(check, adapter, vectors)),
+    ...POSITIVE_CHECKS.map((check) => runPositiveCheck(check, adapter, vectors)),
     ...SECTIONS.flatMap((section) =>
       vectors[section].map((vectorCase) => runCase(adapter, vectors, section, vectorCase)),
     ),

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   type CaseKind,
+  type CaseResult,
   claimHolds,
   claimMustHold,
   type ConformanceAdapter,
@@ -17,6 +18,7 @@ import {
   positiveRecords,
   referenceAdapter,
   runCase,
+  runPositiveCheck,
   runVectors,
   tally,
   type VectorCase,
@@ -24,6 +26,15 @@ import {
 } from "../src/index.ts";
 
 const vectors = loadVectors();
+/** The result of the one positive check whose name begins so, or `undefined` if there is none. */
+const positive = (
+  name: string,
+  adapter: ConformanceAdapter,
+  from = vectors,
+): CaseResult | undefined => {
+  const found = POSITIVE_CHECKS.find((entry) => entry.name.startsWith(name));
+  return found === undefined ? undefined : runPositiveCheck(found, adapter, from);
+};
 const first = (kind: CaseKind, section: "valid" | "negative" | "controls" = "negative") => {
   const found = vectors[section].find((entry) => entry.kind === kind);
   if (found === undefined) throw new Error(`no ${kind} case in ${section}`);
@@ -235,15 +246,190 @@ describe("the positive checks", () => {
         name,
       ).toMatchObject({ outcome: "pass" });
     }
+    // M3: delegation, charter roles and status.
+    const m3 = [
+      "packet sent on Amina's behalf under a /oip/send delegation",
+      "co-signing keeps the content ID; delegated party proof",
+      "two agents sign for their principals, in either order",
+      "delegation policy enforced (120, 500 ok; 500.01, 900 not)",
+      "two-step delegation chain (150 ok; 300 beyond the sub-limit)",
+      "collective signs by 2-of-3 threshold and by a charter role",
+      "Layer 2 status (every state of Intent, Offer and Commitment)",
+    ];
+    expect(
+      POSITIVE_CHECKS.filter((check) => check.milestone === "M3").map((check) => check.name),
+    ).toEqual(m3);
+    for (const name of m3) {
+      expect(
+        results.find((result) => result.name === name),
+        name,
+      ).toMatchObject({ outcome: "pass" });
+    }
     expect(results.filter((result) => result.outcome === "pass")).toHaveLength(
-      1 + m1.length + m2.length,
+      1 + m1.length + m2.length + m3.length,
     );
+  });
+
+  describe("of delegation, charter roles and status", () => {
+    type Fields = Readonly<Record<string, unknown>>;
+    /** What one check finds: nothing if it passes, and `undefined` if it cannot run yet. */
+    const check = (adapter: ConformanceAdapter, name: string, from = vectors) => {
+      const found = POSITIVE_CHECKS.find((entry) => entry.name.startsWith(name));
+      if (found === undefined) throw new Error(`no positive check ${name}`);
+      return found.run(adapter, from);
+    };
+    const mind = (name: string) => vectors.cases[name] as string;
+    /** The reference implementation without some of its methods. */
+    const without = (...methods: (keyof ConformanceAdapter)[]): ConformanceAdapter =>
+      Object.fromEntries(
+        Object.entries(referenceAdapter).filter(
+          ([name]) => !methods.includes(name as keyof ConformanceAdapter),
+        ),
+      ) as unknown as ConformanceAdapter;
+    const proofsOn = (record: Fields) => record["proof"] as readonly Fields[];
+    /** The reference implementation, asked about another record than the one given. */
+    const countsAs =
+      (
+        other: (record: Fields, mind: string) => Fields,
+      ): NonNullable<ConformanceAdapter["countsFor"]> =>
+      (record, of, view) =>
+        referenceAdapter.countsFor?.(other(record, of), of, view) ?? false;
+
+    it("are pending for an implementation that does not judge them yet", () => {
+      const own: ConformanceAdapter = { ...referenceAdapter, countsFor: () => NOT_JUDGED };
+      for (const name of [
+        "co-signing",
+        "two agents",
+        "delegation policy",
+        "two-step",
+        "collective signs",
+      ]) {
+        expect(check(own, name), name).toBeUndefined();
+      }
+      for (const name of [
+        "packet sent",
+        "co-signing",
+        "delegation policy",
+        "two-step",
+        "Layer 2 status",
+      ]) {
+        expect(check(without("status", "sentFor", "createProof"), name), name).toBeUndefined();
+      }
+      for (const name of ["co-signing", "two agents"]) {
+        expect(check(without("contentId"), name), name).toBeUndefined();
+      }
+    });
+
+    it("pass the reference implementation", () => {
+      for (const entry of POSITIVE_CHECKS.filter((found) => found.milestone === "M3")) {
+        expect(entry.run(referenceAdapter, vectors), entry.name).toEqual([]);
+      }
+    });
+
+    it("fail an implementation that takes any packet as sent for anyone, or none", () => {
+      expect(check({ ...referenceAdapter, sentFor: () => true }, "packet sent")).toEqual([
+        "packet_on_behalf was sent for lexis_ltd, and must not be",
+      ]);
+      expect(check({ ...referenceAdapter, sentFor: () => false }, "packet sent")).toEqual([
+        "packet_on_behalf was not sent for amina",
+      ]);
+    });
+
+    it("fail an implementation that counts no proof made for another, or every proof for everyone", () => {
+      // A proof that names an authority counts for nobody.
+      const none: ConformanceAdapter = {
+        ...referenceAdapter,
+        countsFor: countsAs((record) => ({
+          ...record,
+          proof: proofsOn(record).filter((proof) => proof["authority"] === undefined),
+        })),
+      };
+      expect(check(none, "co-signing")).toContain(
+        "commitment_accepted does not count for lexis_ltd",
+      );
+      expect(check(none, "two agents")).toContain(
+        "commitment_agents as signed does not count for amina",
+      );
+      expect(check(none, "delegation policy")).toContain(
+        "for 120, the commitment does not count for lexis_ltd",
+      );
+      expect(check(none, "two-step")).toContain(
+        "commitment_via_chain does not count for lexis_ltd",
+      );
+      expect(check(none, "collective signs")).toEqual([
+        "commitment_by_steward does not count for the collective",
+      ]);
+      const all: ConformanceAdapter = { ...referenceAdapter, countsFor: () => true };
+      expect(check(all, "co-signing")).toEqual(["commitment_proposed counts for amina"]);
+      expect(check(all, "delegation policy")).toEqual([
+        "for 500.01, the commitment counts for lexis_ltd",
+        "for 900, the commitment counts for lexis_ltd",
+      ]);
+      expect(check(all, "two-step")).toEqual([
+        "for 300, beyond the sub-delegation's limit, the commitment counts for lexis_ltd",
+      ]);
+      // An agent whose own signature is lost when its principal's limit is passed.
+      const strict: ConformanceAdapter = {
+        ...referenceAdapter,
+        countsFor: (record, of, view) => {
+          const terms = record["terms"] as { readonly price?: { readonly amount?: string } };
+          if (of === mind("lexis_agent") && terms.price?.amount === "900") return false;
+          return referenceAdapter.countsFor?.(record, of, view) ?? false;
+        },
+      };
+      expect(check(strict, "delegation policy")).toEqual([
+        "for 900, the commitment does not count for the agent that signed it",
+      ]);
+    });
+
+    it("fail an implementation for which the order of proofs matters, or a proof changes the content ID", () => {
+      // A content ID that covers the proofs.
+      const covering: ConformanceAdapter = {
+        ...referenceAdapter,
+        contentId: (record) => JSON.stringify(record["proof"]),
+      };
+      expect(check(covering, "co-signing")).toEqual([
+        "a second proof changed the content ID of the commitment",
+      ]);
+      expect(check(covering, "two agents")).toEqual([
+        "the order of the proofs changed the content ID",
+      ]);
+      // Only the first proof on a record is looked at.
+      const firstOnly: ConformanceAdapter = {
+        ...referenceAdapter,
+        countsFor: countsAs((record) => ({ ...record, proof: proofsOn(record).slice(0, 1) })),
+      };
+      expect(check(firstOnly, "two agents")).toEqual([
+        "commitment_agents as signed does not count for amina",
+        "commitment_agents with its proofs in the other order does not count for lexis_ltd",
+      ]);
+    });
+
+    it("fail an implementation that gets a status wrong", () => {
+      const open: ConformanceAdapter = { ...referenceAdapter, status: () => "open" };
+      expect(check(open, "Layer 2 status")).toContain(
+        "intent at 2026-10-30T12:00:00Z with intent, commitment_accepted: open, not satisfied",
+      );
+      expect(check(open, "co-signing")).toEqual([
+        "commitment_accepted is not accepted",
+        "commitment_proposed is not proposed",
+      ]);
+      expect(check(open, "two-step")).toEqual(["commitment_via_chain is not accepted"]);
+      // An answer that is no status is no answer.
+      expect(() =>
+        check({ ...referenceAdapter, status: () => undefined as never }, "Layer 2 status"),
+      ).toThrow(TypeError);
+      const none = structuredClone(vectors) as unknown as { cases: Record<string, unknown> };
+      delete none.cases["status"];
+      expect(check(referenceAdapter, "Layer 2 status", none as unknown as typeof vectors)).toEqual([
+        "the vectors have no cases.status",
+      ]);
+    });
   });
 
   it("fail an implementation that verifies no log, or derives the wrong addresses", () => {
     const name = "identity logs verify; addresses derive from genesis";
-    const check = (adapter: ConformanceAdapter) =>
-      runVectors(adapter, vectors).find((result) => result.name === name);
+    const check = (adapter: ConformanceAdapter) => positive(name, adapter);
     // Both methods are needed.
     expect(check({ name: "half", contentId: () => "" })?.outcome).toBe("pending");
     expect(check({ name: "half", logVerifies: () => true })?.outcome).toBe("pending");
@@ -262,8 +448,7 @@ describe("the positive checks", () => {
 
   it("fail an implementation that loses the threshold of a 2-of-3 rotation", () => {
     const name = "2-of-3 pre-rotation with distinct keys";
-    const check = (adapter: ConformanceAdapter) =>
-      runVectors(adapter, vectors).find((result) => result.name === name);
+    const check = (adapter: ConformanceAdapter) => positive(name, adapter);
     for (const answer of [undefined, null, {}, { didDocumentMetadata: { nextThreshold: 2 } }]) {
       const result = check({ name: "wrong", didDocument: () => answer });
       expect(result?.outcome).toBe("fail");
@@ -278,22 +463,17 @@ describe("the positive checks", () => {
     if (genesis === undefined || update === undefined) throw new Error("no multi_log");
     update.controller.keys = [update.controller.keys[0] ?? "", update.controller.keys[0] ?? ""];
     expect(
-      runVectors(referenceAdapter, changed as unknown as typeof vectors).find(
-        (result) => result.name === name,
-      )?.detail,
+      positive(name, referenceAdapter, changed as unknown as typeof vectors)?.detail,
     ).toContain("the update does not reveal two distinct keys");
     genesis.controller.nextThreshold = 3;
     expect(
-      runVectors(referenceAdapter, changed as unknown as typeof vectors).find(
-        (result) => result.name === name,
-      )?.detail,
+      positive(name, referenceAdapter, changed as unknown as typeof vectors)?.detail,
     ).toContain("multi_log is not the log this check was written for");
   });
 
   it("fail an implementation that gets lineage wrong", () => {
     const name = "lineage acknowledged by a Fork event and by a Lineage record";
-    const check = (adapter: ConformanceAdapter) =>
-      runVectors(adapter, vectors).find((result) => result.name === name);
+    const check = (adapter: ConformanceAdapter) => positive(name, adapter);
     const parent = vectors.cases["lexis_agent"] as string;
     for (const answer of [
       {},
@@ -317,8 +497,7 @@ describe("the positive checks", () => {
 
   it("fail an implementation for which a signature does not count for its author", () => {
     const name = "signatures count for their authors (purpose and key checks)";
-    const check = (adapter: ConformanceAdapter) =>
-      runVectors(adapter, vectors).find((result) => result.name === name);
+    const check = (adapter: ConformanceAdapter) => positive(name, adapter);
     const never = check({ name: "never", countsFor: () => false });
     expect(never?.outcome).toBe("fail");
     expect(never?.detail).toContain("intent does not count for amina");
@@ -346,8 +525,7 @@ describe("the positive checks", () => {
 
   it("fail an implementation whose DID documents differ", () => {
     const name = "DID documents, current and versioned";
-    const check = (adapter: ConformanceAdapter) =>
-      runVectors(adapter, vectors).find((result) => result.name === name);
+    const check = (adapter: ConformanceAdapter) => positive(name, adapter);
     expect(check({ name: "half", didDocument: () => ({}) })?.outcome).toBe("pending");
     expect(check({ name: "half", contentId: () => "" })?.outcome).toBe("pending");
     const none = check({ ...referenceAdapter, didDocument: () => undefined });
@@ -372,8 +550,7 @@ describe("the positive checks", () => {
   });
 
   it("fail an implementation whose content IDs or addresses are wrong", () => {
-    const check = (adapter: ConformanceAdapter) =>
-      runVectors(adapter, vectors).find((result) => result.name.startsWith("content IDs"));
+    const check = (adapter: ConformanceAdapter) => positive("content IDs", adapter);
     const constant = check({ name: "constant", contentId: () => `bciqa${"a".repeat(51)}` });
     expect(constant?.outcome).toBe("fail");
     expect(constant?.detail).toContain("content_ids.amina_genesis: expected bciq");
@@ -400,9 +577,7 @@ describe("the positive checks", () => {
     };
     changed.cases.content_ids["mystery"] = changed.cases.content_ids["intent"] ?? "";
     changed.cases.amina = `${changed.cases.amina.slice(0, -1)}b`;
-    const result = runVectors(referenceAdapter, changed as unknown as typeof vectors).find(
-      (entry) => entry.name.startsWith("content IDs"),
-    );
+    const result = positive("content IDs", referenceAdapter, changed as unknown as typeof vectors);
     expect(result?.outcome).toBe("fail");
     expect(result?.detail).toContain("is not in the canonical spelling");
     expect(result?.detail).toContain(
@@ -412,9 +587,7 @@ describe("the positive checks", () => {
   });
 
   it("fail an implementation whose key hashes are wrong", () => {
-    const result = runVectors({ name: "constant", keyHash: () => "bciq" }, vectors).find((entry) =>
-      entry.name.startsWith("key hashes"),
-    );
+    const result = positive("key hashes", { name: "constant", keyHash: () => "bciq" });
     expect(result?.outcome).toBe("fail");
     expect(result?.detail).toMatch(
       /amina_log\[1\]: the hash of z6Mk\w+ is not in the event before/,
@@ -423,9 +596,7 @@ describe("the positive checks", () => {
 
   it("fail an implementation that does not reproduce a proof", () => {
     const check = (createProof: NonNullable<ConformanceAdapter["createProof"]>) =>
-      runVectors({ name: "signer", createProof }, vectors).find((result) =>
-        result.name.startsWith("every proofValue"),
-      );
+      positive("every proofValue", { name: "signer", createProof });
     const reference = referenceAdapter.createProof?.bind(referenceAdapter);
     if (reference === undefined) throw new Error("the reference adapter creates proofs");
     expect(check(reference)?.outcome).toBe("pass");
@@ -456,17 +627,17 @@ describe("the positive checks", () => {
     // A key the vectors do not have.
     const noKeys = structuredClone(vectors) as unknown as { keys: Record<string, unknown> };
     noKeys.keys = {};
-    const missing = runVectors(referenceAdapter, noKeys as unknown as typeof vectors).find(
-      (result) => result.name.startsWith("every proofValue"),
+    const missing = positive(
+      "every proofValue",
+      referenceAdapter,
+      noKeys as unknown as typeof vectors,
     );
     expect(missing?.detail).toContain("the vectors have no test key for it");
   });
 
   it("fail an implementation that accepts a signature core 4.4 forbids, or rejects a good one", () => {
     const check = (proofVerifies: NonNullable<ConformanceAdapter["proofVerifies"]>) =>
-      runVectors({ name: "verifier", proofVerifies }, vectors).find((result) =>
-        result.name.startsWith("proofs verify"),
-      );
+      positive("proofs verify", { name: "verifier", proofVerifies });
     const lax = check(() => true);
     expect(lax?.outcome).toBe("fail");
     for (const name of ["signature-s-not-reduced", "signature-r-identity", "wrong-proof-purpose"]) {
@@ -486,8 +657,10 @@ describe("the positive checks", () => {
     expect(check(() => undefined as unknown as boolean)?.outcome).toBe("fail");
     const without = structuredClone(vectors) as unknown as { negative: { name: string }[] };
     without.negative = without.negative.filter((entry) => entry.name !== "signature-r-identity");
-    const missing = runVectors(referenceAdapter, without as unknown as typeof vectors).find(
-      (result) => result.name.startsWith("proofs verify"),
+    const missing = positive(
+      "proofs verify",
+      referenceAdapter,
+      without as unknown as typeof vectors,
     );
     expect(missing?.detail).toBe("the vectors have no negative case signature-r-identity");
   });
@@ -500,6 +673,9 @@ describe("the positive checks", () => {
       "every record in the positive vectors is well formed",
       "JCS example",
       "signatures count for their authors (purpose and key checks)",
+      "packet sent on Amina's behalf under a /oip/send delegation",
+      "collective signs by 2-of-3 threshold and by a charter role",
+      "Layer 2 status (every state of Intent, Offer and Commitment)",
     ]);
     expect(results[0]?.detail).toContain("amina_log[0] was rejected");
   });
@@ -511,7 +687,7 @@ describe("the positive checks", () => {
         throw new Error("no JCS here");
       },
     };
-    const result = runVectors(throwing, vectors).find((entry) => entry.name === "JCS example");
+    const result = positive("JCS example", throwing);
     expect(result).toMatchObject({ outcome: "fail", detail: "threw no JCS here" });
   });
 });

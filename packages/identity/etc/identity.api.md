@@ -113,6 +113,9 @@ export interface DidVerificationMethod {
 }
 
 // @public
+export function disregardingCompromise(view: IdentityView): IdentityView;
+
+// @public
 export interface Divergence {
     readonly events: readonly [LogEntry["event"], LogEntry["event"]];
     readonly position: number;

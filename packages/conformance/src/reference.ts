@@ -35,7 +35,7 @@ import {
   validateRecord,
   type Validation,
 } from "@oip/schema";
-import { countsFor } from "@oip/web";
+import { countsFor, status, type WebRecords, WebRecordSet } from "@oip/web";
 
 import { type ConformanceAdapter, type VerifierView } from "./adapter.ts";
 import type { JsonObject } from "./vectors.ts";
@@ -181,6 +181,29 @@ export const referenceAdapter: ConformanceAdapter = {
     if (!judged.ok) return false;
     const context = { identity: bookFor(view, packet), records: recordsOf(view) };
     return sentFor(judged.value, mind, context) !== undefined;
+  },
+  status: (of, records, at, view) => {
+    const judged = judgeRecord(of);
+    const time = parseTimestamp(at);
+    if (!judged.ok || time === undefined) return "";
+    // As the vectors put the question: what a record refers to is looked up in what the
+    // verifier holds, and what refers to the record is looked for among the records given.
+    const held = recordsOf(view);
+    const given = new WebRecordSet();
+    for (const record of records) given.add(record);
+    const known: WebRecords = {
+      record: (id) => held.record(id),
+      revocationsOf: (id) => held.revocationsOf(id),
+      chartersOf: (mind) => held.chartersOf(mind),
+      supersedersOf: (id) => given.supersedersOf(id),
+      resolversOf: (id) => given.resolversOf(id),
+      receiptsAbout: (id) => given.receiptsAbout(id),
+    };
+    const answer = status(judged.value, time, {
+      identity: bookFor(view, [of, records]),
+      records: known,
+    });
+    return answer.ok ? answer.value : "";
   },
   lineage: (child, view) => {
     const book = bookFor(view, undefined);

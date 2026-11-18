@@ -37,6 +37,7 @@ export {
   POSITIVE_CHECKS,
   type PositiveCheck,
   runCase,
+  runPositiveCheck,
   runVectors,
   tally,
   viewFor,

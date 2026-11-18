@@ -21,6 +21,7 @@ export {
   LogBook,
   type LogBookOptions,
 } from "./book.ts";
+export { disregardingCompromise } from "./compromise.ts";
 export {
   draftFork,
   draftGenesis,

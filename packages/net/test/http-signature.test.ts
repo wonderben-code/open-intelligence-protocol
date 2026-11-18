@@ -114,8 +114,9 @@ describe("RFC 9421, Appendix B.2.6: signing a request using ed25519", () => {
     expect(base('s=("x-missing")')).toBe(false);
     expect(base('s=("@status")')).toBe(false);
     expect(base('s=("@unknown")')).toBe(false);
-    // A field's name is given in lower case (2.1).
+    // A field's name is given in lower case (2.1), and a derived component as the RFC spells it.
     expect(base('s=("Date")')).toBe(false);
+    expect(base('s=("@Method")')).toBe(false);
     // Component parameters are not read here: a component that has one is an error (2.5).
     expect(base('s=("date";sf)')).toBe(false);
     expect(base("s=(date)")).toBe(false);
@@ -258,6 +259,38 @@ describe(`${clause("L1 13.3")} an authenticated request`, () => {
     // A body added to a request that was signed without one.
     const grown = { ...(await signed(drain)), body: utf8("{}") };
     expect(refusal(grown, serverAt(110).server).path).toBe("/signature-input/oip");
+  });
+
+  it("has a body when its content is longer than zero bytes", async () => {
+    // No bytes are no body: there is nothing to digest, and no digest to cover.
+    const request = await signed({ ...drain, body: new Uint8Array(0) });
+    expect(header(request, "signature-input")).toContain('=("@method" "@target-uri");');
+    expect(header(request, "content-digest")).toBe("");
+    expect(verifyRequest(request, serverAt(110).server).ok).toBe(true);
+    // And a request signed with no body is the same request with none.
+    const bare = { ...(await signed(drain)), body: new Uint8Array(0) };
+    expect(verifyRequest(bare, serverAt(110).server).ok).toBe(true);
+    // A body taken away on the way leaves the digest its signature covers, and that is not
+    // the digest of nothing.
+    const { body: _, ...stripped } = await signed(publish);
+    const taken = { clause: "L1 13.3", path: "/content-digest" };
+    expect(refusal(stripped, serverAt(110).server)).toStrictEqual(taken);
+    expect(refusal({ ...stripped, body: new Uint8Array(0) }, serverAt(110).server)).toStrictEqual(
+      taken,
+    );
+  });
+
+  it("is judged as first seen now: a log held from before may lack a later event", async () => {
+    // The signature is on no record, so the only evidence for it is the server's own clock
+    // (core 9.4). A log known up to an earlier time may lack the event that removed the key.
+    const request = await signed(drain, ada, 100);
+    const serverKnowingUpTo = (seconds: number): RequestVerifier => {
+      const book = new LogBook(witness([ada.events]));
+      book.hold(ada.events, at(seconds));
+      return { now: at(110), view: book, nonces: new RequestNonces() };
+    };
+    expect(refusal(request, serverKnowingUpTo(105)).clause).toBe("core 9.4");
+    expect(verifyRequest(request, serverKnowingUpTo(110)).ok).toBe(true);
   });
 
   it("is for one method and one target", async () => {
@@ -438,6 +471,9 @@ describe(`${clause("L1 13.3")} an authenticated request`, () => {
       input.replace(/mind=/u, "other="),
     );
     expect(refusal(neither, serverAt(110).server).path).toBe("/signature/proxy");
+    // And so with two that are judged and fail.
+    const other = { ...both, method: "DELETE" };
+    expect(refusal(other, serverAt(110).server).path).toBe("/signature/proxy");
     // The fields may come in any case, and in several instances.
     const split: HttpRequest = {
       ...drain,

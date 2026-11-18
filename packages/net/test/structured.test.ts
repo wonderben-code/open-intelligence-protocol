@@ -124,7 +124,14 @@ describe("structured field values (RFC 8941), as signatures and digests use them
       'a="café"',
       'a="tab\there"',
       "a=:not base64!:",
+      "a=:aGVsbG8-:",
+      "a=:aGVs bG8=:",
       "a=:AQID",
+      // Bytes that begin and never end, with nothing after them.
+      "a=:",
+      // A space between a name and its value.
+      "a= 1",
+      "a=(1);x= 2",
       // A second text for the same bytes: bits set that encode nothing, and no padding.
       "a=:AQJ=:",
       "a=:AQI:",

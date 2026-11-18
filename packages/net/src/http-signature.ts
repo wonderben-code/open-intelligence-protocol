@@ -129,8 +129,10 @@ export function signatureBase(request: HttpRequest, input: InnerList): Validatio
     const name = component.value.value;
     if (named.has(name)) return no("a component is covered twice", "L1 13.3", path);
     named.add(name);
+    // A name in upper case names nothing: a field is looked up by its name in lower case,
+    // and the derived components are spelt as the RFC spells them.
     const value = name.startsWith("@") ? derived(name, request) : field(name, request);
-    if (value === undefined || !PRINTABLE.test(value) || name !== name.toLowerCase()) {
+    if (value === undefined || !PRINTABLE.test(value)) {
       return no(
         `the request has no value for the component ${JSON.stringify(name)}`,
         "L1 13.3",

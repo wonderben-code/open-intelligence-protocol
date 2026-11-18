@@ -46,7 +46,6 @@ const MAX_LENGTH = 16_384;
 const KEY = /^[a-z*][a-z0-9_\-.*]*/u;
 const TOKEN = /^[A-Za-z*][!#$%&'*+\-.^_`|~0-9A-Za-z:/]*/u;
 const INTEGER = /^-?[0-9]{1,15}(?![0-9.])/u;
-const BASE64 = /^[A-Za-z0-9+/=]*$/u;
 
 /** Thrown inside the reader for a value that is none, and caught at its edge. */
 class Malformed extends Error {}
@@ -96,7 +95,8 @@ class Reader {
       if (end < 0) throw new Malformed();
       const text = this.#rest.slice(0, end);
       this.#rest = this.#rest.slice(end + 1);
-      const value = BASE64.test(text) ? base64ToBytes(text) : undefined;
+      // One text for each sequence of bytes: the reader of base64 accepts no other.
+      const value = base64ToBytes(text);
       if (value === undefined) throw new Malformed();
       return { kind: "bytes", value };
     }

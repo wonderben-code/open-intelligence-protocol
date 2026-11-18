@@ -89,4 +89,4 @@ export {
   stateAt,
   type VerifiedLog,
 } from "./state.ts";
-export { type Witnessed, witnessLog, type WitnessOptions, witnessRecord } from "./witness.ts";
+export { witnessLog, type WitnessOptions, witnessRecord } from "./witness.ts";

@@ -24,6 +24,7 @@ import {
 import {
   type Controller,
   type IdentityEvent,
+  IMPLEMENTATION_LIMIT,
   type Issue,
   type Validation,
   validateJson,
@@ -716,8 +717,14 @@ export function cannotRead(
           `${path}/critical`,
         );
   } catch {
-    // What cannot be read at all says nothing of itself.
-    return undefined;
+    // A value that fails when it is asked what it is has not been shown to be
+    // invalid, so it is one the verifier cannot judge (Layer 1, 4.9, last
+    // sentence but one). Plain data never fails so.
+    return no(
+      "the value could not be asked what it is, so it cannot be judged",
+      IMPLEMENTATION_LIMIT,
+      path,
+    );
   }
 }
 

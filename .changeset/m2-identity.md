@@ -17,5 +17,5 @@ First version: who a mind is, and which of its keys may sign (Layer 1, Sections 
 - A book has no limit on the copies it holds of one mind's log. For one event it holds the proofs that one record carries (256, and 1 MiB with the event), and refuses the mind when well-formed copies show more.
 - `understood`, for `verifyLog`, `LogBook` and `judgeRecord`: the extensions the caller implements. An event or a record that lists another in `critical` is refused (core 8.3). By default none is implemented.
 - A duplicitous collective signs nothing from its first conflicting event on, and a record is signed by a collective from the moment a change of membership completes its threshold (Layer 1, 7.3, 9.5; OEP-0002).
-- An event that fails is invalid or undecided (Layer 1, 4.9; OEP-0002). `witnessLog` says which (`undecided`), and what a book would keep of a log that arrives (`toHold`): the events before an invalid event, and never only the events before one the verifier cannot judge.
+- An event that fails is invalid or undecided (Layer 1, 4.9; OEP-0002). `witnessLog` says which (`undecided`) for a copy judged alone; what to hold of a log that arrives is the copy as it came, which a book judges with the proofs of every copy.
 - Verified logs, judged records and every answer a book keeps are frozen.

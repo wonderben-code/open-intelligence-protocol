@@ -36,23 +36,6 @@ export interface WitnessOptions {
   readonly understood?: Iterable<string>;
 }
 
-/** What `witnessLog` found of a log, and what to hold of it. */
-export interface Witnessed extends Replayed {
-  /**
-   * What to hold of the log, as known up to `now` (Layer 1, 4.9):
-   *
-   * - the log as it was given, if every event verified;
-   * - the log as it was given, if the first event that did not verify is
-   *   undecided. A `LogBook` refuses that log until the event can be judged,
-   *   and that is the point: the events before it are not the mind's log,
-   *   because the event may remove a key;
-   * - the events before the first that did not verify, if that event is
-   *   invalid. They are the log, whoever appended the rest;
-   * - `undefined` if that leaves nothing.
-   */
-  readonly toHold: readonly unknown[] | undefined;
-}
-
 /**
  * Records a verifier's own first sight of the events of a log it has just
  * obtained (core 9.5), and of those only that verify.
@@ -70,14 +53,20 @@ export interface Witnessed extends Replayed {
  * @param now - The time the verifier obtained the log: its own clock, read by the caller.
  * @param seen - The verifier's own record, which is written to.
  * @returns The events that verified, why the next one did not, if there is
- *   one, whether that event is invalid or undecided, and what to hold.
+ *   one, and whether that event is invalid or undecided by this copy alone.
+ *
+ * What to hold of the log is the copy as it came: `book.hold(events, now)`.
+ * A book keeps every event of it and judges each with the proofs of every
+ * copy it holds (Layer 1, 7.1), so an event that is invalid here, for the
+ * proofs this copy lacks, may verify there. Holding only the events that
+ * verified here would lose it.
  */
 export function witnessLog(
   events: unknown,
   now: Instant,
   seen: FirstSeen,
   options?: WitnessOptions,
-): Witnessed {
+): Replayed {
   const given = <K extends keyof WitnessOptions>(name: K): WitnessOptions[K] | undefined =>
     own(options, name) as WitnessOptions[K] | undefined;
   const others = given("evidence");
@@ -98,15 +87,7 @@ export function witnessLog(
   };
   const replayed = verifyLogPrefix(events, context);
   for (const entry of replayed.log?.entries ?? []) seen.sawEvent(entry.state.head, now);
-  // Layer 1, 4.9: the events before an invalid event may be held as the log.
-  // Those before an undecided one may not, so that log is held as it came.
-  const asGiven = replayed.failure === undefined || replayed.undecided;
-  const toHold = asGiven
-    ? Array.isArray(events)
-      ? (events as readonly unknown[])
-      : undefined
-    : replayed.log && Object.freeze(replayed.log.entries.map((entry) => entry.event));
-  return Object.freeze({ ...replayed, toHold });
+  return Object.freeze(replayed);
 }
 
 /**

@@ -26,11 +26,13 @@ import {
   Collective,
   intentBy,
   KeyMind,
+  LATER,
   rawGenesis,
   rawSign,
   signer,
   T,
   unchecked,
+  witness,
 } from "@oip/testkit/minds";
 
 const idOf = (event: object): string => contentId(event);
@@ -449,34 +451,72 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
     expect(witnessed.undecided).toBe(true);
   });
 
-  it("says what to hold: the log as it came, or the events before an invalid one", () => {
+  it("judges a copy alone, and leaves what to hold to the book: the copy as it came", () => {
     const ada = new KeyMind("ada").update(10);
     const seen = new FirstSeen();
     const held = (events: unknown) => {
       const book = new LogBook(seen);
-      book.hold(witnessLog(events, at(50), seen).toHold, at(50));
+      witnessLog(events, at(50), seen);
+      book.hold(events, at(50));
       return book.log(ada.address);
     };
-    // Every event verifies.
-    expect(witnessLog(ada.events, at(50), seen).toHold).toBe(ada.events);
-    // An invalid event ends it: the events before it are the log, and a book verifies them.
+    // An invalid event ends the copy: the events before it are the log, and a book finds so.
     const junk = [...ada.events, { junk: true }];
-    const cut = witnessLog(junk, at(50), seen).toHold;
-    expect(cut).toStrictEqual(ada.events);
-    expect(Object.isFrozen(cut)).toBe(true);
+    expect(witnessLog(junk, at(50), seen)).toMatchObject({
+      undecided: false,
+      log: { entries: { length: 2 } },
+    });
     expect(held(junk)).toMatchObject({ ok: true, value: { entries: { length: 2 } } });
-    // An undecided event ends it: the log as it came, which a book refuses until it can judge.
+    // An undecided event ends it too, and a book refuses the log until it can judge.
     const waiting = [...ada.events, next(critical)];
-    expect(witnessLog(waiting, at(50), seen).toHold).toBe(waiting);
+    expect(witnessLog(waiting, at(50), seen).undecided).toBe(true);
     expect(held(waiting)).toMatchObject({
       ok: false,
       issues: [{ clause: "core 8.3", path: "/2/critical" }],
     });
-    // Nothing verified and nothing to wait for; or what was given is no log at all.
-    expect(witnessLog([{ junk: true }], at(50), seen).toHold).toBeUndefined();
-    expect(witnessLog("log", at(50), seen).toHold).toBeUndefined();
-    expect(witnessLog("log", 50 as never, seen).toHold).toBeUndefined();
-    expect(Object.isFrozen(witnessLog(ada.events, at(50), seen))).toBe(true);
+    // What it answers with is frozen, and is no more than what it found.
+    const found = witnessLog(ada.events, at(50), seen);
+    expect(Object.isFrozen(found)).toBe(true);
+    expect(Object.keys(found).sort()).toStrictEqual(["failure", "log", "undecided"]);
+  });
+
+  it(`${clause("L1 7.1")} calls invalid, for the proofs one copy lacks, an event that a book verifies with the proofs of two`, () => {
+    // A collective of three with a threshold of two removes its operational key. Each
+    // copy of that event carries one member's proof.
+    const [a, b, c] = ["a", "b", "c"].map((name) => new KeyMind(name)) as [
+      KeyMind,
+      KeyMind,
+      KeyMind,
+    ];
+    const club = new Collective("club", [a, b, c], 2, 5);
+    const removal = draftUpdate(club.head, T(20), { keys: [] });
+    const half = (member: KeyMind) => [...club.events, rawSign(removal, [member.asMember()])];
+    const record = judgeRecord(club.sign(intentBy(club, 30), { position: 0 }));
+    if (!record.ok) throw new Error(JSON.stringify(record.issues));
+    // A witness the verifier trusts saw every event, the removal among them.
+    const seen = witness([a.events, b.events, c.events, club.events]);
+    seen.sawEvent(contentId(removal), at(20));
+    for (const proof of record.value.proofs) seen.sawProof(proof.digest, at(31));
+    const book = new LogBook(seen);
+    for (const member of [a, b, c]) book.hold(member.events, LATER);
+    const memberLog = (mind: string) => book.log(mind);
+    for (const member of [a, b]) {
+      // By its own proofs, each copy has an event that too few members signed.
+      expect(witnessLog(half(member), at(40), seen, { memberLog })).toMatchObject({
+        undecided: false,
+        log: { entries: { length: 1 } },
+        failure: { issues: [{ clause: "L1 4.4" }] },
+      });
+      book.hold(half(member), LATER);
+    }
+    // The book holds both copies as they came, and the event has both proofs.
+    expect(book.log(club.address)).toMatchObject({ ok: true, value: { entries: { length: 2 } } });
+    expect(ownSignedTime(record.value, club.address, book)).toBeUndefined();
+    // Holding only what each copy verified alone would have lost the removal.
+    const short = new LogBook(seen);
+    for (const member of [a, b, c]) short.hold(member.events, LATER);
+    short.hold(club.events, LATER);
+    expect(ownSignedTime(record.value, club.address, short)).toBeDefined();
   });
 
   it("does not go on counting a key that an event it cannot judge removed", () => {
@@ -494,7 +534,7 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
     if (!judged.ok) throw new Error(JSON.stringify(judged.issues));
     witnessRecord(judged.value, at(26), seen);
     const book = new LogBook(seen);
-    book.hold(witnessed.toHold, at(30));
+    book.hold(log, at(30));
     expect(ownSignedTime(judged.value, ada.address, book)).toBeUndefined();
     // Holding the events that verified, as known up to now, is the mistake: the removal is lost.
     const short = new LogBook(seen);

@@ -97,8 +97,8 @@ interface Held {
   readonly body: unknown;
   /**
    * The event's content ID, which its proofs are held under. `undefined`
-   * for a value that has none: it is no object of plain data, and is held
-   * whole, as what stands for it.
+   * for a value that has no place in a log (Layer 1, 7.1): what stands for
+   * it is held, and nothing after it.
    */
   readonly id: string | undefined;
   /** The events held after this one, by what each says. */

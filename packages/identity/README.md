@@ -102,15 +102,16 @@ export function example(
     const book = new LogBook(seen);
     // It obtained the log a second after each event was made, and again at
     // 13:00. Each time, an event is recorded as seen only once it has
-    // verified, never on sight of its content, and the book holds what
-    // `witnessLog` says to hold, as known up to that time.
+    // verified, never on sight of its content, and the book holds the log
+    // as it came, as known up to that time.
     const served: [unknown[], string][] = [
       [[genesis], "2026-11-17T09:00:01Z"],
       [[genesis, update], "2026-11-17T11:00:01Z"],
       [[genesis, update], "2026-11-17T13:00:00Z"],
     ];
     for (const [log, when] of served) {
-      book.hold(witnessLog(log, at(when), seen).toHold, at(when));
+      witnessLog(log, at(when), seen);
+      book.hold(log, at(when));
     }
     const record = judgeRecord(intent);
     if (!record.ok) return "is not well formed";
@@ -143,7 +144,7 @@ The Intent, the key and the log are the same in both verdicts. What differs is t
 | Export                                                                                                 | What it does                                                                                                                                                                                                                                                                                       |
 | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `LogBook`, `IdentityView`                                                                              | The logs a verifier holds: for each mind every event it has been shown, with its evidence. `log(mind)` verifies a log when first asked, its members' logs with it, and resolves duplicity. `hold`, `drop` and `forget` change what it holds and what it remembers                                  |
-| `witnessLog`, `witnessRecord`, `Witnessed`, `Replayed`                                                 | Records a verifier's own first sight of a log's events, or of a record's proofs: of those that verify, and of no other. `witnessLog` returns the events that verified, why the next one did not, whether that event is invalid or undecided (Layer 1, 4.9), and what a book would keep of the copy |
+| `witnessLog`, `witnessRecord`, `Replayed`                                                              | Records a verifier's own first sight of a log's events, or of a record's proofs: of those that verify, and of no other. `witnessLog` returns the events that verified, why the next one did not, whether that event is invalid or undecided (Layer 1, 4.9), and what a book would keep of the copy |
 | `divergence`                                                                                           | Where two verified logs of one mind part, and the two events they hold there: the evidence of duplicity a resolver publishes (Layer 1, 7.1)                                                                                                                                                        |
 | `verifyLog`, `LogContext`, `VerifiedLog`, `LogEntry`, `IdentityState`                                  | Verifies one log (Layer 1, 4). The result has each event with the state after it and its evaluation time                                                                                                                                                                                           |
 | `latestState`, `entryAt`, `stateAt`, `childrenAt`, `revokedAt`, `removalTime`, `compromisedSince`      | Questions about a verified log: the state now, at a version, at a time; the children and the revoked keys by an event; when a key was removed; from when it is declared compromised                                                                                                                |
@@ -165,7 +166,7 @@ Every function that judges takes an `EvidenceView`: for a proof, by its digest, 
 
 - **`undefined` means no evidence, and nothing counts without evidence.** It never means "assume the date the signer wrote". There is no function here that verifies without a view, by design ([ADR-0003](../../docs/adr/0003-evidence-model.md)).
 - **Record first sight only of what has verified.** Evidence for an identity event is evidence that it existed _with proofs that make it valid_ (core 9.5), and an event's content ID does not cover its proofs. A verifier that noted the time it first saw an event's content, signed or not, would later judge a signature made with a removed key at that early time: the attack the whole model exists to stop (Layer 1, 9.6). So:
-  - for a log that arrives, call `witnessLog(events, now, seen)`. It verifies the log as if each new event were first seen now, records the events that verified, and says what to hold (`toHold`, below);
+  - for a log that arrives, call `witnessLog(events, now, seen)`. It verifies the log as if each new event were first seen now, and records the events that verified. Then hold the log as it came;
   - for a record that arrives, call `judgeRecord` and then `witnessRecord(judged, now, seen)`, which records the proofs that verified;
   - `FirstSeen.sawEvent` and `sawProof` believe what they are told. Use them for times a witness you trust has given, never for what has just come in.
 - **A log is held with the time up to which it is known** (`book.hold(events, asOf)`): when a witness the verifier trusts served it, or the present for a verifier that follows the log itself. A proof first seen after that time is not counted until the log is refreshed, because the log may lack the event that removed the key (core 9.4, Layer 1, 6.3). The same holds for the log of a collective whose threshold a proof is counted under, and for a member's log when its proof on a collective's event is judged.
@@ -182,7 +183,7 @@ Every function that judges takes an `EvidenceView`: for a proof, by its digest, 
 
   Where two events verify at one position, the one with the earlier evidence has it, never the longer branch or the later copy.
 
-- **`witnessLog` first, for a log that arrives.** It records first sight of the events that verified, and says of the first that did not whether it is invalid or undecided. `toHold` is what a book would keep of the copy; holding the copy as it came comes to the same.
+- **`witnessLog` first, for a log that arrives, and then `hold` the copy as it came.** `witnessLog` records first sight of the events that verified, and says of the first that did not whether it is invalid or undecided by that copy alone. It does not say what to hold, because the answer is always the whole copy: a book judges each event with the proofs of every copy, so an event that too few members signed in this copy may verify with the proofs of another.
 - **One event nobody can read stops a mind, on purpose.** Anybody can write an event of the type `Merge`. Served by a source you trust for the whole log, it cannot be told from the mind's own event, and the mind is refused until the event can be judged or you drop the mind. The alternative is to go on counting a key that an event you could not read removed.
 - **Verdicts, until a log they rest on changes.** Holding or dropping a log forgets the verdict on it and on every log that asked for it as a member's. The book cannot see its evidence change: call `forget()` when a time it has given may have moved, for example after taking in a witness's earlier first-seen times.
 - **Bounds.** A book keeps every copy it is shown, however many: what it holds grows with what you give it, and it is for you to choose whose copies those are. It has one limit. For one event it holds the proofs that one record carries: 256, and 1 MiB with the event. Shown more than that by well-formed copies together, it cannot tell which to leave out, so it says so and refuses that mind until you drop it. A source that does this on purpose stops the mind for you, as one that serves an unreadable event does.

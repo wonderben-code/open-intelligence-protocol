@@ -63,7 +63,6 @@ describe("the README", () => {
         "LogEntry",
         "Replayed",
         "VerifiedLog",
-        "Witnessed",
       ].sort(),
     );
     for (const value of values) expect(named, value).toContain(value);

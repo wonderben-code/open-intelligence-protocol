@@ -1675,7 +1675,12 @@ class Verifier:
         self.cache.clear()
 
     def add_branch(self, events):
-        """Hold `events` as a further branch of the mind's log."""
+        """Hold `events` as a further copy of a mind's log. A copy whose
+        first value has no place is a copy of no mind's log (Layer 1, 7.1):
+        it has no content ID to name the mind by, and nothing is held."""
+        if not isinstance(events, list) or not events or \
+           not _has_place(events[0]):
+            return
         self.raw.setdefault(did(content_id(events[0])), []).append(events)
         self.cache.clear()
 

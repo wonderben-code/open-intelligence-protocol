@@ -354,12 +354,7 @@ export interface VerifiedLog {
 export function verifyLog(events: unknown, context: LogContext): Validation<VerifiedLog>;
 
 // @public
-export interface Witnessed extends Replayed {
-    readonly toHold: readonly unknown[] | undefined;
-}
-
-// @public
-export function witnessLog(events: unknown, now: Instant, seen: FirstSeen, options?: WitnessOptions): Witnessed;
+export function witnessLog(events: unknown, now: Instant, seen: FirstSeen, options?: WitnessOptions): Replayed;
 
 // @public
 export interface WitnessOptions {

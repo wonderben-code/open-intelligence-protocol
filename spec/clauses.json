@@ -1042,7 +1042,7 @@
       "summary": "Two events with different content IDs in logs with the same genesis, at the same `seq`, each va…",
       "level": "none",
       "keywords": {},
-      "digest": "7b676bf80efede925325556d079dcb7dc28e3d08f893acb73c72e5d3ff4eea4e"
+      "digest": "abe95de6314c49f8b01903a178202a909937219b67144f4e27e1402bb719b1a7"
     },
     {
       "id": "L1 7.2",

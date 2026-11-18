@@ -39,6 +39,7 @@ import {
   sessionCarried,
   Sessions,
   verifyAck,
+  verifyBranch,
   verifyCheckpoint,
   verifyFeed,
   verifyHello,
@@ -436,6 +437,69 @@ describe(`${clause("core 4.4")} a check that was cut short, for a sealed packet`
       },
     };
     expect(await receiveSealed(sealed.value, whileOpening)).toMatchObject(SPENT);
+  });
+});
+
+describe(`${clause("core 4.4")} a check that was cut short, for a fork's proposal`, () => {
+  it("is no proposal refused for its lineage", () => {
+    const parent = new KeyMind("parent");
+    const child = new KeyMind("child", 5, {
+      parents: [{ mind: parent.address, at: parent.versionId(0) }],
+    });
+    parent.fork(20, { child: child.address });
+    const all = [parent, child, bob];
+    const seen = witness(all.map((mind) => mind.events));
+    const book = new LogBook(seen);
+    for (const mind of all) book.hold(mind.events, LATER);
+    const cut = { now: false };
+    const view: IdentityView = {
+      evidence: book.evidence,
+      log: (mind) => {
+        if (cut.now) noteCutShort(new RangeError("Maximum call stack size exceeded"));
+        return book.log(mind);
+      },
+    };
+    const session = {
+      oip: "1",
+      type: "Session",
+      participants: [bob.address, parent.address].sort(),
+      nonce: "session-0009",
+      created: T(0),
+    };
+    const packet = child.sign({
+      oip: "1",
+      type: "Packet",
+      from: child.address,
+      to: [bob.address],
+      created: T(30),
+      expires: T(3630),
+      nonce: "nonce-0001",
+      purpose: { verb: "branch" },
+      content: {
+        mediaType: RECORD,
+        body: {
+          oip: "1",
+          type: "Branch",
+          parentSession: contentId(session),
+          fork: `${parent.address}?versionId=${parent.versionId(1)}`,
+          created: T(30),
+        },
+      },
+    });
+    const got = receivePacket(packet, {
+      address: bob.address,
+      now: at(40),
+      view,
+      seen,
+      accepted: () => false,
+      window: 3_600_000_000_000n,
+    });
+    if (!got.ok) throw new Error(JSON.stringify(got.issues));
+    const held = () => session as never;
+    cut.now = true;
+    expect(verifyBranch(got.value, held, view)).toMatchObject(SPENT);
+    cut.now = false;
+    expect(verifyBranch(got.value, held, view).ok).toBe(true);
   });
 });
 

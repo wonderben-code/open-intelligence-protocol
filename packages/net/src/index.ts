@@ -21,6 +21,7 @@ export {
   verifyAck,
   type VerifiedAck,
 } from "./ack.ts";
+export { type ProposedBranch, verifyBranch } from "./branch.ts";
 export { isStale, type PacketClock, packetDates } from "./dates.ts";
 export {
   committedProofs,

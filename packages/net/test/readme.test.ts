@@ -43,6 +43,7 @@ describe("the README", () => {
         "PacketClock",
         "Placed",
         "ProfileSources",
+        "ProposedBranch",
         "ReceivedPacket",
         "ReceivedSealed",
         "Receiver",

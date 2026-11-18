@@ -18,8 +18,9 @@
 // ordinary tests.
 process.env["OIP_PARSER_CAMPAIGN"] ??= "20000";
 process.env["OIP_DIFFERENTIAL_RUNS"] ??= "100";
-process.env["OIP_DIFFERENTIAL_LOGS"] ??= "20";
-// Tests that measure the test generators themselves, and not the code, say nothing about a mutant.
+// The identity campaign is left out altogether: nearly every mutant of
+// `@oip/identity` is covered by it, and each would wait for the Python
+// checker on every case. The unit tests are what a mutant has to get past.
 process.env["OIP_MUTATION"] ??= "1";
 
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */

@@ -904,189 +904,199 @@ function subjectOf(
   return undefined;
 }
 
-describe.skipIf(unavailable !== undefined && !required)("differential: identity logs", () => {
-  let judge: PythonJudge;
-  /** What was compared, by generator: how many cases, and how many both implementations accepted. */
-  const tally = new Map<string, { cases: number; accepted: number; documents: number }>();
+// A mutation run leaves the campaign out. Nearly every mutant of
+// `@oip/identity` is covered by it, so each would wait for the Python checker
+// on every case, and the unit tests are what a mutant has to get past.
+const measured = process.env["OIP_MUTATION"] !== undefined;
 
-  beforeAll(() => {
-    if (unavailable !== undefined) throw new Error(unavailable);
-    judge = new PythonJudge();
-  });
+describe.skipIf((unavailable !== undefined && !required) || measured)(
+  "differential: identity logs",
+  () => {
+    let judge: PythonJudge;
+    /** What was compared, by generator: how many cases, and how many both implementations accepted. */
+    const tally = new Map<string, { cases: number; accepted: number; documents: number }>();
 
-  afterAll(async () => {
-    await judge.close();
-    for (const [generator, { cases, accepted, documents }] of tally) {
-      // For the log of the run: the numbers that ran, whatever was asked for.
-      process.stdout.write(
-        `differential, ${generator}: ${cases} cases compared, ${accepted} accepted by both; ${documents} DID documents resolved by both and equal\n`,
-      );
-    }
-  });
-
-  // Shown small: a case holds whole logs.
-  const shown = (value: unknown): string => JSON.stringify(value).slice(0, 6000);
-
-  /** The DID document of a case's mind, now or at one version, must be the same for both. */
-  async function sameDocument(vectorCase: VectorCase, pick: number | undefined): Promise<boolean> {
-    const subject = subjectOf(vectorCase);
-    if (subject === undefined) return false;
-    let versionId: string | undefined;
-    if (pick !== undefined) {
-      const position = pick % subject.own.length;
-      try {
-        versionId = `${position}-${contentId(subject.own[position] ?? {})}`;
-      } catch {
-        return false;
-      }
-    }
-    const question = {
-      kind: "didDocument",
-      name: "generated",
-      mind: subject.mind,
-      ...(versionId === undefined ? {} : { versionId }),
-      extraLogs: subject.logs,
-      branches: vectorCase.branches ?? [],
-      seen: vectorCase.seen,
-    };
-    const ours = referenceAdapter.didDocument?.(subject.mind, versionId, {
-      ...viewFor(vectors, vectorCase),
-      extraLogs: subject.logs,
+    beforeAll(() => {
+      if (unavailable !== undefined) throw new Error(unavailable);
+      judge = new PythonJudge();
     });
-    const theirs = await judge.judge(question);
-    expect(
-      // A document compares as JSON: the checker's answer has been through it.
-      JSON.parse(JSON.stringify(ours ?? null)),
-      `the DID document${versionId === undefined ? "" : ` at ${versionId}`} of ${shown(question)}`,
-    ).toStrictEqual(theirs.error === undefined ? theirs.value : null);
-    return ours !== undefined;
-  }
 
-  /**
-   * @param document - Which DID document to compare as well: 0 the current
-   *   one, 1 the one at a version chosen by `pick`, anything else none. A
-   *   document costs as much as the verdict, so one case in four has one.
-   */
-  async function compare(
-    generator: string,
-    vectorCase: VectorCase,
-    pick: number,
-    document: number,
-  ): Promise<void> {
-    const ours = claimHolds(referenceAdapter, vectors, vectorCase);
-    // Every case generated here is one the reference implementation judges.
-    expect(ours, `not judged: ${shown(vectorCase)}`).toBeDefined();
-    const theirs = await judge.judge(vectorCase);
-    expect(
-      { implementation: ours, judge: theirs.holds, judgeError: theirs.error },
-      shown(vectorCase),
-    ).toMatchObject({ implementation: theirs.holds });
-    const counted = tally.get(generator) ?? { cases: 0, accepted: 0, documents: 0 };
-    tally.set(generator, counted);
-    counted.cases++;
-    if (ours === true) counted.accepted++;
-    if (document > 1) return;
-    if (await sameDocument(vectorCase, document === 0 ? undefined : pick)) counted.documents++;
-  }
-
-  const cases = (generator: fc.Arbitrary<VectorCase>) => fc.tuple(generator, fc.nat(8), fc.nat(7));
-
-  // The next two tests are about the generators. A mutation run measures the
-  // tests of the code, and leaves them out.
-  const measured = process.env["OIP_MUTATION"] !== undefined;
-
-  it.skipIf(measured)("generates cases that hold and cases that do not, of every kind", () => {
-    const generators = {
-      keyLogCase,
-      collectiveLogCase,
-      nestedLogCase,
-      ownKeyCase,
-      branchCase,
-      collectiveSignedCase,
-    };
-    for (const [name, generator] of Object.entries(generators)) {
-      const sample = fc.sample(generator, { numRuns: 60, seed: 7 });
-      const held = sample.filter((vectorCase) => claimHolds(referenceAdapter, vectors, vectorCase));
-      // Neither verdict is rare: a campaign of rejections alone would show nothing.
-      expect(held.length, `${name}: accepted`).toBeGreaterThan(3);
-      expect(sample.length - held.length, `${name}: rejected`).toBeGreaterThan(3);
-    }
-  });
-
-  it.skipIf(measured)("reaches the rules it is there for", () => {
-    // Duplicity that evidence cannot separate, for a mind and for a collective.
-    const duplicitous = (generator: fc.Arbitrary<VectorCase>) =>
-      fc.sample(generator, { numRuns: 60, seed: 11 }).filter((vectorCase) => {
-        const subject = subjectOf(vectorCase);
-        const resolved = referenceAdapter.didDocument?.(subject?.mind ?? "", undefined, {
-          ...viewFor(vectors, vectorCase),
-          extraLogs: subject?.logs ?? [],
-        }) as { didDocumentMetadata?: { duplicitous?: boolean } } | undefined;
-        return resolved?.didDocumentMetadata?.duplicitous === true;
-      }).length;
-    expect(duplicitous(branchCase)).toBeGreaterThan(3);
-    expect(duplicitous(collectiveSignedCase)).toBeGreaterThan(2);
-    // Lineage of each status.
-    const statuses = fc.sample(lineageQuestion, { numRuns: 60, seed: 11 }).map((question) =>
-      Object.values(
-        referenceAdapter.lineage?.(question.mind, {
-          ...viewFor(vectors, { kind: "log", name: "generated", log: [] }),
-          extraLogs: question.extraLogs,
-          extraRecords: question.extraRecords,
-        }) ?? {},
-      ).join(),
-    );
-    expect(statuses.filter((status) => status === "acknowledged").length).toBeGreaterThan(5);
-    expect(statuses.filter((status) => status === "claimed").length).toBeGreaterThan(5);
-  });
-
-  const campaigns: [name: string, generator: fc.Arbitrary<VectorCase>, runs: number][] = [
-    ["logs of key-controlled minds", keyLogCase, RUNS],
-    ["logs of collectives", collectiveLogCase, Math.ceil(RUNS / 2)],
-    ["logs of collectives that have collectives as members", nestedLogCase, Math.ceil(RUNS / 8)],
-    ["records signed by a mind's own keys", ownKeyCase, Math.ceil(RUNS / 4)],
-    ["records pinned to a branch of a log", branchCase, Math.ceil(RUNS / 4)],
-    ["records signed under a collective's threshold", collectiveSignedCase, Math.ceil(RUNS / 4)],
-  ];
-
-  for (const [name, generator, runs] of campaigns) {
-    it(
-      `agrees with the Python checker on ${runs} generated ${name}`,
-      async () => {
-        await fc.assert(
-          fc.asyncProperty(cases(generator), ([vectorCase, pick, document]) =>
-            compare(name, vectorCase, pick, document),
-          ),
-          { numRuns: runs },
+    afterAll(async () => {
+      await judge.close();
+      for (const [generator, { cases, accepted, documents }] of tally) {
+        // For the log of the run: the numbers that ran, whatever was asked for.
+        process.stdout.write(
+          `differential, ${generator}: ${cases} cases compared, ${accepted} accepted by both; ${documents} DID documents resolved by both and equal\n`,
         );
-        // The number in this test's name is the number that ran, and a
-        // campaign of any size has cases both implementations accept.
-        const counted = tally.get(name);
-        expect(counted?.cases).toBe(runs);
-        if (runs >= 100) expect(counted?.accepted).toBeGreaterThan(0);
-      },
-      TIMEOUT,
-    );
-  }
+      }
+    });
 
-  it(
-    `agrees with it on ${Math.ceil(RUNS / 8)} generated lineages`,
-    async () => {
-      await fc.assert(
-        fc.asyncProperty(lineageQuestion, async (question) => {
-          const ours = referenceAdapter.lineage?.(question.mind, {
+    // Shown small: a case holds whole logs.
+    const shown = (value: unknown): string => JSON.stringify(value).slice(0, 6000);
+
+    /** The DID document of a case's mind, now or at one version, must be the same for both. */
+    async function sameDocument(
+      vectorCase: VectorCase,
+      pick: number | undefined,
+    ): Promise<boolean> {
+      const subject = subjectOf(vectorCase);
+      if (subject === undefined) return false;
+      let versionId: string | undefined;
+      if (pick !== undefined) {
+        const position = pick % subject.own.length;
+        try {
+          versionId = `${position}-${contentId(subject.own[position] ?? {})}`;
+        } catch {
+          return false;
+        }
+      }
+      const question = {
+        kind: "didDocument",
+        name: "generated",
+        mind: subject.mind,
+        ...(versionId === undefined ? {} : { versionId }),
+        extraLogs: subject.logs,
+        branches: vectorCase.branches ?? [],
+        seen: vectorCase.seen,
+      };
+      const ours = referenceAdapter.didDocument?.(subject.mind, versionId, {
+        ...viewFor(vectors, vectorCase),
+        extraLogs: subject.logs,
+      });
+      const theirs = await judge.judge(question);
+      expect(
+        // A document compares as JSON: the checker's answer has been through it.
+        JSON.parse(JSON.stringify(ours ?? null)),
+        `the DID document${versionId === undefined ? "" : ` at ${versionId}`} of ${shown(question)}`,
+      ).toStrictEqual(theirs.error === undefined ? theirs.value : null);
+      return ours !== undefined;
+    }
+
+    /**
+     * @param document - Which DID document to compare as well: 0 the current
+     *   one, 1 the one at a version chosen by `pick`, anything else none. A
+     *   document costs as much as the verdict, so one case in four has one.
+     */
+    async function compare(
+      generator: string,
+      vectorCase: VectorCase,
+      pick: number,
+      document: number,
+    ): Promise<void> {
+      const ours = claimHolds(referenceAdapter, vectors, vectorCase);
+      // Every case generated here is one the reference implementation judges.
+      expect(ours, `not judged: ${shown(vectorCase)}`).toBeDefined();
+      const theirs = await judge.judge(vectorCase);
+      expect(
+        { implementation: ours, judge: theirs.holds, judgeError: theirs.error },
+        shown(vectorCase),
+      ).toMatchObject({ implementation: theirs.holds });
+      const counted = tally.get(generator) ?? { cases: 0, accepted: 0, documents: 0 };
+      tally.set(generator, counted);
+      counted.cases++;
+      if (ours === true) counted.accepted++;
+      if (document > 1) return;
+      if (await sameDocument(vectorCase, document === 0 ? undefined : pick)) counted.documents++;
+    }
+
+    const cases = (generator: fc.Arbitrary<VectorCase>) =>
+      fc.tuple(generator, fc.nat(8), fc.nat(7));
+
+    it("generates cases that hold and cases that do not, of every kind", () => {
+      const generators = {
+        keyLogCase,
+        collectiveLogCase,
+        nestedLogCase,
+        ownKeyCase,
+        branchCase,
+        collectiveSignedCase,
+      };
+      for (const [name, generator] of Object.entries(generators)) {
+        const sample = fc.sample(generator, { numRuns: 60, seed: 7 });
+        const held = sample.filter((vectorCase) =>
+          claimHolds(referenceAdapter, vectors, vectorCase),
+        );
+        // Neither verdict is rare: a campaign of rejections alone would show nothing.
+        expect(held.length, `${name}: accepted`).toBeGreaterThan(3);
+        expect(sample.length - held.length, `${name}: rejected`).toBeGreaterThan(3);
+      }
+    });
+
+    it("reaches the rules it is there for", () => {
+      // Duplicity that evidence cannot separate, for a mind and for a collective.
+      const duplicitous = (generator: fc.Arbitrary<VectorCase>) =>
+        fc.sample(generator, { numRuns: 60, seed: 11 }).filter((vectorCase) => {
+          const subject = subjectOf(vectorCase);
+          const resolved = referenceAdapter.didDocument?.(subject?.mind ?? "", undefined, {
+            ...viewFor(vectors, vectorCase),
+            extraLogs: subject?.logs ?? [],
+          }) as { didDocumentMetadata?: { duplicitous?: boolean } } | undefined;
+          return resolved?.didDocumentMetadata?.duplicitous === true;
+        }).length;
+      expect(duplicitous(branchCase)).toBeGreaterThan(3);
+      expect(duplicitous(collectiveSignedCase)).toBeGreaterThan(2);
+      // Lineage of each status.
+      const statuses = fc.sample(lineageQuestion, { numRuns: 60, seed: 11 }).map((question) =>
+        Object.values(
+          referenceAdapter.lineage?.(question.mind, {
             ...viewFor(vectors, { kind: "log", name: "generated", log: [] }),
             extraLogs: question.extraLogs,
             extraRecords: question.extraRecords,
-          });
-          const theirs = await judge.judge(question);
-          expect(ours ?? {}, shown(question)).toStrictEqual(
-            theirs.error === undefined ? theirs.value : {},
-          );
-        }),
-        { numRuns: Math.ceil(RUNS / 8) },
+          }) ?? {},
+        ).join(),
       );
-    },
-    TIMEOUT,
-  );
-});
+      expect(statuses.filter((status) => status === "acknowledged").length).toBeGreaterThan(5);
+      expect(statuses.filter((status) => status === "claimed").length).toBeGreaterThan(5);
+    });
+
+    const campaigns: [name: string, generator: fc.Arbitrary<VectorCase>, runs: number][] = [
+      ["logs of key-controlled minds", keyLogCase, RUNS],
+      ["logs of collectives", collectiveLogCase, Math.ceil(RUNS / 2)],
+      ["logs of collectives that have collectives as members", nestedLogCase, Math.ceil(RUNS / 8)],
+      ["records signed by a mind's own keys", ownKeyCase, Math.ceil(RUNS / 4)],
+      ["records pinned to a branch of a log", branchCase, Math.ceil(RUNS / 4)],
+      ["records signed under a collective's threshold", collectiveSignedCase, Math.ceil(RUNS / 4)],
+    ];
+
+    for (const [name, generator, runs] of campaigns) {
+      it(
+        `agrees with the Python checker on ${runs} generated ${name}`,
+        async () => {
+          await fc.assert(
+            fc.asyncProperty(cases(generator), ([vectorCase, pick, document]) =>
+              compare(name, vectorCase, pick, document),
+            ),
+            { numRuns: runs },
+          );
+          // The number in this test's name is the number that ran, and a
+          // campaign of any size has cases both implementations accept.
+          const counted = tally.get(name);
+          expect(counted?.cases).toBe(runs);
+          if (runs >= 100) expect(counted?.accepted).toBeGreaterThan(0);
+        },
+        TIMEOUT,
+      );
+    }
+
+    it(
+      `agrees with it on ${Math.ceil(RUNS / 8)} generated lineages`,
+      async () => {
+        await fc.assert(
+          fc.asyncProperty(lineageQuestion, async (question) => {
+            const ours = referenceAdapter.lineage?.(question.mind, {
+              ...viewFor(vectors, { kind: "log", name: "generated", log: [] }),
+              extraLogs: question.extraLogs,
+              extraRecords: question.extraRecords,
+            });
+            const theirs = await judge.judge(question);
+            expect(ours ?? {}, shown(question)).toStrictEqual(
+              theirs.error === undefined ? theirs.value : {},
+            );
+          }),
+          { numRuns: Math.ceil(RUNS / 8) },
+        );
+      },
+      TIMEOUT,
+    );
+  },
+);

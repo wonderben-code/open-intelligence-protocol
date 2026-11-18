@@ -66,3 +66,16 @@ The signatures of a 1,000-event identity log therefore take about 2 s. Replaying
 - A record with two proofs verifies in about 4 ms, and a client that verifies a mind's whole history pays about 2 ms per signature. That is acceptable for clients and tools.
 - The servers of M5 are expected to need the native engine to meet their budgets (p99 of 25 ms at 500 requests per second on one core).
 - A verifier can be made to do 256 signature checks by one record. With forged signatures that is about 0.9 s on this machine, since each costs the order check of `R` and the library's verification before it fails. `verifyProofs` verifies a proof that is repeated in a record once, so the cost is per distinct proof. The limits on a record bound the rest of the work: 1 MiB, 64 levels, and about a million values. Rate limits in the services (BUILD.md 3.7) bound how often anyone can ask for it, and the servers of M5 should verify a record's proofs lazily, stopping when the threshold they need is met.
+
+## Measured in M2
+
+The second budget is now measured in full, with `@oip/identity`: verifying an identity log of 1,000 events end to end, each event read, validated, hashed, checked against the one before it and its signature verified.
+
+| Operation                                  | Measured            | Gate in `packages/identity/bench/log.bench.ts`   |
+| ------------------------------------------ | ------------------- | ------------------------------------------------ |
+| Verify an identity log of 1,000 events     | 1.8 s               | 3.5 s, and 1.4 times a thousand signature checks |
+| Ask a book again for a log it has verified | under a microsecond | 0.05 ms                                          |
+
+The whole log costs 1.08 times the signature checks of its events: replaying adds under a tenth. So the conclusion above stands unchanged for logs. The starting budget of 1 s is missed by the portable implementation for the same reason and by the same factor as the first budget, and the same native engine closes it (decision E12 in [PROGRESS.md](../../PROGRESS.md)).
+
+One cost is new. A verifier keeps a verified log in memory, with the state after each event. A state is of bounded size ([ADR-0008](0008-holding-logs.md)), so what is kept grows with the log and no faster.

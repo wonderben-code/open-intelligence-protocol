@@ -4,13 +4,19 @@
 
 ```ts
 
+import type { Endpoint } from '@oip/schema';
 import type { Entry } from '@oip/schema';
 import { IdentityView } from '@oip/identity';
 import { Instant } from '@oip/core';
 import type { Issue } from '@oip/schema';
 import { JudgedRecord } from '@oip/identity';
 import { JudgeOptions } from '@oip/identity';
+import type { Location } from '@oip/schema';
+import type { Participant } from '@oip/schema';
 import type { Validation } from '@oip/schema';
+
+// @public
+export type Binding = "https" | "wss" | "mailbox";
 
 // @public
 export function checkpointRoot(entries: readonly unknown[]): string | undefined;
@@ -26,6 +32,15 @@ export interface CoveredFeed {
 }
 
 // @public
+export function currentLocation(records: Iterable<JudgedRecord>, mind: string, view: IdentityView): HeldLocation | undefined;
+
+// @public
+export function currentParticipant(profiles: Iterable<JudgedRecord>, mind: string, view: IdentityView, sources: ProfileSources): HeldParticipant | undefined;
+
+// @public
+export function endpointsToTry(record: Location): KnownEndpoint[];
+
+// @public
 export interface FeedEntry {
     readonly entry: Entry;
     readonly id: string;
@@ -34,7 +49,38 @@ export interface FeedEntry {
 }
 
 // @public
+export interface HeldLocation {
+    readonly id: string;
+    readonly record: Location;
+    readonly time: Instant;
+}
+
+// @public
+export interface HeldParticipant {
+    readonly id: string;
+    readonly record: Participant;
+    readonly time: Instant;
+}
+
+// @public
+export function isStale(record: Location, now: Instant): boolean;
+
+// @public
+export type KnownEndpoint = Endpoint & {
+    readonly binding: Binding;
+};
+
+// @public
 export function merkleTreeHash(inputs: Iterable<Uint8Array>): Uint8Array;
+
+// @public
+export function postUrl(endpoint: KnownEndpoint): string | undefined;
+
+// @public
+export interface ProfileSources {
+    readonly feed?: VerifiedFeed | undefined;
+    readonly location?: HeldLocation | undefined;
+}
 
 // @public
 export interface VerifiedFeed {
@@ -52,5 +98,11 @@ export function verifyCheckpoint(checkpoint: JudgedRecord, feed: VerifiedFeed, v
 
 // @public
 export function verifyFeed(entries: unknown, author: string, view: IdentityView, options?: JudgeOptions): Validation<VerifiedFeed>;
+
+// @public
+export function verifyParticipant(judged: JudgedRecord, view: IdentityView): Validation<HeldParticipant>;
+
+// @public
+export function webSocketUrl(endpoint: KnownEndpoint): string | undefined;
 
 ```

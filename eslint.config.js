@@ -73,7 +73,7 @@ const CREATED_COMPARED = {
     "`created` is the signer's claim, never evidence (core 9.2). Compare evaluation times: proofTime and eventTime of @oip/identity.",
 };
 
-// The two places that may compare a `created`. `evidence.ts` holds the two
+// The places that may compare a `created`. `evidence.ts` holds the two
 // formulas and the rule that a log's dates do not run backwards (Layer 1,
 // 4.2); `proof.ts` the rule that a proof is not dated before its record (core
 // 5.7). None of them decides whether a key may sign. The file that judges
@@ -83,7 +83,15 @@ const CREATED_COMPARED = {
 // writes first, `proof.created < removed`. A renamed local, a subtraction or
 // a helper that takes the value pass it; the review of every change to these
 // packages is what stands behind it (ADR-0008).
-const MAY_COMPARE_CREATED = ["packages/identity/src/evidence.ts", "packages/core/src/proof.ts"];
+//
+// `dates.ts` of `@oip/net` holds the rules about a date a record states of
+// itself to say how long it asks to be used for: when a mind's own location
+// record goes stale (Layer 1, 15.2).
+const MAY_COMPARE_CREATED = [
+  "packages/identity/src/evidence.ts",
+  "packages/core/src/proof.ts",
+  "packages/net/src/dates.ts",
+];
 
 export default tseslint.config(
   {

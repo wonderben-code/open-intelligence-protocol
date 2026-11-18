@@ -11,6 +11,7 @@
  * @packageDocumentation
  */
 
+export { isStale } from "./dates.ts";
 export {
   committedProofs,
   type CoveredFeed,
@@ -19,4 +20,19 @@ export {
   verifyCheckpoint,
   verifyFeed,
 } from "./feed.ts";
+export {
+  type Binding,
+  currentLocation,
+  endpointsToTry,
+  type HeldLocation,
+  type KnownEndpoint,
+  postUrl,
+  webSocketUrl,
+} from "./location.ts";
 export { checkpointRoot, merkleTreeHash } from "./merkle.ts";
+export {
+  currentParticipant,
+  type HeldParticipant,
+  type ProfileSources,
+  verifyParticipant,
+} from "./participant.ts";

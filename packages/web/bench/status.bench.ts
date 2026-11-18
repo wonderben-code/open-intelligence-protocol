@@ -30,15 +30,18 @@ export const BUDGETS = {
   role: 1.3,
   /**
    * The status of a Commitment with two parties and four Receipts about it,
-   * against judging one record with one proof. It measures at about
-   * 0.075.
+   * against judging one record with one proof. No signature is checked
+   * again: what it costs is the content ID of each of the five records,
+   * worked out once. It measures at about 0.05.
    */
-  commitment: 0.1,
+  commitment: 0.065,
   /**
    * The status of an Intent that an accepted Commitment closes, against
-   * judging one record with one proof. It measures at about 0.015.
+   * judging one record with one proof: the content ID of the Intent, and
+   * that of the Commitment, which is judged with the proofs of every copy
+   * held of it (Layer 2, Section 2). It measures at about 0.022.
    */
-  intent: 0.02,
+  intent: 0.03,
 } as const;
 
 /** How many times each ratio is measured. Odd, so that one of them is the middle. */

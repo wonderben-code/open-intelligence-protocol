@@ -20,7 +20,7 @@ import {
 } from "@oip/schema";
 
 import { actsFor, countsFor } from "./counts.ts";
-import { referenced, type WebContext, withHeld } from "./records.ts";
+import { referenced, type WebContext, withHeldAs } from "./records.ts";
 import { no, ok } from "./result.ts";
 
 /** Layer 2, 8.1. */
@@ -47,10 +47,15 @@ export type CharterStatus = "active" | "dissolved";
  */
 export function commitmentAccepted(given: JudgedRecord, context: WebContext): boolean {
   if (given.record.type !== "Commitment") return false;
+  return accepted(given, contentId(given.record), context);
+}
+
+/** As `commitmentAccepted`, for a Commitment whose content ID is worked out already. */
+function accepted(given: JudgedRecord, id: string, context: WebContext): boolean {
   // Every check below answers no for a check that was cut short (ADR-0010), so it is yes
   // only where each signature it needs was judged.
   // Section 2: with the proofs of every copy held, the one asked about among them.
-  const judged = withHeld(given, context.records);
+  const judged = withHeldAs(given, id, context.records);
   const { author, parties } = judged.record as Commitment;
   if (!countsFor(judged, author, context)) return false;
   const signsForAParty =
@@ -78,10 +83,12 @@ const STANDING = ["satisfied", "withdrawn", "superseded"] as const;
  * superseding records by the record's own author decide: `satisfied` before
  * `withdrawn`, and `withdrawn` before an edit.
  *
+ * @param id - The record's content ID.
  * @param allowed - The values of `status` that mean something for this type.
  */
 function supersession(
   judged: JudgedRecord,
+  id: string,
   allowed: readonly string[],
   context: WebContext,
 ): (typeof STANDING)[number] | undefined {
@@ -90,7 +97,6 @@ function supersession(
     return record.status as (typeof STANDING)[number];
   }
   const found = new Set<string>();
-  const id = contentId(record);
   for (const other of context.records.supersedersOf(id)) {
     const later = other.record as Intent | Offer;
     // Whatever the view answers with: of the same type, by the same author, and naming this record.
@@ -143,10 +149,12 @@ export function intentStatus(
 function statusOfIntent(judged: JudgedRecord, at: Instant, context: WebContext): IntentStatus {
   expect(judged, "Intent", at);
   const intent = judged.record as Intent;
-  const superseded = supersession(judged, ["satisfied", "withdrawn"], context);
+  // Worked out once: it is most of what the status of a record costs.
+  const id = contentId(intent);
+  const superseded = supersession(judged, id, ["satisfied", "withdrawn"], context);
   if (superseded !== undefined) return superseded;
   const closing = (commitment: Commitment): boolean => commitment.closesIntent === true;
-  if (resolving(contentId(intent), intent.author, context, closing) > 0) return "satisfied";
+  if (resolving(id, intent.author, context, closing) > 0) return "satisfied";
   if (judged.expires !== undefined && at > judged.expires) return "expired";
   return "open";
 }
@@ -164,12 +172,13 @@ export function offerStatus(
 function statusOfOffer(judged: JudgedRecord, at: Instant, context: WebContext): OfferStatus {
   expect(judged, "Offer", at);
   const offer = judged.record as Offer;
-  const superseded = supersession(judged, ["withdrawn"], context);
+  const id = contentId(offer);
+  const superseded = supersession(judged, id, ["withdrawn"], context);
   // An Offer is never `satisfied`: that value of `status` means nothing on one.
   if (superseded === "withdrawn" || superseded === "superseded") return superseded;
   if (judged.expires !== undefined && at > judged.expires) return "expired";
   const quantity = offer.terms.quantity;
-  if (quantity !== undefined && resolving(contentId(offer), offer.author, context) >= quantity) {
+  if (quantity !== undefined && resolving(id, offer.author, context) >= quantity) {
     return "exhausted";
   }
   return "open";
@@ -197,13 +206,13 @@ function statusOfCommitment(
 ): CommitmentStatus {
   expect(judged, "Commitment", at);
   const commitment = judged.record as Commitment;
+  const id = contentId(commitment);
   // Item 1.
-  if (!commitmentAccepted(judged, context)) {
+  if (!accepted(judged, id, context)) {
     const lenient = { ...context, identity: disregardingCompromise(context.identity) };
-    return commitmentAccepted(judged, lenient) ? "disputed" : "proposed";
+    return accepted(judged, id, lenient) ? "disputed" : "proposed";
   }
   const parties = new Set(commitment.parties.map((party) => party.mind));
-  const id = contentId(commitment);
   const receipts = context.records.receiptsAbout(id).filter((receipt) => {
     // Whatever the view answers with, only a Receipt about this Commitment is one.
     if (receipt.record.type !== "Receipt") return false;
@@ -213,8 +222,9 @@ function statusOfCommitment(
   });
   // `R`: without the Receipts that another Receipt about this Commitment, of the same author,
   // supersedes, and without the revoked.
+  const ids = new Map(receipts.map((receipt) => [receipt, contentId(receipt.record)]));
   const authors = new Map(
-    receipts.map((receipt) => [contentId(receipt.record), (receipt.record as Receipt).author]),
+    receipts.map((receipt) => [ids.get(receipt), (receipt.record as Receipt).author]),
   );
   const superseded = new Set<string>();
   for (const receipt of receipts) {
@@ -223,8 +233,10 @@ function statusOfCommitment(
     if (earlier !== undefined && authors.get(earlier) === author) superseded.add(earlier);
   }
   const standing = receipts.filter((receipt) => {
-    const record = receipt.record as Receipt;
-    return !superseded.has(contentId(record)) && record.outcome !== "revoked";
+    const own = ids.get(receipt);
+    return (
+      own !== undefined && !superseded.has(own) && (receipt.record as Receipt).outcome !== "revoked"
+    );
   });
   const withOutcome = (outcome: string): JudgedRecord[] =>
     standing.filter((receipt) => (receipt.record as Receipt).outcome === outcome);

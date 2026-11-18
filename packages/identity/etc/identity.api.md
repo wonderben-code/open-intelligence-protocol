@@ -304,6 +304,7 @@ export interface Replayed {
     // Warning: (ae-forgotten-export) The symbol "Rejection" needs to be exported by the entry point index.d.ts
     readonly failure: Rejection | undefined;
     readonly log: VerifiedLog | undefined;
+    readonly undecided: boolean;
 }
 
 // @public
@@ -354,7 +355,12 @@ export interface VerifiedLog {
 export function verifyLog(events: unknown, context: LogContext): Validation<VerifiedLog>;
 
 // @public
-export function witnessLog(events: unknown, now: Instant, seen: FirstSeen, options?: WitnessOptions): Replayed;
+export interface Witnessed extends Replayed {
+    readonly toHold: readonly unknown[] | undefined;
+}
+
+// @public
+export function witnessLog(events: unknown, now: Instant, seen: FirstSeen, options?: WitnessOptions): Witnessed;
 
 // @public
 export interface WitnessOptions {

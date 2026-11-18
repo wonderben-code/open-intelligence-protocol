@@ -1,6 +1,6 @@
 # ADR-0008: The log book, and the time a log is known up to
 
-**Status:** Accepted, 17 November 2026 (M2). It carries out [ADR-0003](0003-evidence-model.md) in `@oip/identity` and adds what building it, and two independent reviews of it, showed.
+**Status:** Accepted, 17 November 2026 (M2). It carries out [ADR-0003](0003-evidence-model.md) in `@oip/identity` and adds what building it, and three independent reviews of it, showed.
 
 ## Context
 
@@ -19,12 +19,13 @@ ADR-0003 fixed how time enters verification: an `EvidenceView`, two formulas, an
 
 - **Nesting.** A member's log is verified one level down, and no log is verified more than four levels below the one asked for. A mind that is already being verified is not verified again inside itself: no collective is a member of itself, directly or indirectly.
 - **A log verifies only if every member's log it asks for does.** Every member signs the event that makes it one (Layer 1, 4.1, 4.4), so a log is asked for first by an event that cannot stand without it. Verification asks for each member's log once and stops at the first that does not verify. That bounds the work of a hostile set of logs to one failing log at each level, where judging every proof against a failing log cost the fourth power of the number of proofs.
-- **What is remembered.** It follows that a log that verifies does so wherever it is asked from, and that verdict is kept. A log that fails has its verdict kept too, unless a log below it was refused for where it was asked from (the depth, or a mind being verified above it): that verdict is kept only when the log was asked for directly, where it is the log's own.
+- **What is remembered.** An answer can depend on where the log was asked from: a log below it was refused for the depth, or for being a mind already being verified above it. With branches held, even a log that verifies may then be another log than it is when asked for directly. An answer that met no such refusal is the log's own, and is kept. One that did is kept only when the log was asked for directly; below that it is remembered for the one question being answered, by the path it was asked along, so that a hostile set of branches cannot make the book verify the same log again and again.
 - **For how long.** A verdict stands until a log it rests on is held anew or dropped. The book notes which logs each verdict asked for, and forgets only those verdicts. It cannot see its evidence change, so `forget()` clears every verdict; a caller that takes in earlier first-seen times calls it.
 - **Its own copy.** The book copies the events it is given, and takes a mind's address from the copy it will verify. What a caller does to its array afterwards changes nothing, and a value that reads differently the second time cannot be held under one address and verified as another.
-- **Nothing goes back.** `hold` refuses a log that is the beginning of a longer one already held (Layer 1, 7.2). A source that lags or lies must not undo a removal the verifier knows of. `drop` is how a caller says it means to.
+- **Nothing goes back.** `hold` refuses a copy that is an earlier state of the log held (Layer 1, 4.9). A source that lags or lies must not undo a removal the verifier knows of. "Earlier" is judged by what verifies: a copy that is the beginning of the one held, and verifies no further than it, is refused; a copy held that ends in an invalid event, or that lost its proofs on the way, gives way to a clean one. `drop` is how a caller says it means to go back.
 - **Branches.** `holdBranch` adds a conflicting branch, each known up to its own time. The book resolves duplicity by the earlier evidence at the point of divergence, and never by length (Layer 1, 7.3). When the evidence cannot separate the branches, the log it gives stops before that point and keeps the later events of every branch, so that their removals and compromise declarations all apply.
-- **A branch counts for the events it has that verify.** A branch that fails after the point of divergence still takes part, so appending a junk event to the honest branch does not hand the position to the other. But the book knows where a log ends only if it could verify the log to its end: if a branch that is left once the evidence has decided has an event that did not verify, or more events than the book reads, the answer is that rejection and not a shorter log. A shorter log could be missing a removal.
+- **A copy counts for the events it has that verify.** A copy that fails after the point of divergence still takes part, so appending a junk event to the honest branch does not hand the position to the other. But the book knows where a log ends only if it could verify a copy to its end: if a copy that is left once the evidence has decided has an event that did not verify, or more events than the book reads, the answer is that rejection and not a shorter log. A shorter log could be missing a removal. The copies that are left are those that hold the event that won a position; where the evidence cannot separate the events at a position, they are all the copies that were left before it (Layer 1, 7.3).
+- **The book judges a copy as it is.** It does not shorten one, and it does not decide what to keep of a log that arrives. That is the next section but one.
 - It is plain data in memory. It fetches nothing and reads no clock; the client and the services fill it.
 
 `verifyLog` is the function underneath, for one log and a way to obtain a member's verified log. Most callers want the book.
@@ -39,13 +40,29 @@ ADR-0003 fixed how time enters verification: an `EvidenceView`, two formulas, an
 
 The comparison is with the evidence, `τ`, as core 9.4 says, and not with the evaluation time, which is later when a proof is dated up to 300 seconds ahead of the clock that received it. A verifier can therefore count a proof it has just received, whatever the signer's clock says. OEP-0002 records the narrow window this leaves as an open question.
 
-**No function takes `now`.** ADR-0003 and BUILD.md 3.3 say that every verification function takes `now` and an `EvidenceView`. Building it showed that "now" is not one time: each log is known up to its own. So the functions that judge take the view and, for each log, `asOf`. The present enters in one place only, where a verifier records its own first sight.
+**No function takes `now`.** ADR-0003 and BUILD.md 3.3 said that every verification function takes `now` and an `EvidenceView`. Building it showed that "now" is not one time: each log is known up to its own. So the functions that judge take the view and, for each log, `asOf`. The present enters in one place only, where a verifier records its own first sight.
 
 ### First sight is recorded only of what has verified
 
 Evidence for an identity event is evidence that it existed with proofs that make it valid (core 9.5). An event's content ID does not cover its proofs. A verifier that recorded the time it first saw an event's content would judge a proof added later at that early time, and a thief holding a removed invocation key could then sign a collective's event that was shown to the verifier, unsigned, before the key was removed. That is the attack of Layer 1, 9.6.
 
-`witnessLog(events, now, seen)` is therefore the operation for a log that arrives. It verifies the log with `now` standing in for the first sight of each event not seen before, records the events that verified, and returns them as a log to hold together with the reason the next event did not verify, if there is one. `witnessRecord` does the same for the proofs on a judged record. `FirstSeen.sawEvent` and `sawProof` stay, for times a trusted witness has given; they believe what they are told, and their documentation says so.
+`witnessLog(events, now, seen)` is therefore the operation for a log that arrives. It verifies the log with `now` standing in for the first sight of each event not seen before, records the events that verified, and returns them with the reason the next event did not verify, if there is one. `witnessRecord` does the same for the proofs on a judged record. `FirstSeen.sawEvent` and `sawProof` stay, for times a trusted witness has given; they believe what they are told, and their documentation says so.
+
+### An event that fails is invalid, or undecided
+
+The second review's advice, "hold what `witnessLog` found to verify", was wrong, and the third review showed how. If the first event that fails is one the verifier cannot judge, the events before it are a state the mind may have left: the event may remove a key, and a verifier that held the shorter log as known up to now went on counting that key. Refusing every copy with a failing event is safe, and lets anyone who can append one junk event to a copy in transit deny a mind to the verifier that receives it.
+
+Layer 1, 4.9 (OEP-0002, item 19) tells the two apart, and the code follows it.
+
+- **Invalid** is what is wrong for every verifier: the event is malformed, does not follow the event before it, or, for a key-controlled mind, is not signed by the keys the log committed to. That last check is made with every proof that verifies and no evidence at all, so it is a fact about the event.
+- **Undecided** is everything that depends on this verifier: its evidence (none for the event, or a date or an expiry that other evidence would judge otherwise), a member's log it does not hold or holds too old a copy of, a critical extension it does not implement, a type or a version this revision does not define, a log longer than it reads. A collective's event that fails for its members' proofs is undecided when a proof was left out for its date or a member's log was wanting, and invalid when no reading of the evidence could have made it count.
+- An event is asked about its critical extensions last, after its signatures. Anybody can write an event that names one; unsigned, it is junk like any other.
+
+`witnessLog` reports it (`undecided`) and says what to hold (`toHold`): the log as it came if nothing failed or the failing event is undecided, and the events before an invalid event. A log held with an undecided event is refused by the book until the event can be judged, which is what 4.9 requires.
+
+The book itself stays strict: a copy with any event that does not verify is a rejection. Section 4 says such a log is rejected, the vectors give the copies a verifier holds and expect one answer, and a book that shortened copies by itself would hide from its caller that a source is serving something wrong. What to keep is decided once, at intake.
+
+`hold` is for a log from a source the verifier trusts to serve the whole of it. `asOf` asserts that the log lacked nothing at that time, and nothing in the log can show it.
 
 ### Extensions a verifier does not implement
 
@@ -81,7 +98,7 @@ It is a tripwire and no more. It catches `proof.created < removed`, the first th
 
 - A caller must say how fresh each log is. There is no default, as there is no default for evidence: the vectors' convention (everything seen when it was made, every log known in full) is written out in the conformance adapter, and nowhere in the package.
 - A book answers from memory after the first question. Holding or dropping a log forgets the answers that rested on it, and no others.
-- A caller holds what `witnessLog` found to verify. The book judges whatever it holds, so a junk event appended to a log makes that log one that does not verify, until the caller holds a clean copy.
+- A caller holds what `witnessLog` says to hold. The book judges whatever it holds, so a log held with an event that does not verify is refused until the caller holds another copy.
 - The first failure of a member's proof is reported with its own reason, so a rejected collective says which member's log, key or timing was at fault.
 - Members' logs are verified again in each book. A resolver that serves many verifiers keeps its own verified logs; that is M5's work.
 

@@ -48,6 +48,7 @@ Two independent reviews of `@oip/identity` found the rest. In the first six, bot
 - **The earliest time `T` of Layer 1, 9.5 ranges over the collective's own events as well as the proofs.** A record is signed from the moment a change of membership completes its threshold. A `Hello` is never signed under a threshold: core 11 gives it to the author's own key.
 - **A member's proof that names an `authority` does not count on an identity event (Layer 1, 6.4).**
 - **core 9.3 and 9.6 apply to the proofs on an identity event (core 9.5; Layer 1, 6.4, 4.8).** A proof there dated more than 300 seconds after the evidence for the event does not count, and an event evaluated more than 300 seconds after its `expires` is invalid.
+- **An event that fails is invalid or undecided (Layer 1, 4.9, new).** An invalid event is no event, and the log before it may be kept: junk appended to a copy takes nothing away. An event a verifier cannot judge (for want of evidence, of a member's log, of an extension, or of a later revision) may be a removal, and the events before it are not taken as the log. A verifier that kept "what verified" of a log could otherwise go on counting a key that the next event removed.
 - **Evidence for an identity event is evidence of the event with valid proofs (core 9.5).** A verifier records its first sight of an event only once the event has verified. The text already said "with proofs meeting Layer 1, Section 4"; it now says what follows from it.
 - **The logs a verifier must hold (core 9.4)** include the log of a collective under whose threshold a proof is counted, and a member's log as far as the latest evidence among an event and those before it.
 - **Entries of `revoked` and `parents` have no other members, and one event revokes at most 80 keys (Layer 1, 3.6, 3.7, 19).** A misspelt `compromisedSince` was ignored in silence, and `revoked` was the one set in an event with no limit.
@@ -56,7 +57,7 @@ Two independent reviews of `@oip/identity` found the rest. In the first six, bot
 
 **The Python checker** also read a `controller` whose value is `null` as absent on a collective's event; it now rejects it, as the schemas do.
 
-**Test vectors.** For the items above (OEP-0002 lists them): 18 negative cases, 18 controls and four must-accept cases. The vectors now hold 21 must-accept cases, 98 negative cases and 48 controls.
+**Test vectors.** For the items above (OEP-0002 lists them): 20 negative cases, 20 controls and four must-accept cases. The vectors now hold 21 must-accept cases, 100 negative cases and 50 controls.
 
 ## Revision 2026-11-17 (Draft)
 

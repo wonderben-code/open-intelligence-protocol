@@ -440,7 +440,7 @@
       "summary": "Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where…",
       "level": "none",
       "keywords": {},
-      "digest": "149e91ba363cee54990ad29365a779f66886ca4aea45a4564cb779e2be2f57b8"
+      "digest": "0988a0e2a8ef2bcdf50e688c7031bdf8822d9dad0a45334494665329f09169c0"
     },
     {
       "id": "core 9.6",
@@ -953,7 +953,19 @@
       "keywords": {
         "MUST NOT": 1
       },
-      "digest": "f6985cb8a2359a21c7c04d66c32e2837d8a494374613b81d2dd2ac19559fada7"
+      "digest": "3cdcd6bafe89de96e0cc43875d95dedc6873f04c1dd00e240221240a26e59ec2"
+    },
+    {
+      "id": "L1 4.9",
+      "document": "L1",
+      "section": "Verifying an identity log",
+      "summary": "Invalid, and undecided. An event can fail this section in two ways, and a verifier treats them…",
+      "level": "MUST",
+      "keywords": {
+        "MAY": 1,
+        "MUST NOT": 1
+      },
+      "digest": "685c14cfa5af07713daef3dc88cb34cc7dfa9ce257cd14a23e9b9976446d860f"
     },
     {
       "id": "L1 5.1",
@@ -1053,7 +1065,7 @@
       "keywords": {
         "MUST NOT": 2
       },
-      "digest": "5823086eb81ba8da18a31e86c6e93152dea64c2fab74d7ea55ae382c57d636e1"
+      "digest": "b88e2c290351bf0060a4a2ac8acb3985d35b51e841c65ca623ea12b9622ea214"
     },
     {
       "id": "L1 7.4",

@@ -31,9 +31,14 @@ export function deepFreeze<T>(value: T): T {
  * prototype was not given by anyone.
  */
 export function own(options: unknown, name: string): unknown {
-  return typeof options === "object" && options !== null && Object.hasOwn(options, name)
-    ? (options as Readonly<Record<string, unknown>>)[name]
-    : undefined;
+  try {
+    return typeof options === "object" && options !== null && Object.hasOwn(options, name)
+      ? (options as Readonly<Record<string, unknown>>)[name]
+      : undefined;
+  } catch {
+    // An object that cannot be read gives nothing.
+    return undefined;
+  }
 }
 
 /** A success. */

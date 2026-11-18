@@ -118,7 +118,7 @@ The rules:
 
 OIP judges every time rule on **evidence** of when a signature existed (core 9), never on the signer's own `created`. This is the part of OIP that is easiest to get subtly wrong, so it gets one clear design:
 
-- Verification functions take an `EvidenceView` and a `now`. The view answers "what is the earliest time this verifier can show this proof (by proof digest) or this identity event (by content ID) existed?" Its answers come from the verifier's own first-seen store, the witnesses it trusts, anchored checkpoints and acknowledgements (core 9.4).
+- Verification functions take an `EvidenceView` and, for each log, the time it is known up to (ADR-0008). None reads the clock. The view answers "what is the earliest time this verifier can show this proof (by proof digest) or this identity event (by content ID) existed?" Its answers come from the verifier's own first-seen store, the witnesses it trusts, anchored checkpoints and acknowledgements (core 9.4).
 - `t(p) = max(p.created, τ(p))` and `eventTime(e) = max(e.created, τ(e), eventTime(prev))` are implemented once, in `@oip/identity`, and used everywhere else.
 - Before counting a proof, a verifier holds the signer's log as a trusted witness served it, with that witness's first-seen times (core 9.4). The client does this automatically when it resolves.
 - Services persist first-seen times in append-only tables and serve them as `firstSeen`. They never lose or rewrite them.

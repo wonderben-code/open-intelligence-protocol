@@ -208,10 +208,15 @@ export function revokedAt(log: VerifiedLog, position: number): Map<string, Insta
  * or before `time`, or `undefined` if the mind did not yet exist then.
  */
 export function stateAt(log: VerifiedLog, time: Instant): IdentityState | undefined {
-  let found: IdentityState | undefined;
-  for (const entry of log.entries) {
-    if (entry.time > time) break;
-    found = entry.state;
+  // Evaluation times never run backwards along a log (core 9.5), so the first
+  // entry after `time` is found by halving. A threshold is asked about at
+  // every moment of a long log; a scan each time would cost its square.
+  let after = log.entries.length;
+  for (let low = 0; low < after;) {
+    const middle = (low + after) >>> 1;
+    const entry = log.entries[middle];
+    if (entry !== undefined && entry.time <= time) low = middle + 1;
+    else after = middle;
   }
-  return found;
+  return log.entries[after - 1]?.state;
 }

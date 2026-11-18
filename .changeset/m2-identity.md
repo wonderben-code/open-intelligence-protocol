@@ -15,4 +15,5 @@ First version: who a mind is, and which of its keys may sign (Layer 1, Sections 
 - A book keeps its own copy of what it holds, never replaces a log by an earlier state of itself (`drop` first), keeps each branch with the time it is known up to, and forgets a verdict only when a log it rests on changes (`forget` for a change of evidence). A branch takes part in resolving duplicity with the events it has that verify.
 - `understood`, for `verifyLog`, `LogBook` and `judgeRecord`: the extensions the caller implements. An event or a record that lists another in `critical` is refused (core 8.3). By default none is implemented.
 - A duplicitous collective signs nothing from its first conflicting event on, and a record is signed by a collective from the moment a change of membership completes its threshold (Layer 1, 7.3, 9.5; OEP-0002).
-- Verified logs and judged records are frozen.
+- An event that fails is invalid or undecided (Layer 1, 4.9; OEP-0002). `witnessLog` says which (`undecided`), and what to hold of a log that arrives (`toHold`): the events before an invalid event, and never the events before one the verifier cannot judge.
+- Verified logs, judged records and every answer of a book are frozen.

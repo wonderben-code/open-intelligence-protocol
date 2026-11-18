@@ -3839,10 +3839,10 @@ def build():
             "Two valid events sit at position 1 of Amina's log. The one "
             "first seen at 09:05 wins, whatever follows it. In the copy "
             "this verifier holds, an event that does not verify follows "
-            "it, so the verifier does not know where the log ends, and "
-            "the log does not verify for it. The other branch does not "
-            "win by default: a record pinned to its event, first seen at "
-            "11:00, does not count.", alt_intent, amina,
+            "it. Whether the verifier rejects that copy or keeps the "
+            "events before the invalid one (Layer 1, 4.9), the other "
+            "branch does not win by default: a record pinned to its "
+            "event, first seen at 11:00, does not count.", alt_intent, amina,
             extra_logs=[[a_gen, a_upd, a_junk]],
             branches=[[a_gen, a_upd_alt]],
             seen={content_id(a_upd): "2026-10-30T09:05:00Z",
@@ -3951,6 +3951,50 @@ def build():
             "has it must have a controller there: `null` is a value, and "
             "it is not a controller (Layer 1, 3.4 and 4.8).",
             [coll, unchanged(controller=None)])
+
+    # Layer 1, 4.9 and 7.3: the branch that wins, in a copy whose next
+    # event this verifier cannot judge.
+    def amina_extended(critical):
+        fields = {"ext": {"com.example.recovery": {"v": "1"}}}
+        if critical:
+            fields["critical"] = ["com.example.recovery"]
+        return control_event("Update", amina, a_upd, "2026-10-30T12:00:00Z",
+                             [a_c2], [k("amina-control-3b")], fields=fields)
+
+    bad_sig("winning-branch-ending-in-an-event-that-cannot-be-judged",
+            "Two valid events sit at position 1 of Amina's log, and the "
+            "one first seen at 09:05 wins. This record is pinned to it and "
+            "signed by a key it holds. In the copy this verifier holds, "
+            "the next event is Amina's own, validly signed, and lists in "
+            "`critical` an extension the verifier does not implement. The "
+            "verifier cannot judge that event, which may remove the key, "
+            "so it does not take the events before it as her log (Layer "
+            "1, 4.9 and 7.3). The log does not verify for this verifier, "
+            "and nothing pinned to it counts.", intent, amina,
+            extra_logs=[[a_gen, a_upd, amina_extended(True)]],
+            branches=[[a_gen, a_upd_alt]],
+            seen={content_id(a_upd): "2026-10-30T09:05:00Z",
+                  content_id(a_upd_alt): "2026-10-30T11:00:00Z"})
+
+    # Layer 1, 7.3 and 9.5: both branches keep the two members who sign.
+    c_homed = member_event("Update", collective, coll,
+                           "2026-10-30T22:00:00Z", two_of_three,
+                           {"homes": ["https://collective.example"]})
+    c_without_agent = member_event(
+        "Update", collective, coll, "2026-10-30T22:00:00Z", two_of_three,
+        {"controller": {"members": [amina, researcher], "threshold": 2}})
+    bad_sig("duplicitous-collective-whose-branches-keep-the-signers",
+            "At 22:00 two members signed two events for one position of "
+            "the collective's log. One sets a home; the other removes the "
+            "third member. Amina and the researcher are members after "
+            "either, and with either event alone a record they sign at "
+            "23:00 is signed by the collective. Evidence cannot separate "
+            "the two events, so the collective is duplicitous, and from "
+            "its first conflicting event on nothing is signed under its "
+            "threshold (Layer 1, 7.3 and 9.5). The rule is one of time: a "
+            "verifier does not ask, member by member, what the branches "
+            "agree on.", signed_by_two("2026-10-30T23:00:00Z"), collective,
+            extra_logs=[[coll, c_homed]], branches=[[coll, c_without_agent]])
 
     V["valid"].append({
         "name": "home-that-is-no-host",
@@ -4073,6 +4117,13 @@ def build():
     control("parent-with-an-unknown-member", log=[child_genesis()])
     control("collective-event-with-a-null-controller",
             log=[coll, unchanged()])
+    # The same event without `critical`: an extension that is not critical
+    # changes nothing, the log verifies to its end, and the record counts.
+    control("winning-branch-ending-in-an-event-that-cannot-be-judged",
+            extraLogs=[[a_gen, a_upd, amina_extended(False)]])
+    # With one of the two events alone, the record counts.
+    control("duplicitous-collective-whose-branches-keep-the-signers",
+            branches=None)
     return V
 
 

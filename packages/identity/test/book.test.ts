@@ -359,7 +359,7 @@ describe("the logs a verifier holds", () => {
     expect(heads(book, ada.address).heads).toHaveLength(3);
   });
 
-  it(`${clause("L1 7.2")} does not replace a log by an earlier state of itself`, () => {
+  it(`${clause("L1 4.9")} does not replace a log by an earlier state of itself`, () => {
     // A source that lags, or lies, must not undo a removal the verifier knows of.
     const ada = new KeyMind("ada");
     const genesis = [...ada.events];
@@ -370,7 +370,7 @@ describe("the logs a verifier holds", () => {
     for (const earlier of [genesis, middle]) {
       expect(book.hold(earlier, at(90))).toMatchObject({
         ok: false,
-        issues: [{ path: "", clause: "L1 7.2" }],
+        issues: [{ path: "", clause: "L1 4.9" }],
       });
       expect(heads(book, ada.address).heads).toHaveLength(3);
       // The time the log is known up to is not moved by a copy that was refused.
@@ -819,5 +819,206 @@ describe("what a book keeps, and for how long", () => {
       value === null ||
       (Object.isFrozen(value) && Object.values(value).every(frozen));
     expect(frozen(log)).toBe(true);
+  });
+});
+
+describe("an answer that depends on where a log was asked from", () => {
+  /** A collective whose genesis names a member, with a proof by a key that is not the member's. */
+  function hollow(name: string, member: { address: string; versionId(): string }, seconds: number) {
+    const event = rawSign(
+      draftGenesis(T(seconds), {
+        kind: "collective",
+        controller: { members: [member.address], threshold: 1 },
+      }),
+      [
+        {
+          member: member.address,
+          versionId: member.versionId(),
+          invocation: signer(`${name}/key`),
+        },
+      ],
+    );
+    return {
+      events: [event],
+      address: `did:oip:${contentId(event)}`,
+      versionId: () => `0-${contentId(event)}`,
+    };
+  }
+
+  it("is not kept, even when it is a log that verified", () => {
+    const [a, b, n1] = [new KeyMind("a"), new KeyMind("b"), new KeyMind("n1")];
+    const n = new Collective("n", [n1], 1, 1);
+    const x = () => new Collective("x", [a, b], 2, 2, { height: 2 });
+    // Two events for position 1 of x. The one seen first admits the collective n.
+    const first = x().update(20, [a, b, n], {
+      controller: { members: [a.address, b.address, n.address], threshold: 2 },
+    });
+    const second = x().update(20, [a, b], { homes: ["https://later.example"] });
+    // Three logs that do not verify, each naming the next as its member, and the last naming x.
+    const c2 = hollow("c2", second, 50);
+    const c1 = hollow("c1", c2, 51);
+    const top = hollow("top", c1, 52);
+    const made = witness([
+      ...[a, b, n1, n, first, second].map((mind) => mind.events),
+      ...[c2, c1, top].map((fake) => fake.events as never),
+    ]);
+    const evidence: EvidenceView = {
+      proofSeen: (digest) => made.proofSeen(digest),
+      eventSeen: (id) => (id === contentId(second.events[1]) ? at(40) : made.eventSeen(id)),
+    };
+    const filled = () => {
+      const book = new LogBook(evidence);
+      for (const mind of [a, b, n1, n]) book.hold(mind.events, LATER);
+      book.holdBranch(second.events, LATER);
+      book.holdBranch(first.events, LATER);
+      for (const fake of [c2, c1, top]) book.hold(fake.events, LATER);
+      return book;
+    };
+    const asked = filled();
+    // Under `top`, x is three levels down, and the collective its first event
+    // admits would be a fifth: refused for the depth. Down there x looks like
+    // its other branch.
+    expect(asked.log(top.address).ok).toBe(false);
+    // Asked for itself, x is the branch that was seen first, as in a book nobody asked before.
+    const fresh = filled();
+    for (const book of [asked, fresh]) {
+      const { log, heads: found } = heads(book, first.address);
+      expect(log.duplicitous).toBe(false);
+      expect(found[1]).toBe(contentId(first.events[1]));
+    }
+  });
+
+  it("is worked out once for each path, however many copies of each log are held", () => {
+    // Five collectives, each the one member of the next: one too many. Each is
+    // held in several copies, which differ in something that follows the genesis
+    // and is no event. Judging every copy against every copy below it cost
+    // 9,330 lookups for six copies of each.
+    const key = new KeyMind("key");
+    const levels: (KeyMind | Collective)[] = [key];
+    for (let n = 1; n <= 5; n++) levels.push(new Collective(`level ${n}`, [levels[n - 1]!], 1, n));
+    const made = witness(levels.map((mind) => mind.events));
+    const lookups = (copies: number): number => {
+      let asked = 0;
+      const book = new LogBook({
+        proofSeen: (digest) => made.proofSeen(digest),
+        eventSeen: (id) => {
+          asked++;
+          return made.eventSeen(id);
+        },
+      });
+      book.hold(key.events, LATER);
+      for (const level of levels.slice(1)) {
+        for (let j = 0; j < copies; j++) book.holdBranch([...level.events, { junk: j }], LATER);
+      }
+      expect(book.log(levels[5]!.address).ok).toBe(false);
+      return asked;
+    };
+    const [two, six] = [lookups(2), lookups(6)];
+    // The work grows with the number of copies, and not with a power of it.
+    expect(two).toBeLessThanOrEqual(5 * 2 + 1);
+    expect(six).toBeLessThanOrEqual(5 * 6 + 1);
+  });
+});
+
+describe("a copy that does not verify, and the copy that takes its place", () => {
+  const clean = () => new KeyMind("ada").update(10).update(20, { keys: [] });
+
+  it("gives way to a clean copy of the same log, when a junk event follows what verifies", () => {
+    const ada = clean();
+    const junked = [...ada.events, { junk: true }];
+    const book = new LogBook(witness([ada.events]));
+    book.hold(junked, LATER);
+    expect(book.log(ada.address).ok).toBe(false);
+    // The clean log is no earlier state of it: both verify as far as each other.
+    expect(book.hold(ada.events, LATER)).toStrictEqual({ ok: true, value: ada.address });
+    expect(heads(book, ada.address).heads).toHaveLength(3);
+    // But the genesis alone is: the copy held verifies further, junk and all.
+    const again = new LogBook(witness([ada.events]));
+    again.hold(junked, LATER);
+    expect(again.hold(ada.events.slice(0, 1), LATER)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "L1 4.9" }],
+    });
+  });
+
+  it("does not take the place of a clean copy when it is the same events with their proofs lost", () => {
+    const ada = clean();
+    const stripped = ada.events.map((event, i) =>
+      i === 0 ? event : { ...event, proof: [{ ...event.proof[0], proofValue: "z1111" }] },
+    );
+    expect(stripped.map((event) => contentId(event))).toStrictEqual(
+      ada.events.map((event) => contentId(event)),
+    );
+    for (const how of ["hold", "holdBranch"] as const) {
+      const book = new LogBook(witness([ada.events]));
+      book.hold(ada.events, LATER);
+      const taken = book[how](stripped, LATER);
+      // As a log in its place it is refused; as a branch it adds nothing.
+      expect(taken.ok).toBe(how === "holdBranch");
+      expect(heads(book, ada.address).heads).toHaveLength(3);
+    }
+    // And a clean copy takes the place of one that lost its proofs.
+    const book = new LogBook(witness([ada.events]));
+    book.hold(stripped, LATER);
+    expect(book.log(ada.address).ok).toBe(false);
+    expect(book.holdBranch(ada.events, LATER).ok).toBe(true);
+    expect(heads(book, ada.address).heads).toHaveLength(3);
+  });
+
+  it("keeps nothing of an event that was not plain data when it was held", () => {
+    const ada = clean();
+    const odd: Record<string, unknown> = { ...ada.events[2], extra: undefined };
+    const given = [ada.events[0], ada.events[1], odd];
+    const book = new LogBook(witness([ada.events]));
+    book.hold(given, LATER);
+    expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ path: "/2" }] });
+    // The giver mends its copy afterwards. The book's copy is not the giver's.
+    delete odd["extra"];
+    book.forget();
+    expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ path: "/2" }] });
+  });
+});
+
+describe("what a book answers with", () => {
+  it("is frozen, a rejection as much as a log, and the same answer each time", () => {
+    const ada = new KeyMind("ada");
+    const bad = new KeyMind("bad").raw(10, "Merge");
+    const book = new LogBook(witness([ada.events, bad.events]));
+    book.hold(ada.events, LATER);
+    book.hold(bad.events, LATER);
+    const frozen = (value: unknown): boolean =>
+      typeof value !== "object" ||
+      value === null ||
+      (Object.isFrozen(value) && Object.values(value).every(frozen));
+    for (const mind of [ada, bad]) {
+      const answer = book.log(mind.address);
+      expect(book.log(mind.address)).toBe(answer);
+      expect(frozen(answer)).toBe(true);
+    }
+    // A rejection cannot be turned into another mind's log by whoever was given it.
+    const refused = book.log(bad.address) as { ok: boolean; value?: unknown };
+    const taken = book.log(ada.address);
+    expect(() => {
+      refused.ok = true;
+    }).toThrow(TypeError);
+    expect(() => {
+      refused.value = taken.ok ? taken.value : undefined;
+    }).toThrow(TypeError);
+    expect(book.log(bad.address).ok).toBe(false);
+  });
+
+  it("reads its options as the caller's own members, and nothing from one that cannot be read", () => {
+    const ada = new KeyMind("ada");
+    const unreadable = new Proxy(
+      {},
+      {
+        getOwnPropertyDescriptor() {
+          throw new Error("boom");
+        },
+      },
+    );
+    const book = new LogBook(witness([ada.events]), unreadable);
+    book.hold(ada.events, LATER);
+    expect(book.log(ada.address).ok).toBe(true);
   });
 });

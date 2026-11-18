@@ -380,10 +380,20 @@ const keyLogCase: fc.Arbitrary<VectorCase> = fc
     change: twist,
     pick: fc.nat(8),
     seen: seenPicks,
+    // The view may hold the whole log already: the log asked about takes its place.
+    held: fc.constantFrom(false, false, false, false, true),
   })
-  .map(({ name, steps, change, pick, seen }) => {
-    const log = unchecked(() => twisted(live(name, steps), change, pick));
-    return { kind: "log", name: "generated", log, seen: seenFor(log, seen) };
+  .map(({ name, steps, change, pick, seen, held }) => {
+    const mind = unchecked(() => live(name, steps));
+    const whole = [...mind.events] as unknown as Events;
+    const log = unchecked(() => twisted(mind, change, pick));
+    return {
+      kind: "log",
+      name: "generated",
+      log,
+      ...(held ? { extraLogs: [whole] } : {}),
+      seen: seenFor(log, seen),
+    };
   });
 
 /**
@@ -407,12 +417,26 @@ const collectiveLogCase: fc.Arbitrary<VectorCase> = fc
       }),
       { maxLength: 3 },
     ),
-    founders: fc.constantFrom("all", "all", "all", "fewer", "operational"),
+    founders: fc.constantFrom("all", "all", "all", "all", "fewer", "operational", "for another"),
     seen: seenPicks,
     memberSeen: seenPicks,
+    // One case in three is sound by construction, so that logs both accept are not all short ones.
+    sound: fc.constantFrom(false, false, true),
   })
-  .map((plan) =>
+  .map((drawn) =>
     unchecked(() => {
+      const plan = !drawn.sound
+        ? drawn
+        : {
+            ...drawn,
+            threshold: 3,
+            height: undefined,
+            memberSteps: [],
+            updates: drawn.updates.map((update) => ({ ...update, signers: [0, 1, 2, 3] })),
+            founders: "all",
+            seen: [],
+            memberSeen: [],
+          };
       const people = ["ada", "bea", "cy", "dee"].map((name) => new KeyMind(name, 0));
       const members = people.slice(0, plan.size);
       const outsider = people[3]!;
@@ -447,6 +471,21 @@ const collectiveLogCase: fc.Arbitrary<VectorCase> = fc
             invocation: member.operational(),
           })),
         ) as never;
+      } else if (plan.founders === "for another") {
+        // One founder's proof names an authority: it is made as a delegate, and is not the member's own (Layer 1, 6.4).
+        const { proof: _, ...genesis } = club.events[0] as unknown as JsonObject;
+        const [delegate, ...others] = members as [KeyMind, ...KeyMind[]];
+        const authority = [`${delegate.address}/${contentId(delegate.events[0])}`];
+        club.events[0] = {
+          ...genesis,
+          proof: [
+            ...rawSign(genesis, [delegate.asMember()], { authority }).proof,
+            ...rawSign(
+              genesis,
+              others.map((member) => member.asMember()),
+            ).proof,
+          ],
+        } as never;
       }
       // The first member's own log goes on while the collective lives.
       const first = members[0]!;
@@ -504,6 +543,10 @@ const collectiveLogCase: fc.Arbitrary<VectorCase> = fc
     }),
   );
 
+// Most cases have neither: each is one rule, and needs few cases.
+const NO_EXTENSION = Array.from({ length: 6 }, () => undefined);
+const NO_EARLIER = Array.from({ length: 7 }, () => undefined);
+
 /**
  * A `countsFor` case: a record signed by one of a mind's operational keys,
  * pinned to some version of its log, dated and seen at some times. No proof
@@ -520,14 +563,22 @@ const ownKeyCase: fc.Arbitrary<VectorCase> = fc
     seenAfter: fc.constantFrom(undefined, -301, -300, 0, 1, 61, 3601, 100_000),
     expires: fc.constantFrom(undefined, undefined, 10, 4000),
     logSeen: seenPicks,
+    // core 8.3: an extension nobody implements, which the record may list in `critical`.
+    extension: fc.constantFrom(...NO_EXTENSION, "critical", "not critical"),
+    // The view may be given an earlier state of the log after the log itself, which then replaces it.
+    earlier: fc.constantFrom(...NO_EARLIER, 1, 2),
   })
   .map((plan) => {
     const mind = unchecked(() => live(plan.name, plan.steps));
     const position = plan.position % mind.events.length;
     const base =
       plan.type === "Intent" ? intentBy(mind, plan.created) : locationBy(mind, plan.created);
-    const unsigned =
-      plan.expires === undefined ? base : { ...base, expires: T(plan.created + plan.expires) };
+    const unsigned = {
+      ...base,
+      ...(plan.expires === undefined ? {} : { expires: T(plan.created + plan.expires) }),
+      ...(plan.extension === undefined ? {} : { ext: { "com.example.escrow": { v: "1" } } }),
+      ...(plan.extension === "critical" ? { critical: ["com.example.escrow"] } : {}),
+    };
     const record = mind.sign(unsigned, { key: plan.key, position });
     const proof = record.proof[0];
     const seen: Record<string, string> = seenFor(mind.events, plan.logSeen);
@@ -539,7 +590,10 @@ const ownKeyCase: fc.Arbitrary<VectorCase> = fc
       name: "generated",
       record: record,
       mind: mind.address,
-      extraLogs: [mind.events],
+      extraLogs:
+        plan.earlier === undefined
+          ? [mind.events]
+          : [mind.events, mind.events.slice(0, plan.earlier)],
       seen,
     };
   });
@@ -791,8 +845,11 @@ const collectiveSignedCase: fc.Arbitrary<VectorCase> = fc
     signers: fc.subarray([0, 1, 2, 3], { minLength: 1 }),
     created: fc.constantFrom(150, 205, 210, 250, 300, 310, 1200, 1300, 5000),
     stagger: fc.constantFrom(0, 0, 0, 10, 100, 1100),
-    type: fc.constantFrom("Intent", "Intent", "Intent", "Location"),
+    // A Hello is signed by its author's own key, never under a threshold (Layer 1, 9.5).
+    type: fc.constantFrom("Intent", "Intent", "Intent", "Location", "Hello"),
     expires: fc.constantFrom(undefined, undefined, undefined, 50),
+    // The collective's own operational key signs as well.
+    own: fc.constantFrom(false, false, false, true),
   })
   .map((plan) =>
     unchecked(() => {
@@ -815,14 +872,25 @@ const collectiveSignedCase: fc.Arbitrary<VectorCase> = fc
         branches.push(alternative.events);
       }
       const base =
-        plan.type === "Intent" ? intentBy(group, plan.created) : locationBy(group, plan.created);
+        plan.type === "Intent"
+          ? intentBy(group, plan.created)
+          : plan.type === "Location"
+            ? locationBy(group, plan.created)
+            : { oip: "1", type: "Hello", author: group.address, created: T(plan.created) };
+      // A Hello's proof answers a challenge for a host (core 11).
+      const more =
+        plan.type === "Hello"
+          ? { challenge: "q8xG3kZ2pV7mT0wR5nY1aB", domain: "https://host.example" }
+          : {};
       let record: object =
         plan.expires === undefined ? base : { ...base, expires: T(plan.created + plan.expires) };
       plan.signers.forEach((n, order) => {
         record = people[n]!.sign(record, {
           created: T(plan.created + (order === 0 ? 0 : plan.stagger)),
+          more,
         });
       });
+      if (plan.own) record = group.sign(record, { more });
       return {
         kind: "countsFor",
         name: "generated",

@@ -10,6 +10,7 @@ import {
   createProofSync,
   type Instant,
   keyHash,
+  mindAddress,
   parseJson,
   parseTimestamp,
   proofDigest,
@@ -25,7 +26,12 @@ import {
   LogBook,
   ownSignedTime,
 } from "@oip/identity";
-import { isRecordType, validateExtensionRecord, validateRecord } from "@oip/schema";
+import {
+  isRecordType,
+  validateExtensionRecord,
+  validateRecord,
+  type Validation,
+} from "@oip/schema";
 
 import { type ConformanceAdapter, NOT_JUDGED, type VerifierView } from "./adapter.ts";
 import type { JsonObject } from "./vectors.ts";
@@ -84,10 +90,25 @@ function assumedEvidence(held: unknown, seen: Readonly<Record<string, string>> =
   return { proofSeen: (digest) => times.get(digest), eventSeen: (id) => times.get(id) };
 }
 
+/**
+ * Holds a log in place of whatever the book holds for its mind. A case's
+ * `extraLogs`, and the log it asks about, replace the baseline's logs of the
+ * same minds, an earlier state of one among them. A verifier never goes back
+ * like that (Layer 1, 4.9), so `hold` alone refuses to.
+ */
+function replace(book: LogBook, log: unknown): Validation<string> {
+  try {
+    book.drop(mindAddress(contentId((log as readonly unknown[])[0])));
+  } catch {
+    // What has no genesis names no mind, and `hold` says so.
+  }
+  return book.hold(log, ALWAYS);
+}
+
 /** The logs and the evidence of a verifier's view, with the subject it is asked about. */
 function bookFor(view: VerifierView, subject: unknown): LogBook {
   const book = new LogBook(assumedEvidence([view, subject], view.seen));
-  for (const log of [...view.logs, ...view.extraLogs]) book.hold(log, ALWAYS);
+  for (const log of [...view.logs, ...view.extraLogs]) replace(book, log);
   for (const log of view.branches) book.holdBranch(log, ALWAYS);
   return book;
 }
@@ -126,7 +147,7 @@ export const referenceAdapter: ConformanceAdapter = {
   logVerifies: (log, view) => {
     const book = bookFor(view, log);
     // The log asked about takes the place of any log the view holds for the same mind.
-    const mind = book.hold(log, ALWAYS);
+    const mind = replace(book, log);
     return mind.ok && book.log(mind.value).ok;
   },
   countsFor: (record, mind, view) => {

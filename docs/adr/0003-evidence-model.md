@@ -1,6 +1,6 @@
 # ADR-0003: The evidence model in code
 
-**Status:** Accepted, 17 November 2026 (M0). Implemented in M2.
+**Status:** Accepted, 17 November 2026 (M0). Implemented in M2, with two changes that [ADR-0008](0008-holding-logs.md) records: no function takes `now`, and a verifier records its first sight of something only once that thing has verified.
 
 ## Context
 
@@ -30,6 +30,8 @@ interface EvidenceView {
 ### Time is a parameter
 
 Every verification function takes `now` and an `EvidenceView`. No pure package reads the clock (enforced: [ADR-0001](0001-tooling.md)). A verifier that receives a proof live records its receipt time in its store first, and then verifies with a view that includes it.
+
+_Changed in M2 (ADR-0008)._ "Now" is not one time: each log is known up to its own, so the functions take the view and, for each log, the time it is known up to. And a verifier verifies first and records afterwards, through `witnessLog` and `witnessRecord`: an identity event's content ID does not cover its proofs, so recording the sight of content that has not verified lets a later signature claim that time.
 
 ### The two formulas exist once
 

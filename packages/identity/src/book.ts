@@ -6,7 +6,7 @@
  * their events existed: what every question about a mind's keys is asked of.
  */
 
-import { contentId, type Instant, mindAddress } from "@oip/core";
+import { canonicalize, contentId, type Instant, mindAddress } from "@oip/core";
 import { type Validation, validateJson } from "@oip/schema";
 
 import type { EvidenceView } from "./evidence.ts";
@@ -109,9 +109,10 @@ export function divergence(a: VerifiedLog, b: VerifiedLog): Divergence | undefin
 
 /**
  * The branches that are left when the evidence has decided must each have
- * verified to its end. One that did not may hold a later event this verifier
- * could not judge, a removal among them, so what is left is not known to be
- * the whole log.
+ * verified to its end. The book judges the copies it holds as they are: one
+ * that did not verify to its end may hold a later event this verifier could
+ * not judge, a removal among them, so what is left is not known to be the
+ * whole log (Layer 1, 4.9, 7.3).
  */
 function settled(branches: Branches, log: VerifiedLog): Validation<VerifiedLog> {
   return branches.find((branch) => branch.failure !== undefined)?.failure ?? ok(log);
@@ -196,24 +197,35 @@ function duplicitous(candidates: Branches, position: number): VerifiedLog {
   });
 }
 
-/** Whether `held` has every event of `branch` and more: `branch` is an earlier state of it. */
-function longer(held: HeldBranch, branch: HeldBranch): boolean {
-  return held.events.length > branch.events.length && begins(branch.events, held.events);
+/** Whether two copies hold the same events, proofs and all, as far as the shorter goes. */
+function identical(a: readonly unknown[], b: readonly unknown[]): boolean {
+  try {
+    for (let i = Math.min(a.length, b.length) - 1; i >= 0; i--) {
+      if (canonicalize(a[i]) !== canonicalize(b[i])) return false;
+    }
+    return true;
+  } catch {
+    // A copy with something in it that has no canonical form is like no other.
+    return false;
+  }
 }
 
-const EARLIER: Rejection = {
+/** What is held in the place of an event that was not plain data: nothing that can be read again, and no event. */
+const UNREADABLE = Symbol("not plain data");
+
+const EARLIER: Rejection = deepFreeze({
   ok: false,
   issues: [
     {
       path: "",
       message:
-        "the log is the beginning of a longer log already held for this mind, and a log is not replaced by an earlier state of itself",
-      clause: "L1 7.2",
+        "the log held for this mind verifies further than this one, which is an earlier state of it: a log is not replaced by an earlier state of itself",
+      clause: "L1 4.9",
     },
   ],
-};
+});
 
-const NOT_A_LOG: Rejection = {
+const NOT_A_LOG: Rejection = deepFreeze({
   ok: false,
   issues: [
     {
@@ -222,7 +234,7 @@ const NOT_A_LOG: Rejection = {
       clause: "L1 3.1",
     },
   ],
-};
+});
 
 /**
  * The identity logs a verifier holds, one or more branches for each mind,
@@ -232,10 +244,12 @@ const NOT_A_LOG: Rejection = {
  * log is held with the time up to which it is known to be complete (core
  * 9.4), which the caller states.
  *
- * It holds whatever it is given and judges it when asked, so a log that
- * does not verify stays held, and answers with its rejection, until another
- * is held in its place or it is dropped. A verifier that takes logs from
- * outside holds what `witnessLog` found to verify.
+ * It holds whatever it is given and judges it when asked, as it is: a copy
+ * with an event that does not verify is a log that does not verify, and the
+ * book answers with that rejection until a copy that verifies as far is held
+ * in its place, or the mind is dropped. A verifier that takes logs from
+ * outside asks `witnessLog` first, which says what verified, and whether
+ * what did not is invalid or only beyond this verifier's judgement.
  *
  * A verdict is kept until a log it rests on changes. The book cannot see its
  * evidence change: call `forget` when a time it has given may have moved.
@@ -250,7 +264,13 @@ export class LogBook implements IdentityView {
   /** For each mind, the minds whose verdicts asked for its log. */
   readonly #askedBy = new Map<string, Set<string>>();
   readonly #visiting = new Set<string>();
-  /** How often a log was refused for where it was asked from, not for what it is. */
+  /**
+   * Answers that held only where they were asked from, by the path of minds
+   * that led there. They are kept for the length of one question, so that a
+   * log asked for again along the same path is not verified again.
+   */
+  readonly #here = new Map<string, Validation<VerifiedLog>>();
+  /** How often a log was refused, or answered, for where it was asked from and not for what it is. */
   #refusals = 0;
 
   constructor(evidence: EvidenceView, options?: LogBookOptions) {
@@ -265,10 +285,13 @@ export class LogBook implements IdentityView {
    * nothing here.
    *
    * A log is not replaced by an earlier state of itself: a source that lags
-   * must not undo a removal the verifier already knows of (Layer 1, 7.2).
-   * To go back all the same, `drop` the mind first. A log that conflicts
-   * with the one held is replaced without being weighed against it; to weigh
-   * them by evidence, use `holdBranch`.
+   * must not undo a removal the verifier already knows of (Layer 1, 4.9).
+   * "Earlier" is judged by what verifies. A copy held that ends in an
+   * invalid event, or whose proofs were lost, gives way to a clean one; a
+   * clean one does not give way to a copy of its beginning. To go back all
+   * the same, `drop` the mind first. A log that conflicts with the one held
+   * is replaced without being weighed against it; to weigh them by evidence,
+   * use `holdBranch`.
    *
    * @param asOf - The time up to which the log is known to be complete: when
    *   a witness the verifier trusts served it, or the present for a verifier
@@ -280,7 +303,10 @@ export class LogBook implements IdentityView {
     if (!taken.ok) return taken;
     const { mind, branch } = taken.value;
     const held = this.#held.get(mind) ?? [];
-    if (held.some((other) => longer(other, branch))) return EARLIER;
+    const earlier = held.some(
+      (other) => begins(branch.events, other.events) && this.#further(mind, other, branch),
+    );
+    if (earlier) return EARLIER;
     this.#set(mind, [branch]);
     return ok(mind);
   }
@@ -289,17 +315,25 @@ export class LogBook implements IdentityView {
    * Holds `events` as a further branch of a mind's log (Layer 1, Section 7),
    * beside what is held for it. Each branch is known up to its own time.
    *
-   * A log that continues a branch held takes its place. One that is the
-   * beginning of a branch held adds nothing, and is not held.
+   * It returns the address whether or not the copy added anything. A copy
+   * that is the beginning of a branch held, and verifies no further than
+   * that branch does, adds nothing and is not held. A branch held that is
+   * the beginning of the new copy, and verifies no further than it, gives
+   * way to it.
    */
   holdBranch(events: unknown, asOf: Instant): Validation<string> {
     const taken = this.#take(events, asOf);
     if (!taken.ok) return taken;
     const { mind, branch } = taken.value;
     const held = this.#held.get(mind) ?? [];
-    if (held.some((other) => longer(other, branch))) return ok(mind);
-    // What is left conflicts with the new branch, or is unlike it.
-    const [first, ...rest] = held.filter((other) => !begins(other.events, branch.events));
+    const nothingNew = held.some(
+      (other) => begins(branch.events, other.events) && !this.#further(mind, branch, other),
+    );
+    if (nothingNew) return ok(mind);
+    // What is left conflicts with the new branch, is unlike it, or verifies further than it.
+    const [first, ...rest] = held.filter(
+      (other) => !(begins(other.events, branch.events) && !this.#further(mind, other, branch)),
+    );
     this.#set(mind, first === undefined ? [branch] : [first, ...rest, branch]);
     return ok(mind);
   }
@@ -347,10 +381,9 @@ export class LogBook implements IdentityView {
       const mind = mindAddress(contentId(genesis.value));
       const branch: unknown[] = [genesis.value];
       for (let i = 1; i < length && i <= this.#maxEvents; i++) {
-        const raw: unknown = events[i];
-        const copy = validateJson(raw);
-        // An event that is not plain data is refused when the log is verified.
-        branch.push(copy.ok ? copy.value : raw);
+        const copy = validateJson(events[i]);
+        // What is not plain data is no event, now or when the log is verified.
+        branch.push(copy.ok ? copy.value : UNREADABLE);
       }
       return ok({ mind, branch: { events: branch, asOf } });
     } catch {
@@ -377,15 +410,50 @@ export class LogBook implements IdentityView {
   }
 
   /**
+   * Whether copy `a` of a mind's log verifies further than copy `b`: more of
+   * its events, from the first, verify.
+   */
+  #further(mind: string, a: HeldBranch, b: HeldBranch): boolean {
+    if (identical(a.events, b.events)) {
+      // The same events as far as the shorter goes, so the shorter verifies
+      // no further than the longer, and the longer further only past its end.
+      return a.events.length > b.events.length && this.#reach(mind, a) > b.events.length;
+    }
+    return this.#reach(mind, a) > this.#reach(mind, b);
+  }
+
+  /** How many events of a copy of a mind's log verify, from the first. */
+  #reach(mind: string, copy: HeldBranch): number {
+    const held = this.#held.get(mind);
+    const verdict = this.#verified.get(mind);
+    // The one copy held, already verified: its log is what verified of it.
+    if (held?.length === 1 && held[0] === copy && verdict?.ok === true) {
+      return verdict.value.entries.length;
+    }
+    this.#visiting.add(mind);
+    try {
+      const replayed = verifyLogPrefix(copy.events, this.#context(mind, copy.asOf, 0));
+      return replayed.log?.entries.length ?? 0;
+    } finally {
+      this.#visiting.delete(mind);
+      this.#here.clear();
+    }
+  }
+
+  /**
    * The verified log of a mind: verified when first asked for, with its
    * members' logs, and with duplicity resolved among the branches held. The
-   * log is frozen.
+   * answer is frozen.
    */
   log(mind: string): Validation<VerifiedLog> {
     if (typeof (mind as unknown) !== "string") {
       return no("a mind is named by its address, a string", "L1 2.2");
     }
-    return this.#log(mind, 0);
+    try {
+      return this.#log(mind, 0);
+    } finally {
+      this.#here.clear();
+    }
   }
 
   /** `depth` counts the collectives between the log asked for and this one (Layer 1, 4.7). */
@@ -402,25 +470,32 @@ export class LogBook implements IdentityView {
       this.#refusals++;
       return no("no collective is a member of itself, directly or indirectly", "L1 4.7");
     }
+    const path = [...this.#visiting, mind].join(" ");
+    const here = this.#here.get(path);
+    if (here !== undefined) {
+      this.#refusals++;
+      return here;
+    }
     const before = this.#refusals;
     this.#visiting.add(mind);
     let result: Validation<VerifiedLog>;
     try {
-      result = this.#verify(mind, held, depth);
+      result = deepFreeze(this.#verify(mind, held, depth));
     } finally {
       this.#visiting.delete(mind);
     }
-    // A log verifies only if every member's log it asks for does, so one
-    // that verifies does so wherever it is asked for. One that fails may
-    // have failed for where it was asked from: a log below it was refused
-    // for the depth, or for being verified already. That verdict is kept
-    // only at the top, where it is the log's own (Layer 1, 4.7).
-    if (result.ok || depth === 0 || this.#refusals === before) this.#verified.set(mind, result);
+    // An answer may depend on where the log was asked from: a log below it
+    // was refused for the depth, or for being verified already, and with
+    // branches held even a log that verifies may then be another log than
+    // it is. Such an answer is kept only at the top, where it is the log's
+    // own (Layer 1, 4.7), and otherwise for this question alone.
+    if (depth === 0 || this.#refusals === before) this.#verified.set(mind, result);
+    else this.#here.set(path, result);
     return result;
   }
 
-  #verify(mind: string, held: Held, depth: number): Validation<VerifiedLog> {
-    const context = (asOf: Instant): LogContext => ({
+  #context(mind: string, asOf: Instant, depth: number): LogContext {
+    return {
       evidence: this.evidence,
       asOf,
       memberLog: (member) => {
@@ -431,20 +506,24 @@ export class LogBook implements IdentityView {
       },
       maxEvents: this.#maxEvents,
       understood: this.#understood,
-    });
+    };
+  }
+
+  #verify(mind: string, held: Held, depth: number): Validation<VerifiedLog> {
     const [first, ...others] = held;
+    const context = this.#context(mind, first.asOf, depth);
     const resolved =
-      others.length === 0
-        ? verifyLog(first.events, context(first.asOf))
-        : this.#resolve(held, context);
+      others.length > 0 ? this.#resolve(mind, held, depth) : verifyLog(first.events, context);
     if (resolved.ok && resolved.value.mind !== mind) {
       return no("the log held for this mind is the log of another", "L1 2.2");
     }
     return resolved;
   }
 
-  #resolve(held: Held, context: (asOf: Instant) => LogContext): Validation<VerifiedLog> {
-    const replayed = held.map((branch) => verifyLogPrefix(branch.events, context(branch.asOf)));
+  #resolve(mind: string, held: Held, depth: number): Validation<VerifiedLog> {
+    const replayed = held.map((branch) =>
+      verifyLogPrefix(branch.events, this.#context(mind, branch.asOf, depth)),
+    );
     const verified = replayed.flatMap(({ log, failure }): Branch[] =>
       log === undefined ? [] : [{ log, failure }],
     );

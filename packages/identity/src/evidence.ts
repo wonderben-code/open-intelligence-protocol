@@ -23,7 +23,14 @@ import { no, ok } from "./result.ts";
 export interface EvidenceView {
   /** The earliest time the verifier can show this proof existed, by proof digest (core 9.4). */
   proofSeen(digest: string): Instant | undefined;
-  /** The earliest time the verifier can show this identity event existed, by content ID (core 9.5). */
+  /**
+   * The earliest time the verifier can show this identity event existed with
+   * proofs that make it valid, by content ID (core 9.5). A content ID does
+   * not cover proofs, so whatever fills a view answers for the difference:
+   * sight of the content alone is no such evidence, and neither is a feed
+   * entry or an anchor that does not commit to proofs that make the event
+   * valid.
+   */
   eventSeen(contentId: string): Instant | undefined;
 }
 

@@ -18,6 +18,7 @@ import {
   MIN_ACCEPTED_LOG_EVENTS,
   revokedAt,
   signEventSync,
+  stateAt,
   type VerifiedLog,
   verifyLog,
 } from "../src/index.ts";
@@ -1282,6 +1283,70 @@ describe(`${clause("core 9.3", "core 9.6")} the proofs on an event are judged at
     // A later event that expires does not take the log's earlier events with it, but the log is refused.
     const bea = new KeyMind("bea").raw(1000, "Update", { expires: T(600) });
     expect(refused(bea)).toMatchObject({ clause: "core 9.6", path: "/1/expires" });
+  });
+
+  it("measures a proof's date from the evidence for the event, not from the event's time", () => {
+    // Dated 300 and seen at 100: the evidence is 100, and the event's time is 300.
+    const ada = new KeyMind("ada");
+    const update = draftUpdate(ada.head, T(300), { controller: ada.controller(1) });
+    const proved = (seconds: number) => {
+      const events = [
+        ada.events[0],
+        rawSign(update, [{ control: ada.control(1) }], { created: T(seconds) }),
+      ];
+      const evidence = witness([[ada.events[0] as JsonObject]]);
+      evidence.sawEvent(contentId(update), at(100));
+      return verifyLog(events, { evidence, asOf: LATER });
+    };
+    expect(proved(400).ok).toBe(true);
+    // 300 seconds after the event's own time would be 600.
+    expect(refusal(proved(400.000000001))).toMatchObject({ clause: "L1 4.3", path: "/1/proof" });
+  });
+
+  it("measures expiry from the event's time, which the event before it can make later", () => {
+    // The third event is dated 20, seen at 20, and expires at 100.
+    const ada = new KeyMind("ada").update(10).raw(20, "Update", { expires: T(100) });
+    const secondSeenAt = (seconds: number) => {
+      const evidence = witness([[ada.events[0] as JsonObject, ada.events[2] as JsonObject]]);
+      evidence.sawEvent(contentId(ada.events[1]!), at(seconds));
+      return verifyLog(ada.events, { evidence, asOf: LATER });
+    };
+    // No event takes effect before the one it follows (core 9.5), so the third is judged then.
+    expect(secondSeenAt(400).ok).toBe(true);
+    expect(refusal(secondSeenAt(400.000000001))).toMatchObject({
+      clause: "core 9.6",
+      path: "/2/expires",
+    });
+  });
+});
+
+describe(`${clause("L1 9.5", "core 9.5")} the state of a mind at a time`, () => {
+  it("is the state after the last event at or before that time, in a log of any length", () => {
+    for (let length = 1; length <= 9; length++) {
+      const ada = new KeyMind("ada");
+      for (let n = 1; n < length; n++) ada.update(n * 10);
+      const log = verified(ada);
+      expect(stateAt(log, at(0) - 1n), "before the mind existed").toBeUndefined();
+      log.entries.forEach((entry, n) => {
+        expect(stateAt(log, entry.time)).toBe(entry.state);
+        expect(stateAt(log, entry.time + 1n)).toBe(entry.state);
+        expect(stateAt(log, entry.time - 1n)).toBe(log.entries[n - 1]?.state);
+      });
+      expect(stateAt(log, LATER)).toBe(log.entries.at(-1)?.state);
+    }
+  });
+
+  it("is the later state, where two events take effect at one time", () => {
+    // The second event was first seen at 400, so the third, dated 20, takes effect then too.
+    const ada = new KeyMind("ada").update(10).update(20);
+    const evidence = witness([[ada.events[0] as JsonObject, ada.events[2] as JsonObject]]);
+    evidence.sawEvent(contentId(ada.events[1]!), at(400));
+    const result = verifyLog(ada.events, { evidence, asOf: LATER });
+    if (!result.ok) throw new Error(JSON.stringify(result.issues));
+    const [first, second, third] = result.value.entries;
+    expect([second?.time, third?.time]).toStrictEqual([at(400), at(400)]);
+    expect(stateAt(result.value, at(400))).toBe(third?.state);
+    expect(stateAt(result.value, at(400) - 1n)).toBe(first.state);
   });
 });
 

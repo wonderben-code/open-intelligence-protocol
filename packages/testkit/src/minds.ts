@@ -101,7 +101,7 @@ export function methodOf(by: EventSigner<SyncSigner>): [SyncSigner, string] {
 export function rawSign<T extends object>(
   event: T,
   signers: readonly EventSigner<SyncSigner>[],
-  options: { created?: string; purpose?: string } = {},
+  options: { created?: string; purpose?: string; authority?: readonly string[] } = {},
 ): T & { proof: Proof[] } {
   const { proof: _, ...subject } = event as T & { proof?: unknown };
   const proofs = signers.map((by) => {
@@ -112,6 +112,7 @@ export function rawSign<T extends object>(
       verificationMethod,
       proofPurpose: options.purpose ?? "capabilityInvocation",
       created: options.created ?? (event as { created: string }).created,
+      ...(options.authority === undefined ? {} : { authority: options.authority }),
     };
     return { ...unsigned, proofValue: `z${base58(key.sign(proofHashData(subject, unsigned)))}` };
   });

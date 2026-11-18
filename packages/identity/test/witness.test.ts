@@ -8,7 +8,7 @@
  */
 
 import { contentId, proofDigest } from "@oip/core";
-import { clause } from "@oip/testkit";
+import { clause, type JsonObject } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -16,6 +16,7 @@ import {
   FirstSeen,
   judgeRecord,
   LogBook,
+  ownSignedTime,
   verifyLog,
   witnessLog,
   witnessRecord,
@@ -29,6 +30,7 @@ import {
   rawSign,
   signer,
   T,
+  unchecked,
 } from "@oip/testkit/minds";
 
 const idOf = (event: object): string => contentId(event);
@@ -170,6 +172,222 @@ describe(`${clause("core 8.3", "L1 4.7")} what a verifier does not judge, it doe
     const cut = witnessLog(bea.events, at(50), seen, { maxEvents: 1000 });
     expect(cut.failure).toBeUndefined();
     expect(cut.log?.entries).toHaveLength(3);
+  });
+});
+
+describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier cannot judge`, () => {
+  const critical = {
+    ext: { "com.example.recovery": { v: 1 } },
+    critical: ["com.example.recovery"],
+  };
+
+  /** What `witnessLog` says of a log of two good events and a third that does not verify. */
+  function third(last: (ada: KeyMind) => unknown, now = 50) {
+    const ada = new KeyMind("ada").update(10);
+    const seen = new FirstSeen();
+    const witnessed = witnessLog([...ada.events, last(ada)], at(now), seen);
+    expect(witnessed.log?.entries, "the two events before it verify").toHaveLength(2);
+    expect(witnessed.failure?.issues[0].path.startsWith("/2")).toBe(true);
+    return { clause: witnessed.failure?.issues[0].clause, undecided: witnessed.undecided };
+  }
+  /** The third event the mind would write next, with these members set or changed. */
+  const next = (members: JsonObject = {}) =>
+    new KeyMind("ada").update(10).raw(20, "Update", members).events[2]!;
+
+  it("calls invalid what is wrong whoever looks: its form, its place, or the keys that signed it", () => {
+    const invalid: [string, (ada: KeyMind) => unknown, string][] = [
+      ["not an event", () => ({ junk: true }), "L1 4.6"],
+      ["not an object", () => 5, "L1 3.1"],
+      [
+        "a number that is no integer",
+        () => ({ ...next(), ext: { "com.example": { n: 0.5 } } }),
+        "core 1.2",
+      ],
+      [
+        "nine homes",
+        () => next({ homes: Array.from({ length: 9 }, (_, n) => `https://h${n}.example`) }),
+        "L1 3.7",
+      ],
+      ["out of place", () => next({ seq: 7 }), "L1 4.2"],
+      [
+        "signed by a key that was not committed to",
+        (ada) =>
+          rawSign(draftUpdate(ada.head, T(20), { controller: ada.controller(2) }), [
+            { control: signer("thief") },
+          ]),
+        "L1 4.3",
+      ],
+      // Anybody can write an event that names a critical extension. Unsigned, it is junk like any other.
+      [
+        "unsigned, with a critical extension",
+        (ada) =>
+          rawSign(draftUpdate(ada.head, T(20), { controller: ada.controller(2), ...critical }), [
+            { control: signer("thief") },
+          ]),
+        "L1 4.3",
+      ],
+    ];
+    for (const [name, last, expected] of invalid) {
+      expect(third(last), name).toStrictEqual({ clause: expected, undecided: false });
+    }
+  });
+
+  it("calls undecided what a later revision, an extension or other evidence might judge otherwise", () => {
+    const undecided: [string, (ada: KeyMind) => unknown, string, number?][] = [
+      ["the mind's own event, with a critical extension", () => next(critical), "core 8.3"],
+      ["a Merge", () => next({ type: "Merge" }), "L1 3.9"],
+      ["a type no revision has defined yet", () => next({ type: "Rename" }), "L1 4.6"],
+      ["the reserved member", () => next({ recovery: {} }), "L1 3.12"],
+      ["another version of the protocol", () => next({ oip: "2" }), "core 7"],
+      // Dated more than 300 seconds after this verifier's clock: one that sees it later accepts it.
+      [
+        "dated after the evidence",
+        () => new KeyMind("ada").update(10).update(400).events[2],
+        "core 9.5",
+        50,
+      ],
+      ["expired, for a verifier that sees it now", () => next({ expires: T(30) }), "core 9.6", 500],
+      [
+        "a proof dated after the evidence",
+        (ada) =>
+          rawSign(
+            draftUpdate(ada.head, T(20), { controller: ada.controller(2) }),
+            [{ control: ada.control(2) }],
+            { created: T(400) },
+          ),
+        "L1 4.3",
+        50,
+      ],
+    ];
+    for (const [name, last, expected, now] of undecided) {
+      expect(third(last, now), name).toStrictEqual({ clause: expected, undecided: true });
+    }
+  });
+
+  it("calls undecided a collective's event that waits on a member's log, and invalid one no member signed", () => {
+    const [a, b, n] = [new KeyMind("a"), new KeyMind("b"), new KeyMind("n")];
+    const club = () => new Collective("club", [a, b], 2, 5);
+    const admits = club().update(20, [a, b, n], {
+      controller: { members: [a.address, b.address, n.address], threshold: 2 },
+    });
+    const witnessedBy = (
+      minds: readonly KeyMind[],
+      events: readonly unknown[],
+      membersAsOf = 50,
+    ) => {
+      const seen = new FirstSeen();
+      const book = new LogBook(seen);
+      for (const mind of minds) {
+        witnessLog(mind.events, at(membersAsOf), seen);
+        book.hold(mind.events, at(membersAsOf));
+      }
+      const witnessed = witnessLog(events, at(50), seen, { memberLog: (mind) => book.log(mind) });
+      return { clause: witnessed.failure?.issues[0].clause, undecided: witnessed.undecided };
+    };
+    // The verifier has not fetched the log of the member the event admits.
+    expect(witnessedBy([a, b], admits.events)).toStrictEqual({ clause: "L1 6.3", undecided: true });
+    expect(witnessedBy([a, b, n], admits.events)).toStrictEqual({
+      clause: undefined,
+      undecided: false,
+    });
+    // The members' logs are known up to 40, and the event is first seen at 50.
+    expect(witnessedBy([a, b, n], admits.events, 40)).toStrictEqual({
+      clause: "core 9.4",
+      undecided: true,
+    });
+    // A member removed its key at 30: which came first is a matter of evidence.
+    const removed = new KeyMind("b").update(30, { invocation: [] });
+    expect(witnessedBy([a, removed, n], admits.events)).toStrictEqual({
+      clause: "L1 6.4",
+      undecided: true,
+    });
+    // Signed by nobody the collective knows, or by a key that was never a member's: junk.
+    const stranger = rawSign(draftUpdate(club().head, T(20)), [{ control: signer("thief") }]);
+    const impostor = rawSign(draftUpdate(club().head, T(20)), [
+      { member: a.address, versionId: a.versionId(), invocation: signer("thief") },
+      { member: b.address, versionId: b.versionId(), invocation: signer("thief") },
+    ]);
+    for (const junk of [stranger, impostor]) {
+      expect(witnessedBy([a, b], [...club().events, junk]).undecided).toBe(false);
+    }
+  });
+
+  it("calls undecided a log longer than it reads", { timeout: 120_000 }, () => {
+    const long = unchecked(() => {
+      const ada = new KeyMind("ada");
+      for (let n = 1; n <= 1000; n++) ada.update(n);
+      return ada;
+    });
+    const witnessed = witnessLog(long.events, at(5000), new FirstSeen(), { maxEvents: 1000 });
+    expect(witnessed.log?.entries).toHaveLength(1000);
+    expect(witnessed.failure?.issues[0].clause).toBe("implementation limit");
+    expect(witnessed.undecided).toBe(true);
+  });
+
+  it("says what to hold: the log as it came, or the events before an invalid one", () => {
+    const ada = new KeyMind("ada").update(10);
+    const seen = new FirstSeen();
+    const held = (events: unknown) => {
+      const book = new LogBook(seen);
+      book.hold(witnessLog(events, at(50), seen).toHold, at(50));
+      return book.log(ada.address);
+    };
+    // Every event verifies.
+    expect(witnessLog(ada.events, at(50), seen).toHold).toBe(ada.events);
+    // An invalid event ends it: the events before it are the log, and a book verifies them.
+    const junk = [...ada.events, { junk: true }];
+    const cut = witnessLog(junk, at(50), seen).toHold;
+    expect(cut).toStrictEqual(ada.events);
+    expect(Object.isFrozen(cut)).toBe(true);
+    expect(held(junk)).toMatchObject({ ok: true, value: { entries: { length: 2 } } });
+    // An undecided event ends it: the log as it came, which a book refuses until it can judge.
+    const waiting = [...ada.events, next(critical)];
+    expect(witnessLog(waiting, at(50), seen).toHold).toBe(waiting);
+    // No first sight was recorded of the event, so the book has no evidence for it yet.
+    expect(held(waiting)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "core 9.5", path: "/2" }],
+    });
+    // Nothing verified and nothing to wait for; or what was given is no log at all.
+    expect(witnessLog([{ junk: true }], at(50), seen).toHold).toBeUndefined();
+    expect(witnessLog("log", at(50), seen).toHold).toBeUndefined();
+    expect(witnessLog("log", 50 as never, seen).toHold).toBeUndefined();
+    expect(Object.isFrozen(witnessLog(ada.events, at(50), seen))).toBe(true);
+  });
+
+  it("does not go on counting a key that an event it cannot judge removed", () => {
+    // At 20 ada replaces her operational key, in an event that depends on an extension.
+    const ada = new KeyMind("ada").update(10);
+    const log = new KeyMind("ada").update(10).raw(20, "Update", {
+      keys: [{ key: ada.operational(1).publicKey }],
+      ...critical,
+    }).events;
+    const seen = new FirstSeen();
+    const witnessed = witnessLog(log, at(30), seen);
+    expect(witnessed).toMatchObject({ undecided: true, log: { entries: { length: 2 } } });
+    // The key she removed signs at 25.
+    const judged = judgeRecord(ada.sign(intentBy(ada, 25), { position: 1 }));
+    if (!judged.ok) throw new Error(JSON.stringify(judged.issues));
+    witnessRecord(judged.value, at(26), seen);
+    const book = new LogBook(seen);
+    book.hold(witnessed.toHold, at(30));
+    expect(ownSignedTime(judged.value, ada.address, book)).toBeUndefined();
+    // Holding the events that verified, as known up to now, is the mistake: the removal is lost.
+    const short = new LogBook(seen);
+    short.hold(
+      witnessed.log?.entries.map((entry) => entry.event),
+      at(30),
+    );
+    expect(ownSignedTime(judged.value, ada.address, short)).toBe(at(26));
+  });
+
+  it("says nothing is undecided of a log that verifies, or of what is no log", () => {
+    const ada = new KeyMind("ada");
+    expect(witnessLog(ada.events, at(50), new FirstSeen()).undecided).toBe(false);
+    expect(witnessLog("log", at(50), new FirstSeen()).undecided).toBe(false);
+    expect(witnessLog([], at(50), new FirstSeen()).undecided).toBe(false);
+    // A time that is no time is the caller's fault, and nothing was judged.
+    expect(witnessLog(ada.events, 50 as never, new FirstSeen()).undecided).toBe(true);
   });
 });
 

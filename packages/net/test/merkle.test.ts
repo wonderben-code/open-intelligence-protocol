@@ -73,6 +73,13 @@ describe(`${clause("L1 10.5")} the Merkle Tree Hash of RFC 9162`, () => {
     );
   });
 
+  it("hashes bytes and nothing else: another value is a mistake in the caller", () => {
+    // And it says what is wrong, where the first thing done with the value would not.
+    const mistake = new TypeError("a Merkle tree hashes bytes");
+    expect(() => merkleTreeHash(["leaf" as never])).toThrow(mistake);
+    expect(() => merkleTreeHash([new Uint8Array(1), undefined as never])).toThrow(mistake);
+  });
+
   it("is what the definition gives, for a list of any length", () => {
     fc.assert(
       fc.property(fc.array(fc.uint8Array({ maxLength: 40 }), { maxLength: 70 }), (inputs) => {

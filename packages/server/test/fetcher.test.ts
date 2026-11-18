@@ -17,9 +17,11 @@ import { createServer, type Server } from "node:https";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { TLSSocket } from "node:tls";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { pinnedTo, raced, sameAddress } from "../src/fetcher.ts";
 import { type FetchRefusal, FetchRefused, GuardedFetcher, type Resolve } from "../src/index.ts";
 
 let server: Server;
@@ -71,8 +73,16 @@ beforeAll(async () => {
             .writeHead(200, [
               ["x-note", "first"],
               ["x-note", "second"],
+              ["set-cookie", "a=1"],
+              ["set-cookie", "b=2"],
             ])
             .end();
+        } else if (path === "/cut") {
+          // The length is said, a part of the body comes, and the connection is cut.
+          response.writeHead(200, { "content-length": "1000" });
+          response.write(Buffer.alloc(10, 0x61), () => {
+            response.destroy();
+          });
         } else if (path === "/redirect/same") redirect("/ok");
         else if (path === "/redirect/absolute") redirect(`https://home.example:${port}/ok`);
         else if (path === "/redirect/loop") redirect("/redirect/loop");
@@ -163,7 +173,10 @@ describe("a fetch for a stranger", () => {
   it("gives an answer that is no success as the answer it is", async () => {
     const fetched = await fetcherFor().get(at("/missing"));
     expect(fetched.status).toBe(404);
-    expect((await fetcherFor().get(at("/twice"))).headers["x-note"]).toBe("first, second");
+    const twice = await fetcherFor().get(at("/twice"));
+    expect(twice.headers["x-note"]).toBe("first, second");
+    // A cookie is nothing a service takes from a stranger's host.
+    expect(twice.headers).not.toHaveProperty("set-cookie");
     // A redirect that says where to nothing is an answer too.
     expect((await fetcherFor().get(at("/redirect/none"))).status).toBe(302);
   });
@@ -287,6 +300,76 @@ describe("the address a fetch goes to", () => {
     // And one that no authority the fetcher trusts has signed.
     const untrusting = new GuardedFetcher({ resolve: resolverOf(HERE), allow: ["127.0.0.1/32"] });
     expect(await refusal(untrusting.get(at("/ok")))).toBe("network");
+  });
+});
+
+describe("the connection a fetch is made on", () => {
+  it("is at the address that was checked, by whichever of its names the socket gives", () => {
+    // A socket that speaks both families names an IPv4 address as IPv6 does.
+    expect(sameAddress("127.0.0.1", "::ffff:127.0.0.1")).toBe(true);
+    expect(sameAddress("::ffff:127.0.0.1", "127.0.0.1")).toBe(true);
+    expect(sameAddress("2001:db8::1", "2001:DB8:0:0:0:0:0:1")).toBe(true);
+    expect(sameAddress("127.0.0.1", "127.0.0.2")).toBe(false);
+    expect(sameAddress("127.0.0.1", "::1")).toBe(false);
+    expect(sameAddress("127.0.0.1", undefined)).toBe(false);
+    expect(sameAddress("127.0.0.1", "not an address")).toBe(false);
+    expect(sameAddress("not an address", "127.0.0.1")).toBe(false);
+  });
+
+  it("is given up where the socket is not at an address that was checked", async () => {
+    // Node.js cannot be made to connect elsewhere while the lookup is pinned, so the socket
+    // is made to say that it has.
+    Object.defineProperty(TLSSocket.prototype, "remoteAddress", {
+      configurable: true,
+      get: () => "203.0.113.9",
+    });
+    try {
+      expect(await refusal(fetcherFor().get(at("/ok")))).toBe("address");
+    } finally {
+      Reflect.deleteProperty(TLSSocket.prototype, "remoteAddress");
+    }
+    expect((await fetcherFor().get(at("/ok"))).status).toBe(200);
+  });
+
+  it("is asked for by a lookup that knows only the addresses checked, one or all", () => {
+    const lookup = pinnedTo(["127.0.0.1", "2001:db8::1"]);
+    const answers: unknown[] = [];
+    lookup("anything.example", {}, (...answer) => answers.push(answer));
+    lookup("anything.example", { all: false }, (...answer) => answers.push(answer));
+    lookup("anything.example", { all: true }, (...answer) => answers.push(answer));
+    expect(answers).toStrictEqual([
+      [null, "127.0.0.1", 4],
+      [null, "127.0.0.1", 4],
+      [
+        null,
+        [
+          { address: "127.0.0.1", family: 4 },
+          { address: "2001:db8::1", family: 6 },
+        ],
+      ],
+    ]);
+  });
+
+  it("is resolved by the system where no resolver is given, and checked the same", async () => {
+    // This machine's own name for itself resolves to this machine.
+    const fetcher = new GuardedFetcher({ ca });
+    expect(await refusal(fetcher.get(`https://localhost:${port}/ok`))).toBe("address");
+    expect(requests).toStrictEqual([]);
+  });
+
+  it("fails as the network's failure where the response is cut off", async () => {
+    expect(await refusal(fetcherFor().get(at("/cut")))).toBe("network");
+  });
+
+  it("gives up waiting at once where the time had run out before it began to wait", async () => {
+    const reason = await raced(new Promise(() => undefined), AbortSignal.abort()).catch(
+      (error: unknown) => (error instanceof FetchRefused ? error.reason : "other"),
+    );
+    expect(reason).toBe("timeout");
+    // And passes on what the work gives, or what it fails with, while there is time.
+    const open = new AbortController().signal;
+    expect(await raced(Promise.resolve(7), open)).toBe(7);
+    await expect(raced(Promise.reject(new Error("no")), open)).rejects.toThrow("no");
   });
 });
 

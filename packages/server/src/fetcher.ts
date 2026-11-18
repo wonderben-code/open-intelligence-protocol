@@ -177,7 +177,7 @@ export class GuardedFetcher {
   }
 
   /** The addresses to connect to: every one the name has, each checked. */
-  async #addresses(hostname: string, deadline: AbortSignal): Promise<readonly string[]> {
+  async #addresses(hostname: string, deadline: AbortSignal): Promise<Addresses> {
     const written = literal(hostname);
     let found: readonly string[];
     if (written === undefined) {
@@ -190,7 +190,8 @@ export class GuardedFetcher {
     } else {
       found = [written];
     }
-    if (found.length === 0) throw new FetchRefused("network", "the host's name has no address");
+    const [first, ...rest] = found;
+    if (first === undefined) throw new FetchRefused("network", "the host's name has no address");
     for (const text of found) {
       const address = parseAddress(text);
       const allowed =
@@ -202,18 +203,17 @@ export class GuardedFetcher {
         throw new FetchRefused("address", "the host is at an address that is not fetched from");
       }
     }
-    return found;
+    return [first, ...rest];
   }
 
   /** One request and its response, made to one of the addresses given and to no other. */
   #exchange(
     target: URL,
-    addresses: readonly string[],
+    addresses: Addresses,
     accept: string,
     deadline: AbortSignal,
   ): Promise<Fetched> {
     const { maxBytes } = this.#limits;
-    const pinned = addresses.map((address) => ({ address, family: isIP(address) }));
     return new Promise<Fetched>((resolve, reject) => {
       const outgoing = request(
         target,
@@ -229,16 +229,7 @@ export class GuardedFetcher {
           },
           ...(this.#ca === undefined ? {} : { ca: this.#ca }),
           // The name is not resolved again: the connection goes to an address that was checked.
-          lookup: (_hostname, options, callback) => {
-            const [first] = pinned;
-            if (first === undefined) {
-              callback(new Error("no address"), "", 0);
-            } else if (options.all === true) {
-              callback(null, pinned);
-            } else {
-              callback(null, first.address, first.family);
-            }
-          },
+          lookup: pinnedTo(addresses),
         },
         (response) => {
           const give = (failure: FetchRefused): void => {
@@ -246,8 +237,7 @@ export class GuardedFetcher {
             reject(failure);
           };
           // Where the connection went, as the socket has it: one of the addresses checked.
-          const remote = response.socket.remoteAddress;
-          if (remote === undefined || !addresses.some((address) => sameAddress(address, remote))) {
+          if (!addresses.some((address) => sameAddress(address, response.socket.remoteAddress))) {
             give(
               new FetchRefused("address", "the connection is not to an address that was checked"),
             );
@@ -293,8 +283,42 @@ export class GuardedFetcher {
   }
 }
 
-/** Whether two texts are the same address: an IPv4 address may be given as one mapped into IPv6. */
-function sameAddress(one: string, other: string): boolean {
+/** The addresses of a name: at least one, each checked. */
+type Addresses = readonly [string, ...string[]];
+
+/** What Node.js asks for an address with, and how it takes the answer. */
+type Lookup = (
+  hostname: string,
+  options: { readonly all?: boolean | undefined },
+  callback: (
+    error: Error | null,
+    address: string | { address: string; family: number }[],
+    family?: number,
+  ) => void,
+) => void;
+
+/**
+ * A lookup that answers with the addresses given, whatever name it is
+ * asked for: one of them, or all, as it is asked.
+ *
+ * @internal
+ */
+export function pinnedTo(addresses: Addresses): Lookup {
+  const pinned = addresses.map((address) => ({ address, family: isIP(address) }));
+  return (_hostname, options, callback) => {
+    if (options.all === true) callback(null, pinned);
+    else callback(null, addresses[0], isIP(addresses[0]));
+  };
+}
+
+/**
+ * Whether two texts are the same address: an IPv4 address may be given as
+ * one mapped into IPv6, as a socket that speaks both gives it.
+ *
+ * @internal
+ */
+export function sameAddress(one: string, other: string | undefined): boolean {
+  if (other === undefined) return false;
   const mapped = (text: string): string => (text.startsWith("::ffff:") ? text.slice(7) : text);
   const [a, b] = [parseAddress(mapped(one)), parseAddress(mapped(other))];
   if (a === undefined || a.family !== b?.family) return false;
@@ -303,14 +327,17 @@ function sameAddress(one: string, other: string): boolean {
 
 /** The failure of a request, told from the time running out. */
 function failureOf(error: unknown, deadline: AbortSignal): FetchRefused {
-  if (error instanceof FetchRefused) return error;
   return deadline.aborted
     ? new FetchRefused("timeout", "the fetch took longer than it may", { cause: error })
     : new FetchRefused("network", "the request failed", { cause: error });
 }
 
-/** A promise, given up when the time runs out. */
-function raced<T>(work: Promise<T>, deadline: AbortSignal): Promise<T> {
+/**
+ * A promise, given up when the time runs out.
+ *
+ * @internal
+ */
+export function raced<T>(work: Promise<T>, deadline: AbortSignal): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const expired = (): void => {
       reject(new FetchRefused("timeout", "the fetch took longer than it may"));

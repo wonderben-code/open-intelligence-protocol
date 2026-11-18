@@ -4,7 +4,7 @@
 import { MEDIA_TYPE, OipError, PROBLEM_CODES, PROBLEM_MEDIA_TYPE, PROBLEMS } from "@oip/core";
 import { noteCutShort } from "@oip/schema";
 import { clause } from "@oip/testkit";
-import { intentBy, KeyMind } from "@oip/testkit/minds";
+import { intentBy, KeyMind, T } from "@oip/testkit/minds";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -255,6 +255,36 @@ describe(`${clause("core 10.1", "core 10.2")} the record a request carries`, () 
     expect(error.code).toBe("too-large");
     expect(error.toProblem().status).toBe(413);
     expect(await readRecord(post(padded), padded.length)).toStrictEqual(intent);
+  });
+
+  it("is refused as `too-large` where its canonical form is over the limit, though its text was read", async () => {
+    // Well formed, and more than 1 MiB.
+    const packet = {
+      oip: "1",
+      type: "Packet",
+      from: ada.address,
+      to: [ada.address],
+      created: T(20),
+      expires: T(3620),
+      nonce: "nonce-0001",
+      purpose: { verb: "inform" },
+      content: { mediaType: "text/plain", body: "x".repeat(1_100_000) },
+      proof: (intent as { proof: unknown }).proof,
+    };
+    const error = (await thrownBy(() =>
+      readRecord(post(JSON.stringify(packet)), 4 * LIMIT),
+    )) as OipError;
+    expect(error.code).toBe("too-large");
+    expect(error.clause).toBe("core 1.6");
+  });
+
+  it("is refused as no record where the request names no media type at all", async () => {
+    const bare = new Request("https://host.example/inbox", {
+      method: "POST",
+      body: new TextEncoder().encode(JSON.stringify(intent)),
+    });
+    expect(bare.headers.has("content-type")).toBe(false);
+    expect(((await thrownBy(() => readRecord(bare, LIMIT))) as HttpFailure).status).toBe(415);
   });
 
   it("is not called malformed where the check was cut short: the client asks again", async () => {

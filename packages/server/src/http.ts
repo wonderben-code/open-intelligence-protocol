@@ -118,7 +118,9 @@ export function recordResponse(
 
 /** The media type of a request's body, without its parameters, in lower case. */
 function mediaType(request: Request): string {
-  return (request.headers.get("content-type") ?? "").split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  const given = request.headers.get("content-type") ?? "";
+  const end = given.indexOf(";");
+  return (end < 0 ? given : given.slice(0, end)).trim().toLowerCase();
 }
 
 /**
@@ -184,7 +186,10 @@ export async function readRecord(request: Request, limit: number): Promise<OipRe
   if (parsed.ok) return parsed.value;
   if (parsed === cutShort()) throw new Unavailable("the record could not be judged just now");
   const [first] = parsed.issues;
-  // The reader's own limits on a text are the size limit of core 1.6, met early.
-  const code = first.clause === IMPLEMENTATION_LIMIT ? "too-large" : "invalid-record";
+  // The size limit of core 1.6, and the reader's own limit on a text, which is that limit met early.
+  const code =
+    first.clause === "core 1.6" || first.clause === IMPLEMENTATION_LIMIT
+      ? "too-large"
+      : "invalid-record";
   throw new OipError(code, first.message, { clause: first.clause, issues: parsed.issues });
 }

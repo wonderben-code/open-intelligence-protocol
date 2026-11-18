@@ -247,6 +247,11 @@ describe(`${clause("L1 13.3")} a nonce a key has used`, () => {
     const { request, body } = await arriving(`${ORIGIN}/oip/v1/mbox/abc`);
     const nonces = new StoredNonces(db);
     db.close();
+    // Whether it fails where the nonce is looked for, or where it is recorded.
     expect(() => authenticate(request, body, service(110, { nonces }))).toThrow(/not open/u);
+    const recording: SeenNonces = { seen: () => false, remember: nonces.remember.bind(nonces) };
+    expect(() => authenticate(request, body, service(110, { nonces: recording }))).toThrow(
+      /not open/u,
+    );
   });
 });

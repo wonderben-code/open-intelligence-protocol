@@ -15,6 +15,8 @@ An ADR records a decision that is hard to reverse: what was decided, why, and wh
 | [0009](0009-signing-for-a-party.md)               | Signing for a party: two packages, one view of records, and no search |
 | [0010](0010-checks-cut-short.md)                  | A check that could not be made is refused, and never kept             |
 | [0011](0011-hpke.md)                              | HPKE as adopted in `@oip/core`                                        |
+| [0012](0012-service-stack.md)                     | The service stack: what is taken, and what is written here instead    |
+| [0013](0013-the-server-package.md)                | A package the three services share                                    |
 
 ## Writing one
 

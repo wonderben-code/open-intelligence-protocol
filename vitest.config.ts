@@ -8,6 +8,9 @@ import { defineConfig } from "vitest/config";
 // Packages that must reach 95% line and branch coverage (BUILD.md, Section 2).
 const VERIFICATION_PACKAGES = ["core", "identity", "delegation", "web", "net"];
 
+// Files of `@oip/server` held to the same threshold.
+const SERVER_GUARDS = ["auth", "http", "ip", "fetcher"];
+
 const strict = { lines: 95, branches: 95, functions: 95, statements: 95 };
 
 export default defineConfig({
@@ -42,6 +45,13 @@ export default defineConfig({
             `**/packages/${name}/src/**/*.ts`,
             strict,
           ]),
+        ),
+        // The parts of the services' shared package that judge a request or guard what a
+        // service connects to (ADR-0013).
+        ...Object.fromEntries(
+          SERVER_GUARDS.filter((name) => existsSync(`packages/server/src/${name}.ts`)).map(
+            (name) => [`**/packages/server/src/${name}.ts`, strict],
+          ),
         ),
       },
     },

@@ -1151,6 +1151,8 @@ eventTime(e):                              # identity events take effect at thei
     # a proof on e counts only if its own created ≤ τ + 300 s
     # first sight of e is recorded only once e has verified: its content ID does not
     # cover its proofs, so sight of the content is not evidence of a signed event
+    # and as soon as it has, with every proof held for e and the logs they are judged by:
+    # recorded later, a removed key's proof first seen in between would count
 
 # Before counting a proof by a key of X, hold X's log as a trusted witness served it
 # after τ(p), and date X's events by the earliest evidence, never by a later own sight.

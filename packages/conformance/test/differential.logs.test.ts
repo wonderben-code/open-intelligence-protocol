@@ -1093,6 +1093,22 @@ function copiesByHand(): { readonly counts: boolean; readonly vectorCase: Vector
       [ada.events],
       [[...(rivals[0]?.events ?? []), MERGE]],
     ],
+    // 7.1: a copy whose first value has no place is a copy of no mind's log.
+    [
+      "the log, and a copy that begins with a value of another version whose member name is no text",
+      false,
+      [ada.events],
+      [[{ oip: "2", type: "Genesis", "\ud800": 1 }, u1, rm]],
+    ],
+    [
+      "the log, and a copy that begins with an object holding a number out of range",
+      false,
+      [ada.events],
+      [[{ type: "Genesis", n: 2 ** 60 }, u1, rm]],
+    ],
+    ["the log, and a copy that begins with a number", false, [ada.events], [[5, u1, rm]]],
+    // 7.1: a copy with nothing in it is a copy of no mind's log, like one of a number.
+    ["the log cut short, an empty copy and a copy of a number", true, [[g, u1]], [[], [5]]],
     // 4.9: a value that has no place, and that nobody can read for a name that is no text.
     [
       "the log cut short, and a copy with the removal and then a value whose critical extension is a lone surrogate",
@@ -1105,6 +1121,16 @@ function copiesByHand(): { readonly counts: boolean; readonly vectorCase: Vector
       false,
       [[g, u1]],
       [[g, u1, { oip: "1", type: "Update", critical: ["\uffff"] }]],
+      early,
+    ],
+    [
+      "the log cut short, and after it in one copy a number and in another a value nobody can read",
+      false,
+      [[g, u1]],
+      [
+        [g, u1, 5],
+        [g, u1, { oip: "1", type: "Update", critical: ["\ud800"] }],
+      ],
       early,
     ],
     [
@@ -1730,7 +1756,7 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
           ).toBe(counts);
           await compare("sets of copies made by hand", vectorCase, 0, 0);
         }
-        expect(made.length).toBeGreaterThan(60);
+        expect(made.length).toBeGreaterThan(67);
       },
       TIMEOUT,
     );

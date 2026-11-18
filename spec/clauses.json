@@ -440,7 +440,7 @@
       "summary": "Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where…",
       "level": "none",
       "keywords": {},
-      "digest": "ea8f84a82ae62066e7cfbdbac2b82478f11442d38e60ac0113512a29995c3ae0"
+      "digest": "90d354e5b00867b715e83749ef15437da468888e55f1bb8cae05b8b912a68f1b"
     },
     {
       "id": "core 9.6",
@@ -1042,7 +1042,7 @@
       "summary": "Two events with different content IDs in logs with the same genesis, at the same `seq`, each va…",
       "level": "none",
       "keywords": {},
-      "digest": "7b676bf80efede925325556d079dcb7dc28e3d08f893acb73c72e5d3ff4eea4e"
+      "digest": "abe95de6314c49f8b01903a178202a909937219b67144f4e27e1402bb719b1a7"
     },
     {
       "id": "L1 7.2",

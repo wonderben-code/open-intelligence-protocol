@@ -991,6 +991,12 @@ function copiesByHand(): { readonly counts: boolean; readonly vectorCase: Vector
       early,
     ],
     [
+      "the removal with its proof and 255 objects in one copy, and one more object in another",
+      false,
+      [[g, u1, withProof(rm, [good, ...numbered(0, 255)])]],
+      [[g, u1, withProof(rm, numbered(255, 1))]],
+    ],
+    [
       "two copies whose removal has 257 proofs between them",
       false,
       [[g, u1, withProof(rm, [good, ...numbered(0, 127)])]],
@@ -1086,6 +1092,20 @@ function copiesByHand(): { readonly counts: boolean; readonly vectorCase: Vector
       false,
       [ada.events],
       [[...(rivals[0]?.events ?? []), MERGE]],
+    ],
+    // 4.9: a value that has no place, and that nobody can read for a name that is no text.
+    [
+      "the log cut short, and a copy with the removal and then a value whose critical extension is a lone surrogate",
+      false,
+      [[g, u1]],
+      [[g, u1, rm, { oip: "1", type: "Update", critical: ["\ud800"] }]],
+    ],
+    [
+      "the log cut short, and a copy with a value after it whose critical extension is a noncharacter",
+      false,
+      [[g, u1]],
+      [[g, u1, { oip: "1", type: "Update", critical: ["\uffff"] }]],
+      early,
     ],
     [
       "the removal, and beside it at position 2 an event nobody can read",
@@ -1710,7 +1730,7 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
           ).toBe(counts);
           await compare("sets of copies made by hand", vectorCase, 0, 0);
         }
-        expect(made.length).toBeGreaterThan(55);
+        expect(made.length).toBeGreaterThan(60);
       },
       TIMEOUT,
     );

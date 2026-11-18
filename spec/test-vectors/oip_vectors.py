@@ -4316,18 +4316,21 @@ def build():
             extra_logs=[[coll3, with_proofs(c3_shrink, [0])]],
             branches=[[coll3, 5, with_proofs(c3_shrink, [1, 2])]])
     bad_sig("more-proofs-for-one-event-than-a-record-carries",
-            "The verifier holds Amina's log, and a second copy of it in "
-            "which her latest event carries 256 entries in `proof`, each "
-            "an object that is no proof. That copy is well formed: an "
-            "entry that is an object and no valid proof does not count "
-            "and does not make a record malformed (core 5.1). With the "
-            "proof of the first copy, the verifier holds 257 for one "
-            "event, more than one record carries. It cannot tell which to "
-            "leave out, so it treats the log as not verified (Layer 1, "
-            "7.1), and a record pinned to that event does not count.",
-            intent, amina,
-            branches=[[a_gen, {**a_upd, "proof": [{"n": n}
-                                                  for n in range(256)]}]])
+            "The verifier holds Amina's log with the event of 2 Nov that "
+            "removes her phone key, and a second copy of it in which that "
+            "event carries 256 entries in `proof`, each an object that is "
+            "no proof. That copy is well formed: an entry that is an "
+            "object and no valid proof does not count and does not make a "
+            "record malformed (core 5.1). With the proof of the first "
+            "copy, the verifier holds 257 for one event, more than one "
+            "record carries. It cannot tell which to leave out, and the "
+            "event is not invalid for having them: it treats the log as "
+            "not verified (Layer 1, 7.1). So a record pinned to the event "
+            "before does not count, which it would with the removal "
+            "judged and with the removal passed over alike.",
+            intent, amina, extra_logs=[[a_gen, a_upd, a_rm]],
+            branches=[[a_gen, a_upd, {**a_rm, "proof": [
+                {"n": n} for n in range(256)]}]])
 
     # Layer 1, 4.9: an event that cannot be read is not an invalid one.
     unreadable = {"oip": OIP_VERSION, "type": "Merge"}
@@ -4560,8 +4563,8 @@ def build():
     # With 255 such entries, the verifier holds 256 proofs for the event,
     # which one record carries. One of them verifies, and the record counts.
     control("more-proofs-for-one-event-than-a-record-carries",
-            branches=[[a_gen, {**a_upd, "proof": [{"n": n}
-                                                  for n in range(255)]}]])
+            branches=[[a_gen, a_upd, {**a_rm, "proof": [
+                {"n": n} for n in range(255)]}]])
     # The same copy with an event after the log that is invalid, and so no
     # event: the record counts.
     control("copy-with-an-unreadable-event-after-the-log",

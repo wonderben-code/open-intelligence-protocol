@@ -146,7 +146,7 @@ interface Taken {
   /** What tells this event from another at its position: its content ID, where it has one. */
   readonly key: string;
   readonly body: unknown;
-  /** Its content ID, if it is an object of plain data. */
+  /** Its content ID, if it has a place in a log (Layer 1, 7.1). */
   readonly id: string | undefined;
   /**
    * The proofs this copy of the event adds to it: all of them if the copy
@@ -176,6 +176,22 @@ const TOO_MANY = refusal(
 const TOO_DEEP = refusal(`collectives nest at most ${MAX_HEIGHT} deep`, "L1 4.7");
 
 const IN_ITSELF = refusal("no collective is a member of itself, directly or indirectly", "L1 4.7");
+
+/** What a value is held as, if reading it failed in a way nothing here foresaw. */
+const COULD_NOT_BE_READ = refusal(
+  "a value in the copy could not be read, so it cannot be judged",
+  IMPLEMENTATION_LIMIT,
+);
+
+/** The end of a copy at a value that could not be sorted: held as an event that cannot be judged. */
+const UNSORTED: Taken = {
+  key: "unsorted",
+  body: new Unread(COULD_NOT_BE_READ),
+  id: undefined,
+  proofs: [],
+  bare: 0,
+  last: true,
+};
 
 const NOT_A_LOG: Rejection = deepFreeze({
   ok: false,
@@ -403,34 +419,52 @@ export class LogBook implements IdentityView {
   }
 
   /**
-   * The book's own copy of a log, event by event: its genesis, which gives
-   * the address, and one event more than it will read, so that a log too
-   * long is seen to be. The address comes from the copy that is verified
-   * later, never from a second reading of what the caller holds.
+   * The book's own copy of a log, value by value: its genesis, which gives
+   * the address, and every value after it as far as the first that has no
+   * place in a log. The address comes from the copy that is verified later,
+   * never from a second reading of what the caller holds.
+   *
+   * Only a first value that is no genesis makes the copy no log. A value
+   * after it that could not be sorted costs the copy nothing that came
+   * before: it is held as an event the verifier cannot judge.
    */
   #take(
     events: unknown,
     asOf: Instant,
   ): Validation<{ readonly mind: string; readonly copy: readonly [Taken, ...Taken[]] }> {
+    if (typeof (asOf as unknown) !== "bigint") {
+      return no("the time up to which the log is known is not a time", "core 9.4");
+    }
+    let length: number;
+    let first: Taken;
+    let mind: string;
     try {
-      if (typeof (asOf as unknown) !== "bigint") {
-        return no("the time up to which the log is known is not a time", "core 9.4");
-      }
       if (!Array.isArray(events)) return NOT_A_LOG;
-      const length: unknown = events.length;
-      if (typeof length !== "number" || !Number.isSafeInteger(length)) return NOT_A_LOG;
-      const first = this.#sorted(events[0]);
+      const given: unknown = events.length;
+      if (typeof given !== "number" || !Number.isSafeInteger(given)) return NOT_A_LOG;
+      length = given;
+      first = this.#sorted(events[0]);
       // A first value with no content ID is the genesis of no mind.
       if (first.id === undefined) return NOT_A_LOG;
-      const copy: [Taken, ...Taken[]] = [first];
-      const mind = mindAddress(first.id);
-      // Every value of the copy, as far as the first that has no place in a log.
-      for (let i = 1; i < length && !copy[i - 1]?.last; i++) copy.push(this.#sorted(events[i]));
-      return ok({ mind, copy });
+      mind = mindAddress(first.id);
     } catch {
-      // The first event has no content ID, so it is no genesis.
+      // What cannot be read as far as its first event is no log.
       return NOT_A_LOG;
     }
+    const copy: [Taken, ...Taken[]] = [first];
+    // Every value of the copy, as far as the first that has no place in a log.
+    for (let i = 1; i < length && !copy[i - 1]?.last; i++) {
+      let next: Taken;
+      try {
+        next = this.#sorted((events as readonly unknown[])[i]);
+      } catch {
+        // Whatever went wrong, the events before it were shown and are kept. A value
+        // the book could not so much as sort may be an event: the log stops at it.
+        next = UNSORTED;
+      }
+      copy.push(next);
+    }
+    return ok({ mind, copy });
   }
 
   /**
@@ -460,7 +494,9 @@ export class LogBook implements IdentityView {
       return unread === undefined
         ? { key: "no event", body: NO_EVENT, id: undefined, proofs: [], bare: 0, last: true }
         : {
-            key: `unread ${canonicalize(unread.issues[0])}`,
+            // By its clause, and by nothing the value says: one such value at a
+            // place stops the log as well as another.
+            key: `unread ${unread.issues[0].clause}`,
             body: new Unread(unread),
             id: undefined,
             proofs: [],
@@ -476,8 +512,9 @@ export class LogBook implements IdentityView {
     // With no proof, the event is its content and the member `"proof":[]`, after a comma
     // if it has another member.
     const bare = size + (Object.keys(body).length === 0 ? 10 : 11);
-    // Proofs that are not plain data are no proofs: the value was read without them.
-    return { key: id, body, id, proofs: whole.ok ? proofsOf(proof, bare) : [], bare, last: false };
+    // Proofs that are not plain data are no proofs: the value was then read without
+    // them, and has none here.
+    return { key: id, body, id, proofs: proofsOf(proof, bare), bare, last: false };
   }
 
   /** Forgets the verdict on a mind, and every verdict that asked for its log, and so on up. */

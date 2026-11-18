@@ -1297,6 +1297,63 @@ describe(`${clause("L1 7.1")} a copy of an event that is not well formed`, () =>
       expect(heads(book, ada.address).heads).toHaveLength(3);
     });
 
+    it.each<[string, string]>([
+      ["a lone surrogate", "\ud800"],
+      ["a noncharacter", "￿"],
+    ])(
+      `${clause("L1 4.9")} costs its copy nothing that came before it, when what makes it unreadable is no text: %s`,
+      (_, name) => {
+        // A value that lists such a name in `critical` is no plain data, so it has no place;
+        // and it depends on an extension the verifier does not implement, so it cannot be read.
+        const unread = { oip: "1", type: "Update", critical: [name] };
+        for (const copy of [
+          [genesis, update, removal, unread],
+          [genesis, update, unread],
+        ]) {
+          const book = new LogBook(evidence());
+          book.hold([genesis, update], LATER);
+          expect(heads(book, ada.address).heads).toHaveLength(2);
+          // The copy is taken, with the removal before the value and with the value.
+          expect(book.hold(copy, LATER)).toStrictEqual({ ok: true, value: ada.address });
+          expect(book.log(ada.address)).toMatchObject({
+            ok: false,
+            issues: [{ clause: "core 8.3" }],
+          });
+          expect(removedKeyCounts(book)).toBe(false);
+        }
+      },
+    );
+
+    it("costs its copy nothing that came before it, when the copy cannot be read at that value", () => {
+      // The list itself fails where its fourth value should be. The three before it were
+      // shown, and what could not be read may be an event.
+      const failing = new Proxy([genesis, update, removal, {}], {
+        get: (target, name, receiver) => {
+          if (name === "3") throw new Error("no fourth value");
+          return Reflect.get(target, name, receiver) as unknown;
+        },
+      });
+      const book = new LogBook(evidence());
+      book.hold([genesis, update], LATER);
+      expect(heads(book, ada.address).heads).toHaveLength(2);
+      expect(book.hold(failing, LATER)).toStrictEqual({ ok: true, value: ada.address });
+      expect(book.log(ada.address)).toMatchObject({
+        ok: false,
+        issues: [{ clause: "implementation limit" }],
+      });
+      expect(removedKeyCounts(book)).toBe(false);
+      // A list that fails at its first value is no log, and nothing of it is held.
+      const first = new Proxy([genesis], {
+        get: (target, name, receiver) => {
+          if (name === "0") throw new Error("no first value");
+          return Reflect.get(target, name, receiver) as unknown;
+        },
+      });
+      const other = new LogBook(evidence());
+      expect(other.hold(first, LATER)).toMatchObject({ ok: false, issues: [{ clause: "L1 3.1" }] });
+      expect(other.log(ada.address).ok).toBe(false);
+    });
+
     it(`${clause("L1 4.9")} is still an event the verifier cannot judge, if it cannot read it`, () => {
       // Too large to be a record of this version, and of a type this version does not define.
       const book = new LogBook(evidence());
@@ -1401,6 +1458,26 @@ describe(`${clause("L1 7.1")} a copy of an event that is not well formed`, () =>
     expect(alone(padded(exactly + 1))).toBe(2);
   });
 
+  it("counts to the byte for a value with no member but its proofs", () => {
+    // `{"proof":[…]}`: no content, so no comma before the proofs. It is no event, and
+    // comes after the log. Its proofs in two copies are exactly 1 MiB with it, or one more.
+    const padded = (n: number, length: number) => ({ n, pad: "x".repeat(length) });
+    const size = (last: number) =>
+      canonicalBytes({ proof: [padded(0, 500_000), padded(1, last)] }).length;
+    const exactly = 1_048_576 - size(0);
+    expect(size(exactly)).toBe(1_048_576);
+    for (const [extra, fits] of [
+      [0, true],
+      [1, false],
+    ] as const) {
+      const book = new LogBook(evidence());
+      expect(book.hold([...ada.events, { proof: [padded(0, 500_000)] }], LATER).ok).toBe(true);
+      const second = [...ada.events, { proof: [padded(1, exactly + extra)] }];
+      expect(book.hold(second, LATER).ok).toBe(fits);
+      expect(book.log(ada.address).ok).toBe(fits);
+    }
+  });
+
   it("refuses the proofs of two copies that are more than 1 MiB together, whatever was held first", () => {
     // One proof is held for the removal, and it verifies nothing. The removal's own comes
     // in a copy of exactly 1 MiB.
@@ -1477,6 +1554,9 @@ describe(`${clause("L1 7.1")} a copy of an event that is not well formed`, () =>
     expect(heads(sized, ada.address).heads).toHaveLength(3);
     expect(sized.hold(padded("b"), LATER)).toMatchObject(limit);
     expect(sized.log(ada.address)).toMatchObject(limit);
+    // It takes nothing more of the mind, and says so each time.
+    expect(sized.hold(ada.events, LATER)).toMatchObject(limit);
+    expect(sized.hold([genesis], at(1_000_000))).toMatchObject(limit);
     // The book cannot tell which proofs to leave out. The caller can: it drops the mind.
     sized.drop(ada.address);
     sized.hold(ada.events, LATER);

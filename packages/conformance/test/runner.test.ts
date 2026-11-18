@@ -66,13 +66,15 @@ describe("running a case", () => {
       expect(claimHolds(undecided, vectors, vectorCase)).toBeUndefined();
       expect(runCase(undecided, vectors, section, vectorCase).outcome).toBe("pending");
     }
-    // The reference implementation says it of every record that names an authority, until M3.
+    // The reference implementation judges every such case of the vectors, by a mind's own
+    // authority and through a delegation. It still says "not judged" of a collective's
+    // record whose proofs name an authority, which may act through a charter role; the
+    // vectors have no such case among these.
     const results = runVectors(referenceAdapter, vectors).filter(
       (result) => result.kind === "countsFor",
     );
-    expect(results.filter((result) => result.outcome === "fail")).toEqual([]);
-    expect(results.filter((result) => result.outcome === "pending").length).toBeGreaterThan(0);
-    expect(results.filter((result) => result.outcome === "pass").length).toBeGreaterThan(0);
+    expect(results.filter((result) => result.outcome !== "pass")).toEqual([]);
+    expect(results.length).toBeGreaterThan(80);
   });
 
   it("reports pending, never pass, when the adapter lacks the method", () => {

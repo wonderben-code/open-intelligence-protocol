@@ -953,7 +953,7 @@
       "keywords": {
         "MUST NOT": 1
       },
-      "digest": "3cdcd6bafe89de96e0cc43875d95dedc6873f04c1dd00e240221240a26e59ec2"
+      "digest": "e23cefc6862c85ad34ccab18ec2d0b0750d932d6906ecdf99420404249d00174"
     },
     {
       "id": "L1 4.9",
@@ -962,10 +962,9 @@
       "summary": "Invalid, and undecided. A log with an event that fails this section is rejected. What a verifie…",
       "level": "MUST",
       "keywords": {
-        "MAY": 1,
         "MUST NOT": 1
       },
-      "digest": "fadb9631cc712032d6906285c37ce73e56272836bb43a9ea42f22e02b9ebe3b6"
+      "digest": "a9df36f60d4d1afcd514a48a490358257646364fc3bef0b9924fd06036f13515"
     },
     {
       "id": "L1 5.1",
@@ -1043,7 +1042,7 @@
       "summary": "Two events with different content IDs in logs with the same genesis, at the same `seq`, each va…",
       "level": "none",
       "keywords": {},
-      "digest": "00f1a3bca9246fbd35cc2b2e7a5632a020e018b26cc42c727ea1b1b78dbfa583"
+      "digest": "d0db6a1a778521f2162f943e969eaa3ac0e00a5f7923735171e6e344f33cbe6d"
     },
     {
       "id": "L1 7.2",
@@ -1065,7 +1064,7 @@
       "keywords": {
         "MUST NOT": 2
       },
-      "digest": "5cf17d3e7b79bc288066c3f28b21de052e5944b6722bc5b3ab9da207bedb4e73"
+      "digest": "05f90beb4c768c75d1c186ed38e1805fd10d64e69b2cfdcd5b1312ed30100b94"
     },
     {
       "id": "L1 7.4",

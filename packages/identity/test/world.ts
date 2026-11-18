@@ -123,7 +123,7 @@ export function worldFor(extras: CaseExtras = {}): World {
   );
   const book = new LogBook(evidence);
   for (const events of [...baseLogs, ...(extras.extraLogs ?? [])]) book.hold(events, ALWAYS);
-  for (const events of extras.branches ?? []) book.holdBranch(events, ALWAYS);
+  for (const events of extras.branches ?? []) book.hold(events, ALWAYS);
   const records = held.flatMap((record) => {
     const judged = judgeRecord(record);
     return judged.ok ? [judged.value] : [];

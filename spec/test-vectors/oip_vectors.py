@@ -1091,6 +1091,40 @@ def log_intake(events, verifier) -> dict:
                                            log.states[-1])}
 
 
+def _with_every_proof(copies) -> list:
+    """Layer 1, 7.1: the same event with another set of proofs is the same
+    event, and each proof stands on its own (core 5.5). So each copy of an
+    event is given the proofs of every copy of it, each proof once, in the
+    order they were first held. An event is told by its position and its
+    content ID, which names the event before it."""
+    held = {}
+
+    def events_of(copy):
+        """The events of a copy that could be events: nothing follows a
+        value that is none."""
+        for i, ev in enumerate(copy if isinstance(copy, list) else []):
+            if not isinstance(ev, dict) or not values_ok(ev) or \
+               not isinstance(ev.get("proof"), list):
+                return
+            yield i, ev
+
+    for copy in copies:
+        for i, ev in events_of(copy):
+            proofs = held.setdefault((i, content_id(ev)), {})
+            for p in ev["proof"]:
+                proofs.setdefault(jcs(p), p)
+            if len(proofs) > MAX_PROOFS:
+                raise ValueError("more proofs were shown for one event than "
+                                 "an event may carry")
+    out = []
+    for copy in copies:
+        merged = list(copy) if isinstance(copy, list) else copy
+        for i, ev in events_of(copy):
+            merged[i] = {**ev, "proof": list(held[(i, content_id(ev))].values())}
+        out.append(merged)
+    return out
+
+
 def verify_log(events, verifier, depth=0, prefix=False) -> Log:
     """Verify an identity log (Layer 1, Section 4). Raises ValueError.
     Each event's evaluation time is fixed first (core 9.5); members' proofs
@@ -1622,11 +1656,7 @@ class Verifier:
             raise ValueError("a collective cannot contain itself")
         self.visiting.add(mind)
         try:
-            branches = self.raw[mind]
-            if len(branches) == 1:
-                log = verify_log(branches[0], self, depth)
-            else:
-                log = self.resolve_branches(branches, depth)
+            log = self.resolve_branches(self.raw[mind], depth)
         finally:
             self.visiting.discard(mind)
         self.cache[mind] = log
@@ -1639,18 +1669,38 @@ class Verifier:
         return ts(seen) if seen else ts(event["created"])
 
     def resolve_branches(self, branches, depth) -> Log:
-        """Never by length or recency: at each point of divergence the
-        event with strictly the earliest evidence wins (7.3). If evidence
-        cannot separate them, the mind is duplicitous: only the events
-        before the divergence stand, and every branch's later removals and
-        compromise declarations apply. A copy takes part with the events it
-        has that verify; one that is still in the contest at a position and
-        holds an event there that does not verify stops the log there."""
-        # A copy whose first event does not verify raises here: it is in
-        # the contest, and holds an event at the first position that does
-        # not verify.
-        cands = [verify_log(events, self, depth, prefix=True)
-                 for events in branches]
+        """One log from the copies held of it (Layer 1, 4.9, 7.1, 7.3).
+
+        Every copy of an event is judged with the proofs of all its copies.
+        An invalid event is no event: a copy ends before it. Never by
+        length or recency: at each point of divergence the event with
+        strictly the earliest evidence wins. If evidence cannot separate
+        them, the mind is duplicitous: only the events before the
+        divergence stand, and every branch's later removals and compromise
+        declarations apply. A copy that is still in the contest at a
+        position, and holds an event there that the verifier cannot judge,
+        stops the log there: that event may be the mind's own."""
+        cands = []
+        for events in _with_every_proof(branches):
+            try:
+                lg = verify_log(events, self, depth, prefix=True)
+            except ValueError:
+                # The first event does not verify. If it is invalid, the
+                # copy holds no event. If it is undecided, the verifier
+                # cannot say whether the mind exists.
+                first = events[0] if isinstance(events, list) and events \
+                    else None
+                if invalid_event(first, None):
+                    continue
+                raise
+            # Layer 1, 4.9: an invalid event is no event. The copy ends
+            # before it, and nothing after it is an event either.
+            if lg.failed is not None and \
+               invalid_event(events[len(lg.events)], lg.states[-1]):
+                lg.failed = None
+            cands.append(lg)
+        if not cands:
+            raise ValueError("no first event of this log verifies")
 
         def settled(left, log):
             """Where evidence cannot separate the events at a position, the
@@ -3992,11 +4042,11 @@ def build():
     bad_sig("branch-ending-in-an-invalid-event-is-not-passed-over",
             "Two valid events sit at position 1 of Amina's log. The one "
             "first seen at 09:05 wins, whatever follows it. In the copy "
-            "this verifier holds, an event that does not verify follows "
-            "it. Whether the verifier rejects that copy or keeps the "
-            "events before the invalid one (Layer 1, 4.9), the other "
-            "branch does not win by default: a record pinned to its "
-            "event, first seen at 11:00, does not count.", alt_intent, amina,
+            "this verifier holds, an event follows it that is signed by "
+            "a key the log never committed to. That event is invalid, so "
+            "it is no event, and the copy ends before it (Layer 1, 4.9). "
+            "The other branch does not win by default: a record pinned to "
+            "its event, first seen at 11:00, does not count.", alt_intent, amina,
             extra_logs=[[a_gen, a_upd, a_junk]],
             branches=[[a_gen, a_upd_alt]],
             seen={content_id(a_upd): "2026-10-30T09:05:00Z",
@@ -4171,6 +4221,20 @@ def build():
             extra_logs=[[a_gen, a_upd, amina_extended(True)]],
             branches=[[a_gen, a_upd, a_rival]])
 
+    # Layer 1, 4.9 and 7.1: an event held with some of its proofs.
+    def with_proofs(event, chosen):
+        return {**event, "proof": [event["proof"][i] for i in chosen]}
+
+    bad_sig("event-held-with-too-few-of-its-proofs",
+            "On 31 October all three members signed the event that makes "
+            "the collective two members with a threshold of two. This "
+            "verifier holds that event with one of the three proofs. As it "
+            "is held, too few members have signed it, so it is invalid, "
+            "and an invalid event is no event (Layer 1, 4.9). The "
+            "collective is still three, and a record that two of them "
+            "signed is not signed by it.", two_of_all, collective3,
+            extra_logs=[[coll3, with_proofs(c3_shrink, [0])]])
+
     V["valid"].append({
         "name": "home-that-is-no-host",
         "reason": "The grammar of an HTTPS origin bounds its characters "
@@ -4185,6 +4249,18 @@ def build():
                 "one there, as it ignores any member it does not recognise "
                 "(core 1.7).",
                 {**page(a_gen), "created": "2026-10-30T09:00:00Z"})
+
+    V["valid"].append({
+        "name": "copy-with-an-invalid-event-after-the-log",
+        "reason": "The verifier holds Amina's log, and a second copy of it "
+                  "with one more event, signed by a key her log never "
+                  "committed to. That event is invalid whoever judges it, "
+                  "so it is no event (Layer 1, 4.9): the copy ends before "
+                  "it and takes nothing away from the log. A record pinned "
+                  "to her latest event counts as it did.",
+        "kind": "countsFor", "record": intent, "mind": amina,
+        "extraLogs": [[a_gen, a_upd]],
+        "branches": [[a_gen, a_upd, a_junk]]})
 
     # Controls: each negative case above, changed only in the respect its
     # reason names, must be accepted, so it fails for that reason alone.
@@ -4304,6 +4380,11 @@ def build():
     # record pinned to it counts.
     control("rival-to-an-event-that-cannot-be-judged",
             extraLogs=[[a_gen, a_upd, amina_extended(False)]])
+    # The verifier also holds a copy of the event with the other two
+    # proofs. It is one event (Layer 1, 7.1), judged with the proofs of
+    # both copies: the collective became the two, and the record is signed.
+    control("event-held-with-too-few-of-its-proofs",
+            branches=[[coll3, with_proofs(c3_shrink, [1, 2])]])
     return V
 
 

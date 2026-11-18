@@ -83,9 +83,14 @@ describe(`${clause("L1 6.1")} a proof by a valid operational key`, () => {
     const intent = ada.sign(intentBy(ada, 10));
     const stranger = bookSeeing([], [[intent, 10]]);
     expect(refusal(intent, stranger)).toBe("L1 6.3");
+    // A log with an event the verifier cannot judge is not known from that event on.
+    const unread = new KeyMind("bea").raw(5, "Merge");
+    const byUnread = unread.sign(intentBy(unread, 10), { position: 0 });
+    expect(refusal(byUnread, bookSeeing([unread], [[byUnread, 10]]))).toBe("L1 3.9");
+    // An invalid event is no event (Layer 1, 4.9): the log is the events before it.
     const broken = new KeyMind("bea").raw(5, "Update", { seq: 7 });
     const byBroken = broken.sign(intentBy(broken, 10), { position: 0 });
-    expect(refusal(byBroken, bookSeeing([broken], [[byBroken, 10]]))).toBe("L1 4.2");
+    expect(refusal(byBroken, bookSeeing([broken], [[byBroken, 10]]))).toBe("it counts");
     // Pinned to an event the log does not have.
     const longer = new KeyMind("ada").update(5);
     const ahead = longer.sign(intentBy(longer, 10));
@@ -747,7 +752,7 @@ describe(`${clause("L1 9.5", "L1 7.3", "core 9.4")} what a collective's threshol
         ),
       );
       for (const member of [a, b, c, d]) book.hold(member.events, LATER);
-      for (const branch of branches) book.holdBranch(branch, LATER);
+      for (const branch of branches) book.hold(branch, LATER);
       return book;
     };
     const signed = (record: Signed, book: LogBook) => ownSignedTime(judged(record), mind, book);

@@ -545,6 +545,7 @@ const collectiveLogCase: fc.Arbitrary<VectorCase> = fc
   );
 
 // Most cases have neither: each is one rule, and needs few cases.
+const NO_COPY = Array.from({ length: 5 }, () => undefined);
 const NO_EXTENSION = Array.from({ length: 6 }, () => undefined);
 const NO_EARLIER = Array.from({ length: 7 }, () => undefined);
 
@@ -736,6 +737,10 @@ const branchCase: fc.Arbitrary<VectorCase> = fc
       { minLength: 2, maxLength: 3 },
     ),
     junk: fc.constantFrom(undefined, undefined, undefined, undefined, 0, 1),
+    // A further copy of one branch: with an invalid event after it, cut short, or with the
+    // proofs of its last event lost. None is another branch (Layer 1, 4.9, 7.1).
+    again: fc.constantFrom(...NO_COPY, "junk after", "cut short", "proofs lost"),
+    againOf: fc.nat(2),
     seenAfter: fc.array(fc.constantFrom(0, 0, 0, 0, 1, 7, 200), { minLength: 3, maxLength: 3 }),
     branch: fc.nat(2),
     position: fc.nat(6),
@@ -773,13 +778,31 @@ const branchCase: fc.Arbitrary<VectorCase> = fc
       // Signed before the junk is added: an event that does not verify is no version to pin.
       if (plan.junk !== undefined) branches[plan.junk]?.raw(30_000, "Merge");
       const [first, ...others] = branches.map((branch) => branch.events as unknown as Events);
+      const copied = (branches[plan.againOf % branches.length]?.events ?? []) as unknown as Events;
+      const last = copied.at(-1) as (JsonObject & { proof: JsonObject[] }) | undefined;
+      const again: Events[] =
+        plan.again === undefined || last === undefined
+          ? []
+          : plan.again === "junk after"
+            ? [[...copied, { junk: true }] as Events]
+            : plan.again === "cut short"
+              ? [copied.slice(0, -1)]
+              : [
+                  [
+                    ...copied.slice(0, -1),
+                    {
+                      ...last,
+                      proof: last.proof.map((proof) => ({ ...proof, proofValue: "z1111" })),
+                    },
+                  ] as Events,
+                ];
       return {
         kind: "countsFor",
         name: "generated",
         record,
         mind: signer.address,
         extraLogs: [first ?? []],
-        branches: others,
+        branches: [...others, ...again.filter((copy) => copy.length > 0)],
         seen,
       };
     }),
@@ -851,6 +874,9 @@ const collectiveSignedCase: fc.Arbitrary<VectorCase> = fc
     expires: fc.constantFrom(undefined, undefined, undefined, 50),
     // The collective's own operational key signs as well.
     own: fc.constantFrom(false, false, false, true),
+    // The collective's log is held in two copies, each with some of the proofs of its last
+    // event: together they are the event (Layer 1, 7.1).
+    split: fc.constantFrom(false, false, false, true),
   })
   .map((plan) =>
     unchecked(() => {
@@ -892,13 +918,24 @@ const collectiveSignedCase: fc.Arbitrary<VectorCase> = fc
         });
       });
       if (plan.own) record = group.sign(record, { more });
+      const whole = group.events as unknown as Events;
+      const tail = whole.at(-1) as (JsonObject & { proof: JsonObject[] }) | undefined;
+      const halves =
+        plan.split && tail !== undefined && whole.length > 1 && tail.proof.length > 1
+          ? [tail.proof.slice(0, 1), tail.proof.slice(1)].map(
+              (proof) => [...whole.slice(0, -1), { ...tail, proof }] as Events,
+            )
+          : undefined;
       return {
         kind: "countsFor",
         name: "generated",
         record: record as JsonObject,
         mind: group.address,
-        extraLogs: [group, ...people].map((mind) => mind.events as unknown as Events),
-        branches,
+        extraLogs: [
+          halves?.[0] ?? whole,
+          ...people.map((mind) => mind.events as unknown as Events),
+        ],
+        branches: [...branches, ...(halves === undefined ? [] : [halves[1] ?? []])],
         seen,
       };
     }),

@@ -240,7 +240,6 @@ export class LogBook implements IdentityView {
     readonly evidence: EvidenceView;
     forget(): void;
     hold(events: unknown, asOf: Instant): Validation<string>;
-    holdBranch(events: unknown, asOf: Instant): Validation<string>;
     log(mind: string): Validation<VerifiedLog>;
 }
 

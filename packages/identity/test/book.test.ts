@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { contentId, proofDigest } from "@oip/core";
-import type { Proof, Validation } from "@oip/schema";
+import type { Proof } from "@oip/schema";
 import { clause, copy, type JsonObject } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
@@ -59,7 +59,7 @@ function bookOf(branches: readonly Events[], seenAt: ReadonlyMap<object, number>
     }
   }
   const book = new LogBook(evidence);
-  for (const events of branches) book.holdBranch(events, LATER);
+  for (const events of branches) book.hold(events, LATER);
   return { book, evidence };
 }
 
@@ -240,8 +240,8 @@ describe(`${clause("L1 7.3")} resolving duplicity`, () => {
         },
       };
       const book = new LogBook(times);
-      book.holdBranch(left.events, LATER);
-      book.holdBranch(right.events, LATER);
+      book.hold(left.events, LATER);
+      book.hold(right.events, LATER);
       return book;
     };
     const counts = (name: keyof typeof records, seconds: number) => {
@@ -336,18 +336,23 @@ describe(`${clause("L1 7.3")} resolving duplicity`, () => {
 });
 
 describe("the logs a verifier holds", () => {
-  it("answers for a mind it holds no log of, and for one whose log does not verify", () => {
+  it("answers for a mind it holds no log of, and for one whose log it cannot judge", () => {
     const ada = new KeyMind("ada");
     const book = new LogBook(witness([ada.events]));
     expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ clause: "L1 6.3" }] });
     expect(book.hold(ada.events, LATER)).toEqual({ ok: true, value: ada.address });
     expect(book.log(ada.address).ok).toBe(true);
-    const broken = new KeyMind("bea").raw(10, "Update", { seq: 9 });
-    const blind = new LogBook(witness([broken.events]));
-    blind.hold(broken.events, LATER);
-    expect(blind.log(broken.address)).toMatchObject({ ok: false, issues: [{ clause: "L1 4.2" }] });
+    const unread = new KeyMind("bea").raw(10, "Merge");
+    const blind = new LogBook(witness([unread.events]));
+    blind.hold(unread.events, LATER);
+    expect(blind.log(unread.address)).toMatchObject({ ok: false, issues: [{ clause: "L1 3.9" }] });
     // Asked again, the answer is the same one.
-    expect(blind.log(broken.address)).toBe(blind.log(broken.address));
+    expect(blind.log(unread.address)).toBe(blind.log(unread.address));
+    // An invalid event is no event: the log is the events before it (Layer 1, 4.9).
+    const broken = new KeyMind("cy").raw(10, "Update", { seq: 9 });
+    const partial = new LogBook(witness([broken.events]));
+    partial.hold(broken.events, LATER);
+    expect(heads(partial, broken.address).heads).toHaveLength(1);
   });
 
   it("replaces a log by one that continues it, and forgets what it verified before", () => {
@@ -361,7 +366,7 @@ describe("the logs a verifier holds", () => {
     expect(heads(book, ada.address).heads).toHaveLength(3);
   });
 
-  it(`${clause("L1 4.9")} does not replace a log by an earlier state of itself`, () => {
+  it(`${clause("L1 4.9")} loses nothing to an earlier state of a log it holds`, () => {
     // A source that lags, or lies, must not undo a removal the verifier knows of.
     const ada = new KeyMind("ada");
     const genesis = [...ada.events];
@@ -370,16 +375,9 @@ describe("the logs a verifier holds", () => {
     const book = new LogBook(witness([ada.events]));
     book.hold(ada.events, at(50));
     for (const earlier of [genesis, middle]) {
-      expect(book.hold(earlier, at(90))).toMatchObject({
-        ok: false,
-        issues: [{ path: "", clause: "L1 4.9" }],
-      });
+      expect(book.hold(earlier, at(90))).toStrictEqual({ ok: true, value: ada.address });
       expect(heads(book, ada.address).heads).toHaveLength(3);
-      // The time the log is known up to is not moved by a copy that was refused.
-      expect(heads(book, ada.address).log.asOf).toBe(at(50));
-      // As a branch it adds nothing, and is not held.
-      expect(book.holdBranch(earlier, at(90))).toStrictEqual({ ok: true, value: ada.address });
-      expect(heads(book, ada.address).heads).toHaveLength(3);
+      // The time the log is known up to is not moved by a copy that ends before the log does.
       expect(heads(book, ada.address).log.asOf).toBe(at(50));
     }
     // The same log, served again later, is known up to the later time.
@@ -398,10 +396,10 @@ describe("the logs a verifier holds", () => {
     const longer = new KeyMind("ada").update(20, { keys: [] }).update(30);
     const evidence = witness([left.events, right.events, longer.events]);
     const book = new LogBook(evidence);
-    book.holdBranch(left.events, LATER);
-    book.holdBranch(right.events, LATER);
+    book.hold(left.events, LATER);
+    book.hold(right.events, LATER);
     expect(heads(book, mind).log.branchTails).toHaveLength(2);
-    book.holdBranch(longer.events, LATER);
+    book.hold(longer.events, LATER);
     // Still two branches: the longer one stands where the one it continues stood.
     const log = heads(book, mind).log;
     expect(log.duplicitous).toBe(true);
@@ -416,8 +414,8 @@ describe("the logs a verifier holds", () => {
       [200, 100, 100],
     ] as const) {
       const book = new LogBook(evidence);
-      book.holdBranch(left.events, at(first));
-      book.holdBranch(right.events, at(second));
+      book.hold(left.events, at(first));
+      book.hold(right.events, at(second));
       expect(heads(book, mind).log.asOf).toBe(at(asOf));
     }
     const book = new LogBook(evidence);
@@ -438,8 +436,8 @@ describe("the logs a verifier holds", () => {
     ] as const) {
       const { evidence } = bookOf([left.events, right.events], seenAt);
       const book = new LogBook(evidence);
-      book.holdBranch(left.events, at(leftAsOf));
-      book.holdBranch(right.events, at(rightAsOf));
+      book.hold(left.events, at(leftAsOf));
+      book.hold(right.events, at(rightAsOf));
       const { log, heads: found } = heads(book, mind);
       // The branch seen first is the log, and what is known of the other says nothing about it.
       expect(found[1]).toBe(contentId(left.events[1]));
@@ -447,21 +445,18 @@ describe("the logs a verifier holds", () => {
     }
   });
 
-  it("gives the reason of the first copy that holds an event it cannot judge", () => {
+  it("gives the reason of the first event it holds at a position that it cannot judge", () => {
     const one = new KeyMind("ada").raw(10, "Merge");
     const two = new KeyMind("ada").raw(10, "Rename");
     const invalid = new KeyMind("ada").raw(10, "Update", { seq: 9 });
     const book = new LogBook(witness([one.events, two.events, invalid.events]));
-    // An invalid event is no event: the copy shows a genesis, and the next copy shows more.
-    book.holdBranch(invalid.events, LATER);
-    expect(book.log(one.address)).toMatchObject({ ok: false, issues: [{ clause: "L1 4.2" }] });
-    book.holdBranch(one.events, LATER);
+    // An invalid event is no event: the log is its genesis.
+    book.hold(invalid.events, LATER);
+    expect(heads(book, one.address).heads).toHaveLength(1);
+    book.hold(one.events, LATER);
     expect(book.log(one.address)).toMatchObject({ ok: false, issues: [{ clause: "L1 3.9" }] });
-    // Two events at one position that cannot be judged: neither copy shows what the other does.
-    book.holdBranch(two.events, LATER);
-    expect(book.log(one.address)).toMatchObject({ ok: false, issues: [{ clause: "L1 3.9" }] });
-    // And the invalid one adds nothing to either.
-    book.holdBranch(invalid.events, LATER);
+    // Two events at one position that cannot be judged: either stops the log.
+    book.hold(two.events, LATER);
     expect(book.log(one.address)).toMatchObject({ ok: false, issues: [{ clause: "L1 3.9" }] });
   });
 
@@ -470,15 +465,15 @@ describe("the logs a verifier holds", () => {
     const made = witness([left.events, right.events]);
     const lost = contentId(left.events[1]);
     let asked = 0;
-    // The evidence for one event is there while the branch is verified, when it is held and
-    // when it is asked for, and gone when the branches are compared.
+    // The evidence for one event is there while the event is verified, and gone when the
+    // two are compared.
     const fading: EvidenceView = {
       proofSeen: () => undefined,
-      eventSeen: (id) => (id === lost && asked++ > 1 ? undefined : made.eventSeen(id)),
+      eventSeen: (id) => (id === lost && asked++ > 0 ? undefined : made.eventSeen(id)),
     };
     const book = new LogBook(fading);
-    book.holdBranch(left.events, LATER);
-    book.holdBranch(right.events, LATER);
+    book.hold(left.events, LATER);
+    book.hold(right.events, LATER);
     const { log, heads: found } = heads(book, mind);
     expect(log.duplicitous).toBe(false);
     expect(found[1]).toBe(contentId(right.events[1]));
@@ -487,14 +482,14 @@ describe("the logs a verifier holds", () => {
     const none: EvidenceView = {
       proofSeen: () => undefined,
       eventSeen: (id) =>
-        [lost, contentId(right.events[1])].includes(id) && asked++ > 3
+        [lost, contentId(right.events[1])].includes(id) && asked++ > 1
           ? undefined
           : made.eventSeen(id),
     };
     asked = 0;
     const dark = new LogBook(none);
-    dark.holdBranch(left.events, LATER);
-    dark.holdBranch(right.events, LATER);
+    dark.hold(left.events, LATER);
+    dark.hold(right.events, LATER);
     expect(heads(dark, mind).log.duplicitous).toBe(true);
   });
 });
@@ -526,8 +521,8 @@ describe(`${clause("L1 7.3")} a branch that this verifier cannot read to its end
     expect(judged.ok && ownSignedTime(judged.value, mind, book)).toBeUndefined();
     // Held as far as it verifies, the honest branch is the log.
     expect(book.drop(mind)).toBe(true);
-    book.holdBranch(honest.events, LATER);
-    book.holdBranch(other.events, LATER);
+    book.hold(honest.events, LATER);
+    book.hold(other.events, LATER);
     expect(heads(book, mind).heads[1]).toBe(contentId(honest.events[1]));
     // The order in which the branches are held changes nothing.
     const { book: reversed } = bookOf([other.events, junk.events], seenAt);
@@ -562,15 +557,15 @@ describe(`${clause("L1 7.3")} a branch that this verifier cannot read to its end
       },
       { maxEvents: 1000 },
     );
-    book.holdBranch(long.events, LATER);
-    book.holdBranch(other.events, LATER);
+    book.hold(long.events, LATER);
+    book.hold(other.events, LATER);
     expect(book.log(mind)).toMatchObject({
       ok: false,
       issues: [{ clause: "implementation limit", path: "" }],
     });
     // Alone, the other branch is a log like any other.
     book.drop(mind);
-    book.holdBranch(other.events, LATER);
+    book.hold(other.events, LATER);
     expect(book.log(mind).ok).toBe(true);
   });
 
@@ -813,7 +808,7 @@ describe("what a book keeps, and for how long", () => {
     expect(book.drop(Symbol("mind") as never)).toBe(false);
     for (const notLog of [undefined, null, 5, "log", {}, [], [5], [[]], [{ n: 0.5 }]]) {
       expect(book.hold(notLog, LATER)).toMatchObject({ ok: false, issues: [{ clause: "L1 3.1" }] });
-      expect(book.holdBranch(notLog, LATER).ok).toBe(false);
+      expect(book.hold(notLog, LATER).ok).toBe(false);
     }
     // Whatever has a content ID can be held. It is judged when it is asked for.
     const empty = book.hold([{}], LATER);
@@ -881,8 +876,8 @@ describe("an answer that depends on where a log was asked from", () => {
     const filled = () => {
       const book = new LogBook(evidence);
       for (const mind of [a, b, n1, n]) book.hold(mind.events, LATER);
-      book.holdBranch(second.events, LATER);
-      book.holdBranch(first.events, LATER);
+      book.hold(second.events, LATER);
+      book.hold(first.events, LATER);
       for (const fake of [c2, c1, top]) book.hold(fake.events, LATER);
       return book;
     };
@@ -920,7 +915,7 @@ describe("an answer that depends on where a log was asked from", () => {
       });
       book.hold(key.events, LATER);
       for (const level of levels.slice(1)) {
-        for (let j = 0; j < copies; j++) book.holdBranch([...level.events, { junk: j }], LATER);
+        for (let j = 0; j < copies; j++) book.hold([...level.events, { junk: j }], LATER);
       }
       asked = 0;
       expect(book.log(levels[5]!.address).ok).toBe(false);
@@ -960,7 +955,7 @@ describe("an answer that depends on where a log was asked from", () => {
       evidence.sawEvent(contentId(won), at(39));
       const book = new LogBook(evidence);
       for (const mind of [k, m, x]) book.hold(mind.events, LATER);
-      for (const events of copies) book.holdBranch(events, LATER);
+      for (const events of copies) book.hold(events, LATER);
       return book;
     };
     // Asked for by itself, x verifies.
@@ -971,104 +966,95 @@ describe("an answer that depends on where a log was asked from", () => {
     expect(asked.log(x.address).ok).toBe(true);
   });
 
-  it(
-    `${clause("L1 4.7")} gives one question a bounded amount of work`,
-    { timeout: 120_000 },
-    () => {
-      // Three levels of collectives under a top one, each level a member of every collective
-      // above it. Every collective of the lowest level is held in a second copy, which lost its
-      // position and goes on with an event that asks for the top mind's log. Beneath the top
-      // that is refused, so the answer for each mind on the way up is good only where it was
-      // asked from, and without a bound it is worked out again for every path to it.
-      const set = (fan: number, hostile: boolean) =>
-        unchecked(() => {
-          const k = new KeyMind("k");
-          const most = Math.floor(fan / 2) + 1;
-          const several = <T>(make: (n: number) => T) =>
-            Array.from({ length: fan }, (_, n) => make(n));
-          const lowest = several((n) => new Collective(`p${n}`, [k], 1, 5));
-          const middle = several((n) => new Collective(`c${n}`, lowest, most, 6));
-          const upper = several((n) => new Collective(`b${n}`, middle, most, 7));
-          const top = new Collective("top", upper, most, 8);
-          const logs: (readonly unknown[])[] = [k, top, ...upper, ...middle].map(
-            (mind) => mind.events,
-          );
-          const seen = new FirstSeen();
-          for (const p of lowest) {
-            const won = rawSign(draftUpdate(p.head, T(20)), [k.asMember()]);
-            const lost = rawSign(draftUpdate(p.head, T(20), { homes: ["https://p.example"] }), [
+  it(`${clause("L1 4.7")} verifies each log once, whatever is held after an event that lost its position`, () => {
+    // Three levels of collectives under a top one, each level a member of every collective
+    // above it. Every collective of the lowest level has a second event for its first
+    // position, which lost it, and after that one an event that asks for the top mind's
+    // log. Judged beneath the top, that event is refused, and an answer that rested on the
+    // refusal could be kept nowhere: it was worked out again along every path, the cube of
+    // the fan-out. What follows an event that lost is not judged at all.
+    const set = (fan: number, hostile: boolean) =>
+      unchecked(() => {
+        const k = new KeyMind("k");
+        const most = Math.floor(fan / 2) + 1;
+        const several = <T>(make: (n: number) => T) =>
+          Array.from({ length: fan }, (_, n) => make(n));
+        const lowest = several((n) => new Collective(`p${n}`, [k], 1, 5));
+        const middle = several((n) => new Collective(`c${n}`, lowest, most, 6));
+        const upper = several((n) => new Collective(`b${n}`, middle, most, 7));
+        const top = new Collective("top", upper, most, 8);
+        const logs: (readonly unknown[])[] = [k, top, ...upper, ...middle].map(
+          (mind) => mind.events,
+        );
+        const seen = new FirstSeen();
+        for (const p of lowest) {
+          const won = rawSign(draftUpdate(p.head, T(20)), [k.asMember()]);
+          const lost = rawSign(draftUpdate(p.head, T(20), { homes: ["https://p.example"] }), [
+            k.asMember(),
+          ]);
+          const after = rawSign(
+            draftUpdate({ mind: p.address, seq: 1, head: contentId(lost) }, T(30), {
+              controller: { members: [k.address, top.address], threshold: 2 },
+            }),
+            [
               k.asMember(),
-            ]);
-            const after = rawSign(
-              draftUpdate({ mind: p.address, seq: 1, head: contentId(lost) }, T(30), {
-                controller: { members: [k.address, top.address], threshold: 2 },
-              }),
-              [
-                k.asMember(),
-                { member: top.address, versionId: top.versionId(), invocation: signer("x") },
-              ],
-            );
-            logs.push([p.events[0], won]);
-            if (hostile) logs.push([p.events[0], lost, after]);
-            seen.sawEvent(contentId(won), at(20));
-            seen.sawEvent(contentId(lost), at(21));
-            seen.sawEvent(contentId(after), at(30));
-          }
-          return { top, logs, seen };
-        });
-      const question = (fan: number, hostile: boolean) => {
-        const { top, logs, seen } = set(fan, hostile);
-        const made = witness(logs as never);
-        let asked = 0;
-        const book = new LogBook({
-          proofSeen: () => undefined,
-          eventSeen: (id) => {
-            asked++;
-            return seen.eventSeen(id) ?? made.eventSeen(id);
-          },
-        });
-        for (const log of logs) book.holdBranch(log, LATER);
-        asked = 0;
-        const answer = book.log(top.address);
-        return { answer, asked, minds: 2 + 3 * fan };
-      };
-      // A sound set of logs is verified, each log once.
-      const sound = question(4, false);
-      expect(sound.answer.ok).toBe(true);
-      // The hostile set is refused, for the work and for nothing in a log, within the bound:
-      // twice the minds held and sixteen more, each with at most seven times to look up (five
-      // events in two copies, and the two that are compared).
-      for (const fan of [4, 6]) {
-        const { answer, asked, minds } = question(fan, true);
-        expect(answer).toMatchObject({ ok: false, issues: [{ clause: "implementation limit" }] });
-        expect(asked).toBeLessThanOrEqual((2 * minds + 16) * 7);
-      }
-    },
-  );
+              { member: top.address, versionId: top.versionId(), invocation: signer("x") },
+            ],
+          );
+          logs.push([p.events[0], won]);
+          if (hostile) logs.push([p.events[0], lost, after]);
+          seen.sawEvent(contentId(won), at(20));
+          seen.sawEvent(contentId(lost), at(21));
+          seen.sawEvent(contentId(after), at(30));
+        }
+        return { top, logs, seen };
+      });
+    const question = (fan: number, hostile: boolean) => {
+      const { top, logs, seen } = set(fan, hostile);
+      const made = witness(logs as never);
+      let asked = 0;
+      const book = new LogBook({
+        proofSeen: () => undefined,
+        eventSeen: (id) => {
+          asked++;
+          return seen.eventSeen(id) ?? made.eventSeen(id);
+        },
+      });
+      for (const log of logs) book.hold(log, LATER);
+      asked = 0;
+      const answer = book.log(top.address);
+      return { ok: answer.ok, asked };
+    };
+    for (const fan of [4, 6]) {
+      const sound = question(fan, false);
+      const hostile = question(fan, true);
+      expect(sound.ok).toBe(true);
+      expect(hostile.ok).toBe(true);
+      // Each of the lowest collectives has one more event to judge, and one more to compare.
+      expect(hostile.asked).toBeLessThanOrEqual(sound.asked + 3 * fan);
+    }
+  });
 });
 
-describe("a copy that does not verify, and the copy that takes its place", () => {
+describe(`${clause("L1 4.9")} an event held that is invalid`, () => {
   const clean = () => new KeyMind("ada").update(10).update(20, { keys: [] });
 
-  it("gives way to a clean copy of the same log, when a junk event follows what verifies", () => {
+  it("is no event: the log is the events before it, whichever copy came first", () => {
     const ada = clean();
     const junked = [...ada.events, { junk: true }];
-    const book = new LogBook(witness([ada.events]));
-    book.hold(junked, LATER);
-    expect(book.log(ada.address).ok).toBe(false);
-    // The clean log is no earlier state of it: both verify as far as each other.
-    expect(book.hold(ada.events, LATER)).toStrictEqual({ ok: true, value: ada.address });
-    expect(heads(book, ada.address).heads).toHaveLength(3);
-    // But the genesis alone is: the copy held verifies further, junk and all.
-    const again = new LogBook(witness([ada.events]));
-    again.hold(junked, LATER);
-    expect(again.hold(ada.events.slice(0, 1), LATER)).toMatchObject({
-      ok: false,
-      issues: [{ clause: "L1 4.9" }],
-    });
+    for (const order of [[junked, ada.events], [ada.events, junked], [junked]]) {
+      const book = new LogBook(witness([ada.events]));
+      for (const events of order) {
+        expect(book.hold(events, LATER)).toStrictEqual({ ok: true, value: ada.address });
+        expect(heads(book, ada.address).heads).toHaveLength(3);
+      }
+      // An earlier state of the log takes nothing away.
+      book.hold(ada.events.slice(0, 1), LATER);
+      expect(heads(book, ada.address).heads).toHaveLength(3);
+    }
   });
 
-  it("does not take the place of a clean copy when it is the same events with their proofs lost", () => {
+  it("is an event again when its proofs arrive: every proof of an event is held, from whichever copy", () => {
     const ada = clean();
     const stripped = ada.events.map((event, i) =>
       i === 0 ? event : { ...event, proof: [{ ...event.proof[0], proofValue: "z1111" }] },
@@ -1076,33 +1062,51 @@ describe("a copy that does not verify, and the copy that takes its place", () =>
     expect(stripped.map((event) => contentId(event))).toStrictEqual(
       ada.events.map((event) => contentId(event)),
     );
-    for (const how of ["hold", "holdBranch"] as const) {
-      const book = new LogBook(witness([ada.events]));
-      book.hold(ada.events, LATER);
-      const taken = book[how](stripped, LATER);
-      // As a log in its place it is refused; as a branch it adds nothing.
-      expect(taken.ok).toBe(how === "holdBranch");
-      expect(heads(book, ada.address).heads).toHaveLength(3);
-    }
-    // And a clean copy takes the place of one that lost its proofs.
+    // The same events with their proofs lost: nothing after the genesis is signed.
     const book = new LogBook(witness([ada.events]));
     book.hold(stripped, LATER);
-    expect(book.log(ada.address).ok).toBe(false);
-    expect(book.holdBranch(ada.events, LATER).ok).toBe(true);
+    expect(heads(book, ada.address).heads).toHaveLength(1);
+    // The log itself brings the proofs, to the events already held.
+    book.hold(ada.events, LATER);
     expect(heads(book, ada.address).heads).toHaveLength(3);
+    // The other way round, the copy without them takes nothing away.
+    const sound = new LogBook(witness([ada.events]));
+    sound.hold(ada.events, LATER);
+    sound.hold(stripped, LATER);
+    expect(heads(sound, ada.address).heads).toHaveLength(3);
   });
 
-  it("keeps nothing of an event that was not plain data when it was held", () => {
+  it(`${clause("L1 7.1")} judges an event with the proofs of every copy of it`, () => {
+    // A collective of two, threshold two. Each copy of its second event has one member's proof.
+    const [a, b] = [new KeyMind("a"), new KeyMind("b")];
+    const club = new Collective("club", [a, b], 2, 5);
+    const change = draftUpdate(club.head, T(10), { homes: ["https://club.example"] });
+    const half = (member: KeyMind) => [...club.events, rawSign(change, [member.asMember()])];
+    const made = witness([a.events, b.events, club.events]);
+    made.sawEvent(contentId(change), at(10));
+    const filled = (...copies: unknown[][]) => {
+      const book = new LogBook(made);
+      for (const mind of [a, b]) book.hold(mind.events, LATER);
+      for (const events of copies) book.hold(events, LATER);
+      return heads(book, club.address).heads.length;
+    };
+    expect(filled(half(a))).toBe(1);
+    expect(filled(half(b))).toBe(1);
+    expect(filled(half(a), half(b))).toBe(2);
+    expect(filled(half(b), half(a))).toBe(2);
+  });
+
+  it("keeps nothing of a value that was not plain data when it was held", () => {
     const ada = clean();
     const odd: Record<string, unknown> = { ...ada.events[2], extra: undefined };
     const given = [ada.events[0], ada.events[1], odd];
     const book = new LogBook(witness([ada.events]));
     book.hold(given, LATER);
-    expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ path: "/2" }] });
+    expect(heads(book, ada.address).heads).toHaveLength(2);
     // The giver mends its copy afterwards. The book's copy is not the giver's.
     delete odd["extra"];
     book.forget();
-    expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ path: "/2" }] });
+    expect(heads(book, ada.address).heads).toHaveLength(2);
   });
 });
 
@@ -1141,16 +1145,11 @@ describe(`${clause("L1 4.9")} what a book has been shown, it keeps`, () => {
     // A source that lags serves the log without that event, or less of it.
     for (const earlier of [ada.events, ada.events.slice(0, 1)]) {
       const held = witnessLog(earlier, at(40), seen).toHold;
-      expect(book.hold(held, at(40))).toMatchObject({ ok: false, issues: [{ clause: "L1 4.9" }] });
-      expect(book.holdBranch(held, at(40))).toStrictEqual({ ok: true, value: ada.address });
+      expect(book.hold(held, at(40))).toStrictEqual({ ok: true, value: ada.address });
       expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ clause: "core 8.3" }] });
       // The key the event removed does not come back.
       expect(counts(book)).toBe(false);
     }
-    // The refusal says which of the two it is.
-    const message = (answer: Validation<string>) => (answer.ok ? "" : answer.issues[0].message);
-    expect(message(book.hold(ada.events, at(40)))).toContain("cannot judge");
-    expect(message(book.hold(ada.events.slice(0, 1), at(40)))).toContain("earlier state");
     // The same copy, served again, is held again.
     expect(book.hold(whole, at(50)).ok).toBe(true);
     // The caller may say it means to go back.
@@ -1171,10 +1170,78 @@ describe(`${clause("L1 4.9")} what a book has been shown, it keeps`, () => {
     able.hold(whole, at(30));
     expect(heads(able, ada.address).heads).toHaveLength(3);
     expect(counts(able)).toBe(false);
-    expect(able.hold(ada.events, at(40))).toMatchObject({
-      ok: false,
-      issues: [{ clause: "L1 4.9" }],
+    able.hold(ada.events, at(40));
+    expect(heads(able, ada.address).heads).toHaveLength(3);
+    expect(counts(able)).toBe(false);
+  });
+
+  it("keeps what follows an event it cannot judge yet: a member's log that arrives later", () => {
+    // A collective's second event is signed with a key its member added in an event the
+    // verifier does not have yet. Its third removes the collective's own operational key.
+    const [a, b] = [new KeyMind("a"), new KeyMind("b")];
+    const newer = new KeyMind("b").update(8, {
+      invocation: [0, 1].map((n) => ({ key: b.invocation(n).publicKey })),
     });
+    const club = () => new Collective("club", [a, b], 2, 5);
+    const second = rawSign(draftUpdate(club().head, T(10)), [
+      a.asMember(),
+      { member: newer.address, versionId: newer.versionId(), invocation: newer.invocation(1) },
+    ]);
+    const third = rawSign(
+      draftUpdate({ mind: club().address, seq: 1, head: contentId(second) }, T(20), {
+        keys: [],
+      }),
+      [a.asMember(), b.asMember()],
+    );
+    const whole = [...club().events, second, third];
+    const judged = judgeRecord(club().sign(intentBy(club(), 25)));
+    if (!judged.ok) throw new Error(JSON.stringify(judged.issues));
+    const seen = new FirstSeen();
+    const book = new LogBook(seen);
+    /** What a source the verifier trusts serves at a time: the members' logs, and the collective's. */
+    const served = (seconds: number, bLog: KeyMind, log: readonly unknown[]) => {
+      const memberLog = (mind: string) => book.log(mind);
+      for (const events of [a.events, bLog.events, log]) {
+        const witnessed = witnessLog(events, at(seconds), seen, { memberLog });
+        book.hold(witnessed.toHold, at(seconds));
+      }
+    };
+    // The whole log arrives: its second event waits on the member's newer log.
+    served(40, b, whole);
+    expect(book.log(club().address)).toMatchObject({ ok: false, issues: [{ path: "/1" }] });
+    // A resolver that lags serves the log without its third event.
+    served(50, b, whole.slice(0, 2));
+    expect(book.log(club().address)).toMatchObject({ ok: false, issues: [{ path: "/1" }] });
+    // The member's newer log arrives, and the second event verifies. The third was shown
+    // at 40 and is still held: the log does not end before it.
+    served(60, newer, whole.slice(0, 2));
+    expect(book.log(club().address)).toMatchObject({ ok: false, issues: [{ path: "/2" }] });
+    served(80, newer, whole);
+    expect(heads(book, club().address).heads).toHaveLength(3);
+    // So the key it removed signs nothing that is first seen after the removal.
+    for (const proof of judged.value.proofs) seen.sawProof(proof.digest, at(90));
+    served(100, newer, whole);
+    expect(ownSignedTime(judged.value, club().address, book)).toBeUndefined();
+  });
+
+  it("keeps what follows an event it has no evidence for yet", () => {
+    const ada = new KeyMind("ada").update(10).update(20, { keys: [] });
+    const judged = judgeRecord(ada.sign(intentBy(ada, 25), { position: 1 }));
+    if (!judged.ok) throw new Error(JSON.stringify(judged.issues));
+    const seen = new FirstSeen();
+    for (const proof of judged.value.proofs) seen.sawProof(proof.digest, at(26));
+    seen.sawEvent(contentId(ada.events[0]), at(0));
+    const book = new LogBook(seen);
+    // The logs come before the witness's times for their events do: first the whole log,
+    // then earlier states of it.
+    for (const length of [3, 2, 1]) {
+      book.hold(ada.events.slice(0, length), at(30 + length));
+      expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ clause: "core 9.5" }] });
+    }
+    for (const event of ada.events.slice(1)) seen.sawEvent(contentId(event), at(22));
+    book.forget();
+    expect(heads(book, ada.address).heads).toHaveLength(3);
+    expect(ownSignedTime(judged.value, ada.address, book)).toBeUndefined();
   });
 
   it("does not roll a verified log back through a copy that ends in an event it cannot judge", () => {
@@ -1189,72 +1256,36 @@ describe(`${clause("L1 4.9")} what a book has been shown, it keeps`, () => {
     expect(junk.undecided).toBe(true);
     expect(book.hold(junk.toHold, at(40)).ok).toBe(true);
     expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ clause: "L1 3.9" }] });
-    // The earlier state alone is still an earlier state of what is held.
-    for (const how of ["hold", "holdBranch"] as const) {
-      book[how](ada.events.slice(0, 2), at(50));
-      expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ clause: "L1 3.9" }] });
-    }
-    expect(book.hold(ada.events.slice(0, 2), at(50))).toMatchObject({
-      ok: false,
-      issues: [{ clause: "L1 4.9" }],
-    });
-    // Nor does the whole log take the place of the copy: that copy shows something it does not.
-    expect(book.hold(ada.events, at(60)).ok).toBe(true);
-    expect(book.log(ada.address).ok).toBe(false);
+    // Neither the earlier state alone nor the whole log takes that event away.
+    book.hold(ada.events.slice(0, 2), at(50));
+    book.hold(ada.events, at(60));
+    expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ clause: "L1 3.9" }] });
     // Dropping the mind is how the caller says the copy was wrong.
     book.drop(ada.address);
     book.hold(ada.events, at(70));
     expect(heads(book, ada.address).heads).toHaveLength(3);
   });
 
-  it("stays refused after a copy with an event it cannot judge, until the mind is dropped", () => {
-    const ada = new KeyMind("ada").update(10).update(20);
-    for (const how of ["hold", "holdBranch"] as const) {
-      const book = new LogBook(witness([ada.events]));
-      book[how](ada.events, LATER);
-      expect(book.log(ada.address).ok).toBe(true);
-      book[how]([...ada.events, MERGE], LATER);
-      expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ clause: "L1 3.9" }] });
-      // The log without the event shows less, however often it comes.
-      expect(book.holdBranch(ada.events, LATER)).toStrictEqual({ ok: true, value: ada.address });
-      expect(book.hold(ada.events, LATER)).toMatchObject({
-        ok: false,
-        issues: [{ clause: "L1 4.9" }],
-      });
+  it("holds an event it cannot read, when the event is not plain data of this version", () => {
+    const ada = new KeyMind("ada").update(10);
+    // A later version may write what this one calls no JSON at all.
+    for (const later of [
+      { oip: "2", type: "Update", weight: 0.5 },
+      { oip: "1", type: "Merge", count: 2 ** 60 },
+    ]) {
+      const seen = new FirstSeen();
+      const book = new LogBook(seen);
+      const witnessed = witnessLog([...ada.events, later], at(30), seen);
+      expect(witnessed.undecided).toBe(true);
+      book.hold(witnessed.toHold, at(30));
       expect(book.log(ada.address).ok).toBe(false);
-      book.drop(ada.address);
-      book[how](ada.events, LATER);
-      expect(book.log(ada.address).ok).toBe(true);
+      // The log without it is an earlier state, and does not take its place.
+      book.hold(ada.events, at(40));
+      expect(book.log(ada.address).ok).toBe(false);
     }
   });
 
-  it("is repaired by the log itself after a copy that ends in an invalid event, in either order", () => {
-    const ada = new KeyMind("ada").update(10).update(20);
-    const junked = [...ada.events, { junk: true }];
-    for (const first of ["hold", "holdBranch"] as const) {
-      for (const second of ["hold", "holdBranch"] as const) {
-        // The junk first: the copy does not verify, and the log takes its place.
-        const mended = new LogBook(witness([ada.events]));
-        mended[first](junked, LATER);
-        expect(mended.log(ada.address).ok).toBe(false);
-        expect(mended[second](ada.events, LATER)).toStrictEqual({ ok: true, value: ada.address });
-        expect(heads(mended, ada.address).heads).toHaveLength(3);
-        // The log first: the copy with junk after it shows nothing more, and is not held.
-        const sound = new LogBook(witness([ada.events]));
-        sound[first](ada.events, LATER);
-        const taken = sound[second](junked, LATER);
-        expect(heads(sound, ada.address).heads).toHaveLength(3);
-        // `hold` says what is wrong with the copy it did not hold.
-        if (second === "hold") {
-          expect(taken).toMatchObject({ ok: false, issues: [{ clause: "L1 4.6" }] });
-        } else {
-          expect(taken).toStrictEqual({ ok: true, value: ada.address });
-        }
-      }
-    }
-  });
-
-  it(`${clause("L1 7.3")} lets no rival take a position where a copy holds an event it cannot judge`, () => {
+  it(`${clause("L1 7.3")} lets no rival take a position where it holds an event it cannot judge`, () => {
     const { ada, whole, counts } = removal();
     // Another event for position 2, signed by the same control key, which keeps the key.
     const rival = new KeyMind("ada").update(10).update(20, { homes: ["https://rival.example"] });
@@ -1266,7 +1297,7 @@ describe(`${clause("L1 4.9")} what a book has been shown, it keeps`, () => {
         eventSeen: (id) => (id === contentId(rival.events[2]) ? at(5000) : made.eventSeen(id)),
       };
       const book = new LogBook(evidence, { understood });
-      for (const events of order) book.holdBranch(events, LATER);
+      for (const events of order) book.hold(events, LATER);
       return book;
     };
     for (const order of [
@@ -1287,7 +1318,7 @@ describe(`${clause("L1 4.9")} what a book has been shown, it keeps`, () => {
     }
   });
 
-  it(`${clause("L1 7.3")} keeps a copy that conflicts with the one held, and does not follow the later`, () => {
+  it(`${clause("L1 7.3")} keeps an event that conflicts with the one held, and does not follow the later`, () => {
     const { left, right, mind } = twoBranches();
     for (const [first, second] of [
       [left, right],
@@ -1312,68 +1343,106 @@ describe(`${clause("L1 4.9")} what a book has been shown, it keeps`, () => {
     expect(heads(tied, mind).log.duplicitous).toBe(true);
   });
 
-  it("keeps the later of the times the same log is known up to", () => {
+  it("knows a log up to the latest time a copy that reached its end was known", () => {
     const ada = new KeyMind("ada").update(10);
-    for (const how of ["hold", "holdBranch"] as const) {
-      const book = new LogBook(witness([ada.events]));
-      book[how](ada.events, at(90));
-      expect(book[how](ada.events, at(50))).toStrictEqual({ ok: true, value: ada.address });
-      expect(heads(book, ada.address).log.asOf).toBe(at(90));
-      book[how](ada.events, at(95));
-      expect(heads(book, ada.address).log.asOf).toBe(at(95));
-    }
+    const book = new LogBook(witness([ada.events]));
+    book.hold(ada.events, at(90));
+    expect(book.hold(ada.events, at(50))).toStrictEqual({ ok: true, value: ada.address });
+    expect(heads(book, ada.address).log.asOf).toBe(at(90));
+    book.hold(ada.events, at(95));
+    expect(heads(book, ada.address).log.asOf).toBe(at(95));
+    // An earlier state served later says nothing of the log held.
+    book.hold(ada.events.slice(0, 1), at(99));
+    expect(heads(book, ada.address).log.asOf).toBe(at(95));
+    // A copy with an invalid event after the log was served with the log, at that time.
+    book.hold([...ada.events, { junk: true }], at(120));
+    expect(heads(book, ada.address).log.asOf).toBe(at(120));
   });
 
-  it("holds eight copies of one mind's log at most", () => {
-    const copies = Array.from(
-      { length: 9 },
-      (_, n) => new KeyMind("ada").raw(10, `Later${n}`).events,
+  it("answers for a mind no longer, once it was shown more of its log than it holds", () => {
+    // Nine events for one position, each signed by the control key: the mind's own, which
+    // a witness saw first, and eight more.
+    const rivals = Array.from({ length: 9 }, (_, n) =>
+      new KeyMind("ada").update(20, { homes: [`https://home${n}.example`] }),
     );
-    const book = new LogBook(witness(copies));
-    for (const events of copies.slice(0, 8)) expect(book.hold(events, LATER).ok).toBe(true);
-    expect(book.hold(copies[8], LATER)).toMatchObject({
+    const [own, ...others] = rivals as [KeyMind, ...KeyMind[]];
+    const evidence = witness(rivals.map((rival) => rival.events));
+    evidence.sawEvent(contentId(own.events[1]), at(19));
+    // With eight in all, the evidence decides, whatever order they came in.
+    const book = new LogBook(evidence);
+    for (const rival of others.slice(0, 7)) book.hold(rival.events, LATER);
+    book.hold(own.events, LATER);
+    expect(heads(book, own.address).heads[1]).toBe(contentId(own.events[1]));
+    // The ninth is more than the book holds. It says so, and answers for the mind no more:
+    // what it holds is not all it was shown.
+    const full = new LogBook(evidence);
+    for (const rival of others) full.hold(rival.events, LATER);
+    expect(full.hold(own.events, LATER)).toMatchObject({
       ok: false,
       issues: [{ clause: "implementation limit" }],
     });
-    // A copy that takes the place of others is held all the same.
-    const ada = new KeyMind("ada");
-    book.drop(ada.address);
-    for (const events of copies.slice(0, 8)) book.hold([...events.slice(0, 1), { junk: 1 }], LATER);
-    expect(book.hold(ada.events, LATER).ok).toBe(true);
-    expect(book.log(ada.address).ok).toBe(true);
+    expect(full.log(own.address)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "implementation limit" }],
+    });
+    expect(full.hold(own.events, LATER).ok).toBe(false);
+    full.drop(own.address);
+    full.hold(own.events, LATER);
+    expect(heads(full, own.address).heads).toHaveLength(2);
   });
 
-  it("answers by what it was shown, in whatever order and by whichever way the copies came", () => {
-    const ada = new KeyMind("ada").update(10).update(20).update(30);
-    const evidence = witness([ada.events]);
-    const copy = fc.record({
-      length: fc.integer({ min: 1, max: 4 }),
-      tail: fc.constantFrom("none", "none", "invalid", "unjudged"),
-      how: fc.constantFrom("hold", "holdBranch"),
-      // Whether the caller asks `witnessLog` what to hold, or holds what came.
-      asked: fc.boolean(),
-    });
+  it("answers by what it was shown, in whatever order the copies and the evidence came", () => {
+    const ada = new KeyMind("ada").update(10).update(20).update(30).update(40);
+    const ids = ada.events.map((event) => contentId(event));
+    const step = fc.oneof(
+      fc.record({
+        length: fc.integer({ min: 1, max: 5 }),
+        tail: fc.constantFrom("none", "none", "invalid", "unread"),
+        // Whether the caller asks `witnessLog` what to hold, or holds what came.
+        asked: fc.boolean(),
+      }),
+      // The witness's times for more of the log's events arrive.
+      fc.record({ evidence: fc.integer({ min: 1, max: 5 }) }),
+    );
     fc.assert(
-      fc.property(fc.array(copy, { minLength: 1, maxLength: 8 }), (arrivals) => {
+      fc.property(fc.array(step, { minLength: 1, maxLength: 10 }), (steps) => {
+        const evidence = new FirstSeen();
+        evidence.sawEvent(ids[0]!, at(0));
         const book = new LogBook(evidence);
-        const seen = new FirstSeen();
-        let clean = 0;
-        let junked = 0;
-        let unjudged = false;
-        for (const { length, tail, how, asked } of arrivals) {
-          const events: unknown[] = ada.events.slice(0, length);
-          if (tail === "invalid") events.push({ junk: true });
-          if (tail === "unjudged") events.push(MERGE);
-          const given = asked ? witnessLog(events, at(50), seen, { evidence }).toHold : events;
-          book[how](given, LATER);
-          // What the copies so far have shown: the longest that verified to its end, the
-          // longest that ended in an invalid event, and whether any held one it cannot judge.
-          if (tail === "unjudged") unjudged = true;
-          else if (tail === "none" || asked) clean = Math.max(clean, length);
-          else junked = Math.max(junked, length);
+        // What has been shown: how far the evidence goes, the longest run of the log's events
+        // in any copy, and the positions at which a copy held an event nobody can read.
+        let evidenced = 1;
+        let longest = 0;
+        const unread = new Set<number>();
+        for (const made of steps) {
+          if ("evidence" in made) {
+            for (const id of ids.slice(0, made.evidence)) evidence.sawEvent(id, at(50));
+            evidenced = Math.max(evidenced, made.evidence);
+            book.forget();
+          } else {
+            const events: unknown[] = ada.events.slice(0, made.length);
+            if (made.tail === "invalid") events.push({ junk: true });
+            if (made.tail === "unread") events.push(MERGE);
+            // Asked with the book's evidence and no time of its own, so that nothing is recorded.
+            const given = made.asked
+              ? witnessLog(events, LATER, new FirstSeen(), {
+                  evidence: {
+                    proofSeen: () => undefined,
+                    eventSeen: (id) => evidence.eventSeen(id) ?? at(-1e6),
+                  },
+                }).toHold
+              : events;
+            if (given !== undefined) book.hold(given, LATER);
+            longest = Math.max(longest, made.length);
+            if (made.tail === "unread") unread.add(made.length);
+          }
           const answer = book.log(ada.address);
-          if (unjudged || junked > clean) expect(answer.ok).toBe(false);
-          else expect(answer.ok && answer.value.entries.length).toBe(clean);
+          // An event with no evidence yet, or one that cannot be read, stops the log where
+          // the events before it verify. Otherwise the log is every event that was shown.
+          const stopped =
+            longest > evidenced || [...unread].some((position) => position <= evidenced);
+          if (stopped || longest === 0) expect(answer.ok).toBe(false);
+          else expect(answer.ok && answer.value.entries.length).toBe(longest);
         }
       }),
       { numRuns: process.env["OIP_MUTATION"] === undefined ? 300 : 60 },

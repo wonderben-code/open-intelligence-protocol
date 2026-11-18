@@ -354,6 +354,19 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
     });
     const both = { ...delegated, proof: [...delegated.proof, ...alone.proof] };
     expect(witnessedBy([a, b], [...club().events, both]).undecided).toBe(false);
+    // A member the event admits has no proof on it; nor has a founder on a genesis.
+    const unasked = rawSign(
+      draftUpdate(club().head, T(20), {
+        controller: { members: [a.address, b.address, n.address], threshold: 2 },
+      }),
+      [a.asMember(), b.asMember()],
+    );
+    expect(witnessedBy([a, b, n], [...club().events, unasked])).toStrictEqual({
+      clause: "L1 4.4",
+      undecided: false,
+    });
+    const founded = rawSign(club().events[0] as object, [a.asMember()]);
+    expect(witnessedBy([a, b], [founded])).toStrictEqual({ clause: "L1 4.1", undecided: false });
     // An outsider's event that is also dated ahead of the evidence is junk first.
     const early = rawSign(draftUpdate(club().head, T(900)), [{ control: signer("thief") }]);
     expect(witnessedBy([a, b], [...club().events, early])).toStrictEqual({
@@ -384,6 +397,23 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
       undecided: false,
       failure: { issues: [{ clause: "L1 3.5" }] },
     });
+  });
+
+  it("asks what cannot be read of the copy it judges, as of the value it was given", () => {
+    // A value that shows its `critical` only the second time it is looked at.
+    const ada = new KeyMind("ada").update(10);
+    const event = next(critical);
+    let looked = 0;
+    const twoFaced = new Proxy(event, {
+      getOwnPropertyDescriptor(target, key) {
+        if (key === "critical" && looked++ === 0) return undefined;
+        return Reflect.getOwnPropertyDescriptor(target, key);
+      },
+    });
+    const witnessed = witnessLog([...ada.events, twoFaced], at(50), new FirstSeen());
+    expect(witnessed.log?.entries).toHaveLength(2);
+    expect(witnessed.failure).toMatchObject({ issues: [{ clause: "core 8.3" }] });
+    expect(witnessed.undecided).toBe(true);
   });
 
   it("calls undecided a log that cannot be read at all, and a time that is no time", () => {

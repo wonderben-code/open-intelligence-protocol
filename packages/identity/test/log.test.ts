@@ -34,11 +34,12 @@ import {
   rawSign,
   signer,
   T,
+  verifyMind,
   witness,
 } from "@oip/testkit/minds";
 
 function verified(mind: Mind, others: readonly Mind[] = []): VerifiedLog {
-  const result = bookOf([mind, ...others]).log(mind.address);
+  const result = verifyMind(mind, others);
   if (!result.ok) throw new Error(JSON.stringify(result.issues));
   return result.value;
 }
@@ -51,9 +52,9 @@ function refusal(result: Validation<unknown>): Issue {
   return result.issues[0];
 }
 
-/** Why a mind's log does not verify. */
+/** Why a mind's log does not verify, as it stands. */
 const refused = (mind: Mind, others: readonly Mind[] = []): Issue =>
-  refusal(bookOf([mind, ...others]).log(mind.address));
+  refusal(verifyMind(mind, others));
 
 /** Verifies bare events, with a witness that saw each when it was made. */
 const verifyEvents = (events: readonly unknown[]): Validation<VerifiedLog> =>
@@ -911,10 +912,10 @@ describe(`${clause("L1 4.7")} nesting and work`, () => {
       );
       expect(limit(long(MAX_LOG_EVENTS), notCount as number).clause).toBe("L1 4.6");
     }
-    // A book reads a copy as far as it goes: this one fails at its second event, before its length.
+    // A book keeps the events before an invalid one: here that is the first, whatever the length.
     const book = new LogBook(witness([ada.events]), { maxEvents: 1000 });
     book.hold(long(1001), LATER);
-    expect(refusal(book.log(ada.address)).clause).toBe("L1 4.6");
+    expect(book.log(ada.address)).toMatchObject({ ok: true, value: { entries: { length: 1 } } });
   });
 });
 
@@ -958,7 +959,7 @@ describe(`${clause("L1 6.4", "L1 9.2", "L1 9.3")} the members' proofs on a colle
     const event = (signers: Parameters<typeof signEventSync>[1]) => {
       const tried = new Collective("club", [a, b, c], 2);
       tried.events.push(signEventSync(draftUpdate(head, T(10)), signers));
-      return bookOf([tried, a, b, c]).log(tried.address);
+      return verifyMind(tried, [a, b, c]);
     };
     // Two proofs of a's that do not count: the first is the one reported.
     expect(refusal(event([operational, stranger, b.asMember()]))).toMatchObject({
@@ -1128,7 +1129,7 @@ describe("a log is judged, never trusted", () => {
     }
     const book = new LogBook(evidence);
     expect(book.hold(hostile, LATER).ok).toBe(false);
-    expect(book.holdBranch([{ a: 0.5 }], LATER).ok).toBe(false);
+    expect(book.hold([{ a: 0.5 }], LATER).ok).toBe(false);
     expect(book.hold([], LATER).ok).toBe(false);
   });
 
@@ -1370,7 +1371,7 @@ describe(`${clause("L1 6.4", "core 9.4")} whose proof counts on a collective's e
     const verify = (event: object) => {
       const tried = new Collective("club", [a, b, c], 2);
       tried.events.push(a.sign(event, { by: a.invocation() }) as never);
-      return bookOf([tried, a, b, c]).log(tried.address);
+      return verifyMind(tried, [a, b, c]);
     };
     expect(verify(forItself).ok).toBe(true);
     expect(refusal(verify(forAnother))).toMatchObject({ clause: "L1 6.4", path: "/1/proof/0" });
@@ -1464,7 +1465,7 @@ describe("what a verifier is told about time", () => {
       expect(refusal(result)).toMatchObject({ clause: "core 9.4", path: "" });
       const book = new LogBook(evidence);
       expect(refusal(book.hold(ada.events, notATime as never)).clause).toBe("core 9.4");
-      expect(refusal(book.holdBranch(ada.events, notATime as never)).clause).toBe("core 9.4");
+      expect(refusal(book.hold(ada.events, notATime as never)).clause).toBe("core 9.4");
       expect(refusal(book.log(ada.address)).clause).toBe("L1 6.3");
     }
   });

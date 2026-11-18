@@ -217,8 +217,8 @@ describe(`${clause("L1 5.2", "L1 7.3")} the document of a duplicitous mind`, () 
     const left = new KeyMind("ada").update(20, { keys: [] });
     const right = new KeyMind("ada").update(20, { homes: ["https://ada.example"] });
     const book = new LogBook(witness([left.events, right.events]));
-    book.holdBranch(left.events, LATER);
-    book.holdBranch(right.events, LATER);
+    book.hold(left.events, LATER);
+    book.hold(right.events, LATER);
     const log = book.log(left.address);
     if (!log.ok) throw new Error(JSON.stringify(log.issues));
     const { didDocument: document, didDocumentMetadata: metadata } = resolve(log.value);

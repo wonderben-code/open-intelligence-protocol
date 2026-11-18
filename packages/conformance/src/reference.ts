@@ -26,6 +26,7 @@ import {
   lineage,
   LogBook,
   ownSignedTime,
+  verifyLog,
   witnessLog,
 } from "@oip/identity";
 import {
@@ -111,7 +112,7 @@ function replace(book: LogBook, log: unknown): Validation<string> {
 function bookFor(view: VerifierView, subject: unknown): LogBook {
   const book = new LogBook(assumedEvidence([view, subject], view.seen));
   for (const log of [...view.logs, ...view.extraLogs]) replace(book, log);
-  for (const log of view.branches) book.holdBranch(log, ALWAYS);
+  for (const log of view.branches) book.hold(log, ALWAYS);
   return book;
 }
 
@@ -147,10 +148,14 @@ export const referenceAdapter: ConformanceAdapter = {
   },
   jsonIsWithinProfile: (text) => parseJson(text).ok,
   logVerifies: (log, view) => {
+    // The log as it stands (Layer 1, Section 4). A book would answer with
+    // the events before an invalid event; the question here is the log's.
     const book = bookFor(view, log);
-    // The log asked about takes the place of any log the view holds for the same mind.
-    const mind = replace(book, log);
-    return mind.ok && book.log(mind.value).ok;
+    return verifyLog(log, {
+      evidence: book.evidence,
+      asOf: ALWAYS,
+      memberLog: (mind) => book.log(mind),
+    }).ok;
   },
   logIntake: (log, view) => {
     const book = bookFor(view, log);

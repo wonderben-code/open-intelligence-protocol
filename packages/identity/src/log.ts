@@ -108,7 +108,7 @@ export function understoodOf(given: unknown): ReadonlySet<string> {
 
 /** One verification of one log. */
 interface Replay {
-  readonly context: LogContext;
+  readonly context: Omit<LogContext, "asOf">;
   readonly understood: ReadonlySet<string>;
   /**
    * Each member's log, as it was first answered. A log is verified against
@@ -657,6 +657,20 @@ type Read =
     };
 
 /**
+ * What a book holds in the place of an event that it could not keep as plain
+ * data, and that the verifier cannot read (Layer 1, 4.9): the reason, found
+ * when the event was given. It is judged as that event would be.
+ */
+export class Unread {
+  /** Why the event cannot be read, with the path of the event left out. */
+  readonly refusal: Rejection;
+
+  constructor(refusal: Rejection) {
+    this.refusal = refusal;
+  }
+}
+
+/**
  * Layer 1, 4.9: why this verifier cannot read an event, if it cannot. The
  * event is of another version of the protocol (core 7); or of a type this
  * revision does not define, `Merge` among them (Layer 1, 3.9, 4.6); or has
@@ -671,12 +685,13 @@ type Read =
  *
  * Only members the value holds as data of its own are read.
  */
-function cannotRead(
+export function cannotRead(
   value: unknown,
   understood: ReadonlySet<string>,
   path: string,
 ): Rejection | undefined {
   try {
+    if (value instanceof Unread) return under(path, value.refusal);
     if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
     const held = (name: string) => Object.getOwnPropertyDescriptor(value, name);
     const version: unknown = held("oip")?.value;
@@ -717,18 +732,21 @@ const NOT_AN_EVENT = "an event is a Genesis, an Update, a Fork or a Retire";
 function readEvent(raw: unknown, path: string, understood: ReadonlySet<string>): Read {
   const unread = cannotRead(raw, understood, path);
   if (unread !== undefined) return { refusal: unread, unread: true };
-  const invalid = (refusal: Rejection): Read => ({ refusal, unread: false });
+  const wrong = (refusal: Rejection): Read => ({ refusal, unread: false });
   const plain = validateJson(raw);
-  if (!plain.ok) return invalid(under(path, plain));
+  if (!plain.ok) return wrong(under(path, plain));
   const value = plain.value;
-  if (!isJsonObject(value)) return invalid(no("an event is a JSON object", "L1 3.1", path));
+  // Asked again of the copy that is judged: a value may answer differently the second time.
+  const still = cannotRead(value, understood, path);
+  if (still !== undefined) return { refusal: still, unread: true };
+  if (!isJsonObject(value)) return wrong(no("an event is a JSON object", "L1 3.1", path));
   if (!EVENT_TYPES.includes(value["type"])) {
-    return invalid(no(NOT_AN_EVENT, "L1 4.6", `${path}/type`));
+    return wrong(no(NOT_AN_EVENT, "L1 4.6", `${path}/type`));
   }
   const record = validateRecord(value);
-  if (!record.ok) return invalid(under(path, record));
+  if (!record.ok) return wrong(under(path, record));
   const [tooLarge] = checkSize(record.value);
-  if (tooLarge !== undefined) return invalid(under(path, { issues: [tooLarge] }));
+  if (tooLarge !== undefined) return wrong(under(path, { issues: [tooLarge] }));
   return { event: record.value as IdentityEvent };
 }
 
@@ -774,32 +792,91 @@ const EMPTY: Rejection = deepFreeze({
   ],
 });
 
-function replay(events: readonly unknown[], context: LogContext): Replayed {
-  const run: Replay = {
-    context,
-    understood: understoodOf(context.understood),
-    members: new Map(),
-  };
-  const entries: LogEntry[] = [];
-  const children: AcknowledgedChild[] = [];
-  const revocations: Revocation[] = [];
-  const revoked = new Set<string>();
-  let step: Step | undefined;
-  let before: Evaluation | undefined;
-  let undecided = false;
-  /** A failure that is the verifier's judgement, and not shown to be a fact about the event. */
-  const lacking = (rejection: Rejection): Rejection => {
-    undecided = true;
-    return rejection;
-  };
-  const advance = (raw: unknown, i: number): Rejection | undefined => {
+/** Why an event did not verify, and whether that is the verifier's judgement (Layer 1, 4.9). */
+export interface Refused {
+  readonly failure: Rejection;
+  /** `false` only for an event shown to be invalid. */
+  readonly undecided: boolean;
+}
+
+/** A failure that is the verifier's judgement, and not shown to be a fact about the event. */
+const lacking = (failure: Rejection): Refused => ({ failure, undecided: true });
+
+/** A failure that the event and the events before it show, whoever looks and whenever. */
+const invalid = (failure: Rejection): Refused => ({ failure, undecided: false });
+
+/**
+ * A log under verification, one event after another. A run can be forked,
+ * to go on from one state with different events: that is how a book judges
+ * the events it holds for one position (Layer 1, 7.3).
+ */
+export class LogRun {
+  readonly #replay: Replay;
+  readonly #entries: LogEntry[];
+  readonly #children: AcknowledgedChild[];
+  readonly #revocations: Revocation[];
+  readonly #revoked: Set<string>;
+  #step: Step | undefined;
+  #before: Evaluation | undefined;
+
+  /**
+   * @param context - The evidence and the members' logs. The time the log is
+   *   known up to is given when the log is asked for.
+   * @param from - The run to go on from. Members' logs are answered once
+   *   for a run and everything forked from it.
+   */
+  constructor(context: Omit<LogContext, "asOf">, from?: LogRun) {
+    if (from === undefined) {
+      this.#replay = {
+        context,
+        understood: understoodOf(context.understood),
+        members: new Map(),
+      };
+      this.#entries = [];
+      this.#children = [];
+      this.#revocations = [];
+      this.#revoked = new Set();
+      return;
+    }
+    this.#replay = from.#replay;
+    this.#entries = [...from.#entries];
+    this.#children = [...from.#children];
+    this.#revocations = [...from.#revocations];
+    this.#revoked = new Set(from.#revoked);
+    this.#step = from.#step;
+    this.#before = from.#before;
+  }
+
+  /** A run that goes on from where this one is, and leaves this one where it is. */
+  fork(): LogRun {
+    return new LogRun(this.#replay.context, this);
+  }
+
+  /** The events verified so far, with the state after each. */
+  get entries(): readonly LogEntry[] {
+    return this.#entries;
+  }
+
+  /** Every revocation the events verified so far declare. */
+  get revocations(): readonly Revocation[] {
+    return this.#revocations;
+  }
+
+  /**
+   * Judges the next event of the log. If it verifies, the run has moved on
+   * to it. If it does not, the run is where it was.
+   */
+  advance(raw: unknown): Refused | undefined {
+    const i = this.#entries.length;
     const path = `/${i}`;
+    const run = this.#replay;
+    const step = this.#step;
     const read = readEvent(raw, path, run.understood);
-    if ("refusal" in read) return read.unread ? lacking(read.refusal) : read.refusal;
+    if ("refusal" in read) return read.unread ? lacking(read.refusal) : invalid(read.refusal);
     const event = read.event;
     const id = contentId(event);
     const created = parseTimestamp(event.created);
-    if (created === undefined) return no("created is not a timestamp", "core 1.4", path);
+    if (created === undefined) return invalid(no("created is not a timestamp", "core 1.4", path));
     const authorised = (proofs: readonly PlacedProof[], when: Evaluation): Validation<Step> =>
       step === undefined
         ? found(event, id, created, proofs, when, run)
@@ -813,10 +890,10 @@ function replay(events: readonly unknown[], context: LogContext): Replayed {
     // is asked later, of the member's log. An event that fails here is
     // invalid for every verifier.
     if (step === undefined) {
-      if (event.type !== "Genesis") return FIRST;
+      if (event.type !== "Genesis") return invalid(FIRST);
     } else {
       const broken = follows(step.state, event, path, created);
-      if (broken !== undefined) return broken;
+      if (broken !== undefined) return invalid(broken);
     }
     const all = verifyProofs(event).verified;
     const byKeys =
@@ -824,16 +901,16 @@ function replay(events: readonly unknown[], context: LogContext): Replayed {
         ? event.type === "Genesis" && !("members" in event.controller)
         : step.state.controller.kind === "key";
     const pure = byKeys ? authorised(all, UNTIMED) : undefined;
-    if (pure?.ok === false) return pure;
+    if (pure?.ok === false) return invalid(pure);
     const unsigned = byKeys ? undefined : unsignedByMembers(event, step?.state, all, path);
-    if (unsigned !== undefined) return unsigned;
-    const keys = keysAfter(step?.state ?? NO_KEYS, event, revoked, path);
-    if (!keys.ok) return keys;
+    if (unsigned !== undefined) return invalid(unsigned);
+    const keys = keysAfter(step?.state ?? NO_KEYS, event, this.#revoked, path);
+    if (!keys.ok) return invalid(keys);
 
     // Then, what depends on the evidence this verifier holds. Another
     // verifier may hold other evidence, so a failure from here on is this
     // verifier's judgement, and not a fact about the event (Layer 1, 4.9).
-    const time = eventTime(created, context.evidence.eventSeen(id), before);
+    const time = eventTime(created, run.context.evidence.eventSeen(id), this.#before);
     if (!time.ok) return lacking(under(path, time));
     const when = time.value;
     // core 9.6, for a proof judged at its event's time (core 9.5): past the
@@ -858,39 +935,53 @@ function replay(events: readonly unknown[], context: LogContext): Replayed {
     const next =
       pure !== undefined && proofs.length === all.length ? pure : authorised(proofs, when);
     if (!next.ok) return lacking(next);
-    step = {
-      state: applyFields(next.value.state, event, keys.value),
-      height: next.value.height,
-    };
-    if (event.type === "Fork") children.push({ position: i, child: event.child });
+    const state = applyFields(next.value.state, event, keys.value);
+    this.#step = { state, height: next.value.height };
+    if (event.type === "Fork") this.#children.push({ position: i, child: event.child });
     for (const revocation of revocationsOf(event, i)) {
-      revocations.push(revocation);
-      revoked.add(revocation.key);
+      this.#revocations.push(revocation);
+      this.#revoked.add(revocation.key);
     }
-    entries.push({ event, state: step.state, time: when.time });
-    before = when;
+    this.#entries.push({ event, state, time: when.time });
+    this.#before = when;
     return undefined;
-  };
-  let failure: Rejection | undefined;
-  for (const [i, raw] of events.entries()) {
-    failure = advance(raw, i);
-    if (failure !== undefined) break;
   }
-  const [genesis, ...later] = entries;
-  if (genesis === undefined || step === undefined) {
-    return { log: undefined, failure: failure ?? EMPTY, undecided };
+
+  /**
+   * The log as far as it has verified, frozen.
+   *
+   * @param asOf - core 9.4: the time up to which the log is known to be complete.
+   * @returns `undefined` before a first event has verified.
+   */
+  log(asOf: Instant): VerifiedLog | undefined {
+    const [genesis, ...later] = this.#entries;
+    if (genesis === undefined || this.#step === undefined) return undefined;
+    return deepFreeze({
+      mind: genesis.state.mind,
+      entries: [genesis, ...later],
+      children: [...this.#children],
+      revocations: [...this.#revocations],
+      height: this.#step.height,
+      asOf,
+      duplicitous: false,
+      branchTails: [],
+    });
   }
-  const log: VerifiedLog = {
-    mind: genesis.state.mind,
-    entries: [genesis, ...later],
-    children,
-    revocations,
-    height: step.height,
-    asOf: context.asOf,
-    duplicitous: false,
-    branchTails: [],
+}
+
+function replay(events: readonly unknown[], context: LogContext): Replayed {
+  const run = new LogRun(context);
+  let refused: Refused | undefined;
+  for (const raw of events) {
+    refused = run.advance(raw);
+    if (refused !== undefined) break;
+  }
+  const log = run.log(context.asOf);
+  return {
+    log,
+    failure: refused?.failure ?? (log === undefined ? EMPTY : undefined),
+    undecided: refused?.undecided ?? false,
   };
-  return { log: deepFreeze(log), failure, undecided };
 }
 
 const unreadable: Rejection = deepFreeze({
@@ -958,14 +1049,6 @@ export function verifyLog(events: unknown, context: LogContext): Validation<Veri
   } catch {
     return unreadable;
   }
-}
-
-/**
- * A replayed log as one answer: the log if every event verified, and
- * otherwise why the first that did not, did not.
- */
-export function whole(replayed: Replayed): Validation<VerifiedLog> {
-  return replayed.failure ?? (replayed.log === undefined ? EMPTY : ok(replayed.log));
 }
 
 /**

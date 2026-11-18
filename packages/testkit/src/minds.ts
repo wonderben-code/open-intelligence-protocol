@@ -27,7 +27,7 @@ import {
   type SyncSigner,
   withProofs,
 } from "@oip/core";
-import type { IdentityEvent, Proof } from "@oip/schema";
+import type { IdentityEvent, Proof, Validation } from "@oip/schema";
 import type { JsonObject } from "./vectors.ts";
 
 import {
@@ -43,6 +43,8 @@ import {
   type RetireFields,
   signEventSync,
   type UpdateFields,
+  type VerifiedLog,
+  verifyLog,
 } from "@oip/identity";
 
 const seed = (name: string): Uint8Array => createHash("sha256").update(name).digest();
@@ -390,6 +392,21 @@ export function bookOf(minds: readonly Mind[], records: readonly object[] = []):
   );
   for (const mind of minds) book.hold(mind.events, LATER);
   return book;
+}
+
+/**
+ * A mind's log, verified as it stands (Layer 1, Section 4), with a witness
+ * that saw every event when it was made and the logs of the minds given.
+ * A book would answer with the events before an invalid event; this says
+ * whether the log itself verifies, and why not.
+ */
+export function verifyMind(mind: Mind, others: readonly Mind[] = []): Validation<VerifiedLog> {
+  const book = bookOf([mind, ...others]);
+  return verifyLog(mind.events, {
+    evidence: book.evidence,
+    asOf: LATER,
+    memberLog: (member) => book.log(member),
+  });
 }
 
 /** A small Intent by a mind, not yet signed. */

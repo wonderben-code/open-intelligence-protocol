@@ -46,7 +46,8 @@
     "@oip/core": "workspace:*",
     "@oip/delegation": "workspace:*",
     "@oip/identity": "workspace:*",
-    "@oip/schema": "workspace:*"
+    "@oip/schema": "workspace:*",
+    "@oip/web": "workspace:*"
   },
   "devDependencies": {
     "@oip/testkit": "workspace:*"

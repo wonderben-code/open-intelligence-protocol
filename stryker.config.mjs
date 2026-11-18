@@ -34,6 +34,7 @@ export default {
     "packages/core/src/**/*.ts",
     "packages/identity/src/**/*.ts",
     "packages/delegation/src/**/*.ts",
+    "packages/web/src/**/*.ts",
     "packages/schema/src/**/*.ts",
     // Generated from the schemas, and tested through them.
     "!packages/schema/src/generated/**",

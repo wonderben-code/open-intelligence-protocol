@@ -22,6 +22,12 @@ export interface RecordView {
    * evidence to say.
    */
   revocationsOf(id: string): readonly JudgedRecord[];
+  /**
+   * Layer 2, 6.2: the `Collective` records held whose `author` is this
+   * mind: the charters it may have. Which is in force, and whether one is
+   * signed at all, is for the collective's log and the evidence to say.
+   */
+  chartersOf(mind: string): readonly JudgedRecord[];
 }
 
 /** The content ID a `Revocation` names in `revokes`, if the record is one. */
@@ -30,6 +36,13 @@ function revoked(judged: JudgedRecord): string | undefined {
   if (record.type !== "Revocation" || typeof record.revokes !== "string") return undefined;
   // A record-ref is an address, a slash and a content ID (core 6.3). The schema has checked it.
   return record.revokes.slice(record.revokes.lastIndexOf("/") + 1);
+}
+
+/** Notes one record's content ID under what it is found by. */
+function index(found: Map<string, Set<string>>, by: string, id: string): void {
+  const ids = found.get(by) ?? new Set<string>();
+  ids.add(id);
+  found.set(by, ids);
 }
 
 /**
@@ -48,6 +61,7 @@ function revoked(judged: JudgedRecord): string | undefined {
 export class RecordSet implements RecordView {
   readonly #records = new Map<string, JudgedRecord>();
   readonly #revocations = new Map<string, Set<string>>();
+  readonly #charters = new Map<string, Set<string>>();
   readonly #options: JudgeOptions | undefined;
 
   /** @param options - What records are judged with: see `judgeRecord`. */
@@ -70,11 +84,9 @@ export class RecordSet implements RecordView {
     if (held === undefined) {
       this.#records.set(id, judged.value);
       const target = revoked(judged.value);
-      if (target !== undefined) {
-        const naming = this.#revocations.get(target) ?? new Set<string>();
-        naming.add(id);
-        this.#revocations.set(target, naming);
-      }
+      if (target !== undefined) index(this.#revocations, target, id);
+      const { type, author } = judged.value.record as { type: string; author?: unknown };
+      if (type === "Collective" && typeof author === "string") index(this.#charters, author, id);
       return ok(id);
     }
     // The same record, perhaps with proofs not seen before: each is kept, once.
@@ -94,9 +106,17 @@ export class RecordSet implements RecordView {
   }
 
   revocationsOf(id: string): readonly JudgedRecord[] {
+    return this.#listed(this.#revocations.get(id));
+  }
+
+  chartersOf(mind: string): readonly JudgedRecord[] {
+    return this.#listed(this.#charters.get(mind));
+  }
+
+  #listed(ids: ReadonlySet<string> | undefined): JudgedRecord[] {
     const found: JudgedRecord[] = [];
-    for (const naming of this.#revocations.get(id) ?? []) {
-      const judged = this.#records.get(naming);
+    for (const id of ids ?? []) {
+      const judged = this.#records.get(id);
       if (judged !== undefined) found.push(judged);
     }
     return found;

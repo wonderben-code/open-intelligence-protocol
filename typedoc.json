@@ -7,6 +7,7 @@
     "packages/core",
     "packages/identity",
     "packages/delegation",
+    "packages/web",
     "packages/conformance"
   ],
   "packageOptions": {

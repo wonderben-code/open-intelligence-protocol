@@ -14,6 +14,9 @@
       "path": "packages/delegation/tsconfig.build.json"
     },
     {
+      "path": "packages/web/tsconfig.build.json"
+    },
+    {
       "path": "packages/conformance/tsconfig.build.json"
     }
   ]

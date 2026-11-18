@@ -6,7 +6,6 @@
 import {
   canonicalize,
   checkSize,
-  CLOCK_SKEW,
   contentId,
   createProofSync,
   type Instant,
@@ -19,16 +18,14 @@ import {
   signerFromPrivateKey,
   verifyProof,
 } from "@oip/core";
-import { delegatedTime, isDelegableType, RecordSet, sentFor } from "@oip/delegation";
+import { RecordSet, sentFor } from "@oip/delegation";
 import {
   didDocument,
   type EvidenceView,
   FirstSeen,
   judgeRecord,
-  latestState,
   lineage,
   LogBook,
-  ownSignedTime,
   verifyLog,
   witnessLog,
 } from "@oip/identity";
@@ -38,8 +35,9 @@ import {
   validateRecord,
   type Validation,
 } from "@oip/schema";
+import { countsFor } from "@oip/web";
 
-import { type ConformanceAdapter, NOT_JUDGED, type VerifierView } from "./adapter.ts";
+import { type ConformanceAdapter, type VerifierView } from "./adapter.ts";
 import type { JsonObject } from "./vectors.ts";
 
 /**
@@ -126,15 +124,6 @@ function recordsOf(view: VerifierView): RecordSet {
   return records;
 }
 
-/** Whether any proof on a record names an authority: a delegation, or a charter role. */
-function namesAuthority(record: JsonObject): boolean {
-  const proofs = record["proof"];
-  return (
-    Array.isArray(proofs) &&
-    proofs.some((proof) => typeof proof === "object" && proof !== null && "authority" in proof)
-  );
-}
-
 /**
  * The reference implementation, as far as it is built. Kinds of case it does
  * not answer yet are reported as pending.
@@ -182,23 +171,10 @@ export const referenceAdapter: ConformanceAdapter = {
   countsFor: (record, mind, view) => {
     const judged = judgeRecord(record);
     if (!judged.ok) return false;
-    const identity = bookFor(view, record);
-    const delegable = isDelegableType(judged.value.record.type);
-    // A proof that names an authority on a record of a collective's may act through a
-    // charter role, which is not judged yet (Layer 2, 7.1 item 4).
-    const held = identity.log(mind);
-    const collective = held.ok && latestState(held.value).controller.kind === "member";
-    if (delegable && collective && namesAuthority(record)) return NOT_JUDGED;
-    const times = [ownSignedTime(judged.value, mind, identity)];
-    if (delegable) {
-      times.push(delegatedTime(judged.value, mind, { identity, records: recordsOf(view) }));
-    }
-    // core 9.6, for every route: no proof counts that is evaluated more than 300 seconds
-    // after the record expires.
-    const limit = judged.value.expires;
-    return times.some(
-      (time) => time !== undefined && (limit === undefined || time <= limit + CLOCK_SKEW),
-    );
+    return countsFor(judged.value, mind, {
+      identity: bookFor(view, record),
+      records: recordsOf(view),
+    });
   },
   sentFor: (packet, mind, view) => {
     const judged = judgeRecord(packet);

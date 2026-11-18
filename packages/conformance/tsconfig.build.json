@@ -20,6 +20,9 @@
     },
     {
       "path": "../delegation/tsconfig.build.json"
+    },
+    {
+      "path": "../web/tsconfig.build.json"
     }
   ]
 }

@@ -27,6 +27,9 @@ export function canonicalBytes(value: unknown, limits?: Limits): Uint8Array;
 export function canonicalize(value: unknown, limits?: Limits): string;
 
 // @public
+export function canonicalSizeUpTo(value: JsonValue, limit: number): number;
+
+// @public
 export function checkSize(record: OipRecord | ExtensionRecord): Issue[];
 
 // @public

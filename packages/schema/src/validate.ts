@@ -188,6 +188,8 @@ function plainCopy(
   root: unknown,
   maxDepth: number,
   maxValues: number,
+  /** A member of the value itself to leave out of the copy, unread. */
+  without?: string,
 ): { readonly issue: Issue } | { readonly value: JsonValue; readonly deepest: number } {
   let budget = maxValues;
   let deepest = 0;
@@ -270,6 +272,8 @@ function plainCopy(
     if (names.length > budget) return { issue: tooMany(maxValues) };
     budget -= names.length;
     for (const name of names) {
+      // Left out without a look at what it holds.
+      if (name === without && source === root) continue;
       const fault = textFault(name);
       if (fault !== undefined) return { issue: TEXT_FAULTS[fault] };
       const member = Object.getOwnPropertyDescriptor(source, name);
@@ -435,6 +439,21 @@ export function validateJson(
       depth === "container" ? MAX_CONTAINER_DEPTH : MAX_DEPTH,
       valueBudget(limits),
     );
+    return "issue" in copied ? fail(copied.issue) : { ok: true, value: copied.value };
+  });
+}
+
+/**
+ * As `validateJson`, for what a content ID covers (core 3.1): the value
+ * apart from its member `proof`, which is not read at all. The copy it
+ * returns has no such member.
+ *
+ * It is for a reader that must tell which record a value is a copy of when
+ * the proofs it came with are not plain data (Layer 1, 7.1).
+ */
+export function validateWithoutProof(value: unknown, limits?: Limits): Validation<JsonValue> {
+  return answering(() => {
+    const copied = plainCopy(value, MAX_DEPTH, valueBudget(limits), "proof");
     return "issue" in copied ? fail(copied.issue) : { ok: true, value: copied.value };
   });
 }

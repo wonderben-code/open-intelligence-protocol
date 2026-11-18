@@ -52,6 +52,7 @@ export {
   type JsonObject,
   type Log,
   type LogCase,
+  type LogCopy,
   namedLog,
   namedRecord,
   parseVectors,

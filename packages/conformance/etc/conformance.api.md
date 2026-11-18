@@ -25,7 +25,7 @@ export const CASE_KINDS: readonly ["log", "countsFor", "sentFor", "status", "ass
 
 // @public
 export interface CaseBase {
-    readonly branches?: readonly Log[];
+    readonly branches?: readonly LogCopy[];
     readonly extraLogs?: readonly Log[];
     readonly extraRecords?: readonly JsonObject[];
     // (undocumented)
@@ -149,6 +149,9 @@ export interface LogCase extends CaseBase {
     // (undocumented)
     readonly log: Log;
 }
+
+// @public
+export type LogCopy = readonly unknown[];
 
 // @public
 export interface LogIntake {
@@ -329,7 +332,7 @@ export interface Verdict {
 
 // @public
 export interface VerifierView {
-    readonly branches: readonly Log[];
+    readonly branches: readonly LogCopy[];
     readonly extraLogs: readonly Log[];
     readonly extraRecords: readonly JsonObject[];
     readonly logs: readonly Log[];

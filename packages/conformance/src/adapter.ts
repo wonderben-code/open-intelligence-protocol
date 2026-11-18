@@ -3,7 +3,7 @@
 
 /** How the suite calls an implementation. */
 
-import type { JsonObject, Log, Seen } from "./vectors.ts";
+import type { JsonObject, Log, LogCopy, Seen } from "./vectors.ts";
 
 /**
  * What the verifier holds when it judges a case: the baseline of the vectors,
@@ -15,8 +15,11 @@ export interface VerifierView {
   readonly logs: readonly Log[];
   /** Logs that replace the baseline logs of the same minds. */
   readonly extraLogs: readonly Log[];
-  /** Further, conflicting branches of a mind's log (Layer 1, Section 7). */
-  readonly branches: readonly Log[];
+  /**
+   * Further copies of a mind's log, conflicting or not (Layer 1, Section 7).
+   * A copy holds what a source served: its values need not all be events.
+   */
+  readonly branches: readonly LogCopy[];
   /** The baseline records. */
   readonly records: readonly JsonObject[];
   /** Records the case adds. */

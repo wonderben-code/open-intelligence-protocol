@@ -13336,6 +13336,1071 @@
       }
     },
     {
+      "name": "value-that-is-no-event-ends-its-copy",
+      "reason": "On 31 October all three members signed the event that makes the collective two members with a threshold of two. This verifier holds that event in its place with one of the three proofs. It holds the other two in a second copy of the log, after the number 5. A number is no JSON object, so it has no place in a log, and nothing after it in that copy is held (Layer 1, 7.1). The event has one proof, too few members have signed it, and it is no event: the collective is still three, and a record that two of them signed is not signed by it.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqg75ud6g2agg3vc3sd2oaetmdiitgj3vlhzt7vxjhhsxxllijpdha",
+        "created": "2026-10-30T23:00:00Z",
+        "want": "Hire a second reviewer for Swahili leases.",
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T23:00:00Z",
+            "proofValue": "z2UxLeQ6YFXjTuWg6634HkjGkKmCSkrYE4bMCLK2YM9zbhtKBZtADSwUayC3T1tE43NQm3MbbGxqiDGjThZKyaEFg"
+          },
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T23:00:00Z",
+            "proofValue": "z457sGWxLF9rrnUEb3s4jAfXTnQT1bvGUH8LjkZPGs2YLpLLRYzgENiuAt1qw9jfbod8u9SPYB2Xz1FFL94xYduEG"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqg75ud6g2agg3vc3sd2oaetmdiitgj3vlhzt7vxjhhsxxllijpdha",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "collective",
+            "created": "2026-10-30T09:25:00Z",
+            "controller": {
+              "members": [
+                "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+                "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+              ],
+              "threshold": 3
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:25:00Z",
+                "proofValue": "z5v6RAC8cVi3ZTFD2MPh9fkKNVTZQEhenxouJVmFsbveSwt8vBH4R7J9cnWbxu5dy7aECGvjahRY2b21FQztzvGsc"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:25:00Z",
+                "proofValue": "z2PGJo3RZV3MKiRCpdBq5TGFQh3PZR9Xff72PcZa3VDEGee3AweaaZdbYLn4gnhP6SbC93kfP7rfMQ6zRn6NFt6ez"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:25:00Z",
+                "proofValue": "z2STZcyHpfvCF95g3MZDTK6YMpSA2qAduMaYFkqSy7WWhja6QVj1PPgCbe2SauKNhauxc7qoYiTCZHWKNxroA91ju"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqg75ud6g2agg3vc3sd2oaetmdiitgj3vlhzt7vxjhhsxxllijpdha",
+            "seq": 1,
+            "prev": "bciqg75ud6g2agg3vc3sd2oaetmdiitgj3vlhzt7vxjhhsxxllijpdha",
+            "created": "2026-10-31T00:00:00Z",
+            "controller": {
+              "members": [
+                "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+                "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+              ],
+              "threshold": 2
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-31T00:00:00Z",
+                "proofValue": "z3A8jgz599KpvxcDRG3NFeDfSfrW6c5shzskw5UwK6PFNPejdw1YP4rcEgjBL2aatMEiJkowCRawUiKqQ7iSorjyG"
+              }
+            ]
+          }
+        ]
+      ],
+      "branches": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "collective",
+            "created": "2026-10-30T09:25:00Z",
+            "controller": {
+              "members": [
+                "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+                "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+              ],
+              "threshold": 3
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:25:00Z",
+                "proofValue": "z5v6RAC8cVi3ZTFD2MPh9fkKNVTZQEhenxouJVmFsbveSwt8vBH4R7J9cnWbxu5dy7aECGvjahRY2b21FQztzvGsc"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:25:00Z",
+                "proofValue": "z2PGJo3RZV3MKiRCpdBq5TGFQh3PZR9Xff72PcZa3VDEGee3AweaaZdbYLn4gnhP6SbC93kfP7rfMQ6zRn6NFt6ez"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:25:00Z",
+                "proofValue": "z2STZcyHpfvCF95g3MZDTK6YMpSA2qAduMaYFkqSy7WWhja6QVj1PPgCbe2SauKNhauxc7qoYiTCZHWKNxroA91ju"
+              }
+            ]
+          },
+          5,
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqg75ud6g2agg3vc3sd2oaetmdiitgj3vlhzt7vxjhhsxxllijpdha",
+            "seq": 1,
+            "prev": "bciqg75ud6g2agg3vc3sd2oaetmdiitgj3vlhzt7vxjhhsxxllijpdha",
+            "created": "2026-10-31T00:00:00Z",
+            "controller": {
+              "members": [
+                "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+                "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+              ],
+              "threshold": 2
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-31T00:00:00Z",
+                "proofValue": "zJzq3NH8pSxGubTLXK2U1y6aBddFFA9MCLpsLkjVtykgNKrvF5UoCFLwoaJp9ZSRGzEvHoVuHoc1Lu7L8WqCuaDQ"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-31T00:00:00Z",
+                "proofValue": "z5KEEJimb4dFuPT1ECJMciqMeHgySrBswXZ2uEtegHGLdELzYWnLspJFXMfX6Yu8RMNLXyf4BQ3F1yuEwgFvp6Y99"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "name": "more-proofs-for-one-event-than-a-record-carries",
+      "reason": "The verifier holds Amina's log, and a second copy of it in which her latest event carries 256 entries in `proof`, each an object that is no proof. That copy is well formed: an entry that is an object and no valid proof does not count and does not make a record malformed (core 5.1). With the proof of the first copy, the verifier holds 257 for one event, more than one record carries. It cannot tell which to leave out, so it treats the log as not verified (Layer 1, 7.1), and a record pinned to that event does not count.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-10-30T10:00:00Z",
+        "expires": "2026-10-31T10:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:00:00Z",
+            "proofValue": "z4FLN2prJLehkrLxaAK2pSi4gnvCeiWUdUAKrsRZ38FQtUsRumXhh77fHnQMHjRPYcfXQ4ss5ogoR6K8pjwpnXALG"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "branches": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "n": 0
+              },
+              {
+                "n": 1
+              },
+              {
+                "n": 2
+              },
+              {
+                "n": 3
+              },
+              {
+                "n": 4
+              },
+              {
+                "n": 5
+              },
+              {
+                "n": 6
+              },
+              {
+                "n": 7
+              },
+              {
+                "n": 8
+              },
+              {
+                "n": 9
+              },
+              {
+                "n": 10
+              },
+              {
+                "n": 11
+              },
+              {
+                "n": 12
+              },
+              {
+                "n": 13
+              },
+              {
+                "n": 14
+              },
+              {
+                "n": 15
+              },
+              {
+                "n": 16
+              },
+              {
+                "n": 17
+              },
+              {
+                "n": 18
+              },
+              {
+                "n": 19
+              },
+              {
+                "n": 20
+              },
+              {
+                "n": 21
+              },
+              {
+                "n": 22
+              },
+              {
+                "n": 23
+              },
+              {
+                "n": 24
+              },
+              {
+                "n": 25
+              },
+              {
+                "n": 26
+              },
+              {
+                "n": 27
+              },
+              {
+                "n": 28
+              },
+              {
+                "n": 29
+              },
+              {
+                "n": 30
+              },
+              {
+                "n": 31
+              },
+              {
+                "n": 32
+              },
+              {
+                "n": 33
+              },
+              {
+                "n": 34
+              },
+              {
+                "n": 35
+              },
+              {
+                "n": 36
+              },
+              {
+                "n": 37
+              },
+              {
+                "n": 38
+              },
+              {
+                "n": 39
+              },
+              {
+                "n": 40
+              },
+              {
+                "n": 41
+              },
+              {
+                "n": 42
+              },
+              {
+                "n": 43
+              },
+              {
+                "n": 44
+              },
+              {
+                "n": 45
+              },
+              {
+                "n": 46
+              },
+              {
+                "n": 47
+              },
+              {
+                "n": 48
+              },
+              {
+                "n": 49
+              },
+              {
+                "n": 50
+              },
+              {
+                "n": 51
+              },
+              {
+                "n": 52
+              },
+              {
+                "n": 53
+              },
+              {
+                "n": 54
+              },
+              {
+                "n": 55
+              },
+              {
+                "n": 56
+              },
+              {
+                "n": 57
+              },
+              {
+                "n": 58
+              },
+              {
+                "n": 59
+              },
+              {
+                "n": 60
+              },
+              {
+                "n": 61
+              },
+              {
+                "n": 62
+              },
+              {
+                "n": 63
+              },
+              {
+                "n": 64
+              },
+              {
+                "n": 65
+              },
+              {
+                "n": 66
+              },
+              {
+                "n": 67
+              },
+              {
+                "n": 68
+              },
+              {
+                "n": 69
+              },
+              {
+                "n": 70
+              },
+              {
+                "n": 71
+              },
+              {
+                "n": 72
+              },
+              {
+                "n": 73
+              },
+              {
+                "n": 74
+              },
+              {
+                "n": 75
+              },
+              {
+                "n": 76
+              },
+              {
+                "n": 77
+              },
+              {
+                "n": 78
+              },
+              {
+                "n": 79
+              },
+              {
+                "n": 80
+              },
+              {
+                "n": 81
+              },
+              {
+                "n": 82
+              },
+              {
+                "n": 83
+              },
+              {
+                "n": 84
+              },
+              {
+                "n": 85
+              },
+              {
+                "n": 86
+              },
+              {
+                "n": 87
+              },
+              {
+                "n": 88
+              },
+              {
+                "n": 89
+              },
+              {
+                "n": 90
+              },
+              {
+                "n": 91
+              },
+              {
+                "n": 92
+              },
+              {
+                "n": 93
+              },
+              {
+                "n": 94
+              },
+              {
+                "n": 95
+              },
+              {
+                "n": 96
+              },
+              {
+                "n": 97
+              },
+              {
+                "n": 98
+              },
+              {
+                "n": 99
+              },
+              {
+                "n": 100
+              },
+              {
+                "n": 101
+              },
+              {
+                "n": 102
+              },
+              {
+                "n": 103
+              },
+              {
+                "n": 104
+              },
+              {
+                "n": 105
+              },
+              {
+                "n": 106
+              },
+              {
+                "n": 107
+              },
+              {
+                "n": 108
+              },
+              {
+                "n": 109
+              },
+              {
+                "n": 110
+              },
+              {
+                "n": 111
+              },
+              {
+                "n": 112
+              },
+              {
+                "n": 113
+              },
+              {
+                "n": 114
+              },
+              {
+                "n": 115
+              },
+              {
+                "n": 116
+              },
+              {
+                "n": 117
+              },
+              {
+                "n": 118
+              },
+              {
+                "n": 119
+              },
+              {
+                "n": 120
+              },
+              {
+                "n": 121
+              },
+              {
+                "n": 122
+              },
+              {
+                "n": 123
+              },
+              {
+                "n": 124
+              },
+              {
+                "n": 125
+              },
+              {
+                "n": 126
+              },
+              {
+                "n": 127
+              },
+              {
+                "n": 128
+              },
+              {
+                "n": 129
+              },
+              {
+                "n": 130
+              },
+              {
+                "n": 131
+              },
+              {
+                "n": 132
+              },
+              {
+                "n": 133
+              },
+              {
+                "n": 134
+              },
+              {
+                "n": 135
+              },
+              {
+                "n": 136
+              },
+              {
+                "n": 137
+              },
+              {
+                "n": 138
+              },
+              {
+                "n": 139
+              },
+              {
+                "n": 140
+              },
+              {
+                "n": 141
+              },
+              {
+                "n": 142
+              },
+              {
+                "n": 143
+              },
+              {
+                "n": 144
+              },
+              {
+                "n": 145
+              },
+              {
+                "n": 146
+              },
+              {
+                "n": 147
+              },
+              {
+                "n": 148
+              },
+              {
+                "n": 149
+              },
+              {
+                "n": 150
+              },
+              {
+                "n": 151
+              },
+              {
+                "n": 152
+              },
+              {
+                "n": 153
+              },
+              {
+                "n": 154
+              },
+              {
+                "n": 155
+              },
+              {
+                "n": 156
+              },
+              {
+                "n": 157
+              },
+              {
+                "n": 158
+              },
+              {
+                "n": 159
+              },
+              {
+                "n": 160
+              },
+              {
+                "n": 161
+              },
+              {
+                "n": 162
+              },
+              {
+                "n": 163
+              },
+              {
+                "n": 164
+              },
+              {
+                "n": 165
+              },
+              {
+                "n": 166
+              },
+              {
+                "n": 167
+              },
+              {
+                "n": 168
+              },
+              {
+                "n": 169
+              },
+              {
+                "n": 170
+              },
+              {
+                "n": 171
+              },
+              {
+                "n": 172
+              },
+              {
+                "n": 173
+              },
+              {
+                "n": 174
+              },
+              {
+                "n": 175
+              },
+              {
+                "n": 176
+              },
+              {
+                "n": 177
+              },
+              {
+                "n": 178
+              },
+              {
+                "n": 179
+              },
+              {
+                "n": 180
+              },
+              {
+                "n": 181
+              },
+              {
+                "n": 182
+              },
+              {
+                "n": 183
+              },
+              {
+                "n": 184
+              },
+              {
+                "n": 185
+              },
+              {
+                "n": 186
+              },
+              {
+                "n": 187
+              },
+              {
+                "n": 188
+              },
+              {
+                "n": 189
+              },
+              {
+                "n": 190
+              },
+              {
+                "n": 191
+              },
+              {
+                "n": 192
+              },
+              {
+                "n": 193
+              },
+              {
+                "n": 194
+              },
+              {
+                "n": 195
+              },
+              {
+                "n": 196
+              },
+              {
+                "n": 197
+              },
+              {
+                "n": 198
+              },
+              {
+                "n": 199
+              },
+              {
+                "n": 200
+              },
+              {
+                "n": 201
+              },
+              {
+                "n": 202
+              },
+              {
+                "n": 203
+              },
+              {
+                "n": 204
+              },
+              {
+                "n": 205
+              },
+              {
+                "n": 206
+              },
+              {
+                "n": 207
+              },
+              {
+                "n": 208
+              },
+              {
+                "n": 209
+              },
+              {
+                "n": 210
+              },
+              {
+                "n": 211
+              },
+              {
+                "n": 212
+              },
+              {
+                "n": 213
+              },
+              {
+                "n": 214
+              },
+              {
+                "n": 215
+              },
+              {
+                "n": 216
+              },
+              {
+                "n": 217
+              },
+              {
+                "n": 218
+              },
+              {
+                "n": 219
+              },
+              {
+                "n": 220
+              },
+              {
+                "n": 221
+              },
+              {
+                "n": 222
+              },
+              {
+                "n": 223
+              },
+              {
+                "n": 224
+              },
+              {
+                "n": 225
+              },
+              {
+                "n": 226
+              },
+              {
+                "n": 227
+              },
+              {
+                "n": 228
+              },
+              {
+                "n": 229
+              },
+              {
+                "n": 230
+              },
+              {
+                "n": 231
+              },
+              {
+                "n": 232
+              },
+              {
+                "n": 233
+              },
+              {
+                "n": 234
+              },
+              {
+                "n": 235
+              },
+              {
+                "n": 236
+              },
+              {
+                "n": 237
+              },
+              {
+                "n": 238
+              },
+              {
+                "n": 239
+              },
+              {
+                "n": 240
+              },
+              {
+                "n": 241
+              },
+              {
+                "n": 242
+              },
+              {
+                "n": 243
+              },
+              {
+                "n": 244
+              },
+              {
+                "n": 245
+              },
+              {
+                "n": 246
+              },
+              {
+                "n": 247
+              },
+              {
+                "n": 248
+              },
+              {
+                "n": 249
+              },
+              {
+                "n": 250
+              },
+              {
+                "n": 251
+              },
+              {
+                "n": 252
+              },
+              {
+                "n": 253
+              },
+              {
+                "n": 254
+              },
+              {
+                "n": 255
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
       "name": "copy-with-an-unreadable-event-after-the-log",
       "reason": "The verifier holds Amina's log, and a second copy of it with one more value: an object of the type `Merge`, with no proof at all. Anyone could have written it. But this revision defines no such event, so the verifier cannot read it, and an event it cannot read is undecided, never invalid: a later revision may give it rules for its form and its signatures alike (Layer 1, 4.9). It may be Amina's own event and may remove a key, so the log does not verify for this verifier, and a record pinned to her latest event does not count.",
       "kind": "countsFor",
@@ -13753,6 +14818,381 @@
         "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq": "2026-10-30T09:05:00Z",
         "bciqgvphvnx2hbi27a6fmvp7zgf7th3z4uhgiqwbopkuggaflxmvczbq": "2026-10-30T09:05:00Z",
         "bciqihdgefymwoimzs3hi2hyp5rb7aat25bcxbbr5nnlxsa6fv7exvmq": "2026-10-30T11:00:00Z"
+      }
+    },
+    {
+      "name": "events-after-a-copy-whose-proof-nests-too-deep",
+      "reason": "The verifier holds Amina's log as it was on 30 Oct. It also holds a later copy with the event of 2 Nov that removes her phone key, in which the `proof` of the event before it has an entry that makes the event nest 65 deep. With that entry the event is no record (core 1.9), so the copy of it adds no proof. Without its `proof` it is the event the first copy shows: a content ID does not cover `proof`, and what is wrong inside `proof` does not cost an event its place (Layer 1, 7.1). So what follows it is held and judged: the key is removed, and a record signed with it and first seen on 3 Nov does not count.",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-11-01T08:00:00Z",
+        "expires": "2026-11-08T08:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-11-01T08:00:00Z",
+            "proofValue": "z48e2TbzMnXqTiWLwAjHt7mVzXgaoKfomFEXFaBLwaApa6Koy9LQyzsbApsYsxsP4HPfk4dmPZKuTpVHWsA5PstT3"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+              }
+            ]
+          }
+        ]
+      ],
+      "branches": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+              },
+              {
+                "deep": [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      [
+                                                                                                                                        [
+                                                                                                                                          []
+                                                                                                                                        ]
+                                                                                                                                      ]
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 2,
+            "prev": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
+            "created": "2026-11-02T08:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+              ],
+              "next": [
+                "bciqlztaugk22rnawzs6glt6bxbmy2smcv7ptzvjqhe2z4lgfbrnyjvi"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-11-02T08:00:00Z",
+                "proofValue": "z3kw62fek5CEFdp1UXF7qnLxQ8h2PC3P1qdFjevGmCYAiRiwE3YdXaADPupXMZ6WC1pS5MhwJc6m8vqrspV8cP7HE"
+              }
+            ]
+          }
+        ]
+      ],
+      "seen": {
+        "sha256:78733c8b89ce6b7fdfcfa05f71a22818eaa4c271aa154cd4baccdfc3bf99d620": "2026-11-03T08:00:00Z"
       }
     }
   ],
@@ -19845,6 +21285,1440 @@
       "seen": {
         "sha256:78733c8b89ce6b7fdfcfa05f71a22818eaa4c271aa154cd4baccdfc3bf99d620": "2026-11-01T08:00:05Z"
       }
+    },
+    {
+      "name": "events-after-a-copy-whose-proof-nests-too-deep",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-11-01T08:00:00Z",
+        "expires": "2026-11-08T08:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-11-01T08:00:00Z",
+            "proofValue": "z48e2TbzMnXqTiWLwAjHt7mVzXgaoKfomFEXFaBLwaApa6Koy9LQyzsbApsYsxsP4HPfk4dmPZKuTpVHWsA5PstT3"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+              }
+            ]
+          }
+        ]
+      ],
+      "branches": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+              },
+              {
+                "deep": [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        [
+                                                                          [
+                                                                            [
+                                                                              [
+                                                                                [
+                                                                                  [
+                                                                                    [
+                                                                                      [
+                                                                                        [
+                                                                                          [
+                                                                                            [
+                                                                                              [
+                                                                                                [
+                                                                                                  [
+                                                                                                    [
+                                                                                                      [
+                                                                                                        [
+                                                                                                          [
+                                                                                                            [
+                                                                                                              [
+                                                                                                                [
+                                                                                                                  [
+                                                                                                                    [
+                                                                                                                      [
+                                                                                                                        [
+                                                                                                                          [
+                                                                                                                            [
+                                                                                                                              [
+                                                                                                                                [
+                                                                                                                                  [
+                                                                                                                                    [
+                                                                                                                                      [
+                                                                                                                                        [
+                                                                                                                                          []
+                                                                                                                                        ]
+                                                                                                                                      ]
+                                                                                                                                    ]
+                                                                                                                                  ]
+                                                                                                                                ]
+                                                                                                                              ]
+                                                                                                                            ]
+                                                                                                                          ]
+                                                                                                                        ]
+                                                                                                                      ]
+                                                                                                                    ]
+                                                                                                                  ]
+                                                                                                                ]
+                                                                                                              ]
+                                                                                                            ]
+                                                                                                          ]
+                                                                                                        ]
+                                                                                                      ]
+                                                                                                    ]
+                                                                                                  ]
+                                                                                                ]
+                                                                                              ]
+                                                                                            ]
+                                                                                          ]
+                                                                                        ]
+                                                                                      ]
+                                                                                    ]
+                                                                                  ]
+                                                                                ]
+                                                                              ]
+                                                                            ]
+                                                                          ]
+                                                                        ]
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 2,
+            "prev": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
+            "created": "2026-11-02T08:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+              ],
+              "next": [
+                "bciqlztaugk22rnawzs6glt6bxbmy2smcv7ptzvjqhe2z4lgfbrnyjvi"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-11-02T08:00:00Z",
+                "proofValue": "z3kw62fek5CEFdp1UXF7qnLxQ8h2PC3P1qdFjevGmCYAiRiwE3YdXaADPupXMZ6WC1pS5MhwJc6m8vqrspV8cP7HE"
+              }
+            ]
+          }
+        ]
+      ],
+      "seen": {
+        "sha256:78733c8b89ce6b7fdfcfa05f71a22818eaa4c271aa154cd4baccdfc3bf99d620": "2026-11-01T08:00:05Z"
+      }
+    },
+    {
+      "name": "value-that-is-no-event-ends-its-copy",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqg75ud6g2agg3vc3sd2oaetmdiitgj3vlhzt7vxjhhsxxllijpdha",
+        "created": "2026-10-30T23:00:00Z",
+        "want": "Hire a second reviewer for Swahili leases.",
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=0-bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua#z6MkmcRXVy96fL6pFNNjAwpjW37VyKgxxtJD7HHrcgRSU7re",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T23:00:00Z",
+            "proofValue": "z2UxLeQ6YFXjTuWg6634HkjGkKmCSkrYE4bMCLK2YM9zbhtKBZtADSwUayC3T1tE43NQm3MbbGxqiDGjThZKyaEFg"
+          },
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T23:00:00Z",
+            "proofValue": "z457sGWxLF9rrnUEb3s4jAfXTnQT1bvGUH8LjkZPGs2YLpLLRYzgENiuAt1qw9jfbod8u9SPYB2Xz1FFL94xYduEG"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqg75ud6g2agg3vc3sd2oaetmdiitgj3vlhzt7vxjhhsxxllijpdha",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "collective",
+            "created": "2026-10-30T09:25:00Z",
+            "controller": {
+              "members": [
+                "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+                "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+              ],
+              "threshold": 3
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:25:00Z",
+                "proofValue": "z5v6RAC8cVi3ZTFD2MPh9fkKNVTZQEhenxouJVmFsbveSwt8vBH4R7J9cnWbxu5dy7aECGvjahRY2b21FQztzvGsc"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:25:00Z",
+                "proofValue": "z2PGJo3RZV3MKiRCpdBq5TGFQh3PZR9Xff72PcZa3VDEGee3AweaaZdbYLn4gnhP6SbC93kfP7rfMQ6zRn6NFt6ez"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:25:00Z",
+                "proofValue": "z2STZcyHpfvCF95g3MZDTK6YMpSA2qAduMaYFkqSy7WWhja6QVj1PPgCbe2SauKNhauxc7qoYiTCZHWKNxroA91ju"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqg75ud6g2agg3vc3sd2oaetmdiitgj3vlhzt7vxjhhsxxllijpdha",
+            "seq": 1,
+            "prev": "bciqg75ud6g2agg3vc3sd2oaetmdiitgj3vlhzt7vxjhhsxxllijpdha",
+            "created": "2026-10-31T00:00:00Z",
+            "controller": {
+              "members": [
+                "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+                "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+              ],
+              "threshold": 2
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-31T00:00:00Z",
+                "proofValue": "z3A8jgz599KpvxcDRG3NFeDfSfrW6c5shzskw5UwK6PFNPejdw1YP4rcEgjBL2aatMEiJkowCRawUiKqQ7iSorjyG"
+              }
+            ]
+          }
+        ]
+      ],
+      "branches": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "collective",
+            "created": "2026-10-30T09:25:00Z",
+            "controller": {
+              "members": [
+                "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+                "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+                "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+              ],
+              "threshold": 3
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:25:00Z",
+                "proofValue": "z5v6RAC8cVi3ZTFD2MPh9fkKNVTZQEhenxouJVmFsbveSwt8vBH4R7J9cnWbxu5dy7aECGvjahRY2b21FQztzvGsc"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:25:00Z",
+                "proofValue": "z2PGJo3RZV3MKiRCpdBq5TGFQh3PZR9Xff72PcZa3VDEGee3AweaaZdbYLn4gnhP6SbC93kfP7rfMQ6zRn6NFt6ez"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:25:00Z",
+                "proofValue": "z2STZcyHpfvCF95g3MZDTK6YMpSA2qAduMaYFkqSy7WWhja6QVj1PPgCbe2SauKNhauxc7qoYiTCZHWKNxroA91ju"
+              }
+            ]
+          },
+          {},
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqg75ud6g2agg3vc3sd2oaetmdiitgj3vlhzt7vxjhhsxxllijpdha",
+            "seq": 1,
+            "prev": "bciqg75ud6g2agg3vc3sd2oaetmdiitgj3vlhzt7vxjhhsxxllijpdha",
+            "created": "2026-10-31T00:00:00Z",
+            "controller": {
+              "members": [
+                "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+                "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
+              ],
+              "threshold": 2
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MkkMQkhiqLb4jNbg52aLW3QtWp8HUXoiRPC6N2djFwYGMG",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-31T00:00:00Z",
+                "proofValue": "zJzq3NH8pSxGubTLXK2U1y6aBddFFA9MCLpsLkjVtykgNKrvF5UoCFLwoaJp9ZSRGzEvHoVuHoc1Lu7L8WqCuaDQ"
+              },
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua?versionId=1-bciqpilqdbypgozcw2thnduws4n637nvbmq7vpjp5aagscdsi4cyxydi#z6Mku1fvWsgRQNCWqkQGTUtgQVjCd896GfdN1fXNQXM1PYtd",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-31T00:00:00Z",
+                "proofValue": "z5KEEJimb4dFuPT1ECJMciqMeHgySrBswXZ2uEtegHGLdELzYWnLspJFXMfX6Yu8RMNLXyf4BQ3F1yuEwgFvp6Y99"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "name": "more-proofs-for-one-event-than-a-record-carries",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-10-30T10:00:00Z",
+        "expires": "2026-10-31T10:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=1-bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq#z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:00:00Z",
+            "proofValue": "z4FLN2prJLehkrLxaAK2pSi4gnvCeiWUdUAKrsRZ38FQtUsRumXhh77fHnQMHjRPYcfXQ4ss5ogoR6K8pjwpnXALG"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "branches": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "n": 0
+              },
+              {
+                "n": 1
+              },
+              {
+                "n": 2
+              },
+              {
+                "n": 3
+              },
+              {
+                "n": 4
+              },
+              {
+                "n": 5
+              },
+              {
+                "n": 6
+              },
+              {
+                "n": 7
+              },
+              {
+                "n": 8
+              },
+              {
+                "n": 9
+              },
+              {
+                "n": 10
+              },
+              {
+                "n": 11
+              },
+              {
+                "n": 12
+              },
+              {
+                "n": 13
+              },
+              {
+                "n": 14
+              },
+              {
+                "n": 15
+              },
+              {
+                "n": 16
+              },
+              {
+                "n": 17
+              },
+              {
+                "n": 18
+              },
+              {
+                "n": 19
+              },
+              {
+                "n": 20
+              },
+              {
+                "n": 21
+              },
+              {
+                "n": 22
+              },
+              {
+                "n": 23
+              },
+              {
+                "n": 24
+              },
+              {
+                "n": 25
+              },
+              {
+                "n": 26
+              },
+              {
+                "n": 27
+              },
+              {
+                "n": 28
+              },
+              {
+                "n": 29
+              },
+              {
+                "n": 30
+              },
+              {
+                "n": 31
+              },
+              {
+                "n": 32
+              },
+              {
+                "n": 33
+              },
+              {
+                "n": 34
+              },
+              {
+                "n": 35
+              },
+              {
+                "n": 36
+              },
+              {
+                "n": 37
+              },
+              {
+                "n": 38
+              },
+              {
+                "n": 39
+              },
+              {
+                "n": 40
+              },
+              {
+                "n": 41
+              },
+              {
+                "n": 42
+              },
+              {
+                "n": 43
+              },
+              {
+                "n": 44
+              },
+              {
+                "n": 45
+              },
+              {
+                "n": 46
+              },
+              {
+                "n": 47
+              },
+              {
+                "n": 48
+              },
+              {
+                "n": 49
+              },
+              {
+                "n": 50
+              },
+              {
+                "n": 51
+              },
+              {
+                "n": 52
+              },
+              {
+                "n": 53
+              },
+              {
+                "n": 54
+              },
+              {
+                "n": 55
+              },
+              {
+                "n": 56
+              },
+              {
+                "n": 57
+              },
+              {
+                "n": 58
+              },
+              {
+                "n": 59
+              },
+              {
+                "n": 60
+              },
+              {
+                "n": 61
+              },
+              {
+                "n": 62
+              },
+              {
+                "n": 63
+              },
+              {
+                "n": 64
+              },
+              {
+                "n": 65
+              },
+              {
+                "n": 66
+              },
+              {
+                "n": 67
+              },
+              {
+                "n": 68
+              },
+              {
+                "n": 69
+              },
+              {
+                "n": 70
+              },
+              {
+                "n": 71
+              },
+              {
+                "n": 72
+              },
+              {
+                "n": 73
+              },
+              {
+                "n": 74
+              },
+              {
+                "n": 75
+              },
+              {
+                "n": 76
+              },
+              {
+                "n": 77
+              },
+              {
+                "n": 78
+              },
+              {
+                "n": 79
+              },
+              {
+                "n": 80
+              },
+              {
+                "n": 81
+              },
+              {
+                "n": 82
+              },
+              {
+                "n": 83
+              },
+              {
+                "n": 84
+              },
+              {
+                "n": 85
+              },
+              {
+                "n": 86
+              },
+              {
+                "n": 87
+              },
+              {
+                "n": 88
+              },
+              {
+                "n": 89
+              },
+              {
+                "n": 90
+              },
+              {
+                "n": 91
+              },
+              {
+                "n": 92
+              },
+              {
+                "n": 93
+              },
+              {
+                "n": 94
+              },
+              {
+                "n": 95
+              },
+              {
+                "n": 96
+              },
+              {
+                "n": 97
+              },
+              {
+                "n": 98
+              },
+              {
+                "n": 99
+              },
+              {
+                "n": 100
+              },
+              {
+                "n": 101
+              },
+              {
+                "n": 102
+              },
+              {
+                "n": 103
+              },
+              {
+                "n": 104
+              },
+              {
+                "n": 105
+              },
+              {
+                "n": 106
+              },
+              {
+                "n": 107
+              },
+              {
+                "n": 108
+              },
+              {
+                "n": 109
+              },
+              {
+                "n": 110
+              },
+              {
+                "n": 111
+              },
+              {
+                "n": 112
+              },
+              {
+                "n": 113
+              },
+              {
+                "n": 114
+              },
+              {
+                "n": 115
+              },
+              {
+                "n": 116
+              },
+              {
+                "n": 117
+              },
+              {
+                "n": 118
+              },
+              {
+                "n": 119
+              },
+              {
+                "n": 120
+              },
+              {
+                "n": 121
+              },
+              {
+                "n": 122
+              },
+              {
+                "n": 123
+              },
+              {
+                "n": 124
+              },
+              {
+                "n": 125
+              },
+              {
+                "n": 126
+              },
+              {
+                "n": 127
+              },
+              {
+                "n": 128
+              },
+              {
+                "n": 129
+              },
+              {
+                "n": 130
+              },
+              {
+                "n": 131
+              },
+              {
+                "n": 132
+              },
+              {
+                "n": 133
+              },
+              {
+                "n": 134
+              },
+              {
+                "n": 135
+              },
+              {
+                "n": 136
+              },
+              {
+                "n": 137
+              },
+              {
+                "n": 138
+              },
+              {
+                "n": 139
+              },
+              {
+                "n": 140
+              },
+              {
+                "n": 141
+              },
+              {
+                "n": 142
+              },
+              {
+                "n": 143
+              },
+              {
+                "n": 144
+              },
+              {
+                "n": 145
+              },
+              {
+                "n": 146
+              },
+              {
+                "n": 147
+              },
+              {
+                "n": 148
+              },
+              {
+                "n": 149
+              },
+              {
+                "n": 150
+              },
+              {
+                "n": 151
+              },
+              {
+                "n": 152
+              },
+              {
+                "n": 153
+              },
+              {
+                "n": 154
+              },
+              {
+                "n": 155
+              },
+              {
+                "n": 156
+              },
+              {
+                "n": 157
+              },
+              {
+                "n": 158
+              },
+              {
+                "n": 159
+              },
+              {
+                "n": 160
+              },
+              {
+                "n": 161
+              },
+              {
+                "n": 162
+              },
+              {
+                "n": 163
+              },
+              {
+                "n": 164
+              },
+              {
+                "n": 165
+              },
+              {
+                "n": 166
+              },
+              {
+                "n": 167
+              },
+              {
+                "n": 168
+              },
+              {
+                "n": 169
+              },
+              {
+                "n": 170
+              },
+              {
+                "n": 171
+              },
+              {
+                "n": 172
+              },
+              {
+                "n": 173
+              },
+              {
+                "n": 174
+              },
+              {
+                "n": 175
+              },
+              {
+                "n": 176
+              },
+              {
+                "n": 177
+              },
+              {
+                "n": 178
+              },
+              {
+                "n": 179
+              },
+              {
+                "n": 180
+              },
+              {
+                "n": 181
+              },
+              {
+                "n": 182
+              },
+              {
+                "n": 183
+              },
+              {
+                "n": 184
+              },
+              {
+                "n": 185
+              },
+              {
+                "n": 186
+              },
+              {
+                "n": 187
+              },
+              {
+                "n": 188
+              },
+              {
+                "n": 189
+              },
+              {
+                "n": 190
+              },
+              {
+                "n": 191
+              },
+              {
+                "n": 192
+              },
+              {
+                "n": 193
+              },
+              {
+                "n": 194
+              },
+              {
+                "n": 195
+              },
+              {
+                "n": 196
+              },
+              {
+                "n": 197
+              },
+              {
+                "n": 198
+              },
+              {
+                "n": 199
+              },
+              {
+                "n": 200
+              },
+              {
+                "n": 201
+              },
+              {
+                "n": 202
+              },
+              {
+                "n": 203
+              },
+              {
+                "n": 204
+              },
+              {
+                "n": 205
+              },
+              {
+                "n": 206
+              },
+              {
+                "n": 207
+              },
+              {
+                "n": 208
+              },
+              {
+                "n": 209
+              },
+              {
+                "n": 210
+              },
+              {
+                "n": 211
+              },
+              {
+                "n": 212
+              },
+              {
+                "n": 213
+              },
+              {
+                "n": 214
+              },
+              {
+                "n": 215
+              },
+              {
+                "n": 216
+              },
+              {
+                "n": 217
+              },
+              {
+                "n": 218
+              },
+              {
+                "n": 219
+              },
+              {
+                "n": 220
+              },
+              {
+                "n": 221
+              },
+              {
+                "n": 222
+              },
+              {
+                "n": 223
+              },
+              {
+                "n": 224
+              },
+              {
+                "n": 225
+              },
+              {
+                "n": 226
+              },
+              {
+                "n": 227
+              },
+              {
+                "n": 228
+              },
+              {
+                "n": 229
+              },
+              {
+                "n": 230
+              },
+              {
+                "n": 231
+              },
+              {
+                "n": 232
+              },
+              {
+                "n": 233
+              },
+              {
+                "n": 234
+              },
+              {
+                "n": 235
+              },
+              {
+                "n": 236
+              },
+              {
+                "n": 237
+              },
+              {
+                "n": 238
+              },
+              {
+                "n": 239
+              },
+              {
+                "n": 240
+              },
+              {
+                "n": 241
+              },
+              {
+                "n": 242
+              },
+              {
+                "n": 243
+              },
+              {
+                "n": 244
+              },
+              {
+                "n": 245
+              },
+              {
+                "n": 246
+              },
+              {
+                "n": 247
+              },
+              {
+                "n": 248
+              },
+              {
+                "n": 249
+              },
+              {
+                "n": 250
+              },
+              {
+                "n": 251
+              },
+              {
+                "n": 252
+              },
+              {
+                "n": 253
+              },
+              {
+                "n": 254
+              }
+            ]
+          }
+        ]
+      ]
     },
     {
       "name": "copy-with-an-unreadable-event-after-the-log",

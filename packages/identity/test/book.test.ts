@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { contentId, proofDigest } from "@oip/core";
+import { canonicalBytes, contentId, proofDigest } from "@oip/core";
 import type { Proof } from "@oip/schema";
 import { clause, copy, type JsonObject } from "@oip/testkit";
 import fc from "fast-check";
@@ -1154,7 +1154,24 @@ describe(`${clause("L1 7.1")} a copy of an event that is not well formed`, () =>
       "an entry that makes it larger than a record may be, beside its proof",
       (e) => withProof(e, [...proofsOn(e), { ...proofsOn(e)[0], pad: "x".repeat(2 ** 20) }]),
     ],
+    // An entry that is an object, and holds what core Section 1 does not allow.
+    ["an entry with a number out of range", (e) => withProof(e, [...proofsOn(e), { n: 2 ** 60 }])],
+    [
+      "an entry with a number that is no integer",
+      (e) => withProof(e, [...proofsOn(e), { n: 1.5 }]),
+    ],
+    ["an entry with a lone surrogate", (e) => withProof(e, [...proofsOn(e), { text: "\ud800" }])],
+    ["an entry that nests too deep", (e) => withProof(e, [...proofsOn(e), deep(63)])],
+    ["an entry that is not plain data", (e) => withProof(e, [...proofsOn(e), new Date(0)])],
+    [
+      "a `proof` that cannot be read",
+      (e) => Object.defineProperty(bare(e), "proof", { get: () => [], enumerable: true }),
+    ],
   ];
+  /** An object nested as deep as asked: in a `proof`, it stands at depth 3 of its event. */
+  function deep(depth: number): unknown {
+    return depth === 1 ? {} : { in: deep(depth - 1) };
+  }
   function proofsOn(event: JsonObject): JsonObject[] {
     return event["proof"] as JsonObject[];
   }
@@ -1163,7 +1180,6 @@ describe(`${clause("L1 7.1")} a copy of an event that is not well formed`, () =>
     "takes no proof away from the event, and adds none: %s",
     (_, spoil) => {
       const copy = [genesis, update, spoil(removal)];
-      expect(contentId(copy[2] as object)).toBe(contentId(removal));
       // Anyone can make such a copy of any event. Held beside the log, in either order, it changes nothing.
       for (const copies of [
         [ada.events, copy],
@@ -1208,6 +1224,88 @@ describe(`${clause("L1 7.1")} a copy of an event that is not well formed`, () =>
     },
     60_000,
   );
+
+  describe("a value in a copy that is no record", () => {
+    // The removal stands in its place with a proof that does not verify. Its own proof
+    // is in a second copy, after another value. Is that copy held past the value?
+    const unsigned = [genesis, update, withProof(removal, [{ ...good, proofValue: "z1111" }])];
+    const after = (value: unknown) => {
+      const book = new LogBook(evidence());
+      book.hold(unsigned, LATER);
+      expect(book.hold([genesis, value, removal], LATER).ok).toBe(true);
+      return heads(book, ada.address).heads.length;
+    };
+    const nested = (depth: number): unknown => (depth === 1 ? {} : { in: nested(depth - 1) });
+    // `{"pad":"…"}` is ten bytes and the string.
+    const sized = (bytes: number) => ({ pad: "x".repeat(bytes - 10) });
+
+    it.each<[string, unknown]>([
+      ["an empty object", {}],
+      ["an object that is no event", { junk: true }],
+      ["an object whose `proof` is a number", { junk: true, proof: 5 }],
+      [
+        "an object whose `proof` is not plain data",
+        { junk: true, proof: [{ n: 1.5 }, new Date(0)] },
+      ],
+      [
+        "an object whose `proof` is larger than a record",
+        { junk: true, proof: "x".repeat(2 ** 20) },
+      ],
+      ["an object nested 64 deep", nested(64)],
+      ["an object of exactly 1 MiB", sized(1_048_576)],
+    ])(
+      "has a place if it is an object within core 1, and what follows it is held: %s",
+      (_, value) => {
+        expect(after(value)).toBe(3);
+      },
+    );
+
+    it.each<[string, unknown]>([
+      ["a number", 5],
+      ["null", null],
+      ["a string", "an event"],
+      ["a list", [removal]],
+      ["an object nested 65 deep", nested(65)],
+      ["an object of one byte more than 1 MiB", sized(1_048_577)],
+      ["an object with a number that is no integer", { n: 1.5 }],
+      ["an object with a lone surrogate", { text: "\ud800" }],
+      ["an object that is not plain data", { when: new Date(0) }],
+    ])("has no place otherwise, and nothing after it in its copy is held: %s", (_, value) => {
+      expect(after(value)).toBe(2);
+    });
+
+    it("ends its copy even where the verifier cannot read it", () => {
+      // After an object that is no event comes a value of a type this version does not
+      // define, too large to be a record; and after that the removal with its proof.
+      // Nothing judges what follows an object that is no event, so the log is not stopped.
+      // The value has no place all the same, and the removal after it is not held.
+      const unread = { oip: "1", type: "Merge", pad: "x".repeat(1_100_000) };
+      const book = new LogBook(evidence());
+      book.hold(unsigned, LATER);
+      expect(book.hold([genesis, { junk: true }, unread, removal], LATER).ok).toBe(true);
+      expect(heads(book, ada.address).heads).toHaveLength(2);
+    });
+
+    it("is read past the length of the longest log the book reads", () => {
+      // The removal's proof comes after more values than the book reads of a log. No
+      // event is judged that far along, but a proof is a proof of its event wherever
+      // the event stands.
+      const junk = Array.from({ length: 1_010 }, (_, n) => ({ n }));
+      const book = new LogBook(evidence(), { maxEvents: 1000 });
+      book.hold(unsigned, LATER);
+      expect(book.hold([genesis, ...junk, removal], LATER).ok).toBe(true);
+      expect(heads(book, ada.address).heads).toHaveLength(3);
+    });
+
+    it(`${clause("L1 4.9")} is still an event the verifier cannot judge, if it cannot read it`, () => {
+      // Too large to be a record of this version, and of a type this version does not define.
+      const book = new LogBook(evidence());
+      book.hold(ada.events, LATER);
+      const unread = { oip: "1", type: "Merge", pad: "x".repeat(1_100_000) };
+      expect(book.hold([genesis, update, unread, removal], LATER).ok).toBe(true);
+      expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ clause: "L1 3.9" }] });
+    });
+  });
 
   it("is the genesis as much as any other event", () => {
     const copy = [withProof(genesis, [...proofsOn(genesis), "junk"]), update, removal];
@@ -1256,6 +1354,107 @@ describe(`${clause("L1 7.1")} a copy of an event that is not well formed`, () =>
       }
       expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ clause: refused }] });
     }
+  });
+
+  it("refuses a copy that shows one event many times with more proofs than a record carries, and keeps no verdict from before it", () => {
+    // The book holds the log as it was, and has answered for it.
+    const book = new LogBook(evidence());
+    book.hold([genesis, update], LATER);
+    expect(heads(book, ada.address).heads).toHaveLength(2);
+    expect(removedKeyCounts(book)).toBe(true);
+    // A copy with the removal, and then one object three times, each time within 1 MiB
+    // with a proof of its own. The three proofs together are not.
+    const thrice = Array.from({ length: 3 }, (_, n) => ({
+      junk: true,
+      proof: [{ n, pad: "x".repeat(600_000) }],
+    }));
+    expect(book.hold([genesis, update, removal, ...thrice], LATER)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "implementation limit" }],
+    });
+    // The copy showed the removal before it was refused. What was answered before it
+    // is answered no longer.
+    expect(book.log(ada.address)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "implementation limit" }],
+    });
+    expect(removedKeyCounts(book)).toBe(false);
+    book.drop(ada.address);
+    book.hold(ada.events, LATER);
+    expect(heads(book, ada.address).heads).toHaveLength(3);
+  });
+
+  it("counts the proofs of one copy with 256 of them, and of one that is exactly 1 MiB", () => {
+    const alone = (proofs: unknown[]) => {
+      const book = new LogBook(evidence());
+      book.hold([genesis, update, withProof(removal, proofs)], LATER);
+      return heads(book, ada.address).heads.length;
+    };
+    // core 5.1: 256 proofs, the removal's own among them. With one more, none counts.
+    const numbered = (count: number) => Array.from({ length: count }, (_, n) => ({ n }));
+    expect(alone([...numbered(255), good])).toBe(3);
+    expect(alone([...numbered(256), good])).toBe(2);
+    // core 1.6: 1 MiB with the event. With one byte more, none counts.
+    const padded = (length: number) => [good, { pad: "x".repeat(length) }];
+    const exactly = 1_048_576 - canonicalBytes(withProof(removal, padded(0))).length;
+    expect(alone(padded(exactly))).toBe(3);
+    expect(alone(padded(exactly + 1))).toBe(2);
+  });
+
+  it("refuses the proofs of two copies that are more than 1 MiB together, whatever was held first", () => {
+    // One proof is held for the removal, and it verifies nothing. The removal's own comes
+    // in a copy of exactly 1 MiB.
+    const stray = { ...good, proofValue: "z1111" };
+    const exactly = 1_048_576 - canonicalBytes(withProof(removal, [good, { pad: "" }])).length;
+    const whole = [genesis, update, withProof(removal, [good, { pad: "x".repeat(exactly) }])];
+    const book = new LogBook(evidence());
+    expect(book.hold([genesis, update, withProof(removal, [stray])], LATER).ok).toBe(true);
+    expect(heads(book, ada.address).heads).toHaveLength(2);
+    expect(book.hold(whole, LATER)).toMatchObject({ ok: false });
+    expect(book.log(ada.address)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "implementation limit" }],
+    });
+    expect(removedKeyCounts(book)).toBe(false);
+  });
+
+  it("holds the proofs of two copies that are exactly 1 MiB with the event, and not one byte more", () => {
+    // Each copy has the removal's own proof and one more, which verifies nothing.
+    const padded = (n: number, length: number) => ({ n, pad: "x".repeat(length) });
+    const together = (last: number) =>
+      canonicalBytes(withProof(removal, [good, padded(0, 500_000), padded(1, last)])).length;
+    // One character of padding is one byte of the canonical form.
+    const exactly = 1_048_576 - together(0);
+    expect(together(exactly)).toBe(1_048_576);
+    for (const [extra, fits] of [
+      [0, true],
+      [1, false],
+    ] as const) {
+      const book = new LogBook(evidence());
+      const first = [genesis, update, withProof(removal, [good, padded(0, 500_000)])];
+      const second = [genesis, update, withProof(removal, [padded(1, exactly + extra), good])];
+      expect(book.hold(first, LATER).ok).toBe(true);
+      expect(book.hold(second, LATER).ok).toBe(fits);
+      expect(book.log(ada.address).ok).toBe(fits);
+      if (fits) expect(heads(book, ada.address).heads).toHaveLength(3);
+    }
+  });
+
+  it("holds any number of proofs that are many values, counted and never written out", () => {
+    // Twelve copies of the removal, each with a proof of a hundred thousand values beside
+    // its own: 2.4 MB of proofs in all, shown one copy at a time.
+    const heavy = (n: number) => ({ n, pad: Array.from({ length: 100_000 }, () => 0) });
+    const book = new LogBook(evidence());
+    book.hold(ada.events, LATER);
+    const answers = Array.from({ length: 12 }, (_, n) =>
+      book.hold([genesis, update, withProof(removal, [good, heavy(n)])], LATER),
+    );
+    // Five of them fit beside the proof in 1 MiB, and the sixth does not.
+    expect(answers.map((answer) => answer.ok)).toStrictEqual([
+      ...Array.from({ length: 5 }, () => true),
+      ...Array.from({ length: 7 }, () => false),
+    ]);
+    expect(book.log(ada.address)).toMatchObject({ ok: false });
   });
 
   it("answers for a mind no longer, once it was shown more proofs for one event than one record carries", () => {
@@ -1569,6 +1768,18 @@ describe(`${clause("L1 4.9")} what a book has been shown, it keeps`, () => {
     expect(heads(book, ada.address).heads).toHaveLength(3);
   });
 
+  it.skipIf(process.env["OIP_MUTATION"] !== undefined)(
+    "answers, and does not throw, for two hundred thousand copies that each end in other junk",
+    { timeout: 300_000 },
+    () => {
+      // Each is an object, so each has a place of its own after the log.
+      const ada = new KeyMind("ada").update(10);
+      const book = new LogBook(witness([ada.events]));
+      for (let n = 0; n < 200_000; n++) book.hold([...ada.events, { n }], LATER);
+      expect(heads(book, ada.address).heads).toHaveLength(2);
+    },
+  );
+
   it(
     "answers, and does not throw, for a copy with thousands of values after the log",
     { timeout: 120_000 },
@@ -1657,7 +1868,16 @@ describe(`${clause("L1 4.9", "L1 7.1")} the copies a book was shown, as a set`, 
     .update(10)
     .update(20, { homes: ["https://rival.example"] })
     .update(31);
-  const treatment = fc.constantFrom("kept", "kept", "kept", "lost", "spoiled", "padded", "bare");
+  const treatment = fc.constantFrom(
+    "kept",
+    "kept",
+    "kept",
+    "lost",
+    "spoiled",
+    "alien",
+    "padded",
+    "bare",
+  );
   const copyOf = fc.record({
     branch: fc.constantFrom("own", "own", "rival"),
     length: fc.integer({ min: 1, max: 5 }),
@@ -1671,6 +1891,8 @@ describe(`${clause("L1 4.9", "L1 7.1")} the copies a book was shown, as a set`, 
     const [first] = event.proof;
     if (how === "lost") return { ...event, proof: [{ ...first, proofValue: "z1111" }] };
     if (how === "spoiled") return { ...event, proof: [...event.proof, "no proof"] };
+    // An entry that is an object, and holds what is no plain data.
+    if (how === "alien") return { ...event, proof: [...event.proof, { n: 2 ** 60 }] };
     if (how === "padded") return { ...event, proof: [{ ...first, pad: n }, ...event.proof] };
     if (how === "bare") {
       return Object.fromEntries(Object.entries(event).filter(([name]) => name !== "proof"));

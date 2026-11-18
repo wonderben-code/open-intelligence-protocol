@@ -9,6 +9,12 @@ export type JsonObject = Readonly<Record<string, unknown>>;
 /** An identity log: its events in order, the genesis first. */
 export type Log = readonly JsonObject[];
 
+/**
+ * A copy of a log as a verifier may come to hold it (Layer 1, 7.1): the
+ * values a source served, which need not all be events.
+ */
+export type LogCopy = readonly unknown[];
+
 /** Evidence of time (core 9.4): a proof digest or an event's content ID, to the earliest time shown. */
 export type Seen = Readonly<Record<string, string>>;
 
@@ -19,8 +25,8 @@ export interface CaseBase {
   readonly reason?: string;
   /** Logs that replace the baseline logs of the same minds. */
   readonly extraLogs?: readonly Log[];
-  /** Further, conflicting branches of a mind's log. */
-  readonly branches?: readonly Log[];
+  /** Further copies of a mind's log, conflicting or not. */
+  readonly branches?: readonly LogCopy[];
   /** Records the verifier holds besides the baseline records. */
   readonly extraRecords?: readonly JsonObject[];
   /**
@@ -180,6 +186,8 @@ const TOP_LEVEL_MEMBERS = [
 
 const isLog = (value: unknown) => Array.isArray(value) && value.every(isObject);
 const isLogs = (value: unknown) => Array.isArray(value) && value.every(isLog);
+const isCopies = (value: unknown) =>
+  Array.isArray(value) && value.every((copy) => Array.isArray(copy));
 
 function checkCase(section: Section, value: unknown, index: number): void {
   const where = `${section}[${index}]`;
@@ -202,7 +210,7 @@ function checkCase(section: Section, value: unknown, index: number): void {
   }
   const shapes: [member: string, ok: (found: unknown) => boolean, what: string][] = [
     ["extraLogs", isLogs, "an array of logs"],
-    ["branches", isLogs, "an array of logs"],
+    ["branches", isCopies, "an array of copies of a log, each an array"],
     ["extraRecords", isLog, "an array of records"],
     ["log", isLog, "a log"],
     ["records", isLog, "an array of records"],

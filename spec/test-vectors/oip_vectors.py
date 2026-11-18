@@ -1091,15 +1091,29 @@ def log_intake(events, verifier) -> dict:
                                            log.states[-1])}
 
 
+def _content(ev) -> dict:
+    """What a content ID covers (core 3.1): the value without its `proof`."""
+    return {k: v for k, v in ev.items() if k != "proof"}
+
+
+def _has_place(ev) -> bool:
+    """Layer 1, 7.1: whether a value in a copy of a log has a place in it:
+    apart from its `proof`, it is a JSON object within core Section 1, of at
+    most 1 MiB (1.1, 1.2, 1.6, 1.9). Nothing follows a value that has
+    none."""
+    return isinstance(ev, dict) and values_ok(_content(ev)) and \
+        len(jcs(_content(ev))) <= MAX_RECORD_BYTES
+
+
 def _proofs_count(ev) -> bool:
     """Layer 1, 7.1: whether a copy of an event is one whose proofs count:
-    its `proof` is what core 5.1 says, and the event is within core 1.6
-    with it."""
+    with its `proof` it is within core Section 1, and its `proof` is what
+    core 5.1 says."""
     proofs = ev.get("proof")
     return isinstance(proofs, list) and \
         1 <= len(proofs) <= MAX_PROOFS and \
         all(isinstance(p, dict) for p in proofs) and \
-        len(jcs(ev)) <= MAX_RECORD_BYTES
+        values_ok(ev) and len(jcs(ev)) <= MAX_RECORD_BYTES
 
 
 def _with_every_proof(copies) -> list:
@@ -1112,7 +1126,7 @@ def _with_every_proof(copies) -> list:
     A copy of an event that is not well formed adds no proof and takes
     none away: the content ID does not cover `proof`, so anyone can make
     such a copy of any event. It keeps its place, and what follows it in
-    its copy is held.
+    its copy is held. A value that has no place ends its copy.
 
     Together the proofs may be more than one record carries (core 1.6,
     5.1). A verifier cannot tell which to leave out, so it then answers
@@ -1120,10 +1134,9 @@ def _with_every_proof(copies) -> list:
     held = {}
 
     def events_of(copy):
-        """The events of a copy that have a content ID: nothing follows a
-        value that has none."""
+        """The values of a copy that have a place, each with its position."""
         for i, ev in enumerate(copy if isinstance(copy, list) else []):
-            if not isinstance(ev, dict) or not values_ok(ev):
+            if not _has_place(ev):
                 return
             yield i, ev
 
@@ -1138,7 +1151,7 @@ def _with_every_proof(copies) -> list:
         merged = list(copy) if isinstance(copy, list) else copy
         for i, ev in events_of(copy):
             proofs = list(held.get(content_id(ev), {}).values())
-            merged[i] = {**ev, "proof": proofs}
+            merged[i] = {**_content(ev), "proof": proofs}
             if len(proofs) > MAX_PROOFS or \
                proofs and len(jcs(merged[i])) > MAX_RECORD_BYTES:
                 raise ValueError("more proofs were shown for one event than "
@@ -4287,6 +4300,35 @@ def build():
             branches=[[a_gen, spoiled(a_upd), a_rm]],
             seen=seen_at(late_intent, "2026-11-03T08:00:00Z"))
 
+    # Layer 1, 7.1: which values in a copy have a place, and where the
+    # proofs of an event count.
+    bad_sig("value-that-is-no-event-ends-its-copy",
+            "On 31 October all three members signed the event that makes "
+            "the collective two members with a threshold of two. This "
+            "verifier holds that event in its place with one of the three "
+            "proofs. It holds the other two in a second copy of the log, "
+            "after the number 5. A number is no JSON object, so it has no "
+            "place in a log, and nothing after it in that copy is held "
+            "(Layer 1, 7.1). The event has one proof, too few members have "
+            "signed it, and it is no event: the collective is still three, "
+            "and a record that two of them signed is not signed by it.",
+            two_of_all, collective3,
+            extra_logs=[[coll3, with_proofs(c3_shrink, [0])]],
+            branches=[[coll3, 5, with_proofs(c3_shrink, [1, 2])]])
+    bad_sig("more-proofs-for-one-event-than-a-record-carries",
+            "The verifier holds Amina's log, and a second copy of it in "
+            "which her latest event carries 256 entries in `proof`, each "
+            "an object that is no proof. That copy is well formed: an "
+            "entry that is an object and no valid proof does not count "
+            "and does not make a record malformed (core 5.1). With the "
+            "proof of the first copy, the verifier holds 257 for one "
+            "event, more than one record carries. It cannot tell which to "
+            "leave out, so it treats the log as not verified (Layer 1, "
+            "7.1), and a record pinned to that event does not count.",
+            intent, amina,
+            branches=[[a_gen, {**a_upd, "proof": [{"n": n}
+                                                  for n in range(256)]}]])
+
     # Layer 1, 4.9: an event that cannot be read is not an invalid one.
     unreadable = {"oip": OIP_VERSION, "type": "Merge"}
     bad_sig("copy-with-an-unreadable-event-after-the-log",
@@ -4323,6 +4365,32 @@ def build():
             early, amina,
             branches=[[a_gen, a_upd_alt], [a_gen, a_upd_third, unreadable]],
             seen=tie_and_later)
+
+    def nest(depth):
+        """A list nested `depth` deep."""
+        value = []
+        for _ in range(depth - 1):
+            value = [value]
+        return value
+
+    # The event is at depth 1, its `proof` at 2 and an entry at 3: a list
+    # of 62 levels inside an entry reaches 65.
+    too_deep = {**a_upd, "proof": [*a_upd["proof"], {"deep": nest(62)}]}
+    bad_sig("events-after-a-copy-whose-proof-nests-too-deep",
+            "The verifier holds Amina's log as it was on 30 Oct. It also "
+            "holds a later copy with the event of 2 Nov that removes her "
+            "phone key, in which the `proof` of the event before it has "
+            "an entry that makes the event nest 65 deep. With that entry "
+            "the event is no record (core 1.9), so the copy of it adds no "
+            "proof. Without its `proof` it is the event the first copy "
+            "shows: a content ID does not cover `proof`, and what is "
+            "wrong inside `proof` does not cost an event its place (Layer "
+            "1, 7.1). So what follows it is held and judged: the key is "
+            "removed, and a record signed with it and first seen on 3 Nov "
+            "does not count.",
+            late_intent, amina, extra_logs=[[a_gen, a_upd]],
+            branches=[[a_gen, too_deep, a_rm]],
+            seen=seen_at(late_intent, "2026-11-03T08:00:00Z"))
 
     V["valid"].append({
         "name": "home-that-is-no-host",
@@ -4480,6 +4548,20 @@ def build():
             seen=seen_at(late_intent, "2026-11-01T08:00:05Z"))
     control("events-after-a-copy-that-is-not-well-formed",
             seen=seen_at(late_intent, "2026-11-01T08:00:05Z"))
+    control("events-after-a-copy-whose-proof-nests-too-deep",
+            seen=seen_at(late_intent, "2026-11-01T08:00:05Z"))
+    # An empty object in the number's place is no event either, but it has
+    # a place, so what follows it in that copy is held. The proofs there
+    # are proofs of the event wherever it stands (Layer 1, 7.1): with them
+    # it has all three, the collective became the two, and the record is
+    # signed.
+    control("value-that-is-no-event-ends-its-copy",
+            branches=[[coll3, {}, with_proofs(c3_shrink, [1, 2])]])
+    # With 255 such entries, the verifier holds 256 proofs for the event,
+    # which one record carries. One of them verifies, and the record counts.
+    control("more-proofs-for-one-event-than-a-record-carries",
+            branches=[[a_gen, {**a_upd, "proof": [{"n": n}
+                                                  for n in range(255)]}]])
     # The same copy with an event after the log that is invalid, and so no
     # event: the record counts.
     control("copy-with-an-unreadable-event-after-the-log",

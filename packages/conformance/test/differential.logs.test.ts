@@ -756,6 +756,7 @@ const branchCase: fc.Arbitrary<VectorCase> = fc
     spoiling: fc.constantFrom(
       "an entry that is no object",
       "an entry that is no object",
+      "an entry that is not plain data",
       "no entry",
       "no list",
     ),
@@ -805,9 +806,11 @@ const branchCase: fc.Arbitrary<VectorCase> = fc
         proof:
           plan.spoiling === "an entry that is no object"
             ? [...event.proof, "no proof"]
-            : plan.spoiling === "no entry"
-              ? []
-              : (event.proof[0] ?? null),
+            : plan.spoiling === "an entry that is not plain data"
+              ? [...event.proof, { n: 1.5 }]
+              : plan.spoiling === "no entry"
+                ? []
+                : (event.proof[0] ?? null),
       });
       const spoiledAt = (index: number) =>
         copied.map((event, i) =>
@@ -889,6 +892,11 @@ function copiesByHand(): { readonly counts: boolean; readonly vectorCase: Vector
   const MERGE = { oip: "1", type: "Merge" };
   const junkWithProofs = { oip: "1", type: "Update", junk: true, proof: [] };
 
+  /** An object nested as deep as asked. As an entry of `proof`, it stands at depth 3 of its event. */
+  const nested = (depth: number): unknown => (depth === 1 ? {} : { in: nested(depth - 1) });
+  // `{"pad":"…"}` is ten bytes and the string.
+  const sized = (bytes: number) => ({ pad: "x".repeat(bytes - 10) });
+
   const own: [string, boolean, Copies, (Copies | undefined)?, object?][] = [
     ["the log alone", false, [ada.events]],
     // 7.1: a copy of an event that is not well formed adds no proof and takes none away.
@@ -927,12 +935,32 @@ function copiesByHand(): { readonly counts: boolean; readonly vectorCase: Vector
       [[g, u1]],
       [[g, withProof(u1, [...u1.proof, "junk"]), rm]],
     ],
+    ...(
+      [
+        ["a number out of range", { n: 2 ** 60 }],
+        ["a number that is no integer", { n: 1.5 }],
+        ["a lone surrogate", { text: "\ud800" }],
+        ["65 levels of nesting", nested(63)],
+        ["64 levels of nesting", nested(62)],
+      ] as const
+    ).map(([what, entry]): [string, boolean, Copies, Copies] => [
+      `the log cut short, and a later copy whose second event has a proof entry with ${what}`,
+      false,
+      [[g, u1]],
+      [[g, withProof(u1, [...u1.proof, entry]), rm]],
+    ]),
     [
       "a copy whose genesis has no proofs, alone",
       false,
       [[withProof(g, []), u1, rm]],
       undefined,
       early,
+    ],
+    [
+      "a copy whose genesis has a proof entry that is not plain data, and the genesis",
+      false,
+      [[withProof(g, [...g.proof, { n: 1.5 }]), u1, rm]],
+      [[g]],
     ],
     [
       "a copy whose genesis has no proofs, and the genesis",
@@ -1143,6 +1171,77 @@ function copiesByHand(): { readonly counts: boolean; readonly vectorCase: Vector
       [
         [c0, c1, strangers],
         [c0, c1, c2(a, b)],
+      ],
+    ],
+    // 7.1: which values in a copy have a place. One half of the removal is in its place,
+    // and the other half comes after another value: is that copy held past the value?
+    ...(
+      [
+        ["an empty object", false, {}],
+        ["an object nested 64 deep", false, nested(64)],
+        ["an object of exactly 1 MiB", false, sized(1_048_576)],
+        ["the number 5", true, 5],
+        ["null", true, null],
+        ["a string", true, "an event"],
+        ["a list", true, [c1]],
+        ["an object nested 65 deep", true, nested(65)],
+        ["an object of one byte more than 1 MiB", true, sized(1_048_577)],
+        ["an object of 600,000 values", true, { pad: Array.from({ length: 600_000 }, () => 0) }],
+        ["an object with a number that is no integer", true, { n: 1.5 }],
+      ] as const
+    ).map(([what, counts, value]): [string, boolean, Copies] => [
+      `one half in its place, the other half after ${what}`,
+      counts,
+      [
+        [c0, c1, c2(a)],
+        [c0, value, c2(b)],
+      ],
+    ]),
+    [
+      "one half in its place, the other half after 10,001 objects that are no events",
+      false,
+      [
+        [c0, c1, c2(a)],
+        [c0, ...Array.from({ length: 10_001 }, (_, n) => ({ n })), c2(b)],
+      ],
+    ],
+    [
+      "one half in its place, the other half after an object and then an event nobody can read that is larger than a record",
+      true,
+      [
+        [c0, c1, c2(a)],
+        [c0, { junk: true }, { oip: "1", type: "Merge", pad: "x".repeat(1_100_000) }, c2(b)],
+      ],
+    ],
+    [
+      "a collective's event with a proof entry holding a number out of range, the removal after it, and the event whole in another copy",
+      false,
+      [
+        [c0, c1],
+        [c0, withProof(c1, [...c1.proof, { n: 2 ** 60 }]), c2(a, b)],
+      ],
+    ],
+    [
+      "a collective's log, and a copy with an event nobody can read that is larger than a record",
+      false,
+      [
+        [c0, c1, c2(a, b)],
+        [c0, c1, { oip: "1", type: "Merge", pad: "x".repeat(1_100_000) }],
+      ],
+    ],
+    [
+      "a collective's log, and a copy that shows one object three times with more proofs than a record carries",
+      false,
+      [
+        [c0, c1, c2(a, b)],
+        [
+          c0,
+          c1,
+          ...Array.from({ length: 3 }, (_, n) => ({
+            junk: true,
+            proof: [{ n, pad: "x".repeat(600_000) }],
+          })),
+        ],
       ],
     ],
     [
@@ -1611,7 +1710,7 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
           ).toBe(counts);
           await compare("sets of copies made by hand", vectorCase, 0, 0);
         }
-        expect(made.length).toBeGreaterThan(35);
+        expect(made.length).toBeGreaterThan(55);
       },
       TIMEOUT,
     );

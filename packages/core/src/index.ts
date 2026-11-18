@@ -51,7 +51,7 @@ export {
 } from "./errors.ts";
 export { isNamespace, understandsCritical, unsupportedCritical } from "./extensions.ts";
 export { sha256, sha256Digest } from "./hash.ts";
-export { canonicalBytes, canonicalize } from "./jcs.ts";
+export { canonicalBytes, canonicalize, canonicalSizeUpTo } from "./jcs.ts";
 export { MAX_TEXT_LENGTH, parseJson, parseJsonBytes, type ParseOptions } from "./json.ts";
 export {
   decodeEd25519Multikey,

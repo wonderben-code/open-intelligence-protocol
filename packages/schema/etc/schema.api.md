@@ -1491,6 +1491,9 @@ export function validateRecord(value: unknown, limits?: Limits): Validation<OipR
 export function validateRecordOfType<K extends RecordType>(type: K, value: unknown): Validation<RecordOf<K>>;
 
 // @public
+export function validateWithoutProof(value: unknown, limits?: Limits): Validation<JsonValue>;
+
+// @public
 export type Validation<T> = {
     readonly ok: true;
     readonly value: T;

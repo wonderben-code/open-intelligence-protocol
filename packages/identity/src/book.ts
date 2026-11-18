@@ -7,8 +7,8 @@
  */
 
 import {
-  canonicalBytes,
   canonicalize,
+  canonicalSizeUpTo,
   contentId,
   type Instant,
   type JsonObject,
@@ -16,7 +16,13 @@ import {
   MAX_RECORD_BYTES,
   mindAddress,
 } from "@oip/core";
-import { IMPLEMENTATION_LIMIT, type JsonValue, type Validation, validateJson } from "@oip/schema";
+import {
+  IMPLEMENTATION_LIMIT,
+  type JsonValue,
+  type Validation,
+  validateJson,
+  validateWithoutProof,
+} from "@oip/schema";
 
 import type { EvidenceView } from "./evidence.ts";
 import {
@@ -106,16 +112,33 @@ interface Tree {
   readonly genesis: Held;
   /**
    * Layer 1, 7.1: every proof held for each event, by the event's content
-   * ID and then by the proof's canonical form. The same event with another
-   * set of proofs is the same event, and each proof stands on its own (core
-   * 5.5), so the proofs of every well-formed copy are kept together.
+   * ID. The same event with another set of proofs is the same event, and
+   * each proof stands on its own (core 5.5), so the proofs of every
+   * well-formed copy are kept together.
    */
-  readonly proofs: Map<string, Map<string, JsonObject>>;
+  readonly proofs: Map<string, Pool>;
   /**
    * Set when a copy could not be taken in whole. The book has then been
    * shown something it does not hold, and no longer answers for the mind.
    */
   full: boolean;
+}
+
+/** The proofs held for one event. */
+interface Pool {
+  /** Each proof once, by its canonical form. */
+  readonly proofs: Map<string, JsonObject>;
+  /** core 1.6: the size of the event's canonical form with these proofs, kept as they are added. */
+  bytes: number;
+}
+
+/** One proof of a copy of an event. */
+interface TakenProof {
+  /** Its canonical form, which tells it from another. */
+  readonly key: string;
+  readonly proof: JsonObject;
+  /** The size of that form, in bytes. */
+  readonly bytes: number;
 }
 
 /** One event as given, sorted for the tree. */
@@ -129,13 +152,18 @@ interface Taken {
    * The proofs this copy of the event adds to it: all of them if the copy
    * is well formed, and none if it is not (Layer 1, 7.1).
    */
-  readonly proofs: readonly JsonObject[];
+  readonly proofs: readonly TakenProof[];
+  /** core 1.6: the size of the event's canonical form with no proof. */
+  readonly bare: number;
   /** Whether a copy goes on after it. Nothing follows a value that is no event. */
   readonly last: boolean;
 }
 
-/** What stands in a tree for a value that is not plain data and says nothing a verifier could wait for. */
-const NOT_DATA = Symbol("not plain data");
+/**
+ * What stands in a tree for a value that has no place in a log and says
+ * nothing a verifier could wait for: it is no record under core Section 1.
+ */
+const NO_EVENT = Symbol("no event");
 
 const refusal = (message: string, clause: string): Rejection =>
   deepFreeze({ ok: false, issues: [{ path: "", message, clause }] });
@@ -164,7 +192,7 @@ const NOT_A_LOG: Rejection = deepFreeze({
 function eventOf(tree: Tree, held: Held): unknown {
   return held.id === undefined
     ? held.body
-    : { ...(held.body as object), proof: [...(tree.proofs.get(held.id)?.values() ?? [])] };
+    : { ...(held.body as object), proof: [...(tree.proofs.get(held.id)?.proofs.values() ?? [])] };
 }
 
 /** A place in a tree for an event as it was taken. */
@@ -173,41 +201,52 @@ function placeFor(event: Taken): Held {
 }
 
 /**
- * core 1.6: whether an event is within the size of a record, with the proofs
- * it is given. It is measured as it stands, whatever it says its type is:
- * the value is not a validated record, and an event is no container.
+ * core 1.6: the size of a value's canonical form, if it is within the size
+ * of a record, and `undefined` if it is not. It is counted, not written
+ * out, and as the value stands, whatever it says its type is: the value is
+ * not a validated record, and an event is no container.
  */
-function fits(event: JsonObject): boolean {
-  return canonicalBytes(event).length <= MAX_RECORD_BYTES;
+function sizeOf(value: JsonValue): number | undefined {
+  const size = canonicalSizeUpTo(value, MAX_RECORD_BYTES);
+  return size > MAX_RECORD_BYTES ? undefined : size;
 }
 
 /**
- * Layer 1, 7.1: whether a copy of an event is one whose proofs count. Its
- * `proof` is what core 5.1 says, and the event is within core 1.6 with it.
+ * Layer 1, 7.1: the proofs that a copy of an event adds to it. All of them,
+ * if its `proof` is what core 5.1 says and the event is within core 1.6
+ * with it; and otherwise none.
  *
- * A copy that is not adds nothing. It cannot be allowed to: the content ID
- * does not cover `proof`, so anyone can make such a copy of any event, and
- * one entry that is no object would make the event with every proof held
- * for it a record that is not well formed.
+ * A copy that is not well formed cannot be allowed to add any: the content
+ * ID does not cover `proof`, so anyone can make such a copy of any event,
+ * and one entry that is no object would make the event, with every proof
+ * held for it, a record that is not well formed.
+ *
+ * @param bare - The size of the event's canonical form with no proof.
  */
-function proofsOf(event: JsonObject, proof: JsonValue | undefined): readonly JsonObject[] {
-  return Array.isArray(proof) &&
-    proof.length > 0 &&
-    proof.length <= MAX_PROOFS &&
-    proof.every(isJsonObject) &&
-    fits(event)
-    ? proof
-    : [];
+function proofsOf(proof: JsonValue | undefined, bare: number): readonly TakenProof[] {
+  if (!Array.isArray(proof) || proof.length === 0 || proof.length > MAX_PROOFS) return [];
+  if (!proof.every(isJsonObject)) return [];
+  const proofs = proof.map((entry) => ({
+    key: canonicalize(entry),
+    proof: entry,
+    // No further than one byte past what a record may be: a larger one counts for nothing.
+    bytes: canonicalSizeUpTo(entry, MAX_RECORD_BYTES),
+  }));
+  // The canonical form with these proofs is the form with none, the proofs, and a comma
+  // between each two.
+  const size = proofs.reduce((sum, entry) => sum + entry.bytes, bare + proofs.length - 1);
+  return size > MAX_RECORD_BYTES ? [] : proofs;
 }
 
 /** The latest time up to which any copy that ended at or after an event was known. */
 function latestBelow(held: Held): Instant | undefined {
   let latest: Instant | undefined;
-  // A copy may hold thousands of values after this one, each below the last: no recursion.
+  // A copy may hold thousands of values after this one, each below the last, and an
+  // event may have as many beside one another: no recursion, and no call with them all.
   const pending = [held];
   for (let at = pending.pop(); at !== undefined; at = pending.pop()) {
     if (at.asOf !== undefined && (latest === undefined || at.asOf > latest)) latest = at.asOf;
-    pending.push(...at.next.values());
+    for (const next of at.next.values()) pending.push(next);
   }
   return latest;
 }
@@ -287,41 +326,59 @@ export class LogBook implements IdentityView {
     }
     // Shown more proofs for an event than it holds, the book takes nothing more of this mind.
     if (tree.full) return TOO_MANY;
-    /** Whether the copy showed an event or a proof that was not held. */
-    let added = false;
+    /** Whether the copy has changed what is held. */
+    let changed = false;
+    /**
+     * Forgets the verdicts that rest on what is held, before it changes.
+     * Whatever happens after, no verdict outlives what it was given for.
+     */
+    const change = (): void => {
+      if (changed) return;
+      changed = true;
+      this.#changed(mind);
+    };
     let at = tree.genesis;
-    for (const event of copy) {
-      if (event !== first) {
+    for (const [position, event] of copy.entries()) {
+      // A place is kept for one event more than the book reads, so that a log too
+      // long is seen to be. Further on, no event is ever judged where it stands, but
+      // its proofs are proofs of the event wherever it stands (Layer 1, 7.1).
+      if (position > 0 && position <= this.#maxEvents) {
         let next = at.next.get(event.key);
         if (next === undefined) {
+          change();
           next = placeFor(event);
           at.next.set(event.key, next);
-          added = true;
         }
         at = next;
       }
       if (event.id === undefined || event.proofs.length === 0) continue;
-      let proofs = tree.proofs.get(event.id);
-      if (proofs === undefined) tree.proofs.set(event.id, (proofs = new Map<string, JsonObject>()));
-      const before = proofs.size;
-      for (const proof of event.proofs) {
-        const key = canonicalize(proof);
-        if (proofs.has(key)) continue;
-        if (proofs.size < MAX_PROOFS) proofs.set(key, proof);
-        else tree.full = true;
-        added = true;
+      let pool = tree.proofs.get(event.id);
+      if (pool === undefined) {
+        change();
+        pool = { proofs: new Map<string, JsonObject>(), bytes: event.bare };
+        tree.proofs.set(event.id, pool);
       }
-      // The proofs of several copies may be more together than one record
-      // carries (core 1.6). The book cannot tell which to leave out.
-      if (before > 0 && proofs.size > before && !fits(eventOf(tree, at) as JsonObject)) {
-        tree.full = true;
+      for (const { key, proof, bytes } of event.proofs) {
+        if (pool.proofs.has(key)) continue;
+        change();
+        // With a proof before it, a comma between the two.
+        const grown = pool.bytes + bytes + (pool.proofs.size === 0 ? 0 : 1);
+        // The proofs of several copies may be more together than one record carries
+        // (core 1.6, 5.1). The book cannot tell which to leave out, and takes no more.
+        if (pool.proofs.size >= MAX_PROOFS || grown > MAX_RECORD_BYTES) {
+          tree.full = true;
+          return TOO_MANY;
+        }
+        pool.proofs.set(key, proof);
+        pool.bytes = grown;
       }
     }
     // The latest time up to which a copy that ended here was known.
-    const further = at.asOf === undefined || asOf > at.asOf;
-    if (further) at.asOf = asOf;
-    if (added || further) this.#changed(mind);
-    return tree.full ? TOO_MANY : ok(mind);
+    if (at.asOf === undefined || asOf > at.asOf) {
+      change();
+      at.asOf = asOf;
+    }
+    return ok(mind);
   }
 
   /**
@@ -362,16 +419,13 @@ export class LogBook implements IdentityView {
       if (!Array.isArray(events)) return NOT_A_LOG;
       const length: unknown = events.length;
       if (typeof length !== "number" || !Number.isSafeInteger(length)) return NOT_A_LOG;
-      const genesis = validateJson(events[0]);
-      if (!genesis.ok) return NOT_A_LOG;
-      const first = this.#sorted(genesis.value);
+      const first = this.#sorted(events[0]);
       // A first value with no content ID is the genesis of no mind.
       if (first.id === undefined) return NOT_A_LOG;
       const copy: [Taken, ...Taken[]] = [first];
       const mind = mindAddress(first.id);
-      for (let i = 1; i < length && i <= this.#maxEvents && !copy[i - 1]?.last; i++) {
-        copy.push(this.#sorted(events[i]));
-      }
+      // Every value of the copy, as far as the first that has no place in a log.
+      for (let i = 1; i < length && !copy[i - 1]?.last; i++) copy.push(this.#sorted(events[i]));
       return ok({ mind, copy });
     } catch {
       // The first event has no content ID, so it is no genesis.
@@ -379,43 +433,51 @@ export class LogBook implements IdentityView {
     }
   }
 
-  /** One event as given, as the tree keeps it. It judges nothing but what kind of value it is. */
+  /**
+   * One event as given, as the tree keeps it. It judges nothing but what
+   * kind of value it is.
+   *
+   * Layer 1, 7.1: a value has a place in a log if, apart from its `proof`,
+   * it is a JSON object within core Section 1: plain data (1.1, 1.2, 1.9) of
+   * at most 1 MiB (1.6). That is what its content ID covers (core 3.1), and
+   * so what tells which event it is a copy of, whatever came as its proofs.
+   * Nothing follows a value that has no place, for nothing tells what it
+   * would follow.
+   */
   #sorted(raw: unknown): Taken {
-    const plain = validateJson(raw);
-    if (!plain.ok) {
-      // Not plain data of this version. If the verifier cannot read it for
-      // what it says of itself, it may be an event all the same, and is kept
-      // as that (Layer 1, 4.9). Otherwise it is nothing.
-      const unread = cannotRead(raw, this.#understood, "");
+    const whole = validateJson(raw);
+    // If the value is not plain data, its proofs may be all that is wrong with it.
+    const content = whole.ok ? whole : validateWithoutProof(raw);
+    const { proof, ...body } =
+      content.ok && isJsonObject(content.value) ? content.value : { proof: undefined };
+    const size = content.ok && isJsonObject(content.value) ? sizeOf(body) : undefined;
+    if (size === undefined) {
+      // No event of this version. If the verifier cannot read it for what it
+      // says of itself, it may be an event all the same, and is kept as that
+      // (Layer 1, 4.9). Otherwise it is nothing, and all such values at one
+      // place are held as one.
+      const unread = cannotRead(whole.ok ? whole.value : raw, this.#understood, "");
       return unread === undefined
-        ? { key: "not data", body: NOT_DATA, id: undefined, proofs: [], last: true }
+        ? { key: "no event", body: NO_EVENT, id: undefined, proofs: [], bare: 0, last: true }
         : {
             key: `unread ${canonicalize(unread.issues[0])}`,
             body: new Unread(unread),
             id: undefined,
             proofs: [],
+            bare: 0,
             last: true,
           };
     }
-    const value = plain.value;
-    if (!isJsonObject(value)) {
-      // No event, and nothing tells what would follow it. What it is, is said when it is judged.
-      return {
-        key: `odd ${canonicalize(value)}`,
-        body: value,
-        id: undefined,
-        proofs: [],
-        last: true,
-      };
-    }
     // The proofs are kept apart, to be held with any others of the same
-    // event: a content ID does not cover them (core 3.1). So the event has
-    // its place whatever came as its proofs, and what follows it is kept.
-    // That holds for an event the verifier cannot read, too: it is judged by
-    // what it says of itself, whatever its proofs are (Layer 1, 4.9).
-    const { proof, ...body } = value;
-    const id = contentId(value);
-    return { key: id, body, id, proofs: proofsOf(value, proof), last: false };
+    // event. So the event has its place whatever came as its proofs, and
+    // what follows it is kept. That holds for an event the verifier cannot
+    // read, too: it is judged by what it says of itself (Layer 1, 4.9).
+    const id = contentId(body);
+    // With no proof, the event is its content and the member `"proof":[]`, after a comma
+    // if it has another member.
+    const bare = size + (Object.keys(body).length === 0 ? 10 : 11);
+    // Proofs that are not plain data are no proofs: the value was read without them.
+    return { key: id, body, id, proofs: whole.ok ? proofsOf(proof, bare) : [], bare, last: false };
   }
 
   /** Forgets the verdict on a mind, and every verdict that asked for its log, and so on up. */
@@ -426,7 +488,7 @@ export class LogBook implements IdentityView {
       const askers = this.#askedBy.get(next);
       if (askers === undefined) continue;
       this.#askedBy.delete(next);
-      pending.push(...askers);
+      for (const asker of askers) pending.push(asker);
     }
   }
 

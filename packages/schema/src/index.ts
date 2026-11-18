@@ -97,6 +97,7 @@ export {
   MAX_VALUES,
   validateExtensionRecord,
   validateJson,
+  validateWithoutProof,
   validateParsedExtensionRecord,
   validateParsedRecord,
   validateProof,

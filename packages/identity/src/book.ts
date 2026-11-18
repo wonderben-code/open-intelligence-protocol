@@ -414,13 +414,14 @@ export class LogBook implements IdentityView {
         // the one known up to the later time.
         const cleaner = (theirs.next === undefined) !== (shown.next === undefined);
         const stays = cleaner ? theirs.next === undefined : other.asOf > branch.asOf;
-        if (!all || stays) {
-          const answer = all
-            ? (replayed.failure ?? ok(mind))
-            : shown.ids.length < theirs.ids.length
-              ? EARLIER
-              : UNJUDGED;
+        if (!all) {
+          const answer = shown.ids.length < theirs.ids.length ? EARLIER : UNJUDGED;
           return { mind, answer };
+        }
+        if (stays) {
+          // The same log with an invalid event after it: say what is wrong
+          // with that event. The same copy, known less far: nothing is wrong.
+          return { mind, answer: (cleaner ? replayed.failure : undefined) ?? ok(mind) };
         }
       }
       if (!all) kept.push(other);

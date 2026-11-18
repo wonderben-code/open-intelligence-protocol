@@ -19,6 +19,10 @@ import { at, KeyMind, LATER, witness } from "@oip/testkit/minds";
 
 const instants = fc.bigInt({ min: 0n, max: 4_000_000_000_000_000_000n });
 
+/** What a refusal says. */
+const said = (result: { ok: boolean; issues?: readonly { message: string }[] }): string =>
+  result.issues?.[0]?.message ?? "";
+
 describe(`${clause("core 9.3")} the evaluation time of a proof`, () => {
   it("is the later of the proof's date and the evidence that it existed", () => {
     const evaluation = (seen: number, time: number, evidenced = seen) => ({
@@ -54,6 +58,7 @@ describe(`${clause("core 9.3")} the evaluation time of a proof`, () => {
       ok: false,
       issues: [{ clause: "core 9.3" }],
     });
+    expect(said(proofTime(at(300.000000001), at(0)))).toContain("after the evidence");
   });
 
   it(`${clause("core 9.2")} has no evaluation time without evidence, whatever date it carries`, () => {
@@ -113,12 +118,15 @@ describe(`${clause("core 9.5")} the evaluation time of an identity event`, () =>
     );
   });
 
-  it("is invalid when dated more than 300 seconds after its evidence, or without evidence", () => {
+  it("does not verify when dated more than 300 seconds after its evidence, or without evidence", () => {
     expect(eventTime(at(300), at(0)).ok).toBe(true);
     expect(eventTime(at(300.000000001), at(0))).toMatchObject({
       ok: false,
       issues: [{ clause: "core 9.5" }],
     });
+    expect(said(eventTime(at(300.000000001), at(0)))).toContain("after the evidence");
+    expect(said(eventTime(at(10), undefined))).toContain("no evidence");
+    expect(said(proofTime(at(10), undefined))).toContain("no evidence");
     expect(eventTime(at(10), undefined, { time: at(5), evidenced: at(5) })).toMatchObject({
       ok: false,
       issues: [{ clause: "core 9.5" }],

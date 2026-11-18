@@ -1411,10 +1411,11 @@
       "summary": "Authentication. - A `Hello` record `{ \"oip\": \"1\", \"type\": \"Hello\", \"author\": <mind>, \"created\":…",
       "level": "MUST",
       "keywords": {
-        "MUST": 4,
-        "MUST NOT": 1
+        "MUST": 5,
+        "MUST NOT": 2,
+        "MAY": 4
       },
-      "digest": "e36b542648a0a386d0b191ab5424001610f485035fa5037f8dafb42482f2d81f"
+      "digest": "8d073779c00aa0a13ff4bc981dbb131f4ac1986193abdfaa6c1fb60da7daf301"
     },
     {
       "id": "L1 13.4",

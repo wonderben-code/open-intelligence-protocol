@@ -39,6 +39,10 @@ A receiver decides, packet by packet, what it will act on. Two receivers that ho
 13. **Is the packet that carries a `Resume` in a chain?** 14.4 did not say. And "the receiver verifies the chains" did not say what a receiver does with a `Resume` that names a packet it never sent.
 14. **Sealing to a key of small order.** RFC 9180, 7.1.4 requires a sender to refuse a recipient key with which the shared secret is all zero. 12.6 did not say what a sender then does, and nothing stops a mind from listing such a key.
 15. **What a `Sealed` record opens to.** 12.6 says the plaintext is "the canonical form of the signed packet". It did not say what a recipient does with a record that opens to another writing of a packet, or to another record.
+16. **Must a signature name its algorithm?** 13.3 asks for an HTTP Message Signature "with algorithm `ed25519`". RFC 9421 lets a signature leave `alg` out where the key tells the algorithm, and a `key-ref` names an Ed25519 key.
+17. **When has a signature's time passed?** 13.3 rejects a signature whose `created` is "more than 300 seconds from" the server's clock, and one that has expired. It did not say that `expires` comes after `created`, and the two rules overlap.
+18. **When has a request a body?** 13.3 asks that `content-digest` be covered "when there is a body". A request can have content of no bytes. And nothing said that a server checks the digest against what it received.
+19. **A request with several signatures, or with other components.** RFC 9421 allows both. 13.3 did not say which signature authenticates the request, whose nonce is then seen, or what a server does with a component it cannot write into the signature base.
 
 ## Specification
 
@@ -59,18 +63,27 @@ Each item is in the specification as of this proposal, and the [CHANGELOG](../sp
 13. **14.4.** "A `Resume` that names, for a chain of the receiver's own, a packet that the chain does not have at that `seq` is invalid. The packet that carries a `Resume` is a packet of the session like any other, with its place in its sender's chain."
 14. **12.6.** "A sender MUST NOT seal to an agreement key that is a point of small order, with which every sender would share the same secret (RFC 9180, Section 7.1.4): it uses another of the recipient's agreement keys, and if there is none the packet cannot be sealed."
 15. **12.6.** "It MUST reject a record that opens to anything but the canonical form of a `Packet`: one writing for one packet, and no other record."
+16. **13.3.** "The `alg` parameter MAY be omitted, since a `key-ref` names an Ed25519 key; a signature that gives another algorithm is rejected."
+17. **13.3.** "`expires` is later than `created`. A signature made more than 300 seconds before the server's clock has expired, so the rule on `created` rejects besides only one made more than 300 seconds ahead of it."
+18. **13.3.** "A request has a body when its content is longer than zero bytes. Servers MUST reject a signature that covers `content-digest` if the request's `Content-Digest` does not give the SHA-256 of the content received."
+19. **13.3.** "A signature MAY cover further components. It MUST NOT cover one with parameters (RFC 9421, Section 2.1), and servers MAY reject one that does. A request MAY carry several signatures: it is authenticated by the first, in the order of `Signature-Input`, that meets this profile, and only that signature's nonce is seen."
 
 ## Rationale and alternatives
 
 - **Item 5.** The alternative is to leave the format alone and say that an `Ack` is evidence only for what the content ID covers. Then nothing is evidence for the packet's own proof but a witness or an anchored feed, and 13.2's "evidence that the packet, with the sender's proof, existed" would be untrue. A sender whose key is later compromised needs that evidence most.
 - **Item 14.** An agreement key of small order could instead make the identity event that lists it invalid. That is a change to what a log is, for a fault that harms only the mind that lists the key, and a sender can check it for itself.
 - **Item 11.** The feed has this rule already (10.2, 10.4): an entry counts only where it stands. With it, two receivers that hold the same packets come to the same chain, whatever order the packets came in.
+- **Item 17.** A signature is valid for at most 300 seconds, so one made more than 300 seconds ago has expired whatever its `expires` says. A server has one thing to check for the past and one for the future. No tolerance is added to `expires`: a client whose clock runs behind has that much less of its 300 seconds.
+- **Item 18.** A request whose body was taken away on its way still carries the `Content-Digest` its signature covers, and that digest is not the digest of nothing. A request that was given a body on its way has a body, and its signature does not cover a digest. Both are rejected.
+- **Item 19.** The first signature that meets the profile is one answer for every server that holds the same request. A signature that fails uses up no nonce: a third party that adds a failing signature to a request cannot make the server refuse the sender's next one. Components with parameters (a part of a structured field, a query parameter, a value of the request a response answers) need a parser for each, and the profile has no use for them.
 
 ## Backwards compatibility
 
 Item 5 adds an optional member to `Ack`. An `Ack` without it is as valid as before, and is evidence for less than 13.2 said.
 
 Items 7 and 11 make a receiver reject packets that the text did not clearly reject. No conforming sender makes them.
+
+Items 16 to 19 are for HTTP requests between two implementations. A request that named `ed25519`, covered the three components and carried one signature is judged as before.
 
 ## Security and privacy considerations
 

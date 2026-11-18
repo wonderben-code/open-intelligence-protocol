@@ -2,10 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { contentId, formatRecordRef, proofDigest } from "@oip/core";
-import { type DelegationContext, RecordSet } from "@oip/delegation";
+import { type DelegationContext, RecordSet, type RecordView } from "@oip/delegation";
 import { FirstSeen, type JudgedRecord, judgeRecord, LogBook } from "@oip/identity";
 import { clause, type JsonObject } from "@oip/testkit";
-import { at, Collective, intentBy, KeyMind, LATER, type Mind, T } from "@oip/testkit/minds";
+import {
+  at,
+  Collective,
+  intentBy,
+  KeyMind,
+  LATER,
+  type Mind,
+  rawSign,
+  T,
+} from "@oip/testkit/minds";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -33,32 +42,35 @@ const minds: Mind[] = [ann, bo, cy, dee, club];
 
 const refTo = (record: object) => formatRecordRef(club.address, contentId(record));
 
-/** A charter of the club, signed by the club's own key at `seconds`. */
-function charter(seconds: number, more: JsonObject = {}): Signed {
-  return club.sign(
-    {
-      oip: "1",
-      type: "Collective",
-      author: club.address,
-      name: "The club",
-      purpose: "To translate leases.",
-      roles: {
-        clerk: { purpose: "Posts requests.", powers: [{ command: "/oip/sign/Intent" }] },
-        buyer: {
-          purpose: "Buys, up to a limit.",
-          powers: [{ command: "/oip/sign/Intent", policy: [["<=", ".budget", "100"]] }],
-        },
+/**
+ * A charter of the club, signed by the club's own key at `seconds`.
+ *
+ * @param without - Members to leave out of it.
+ */
+function charter(seconds: number, more: JsonObject = {}, without: readonly string[] = []): Signed {
+  const content: JsonObject = {
+    oip: "1",
+    type: "Collective",
+    author: club.address,
+    name: "The club",
+    purpose: "To translate leases.",
+    roles: {
+      clerk: { purpose: "Posts requests.", powers: [{ command: "/oip/sign/Intent" }] },
+      buyer: {
+        purpose: "Buys, up to a limit.",
+        powers: [{ command: "/oip/sign/Intent", policy: [["<=", ".budget", "100"]] }],
       },
-      assignments: [
-        { mind: ann.address, role: "clerk" },
-        { mind: cy.address, role: "clerk" },
-        { mind: bo.address, role: "buyer" },
-      ],
-      created: T(seconds),
-      ...more,
     },
-    { position: 0 },
-  );
+    assignments: [
+      { mind: ann.address, role: "clerk" },
+      { mind: cy.address, role: "clerk" },
+      { mind: bo.address, role: "buyer" },
+    ],
+    created: T(seconds),
+    ...more,
+  };
+  for (const member of without) delete content[member];
+  return club.sign(content, { position: 0 });
 }
 
 /** An Intent of the club's, signed by a member that names an authority. */
@@ -179,6 +191,54 @@ describe(`${clause("L2 7.1")} a collective's role (item 4)`, () => {
     expect(counts(signedBy(ann, 20, [refTo(inherited)]), [inherited])).toBeUndefined();
   });
 
+  it("gives nothing where the charter leaves the assignments, the roles or the powers out", () => {
+    const refused = { clause: "L2 7.1", path: "/authority/0" };
+    for (const silent of [
+      // Roles, and nobody assigned to one.
+      charter(10, {}, ["assignments"]),
+      // Assignments to roles the charter does not have.
+      charter(10, {}, ["roles"]),
+      charter(10, {}, ["roles", "assignments"]),
+      // A role with a purpose and no power.
+      charter(10, { roles: { clerk: { purpose: "Posts requests." } } }),
+    ]) {
+      expect(judgeRecord(silent).ok).toBe(true);
+      const record = signedBy(ann, 20, [refTo(silent)]);
+      expect(counts(record, [silent])).toBeUndefined();
+      expect(refusal(record, [silent])).toStrictEqual(refused);
+      expect(refusal(signedBy(ann, 20, [silent]), [])).toStrictEqual(refused);
+    }
+  });
+
+  it("is the earliest of the proofs that count, in whatever order they stand", () => {
+    // Ann signs at 30 and Cy at 20, each by the role of clerk.
+    const content = intentBy(club, 20);
+    const proofOf = (member: Mind, seconds: number) =>
+      (
+        member.sign(content, {
+          created: T(seconds),
+          more: { authority: [refTo(rules)] },
+        }) as Signed
+      ).proof[0]!;
+    const [late, early] = [proofOf(ann, 30), proofOf(cy, 20)];
+    for (const proof of [
+      [late, early],
+      [early, late],
+    ]) {
+      const record = { ...content, proof };
+      const context = holding([rules, record]);
+      expect(signedTime(judged(record), club.address, context)).toBe(at(20));
+      const log = context.identity.log(club.address);
+      if (!log.ok) throw new Error("the club's log does not verify");
+      const of = (signer?: string) =>
+        roleTime(judged(record), club.address, log.value, context, signer);
+      expect(of()).toBe(at(20));
+      expect(of(ann.address)).toBe(at(30));
+      expect(of(cy.address)).toBe(at(20));
+      expect(of(bo.address)).toBeUndefined();
+    }
+  });
+
   it(`${clause("L1 11.2")} grants nothing by a reserved command`, () => {
     const blanket = charter(10, { roles: { clerk: { powers: [{ command: "/oip/sign" }] } } });
     expect(judgeRecord(blanket).ok).toBe(true);
@@ -210,6 +270,40 @@ describe(`${clause("L2 7.1")} a collective's role (item 4)`, () => {
       { position: 0 },
     );
     expect(refusal(signedBy(ann, 20, [theirs]), []).path).toBe("/authority/0");
+    // A string that refers to nothing, and a value that is no record, with the charter held.
+    for (const entry of ["not a reference", `${club.address}/`, {}, { type: "Collective" }]) {
+      const record = rawSign(
+        intentBy(club, 20),
+        [{ member: ann.address, versionId: ann.versionId(0), invocation: ann.operational() }],
+        { purpose: "assertionMethod", authority: [entry] as string[] },
+      );
+      expect(judged(record).proofs, JSON.stringify(entry)).toHaveLength(1);
+      expect(refusal(record, [rules]), JSON.stringify(entry)).toStrictEqual({
+        clause: "L2 7.1",
+        path: "/authority/0",
+      });
+      expect(counts(record, [rules])).toBeUndefined();
+    }
+  });
+
+  it(`${clause("L1 6.1")} is by a valid operational key of the member`, () => {
+    // A control key signs identity events, and no record for anybody.
+    const byControl = rawSign(intentBy(club, 20), [{ control: ann.control(0) }], {
+      purpose: "assertionMethod",
+      authority: [refTo(rules)],
+    });
+    expect(judged(byControl).proofs.map((proof) => proof.method.kind)).toStrictEqual(["control"]);
+    expect(refusal(byControl, [rules])).toStrictEqual({
+      clause: "L1 6.1",
+      path: "/verificationMethod",
+    });
+    expect(counts(byControl, [rules])).toBeUndefined();
+    // A mind whose log the verifier does not hold: its key is not known to be valid.
+    const stranger = new KeyMind("stranger");
+    const generous = charter(12, { assignments: [{ mind: stranger.address, role: "clerk" }] });
+    const record = signedBy(stranger, 20, [refTo(generous)]);
+    expect(refusal(record, [generous]).path).not.toBe("/authority/0");
+    expect(counts(record, [generous])).toBeUndefined();
   });
 
   it(`${clause("L2 7.2")} signs only the types that can be delegated`, () => {
@@ -318,6 +412,40 @@ describe(`${clause("L2 6.2")} the charter in force`, () => {
     for (const order of [pair, [...pair].reverse()]) {
       expect(charterInForce(club.address, at(20), holding(order))).toBe(lower);
     }
+  });
+
+  it("is a charter of that collective, whatever the view answers with", () => {
+    const rules = charter(10);
+    const other = new Collective("other", [ann, bo], 2, 5);
+    const theirs = other.sign(
+      {
+        oip: "1",
+        type: "Collective",
+        author: other.address,
+        name: "Other",
+        purpose: "None.",
+        created: T(10),
+      },
+      { position: 0 },
+    );
+    const intent = club.sign(intentBy(club, 15), { position: 0 });
+    const context = holding([rules, theirs, intent]);
+    const answering = (records: readonly object[]): DelegationContext => {
+      const view: RecordView = {
+        record: (id) => context.records.record(id),
+        revocationsOf: (id) => context.records.revocationsOf(id),
+        chartersOf: () => records.map((record) => judged(record)),
+      };
+      return { ...context, records: view };
+    };
+    expect(charterInForce(club.address, at(20), answering([theirs, intent]))).toBeUndefined();
+    expect(charterInForce(club.address, at(20), answering([theirs, intent, rules]))).toBe(
+      contentId(rules),
+    );
+    // Nor one given with the question.
+    expect(
+      charterInForce(club.address, at(20), answering([]), [judged(theirs), judged(intent)]),
+    ).toBeUndefined();
   });
 
   it("is signed by the collective's own authority, by evidence of when", () => {

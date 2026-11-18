@@ -114,11 +114,9 @@ export class RecordSet implements RecordView {
   }
 
   #listed(ids: ReadonlySet<string> | undefined): JudgedRecord[] {
-    const found: JudgedRecord[] = [];
-    for (const id of ids ?? []) {
-      const judged = this.#records.get(id);
-      if (judged !== undefined) found.push(judged);
-    }
-    return found;
+    // What is indexed is held: nothing is ever taken out.
+    return [...(ids ?? [])]
+      .map((id) => this.#records.get(id))
+      .filter((judged) => judged !== undefined);
   }
 }

@@ -459,6 +459,32 @@ describe(`${clause("L2 8.3")} the status of a Commitment`, () => {
     expect(statusOf(agreed, [about(cy, 60, "fulfilled", {}, ann)])).toBe("accepted");
   });
 
+  it("hears only a Receipt, whatever the view answers with", () => {
+    // Ann's Receipt says the Commitment is broken. An Intent of hers supersedes that
+    // Receipt, as only another Receipt of hers could, and a view hands it over as one.
+    const broken = about(ann, 60, "broken");
+    const posing = signedBy(intent(70, { supersedes: ref(broken) }), ann);
+    const context = holding([agreed, broken, posing]);
+    const answering = (records: readonly object[]): WebContext => ({
+      ...context,
+      records: {
+        record: (id) => context.records.record(id),
+        revocationsOf: (id) => context.records.revocationsOf(id),
+        chartersOf: (mind) => context.records.chartersOf(mind),
+        supersedersOf: (id) => context.records.supersedersOf(id),
+        resolversOf: (id) => context.records.resolversOf(id),
+        receiptsAbout: () => records.map((record) => judged(record)),
+      },
+    });
+    const told = (records: readonly object[]) =>
+      commitmentStatus(judged(agreed), at(80), answering(records));
+    expect(told([posing])).toBe("accepted");
+    expect(told([posing, agreed])).toBe("accepted");
+    expect(told([broken])).toBe("broken");
+    expect(told([broken, posing])).toBe("broken");
+    expect(told([posing, broken])).toBe("broken");
+  });
+
   it("leaves out a Receipt that a Receipt of the same author supersedes, and one that is revoked", () => {
     const broken = about(ann, 60, "broken");
     // Ann takes it back.

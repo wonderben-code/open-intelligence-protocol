@@ -80,14 +80,13 @@ export class WebRecordSet implements WebRecords {
           readonly about?: unknown;
         }
       | undefined;
-    if (held === undefined) return added;
-    index(this.#superseders, referenced(held.supersedes), id);
-    if (held.type === "Commitment" && Array.isArray(held.resolves)) {
+    index(this.#superseders, referenced(held?.supersedes), id);
+    if (held?.type === "Commitment" && Array.isArray(held.resolves)) {
       for (const ref of held.resolves as readonly unknown[]) {
         index(this.#resolvers, referenced(ref), id);
       }
     }
-    if (held.type === "Receipt") index(this.#receipts, referenced(held.about), id);
+    if (held?.type === "Receipt") index(this.#receipts, referenced(held.about), id);
     return added;
   }
 
@@ -116,11 +115,9 @@ export class WebRecordSet implements WebRecords {
   }
 
   #listed(ids: ReadonlySet<string> | undefined): JudgedRecord[] {
-    const found: JudgedRecord[] = [];
-    for (const id of ids ?? []) {
-      const judged = this.#records.record(id);
-      if (judged !== undefined) found.push(judged);
-    }
-    return found;
+    // What is indexed is held: nothing is ever taken out.
+    return [...(ids ?? [])]
+      .map((id) => this.#records.record(id))
+      .filter((judged) => judged !== undefined);
   }
 }

@@ -4,7 +4,7 @@
 import { contentId, formatRecordRef, proofDigest } from "@oip/core";
 import { FirstSeen, judgeRecord, LogBook, witnessRecord } from "@oip/identity";
 import { clause, type JsonObject } from "@oip/testkit";
-import { at, intentBy, KeyMind, T } from "@oip/testkit/minds";
+import { at, intentBy, KeyMind, rawSign, T } from "@oip/testkit/minds";
 import { describe, expect, it } from "vitest";
 
 import { delegatedTime, RecordSet, witnessProofs } from "../src/index.ts";
@@ -87,6 +87,24 @@ describe(`${clause("core 9.4", "L1 11.4")} a record that arrives with its chain`
     expect(seen.proofSeen(proofDigest(forged.proof[0]!))).toBeUndefined();
     expect(seen.proofSeen(proofDigest(passedOn.proof[0]!))).toBe(at(50));
     expect(seen.proofSeen(proofDigest(odd.proof[0]!))).toBe(at(50));
+  });
+
+  it("passes over an entry that is no record at all, and sees the rest", () => {
+    const odd = rawSign(
+      intentBy(amina, 33),
+      [
+        {
+          member: helper.address,
+          versionId: helper.versionId(0),
+          invocation: helper.operational(),
+        },
+      ],
+      { purpose: "assertionMethod", authority: [{}, { type: "Delegation" }, grant] as never },
+    ) as unknown as Signed;
+    const { seen } = verifier(50);
+    witnessProofs(judged(odd), at(50), seen);
+    expect(seen.proofSeen(proofDigest(odd.proof[0]!))).toBe(at(50));
+    expect(seen.proofSeen(proofDigest(grant.proof[0]!))).toBe(at(50));
   });
 
   it("has nothing more to see where the chain is named by reference", () => {

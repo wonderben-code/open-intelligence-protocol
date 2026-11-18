@@ -4,7 +4,7 @@
 import { contentId, formatRecordRef, type Instant, proofDigest } from "@oip/core";
 import { FirstSeen, type JudgedRecord, judgeRecord, LogBook } from "@oip/identity";
 import { clause, type JsonObject } from "@oip/testkit";
-import { at, intentBy, KeyMind, LATER, type Mind, T } from "@oip/testkit/minds";
+import { at, intentBy, KeyMind, LATER, type Mind, rawSign, T } from "@oip/testkit/minds";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -153,6 +153,56 @@ describe(`${clause("L1 11.6")} a proof that relies on delegation`, () => {
   it("acts for nobody when it lists no chain", () => {
     const own = agent.sign(intentBy(amina, 20));
     expect(counts(own, [grant])).toBeUndefined();
+    // Asked of that proof by itself, the answer says what is missing.
+    expect(refusal(own, [grant])).toStrictEqual({ clause: "L1 11.6", path: "/authority" });
+  });
+
+  it(`${clause("L1 6.1")} is by a valid operational key of its signer`, () => {
+    // A control key signs identity events, and no record for anybody.
+    const byControl = rawSign(intentBy(amina, 20), [{ control: agent.control(0) }], {
+      purpose: "assertionMethod",
+      authority: [refTo(grant)],
+    });
+    expect(judged(byControl).proofs.map((proof) => proof.method.kind)).toStrictEqual(["control"]);
+    expect(refusal(byControl, [grant])).toStrictEqual({
+      clause: "L1 6.1",
+      path: "/verificationMethod",
+    });
+    expect(counts(byControl, [grant])).toBeUndefined();
+    // A signer whose log the verifier does not hold: the chain is sound, and the key unknown.
+    const unheld = new KeyMind("unheld");
+    const toUnheld = delegation(amina, unheld, 10);
+    const record = signedFor(unheld, 20, [refTo(toUnheld)]);
+    expect(refusal(record, [toUnheld]).path).not.toMatch(/^\/authority/);
+    expect(counts(record, [toUnheld])).toBeUndefined();
+  });
+
+  it("counts from the earliest proof that does, in whatever order the proofs stand", () => {
+    // The agent signs at 30 by its delegation, and its helper at 20 by a chain of two.
+    const further = delegation(agent, helper, 12);
+    const content = intentBy(amina, 20);
+    const proofOf = (by: Mind, seconds: number, authority: string[]) =>
+      (by.sign(content, { created: T(seconds), more: { authority } }) as Signed).proof[0]!;
+    const late = proofOf(agent, 30, [refTo(grant)]);
+    const early = proofOf(helper, 20, [refTo(grant), refTo(further)]);
+    for (const proof of [
+      [late, early],
+      [early, late],
+    ]) {
+      const record = { ...content, proof };
+      const { context } = holding([grant, further, record]);
+      const time = (signer?: string) =>
+        delegatedTime(
+          judged(record),
+          amina.address,
+          context,
+          signer === undefined ? {} : { signer },
+        );
+      expect(time()).toBe(at(20));
+      expect(time(agent.address)).toBe(at(30));
+      expect(time(helper.address)).toBe(at(20));
+      expect(time(stranger.address)).toBeUndefined();
+    }
   });
 
   it("is by another mind than the one it acts for", () => {
@@ -381,6 +431,32 @@ describe(`${clause("L1 11.5")} revocation`, () => {
     expect(time()).toBe(at(30));
     expect(revokedTime(contentId(grant), agent.address, set, context.identity)).toBeUndefined();
     expect(time(new RecordSet())).toBeUndefined();
+    // In whichever order they are held.
+    const reordered = holding([grant, second, first]);
+    expect(
+      revokedTime(contentId(grant), amina.address, reordered.set, reordered.context.identity),
+    ).toBe(at(30));
+  });
+
+  it("is signed by the author's own authority: one in the author's name alone revokes nothing", () => {
+    // The agent writes Amina's name on a revocation, at 15, and signs it itself.
+    const forged = agent.sign({
+      oip: "1",
+      type: "Revocation",
+      author: amina.address,
+      revokes: refTo(grant),
+      created: T(15),
+    });
+    const { context, set } = holding([grant, forged]);
+    expect(set.revocationsOf(contentId(grant))).toHaveLength(1);
+    expect(revokedTime(contentId(grant), amina.address, set, context.identity)).toBeUndefined();
+    expect(counts(signedFor(agent, 20, [refTo(grant)]), [grant, forged])).toBe(at(20));
+    // Beside a true one, it changes nothing.
+    const hers = revocation(amina, 30);
+    const both = holding([grant, hers, forged]);
+    expect(revokedTime(contentId(grant), amina.address, both.set, both.context.identity)).toBe(
+      at(30),
+    );
   });
 });
 

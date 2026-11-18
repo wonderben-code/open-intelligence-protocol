@@ -8,3 +8,4 @@ First version: the Mind Web (Layer 2).
 - `charterInForce`, `roleProofTime`, `roleTime`: the charter in force at a time, and whether a member's proof counts for its collective through a role of it (Layer 2, 6.2, 7.1 item 4).
 - `commitmentAccepted` (Layer 2, 7.3), and status (Layer 2, Section 8): `intentStatus`, `offerStatus`, `commitmentStatus`, `charterStatus`, and `status` by the type of the record. A status is computed from the records the verifier holds and a time the caller gives; nothing reads a clock.
 - `WebRecords`, `WebRecordSet`, `WebContext`: the records a verifier holds, found by what they refer to: what supersedes a record, the Commitments that resolve it and the Receipts about it.
+- `evidenceMatches`, `evidenceIsChecked`: whether bytes a verifier fetched are the bytes an evidence item names by its digest (Layer 2, Section 9).

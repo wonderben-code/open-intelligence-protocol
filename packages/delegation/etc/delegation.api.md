@@ -4,14 +4,20 @@
 
 ```ts
 
+import type { Delegation } from '@oip/schema';
 import { IdentityView } from '@oip/identity';
 import { Instant } from '@oip/core';
 import { JsonValue } from '@oip/schema';
 import { JudgedRecord } from '@oip/identity';
 import { JudgeOptions } from '@oip/identity';
+import type { PolicyStatement } from '@oip/schema';
+import type { Revocation } from '@oip/schema';
 import { SelectorStep } from '@oip/schema';
 import { Validation } from '@oip/schema';
 import { VerifiedProof } from '@oip/core';
+
+// @public
+export function authorityOf(chain: readonly Delegation[], as?: "records" | "references"): (Delegation | string)[];
 
 // @public
 export function covers(granted: unknown, needed: unknown): boolean;
@@ -41,6 +47,18 @@ export interface DelegationContext {
     readonly records: RecordView;
     readonly understood?: JudgeOptions["understood"];
 }
+
+// @public
+export type DelegationFields = Omit<Delegation, "oip" | "type" | "created" | "proof">;
+
+// @public
+export function draftDelegation(created: string, fields: DelegationFields): Omit<Delegation, "proof">;
+
+// @public
+export function draftRevocation(created: string, delegation: Omit<Delegation, "proof">): Omit<Revocation, "proof">;
+
+// @public
+export function draftSubDelegation(parent: Omit<Delegation, "proof">, created: string, fields: SubDelegationFields): Omit<Delegation, "proof">;
 
 // @public
 export function evaluatePolicy(policy: unknown, record: JsonValue): Validation<true>;
@@ -96,5 +114,16 @@ export function sentFor(packet: JudgedRecord, subject: string, context: Delegati
 
 // @public
 export function signCommand(type: DelegableType): string;
+
+// @public
+export interface SubDelegationFields {
+    readonly command?: string;
+    readonly delegate: string;
+    readonly expires?: string;
+    readonly nonce: string;
+    // (undocumented)
+    readonly notBefore?: string;
+    readonly policy?: readonly PolicyStatement[];
+}
 
 ```

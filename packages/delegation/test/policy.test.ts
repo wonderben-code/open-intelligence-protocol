@@ -216,6 +216,54 @@ describe(`${clause("L1 11.3", "L1 11.1")} a policy`, () => {
     expect(evaluatePolicy([], record)).toStrictEqual({ ok: true, value: true });
     expect(evaluatePolicy(undefined, record)).toStrictEqual({ ok: true, value: true });
     expect(policyHolds([], null)).toBe(true);
+    // `null` is not the absence of a policy: it is a value that is no policy.
+    expect(evaluatePolicy(null, record)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "L1 11.3" }],
+    });
+
+    expect(policyHolds(null, record)).toBe(false);
+  });
+
+  it("is read whole before any of it is asked of the record", () => {
+    // A quantifier over an empty array tries its statement on nothing. The statement
+    // is part of the policy all the same, and one that is none makes it no policy.
+    const empty = { list: [] };
+    expect(policyHolds([["all", ".list", ["==", ".", 1]]], empty)).toBe(true);
+    for (const inner of [
+      ["==", "list", 1],
+      ["==", '.["x y"]', 1],
+      ["like", ".", "a*"],
+      ["==", "."],
+      ["and", []],
+      ["all", ".[0]", ["==", ".", 1]],
+      "==",
+      null,
+    ]) {
+      expect(policyHolds([["all", ".list", inner]], empty), JSON.stringify(inner)).toBe(false);
+      expect(policyHolds([["not", ["any", ".list", inner]]], empty), JSON.stringify(inner)).toBe(
+        false,
+      );
+    }
+    expect(evaluatePolicy([["all", ".list", ["==", "list", 1]]], empty)).toMatchObject({
+      ok: false,
+      issues: [{ path: "/0/2/1", clause: "L1 11.3" }],
+    });
+    // Too deep, where no record reaches.
+    let deep: unknown = ["==", ".", 1];
+    for (let i = 0; i < 8; i++) deep = ["not", deep];
+    expect(policyHolds([["all", ".list", deep]], empty)).toBe(false);
+    // Every fault is named, and nothing is asked of the record once one is found.
+    expect(
+      evaluatePolicy(
+        [
+          ["==", ".missing", 1],
+          ["like", ".", 1],
+          ["all", ".list", ["nor", ".", 1]],
+        ],
+        empty,
+      ),
+    ).toMatchObject({ ok: false, issues: [{ path: "/1" }, { path: "/2/2" }] });
   });
 
   it("names every statement that does not hold, when none is an error", () => {

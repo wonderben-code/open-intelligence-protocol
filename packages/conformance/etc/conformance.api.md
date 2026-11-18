@@ -247,6 +247,9 @@ export const referenceAdapter: ConformanceAdapter;
 export function runCase(adapter: ConformanceAdapter, vectors: Vectors, section: Section, vectorCase: VectorCase): CaseResult;
 
 // @public
+export function runPositiveCheck(check: PositiveCheck, adapter: ConformanceAdapter, vectors: Vectors): CaseResult;
+
+// @public
 export function runVectors(adapter: ConformanceAdapter, vectors: Vectors): CaseResult[];
 
 // @public (undocumented)

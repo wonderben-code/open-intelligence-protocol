@@ -10,3 +10,5 @@ First version: delegation (Layer 1, Section 11).
 - `revokedTime`: a revocation takes effect from its own evaluation time, and only its delegation's author can make one (Layer 1, 11.5).
 - `RecordSet`, `RecordView`: the records a verifier holds. A record keeps every proof it was shown with that verified, from whichever copy: no copy takes a proof away.
 - `sentFor`: whether a packet counts as sent on another mind's behalf (Layer 1, 11.2): it names the subject, and a proof by its own sender lists a chain from the subject that covers `/oip/send`.
+- `draftDelegation`, `draftSubDelegation`, `draftRevocation`, `authorityOf`: write a delegation, the next link of a chain (with the subject, every statement and no later expiry than its parent, Layer 1, 11.4), a revocation, and the `authority` a proof lists.
+- A policy is read whole before any of it is asked of a record. A statement that is none makes the policy not hold wherever it stands, the statement of a quantifier over an empty array among them. `null` is not a policy.

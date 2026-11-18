@@ -4834,12 +4834,14 @@ def judge(c, case) -> dict:
     testing against another implementation. `holds` says whether the case's
     claim holds, as _holds() does. For `status` and `assurance` cases,
     `value` is the result computed, whatever `expect` says (and `expect`
-    may be absent). Three further kinds are questions, not cases:
+    may be absent). Four further kinds are questions, not cases:
     `didDocument` gives the resolution of `mind` (at `versionId`, if
-    given), `lineage` the lineage of `mind`, and `intake` how far the copy
-    in `log` verifies and whether the event after that is invalid or
-    undecided (Layer 1, 4.9), for the verifier the case describes. An input this checker cannot process at all is
-    reported as `error`, with `holds` false: an error is never an
+    given), `lineage` the lineage of `mind`, `intake` how far the copy in
+    `log` verifies and whether the event after that is invalid or
+    undecided (Layer 1, 4.9), for the verifier the case describes, and
+    `policy` whether `policy` holds for `record` (Layer 1, 11.3). An input
+    this checker cannot process at all is reported as `error`, with
+    `holds` false: an error is never an
     acceptance."""
     out = {"name": case.get("name"), "kind": case.get("kind")} \
         if isinstance(case, dict) else {"name": None, "kind": None}
@@ -4868,6 +4870,10 @@ def judge(c, case) -> dict:
         elif kind == "intake":
             out["value"] = log_intake(case["log"], _case_verifier(c, case))
             out["holds"] = True
+        elif kind == "policy":
+            # Not a kind of case in the vectors either: whether a policy
+            # holds for a record (Layer 1, 11.3), with no log and no chain.
+            out["holds"] = bool(policy_ok(case["policy"], case["record"]))
         else:
             out["holds"] = bool(_holds(c, case))
     except RecursionError:

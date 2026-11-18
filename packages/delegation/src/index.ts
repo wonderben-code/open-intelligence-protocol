@@ -26,6 +26,14 @@ export {
   SEND_COMMAND,
   signCommand,
 } from "./command.ts";
+export {
+  authorityOf,
+  type DelegationFields,
+  draftDelegation,
+  draftRevocation,
+  draftSubDelegation,
+  type SubDelegationFields,
+} from "./create.ts";
 export { evaluatePolicy, MAX_POLICY_STEPS, policyHolds, select } from "./policy.ts";
 export { RecordSet, type RecordView } from "./records.ts";
 export { revokedTime } from "./revocation.ts";

@@ -54,6 +54,13 @@ const STEPS: readonly Step[] = [
     name: "Differential tests: 10,000 generated identity logs",
     command: "OIP_DIFFERENTIAL_LOGS=6700 pnpm test:differential:logs",
   },
+  {
+    // BUILD.md, M3: differential testing extended to delegations and status.
+    // This runs 6,000 policies, 1,500 delegation chains with a record signed
+    // under each, and 1,500 sets of Layer 2 records whose status is asked.
+    name: "Differential tests: delegation chains, policies and status",
+    command: "OIP_DIFFERENTIAL_DELEGATION=1500 pnpm test:differential:delegation",
+  },
   { name: "API reference builds", command: "pnpm run docs" },
   { name: "Benchmarks run", command: "pnpm bench" },
   { name: "Licensing (REUSE)", command: "reuse lint", optionalTool: "reuse" },

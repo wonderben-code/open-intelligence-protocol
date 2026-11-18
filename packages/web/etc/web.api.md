@@ -5,6 +5,7 @@
 ```ts
 
 import { DelegationContext } from '@oip/delegation';
+import type { Evidence } from '@oip/schema';
 import { Instant } from '@oip/core';
 import { JudgedRecord } from '@oip/identity';
 import type { JudgeOptions } from '@oip/identity';
@@ -36,6 +37,12 @@ export function commitmentStatus(judged: JudgedRecord, at: Instant, context: Web
 
 // @public
 export function countsFor(judged: JudgedRecord, mind: string, context: DelegationContext): boolean;
+
+// @public
+export function evidenceIsChecked(item: Evidence): boolean;
+
+// @public
+export function evidenceMatches(item: Evidence, bytes: Uint8Array): boolean;
 
 // @public
 export type IntentStatus = "open" | "withdrawn" | "satisfied" | "superseded" | "expired";

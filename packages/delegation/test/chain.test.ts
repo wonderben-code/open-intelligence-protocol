@@ -14,6 +14,7 @@ import {
   MAX_CHAIN,
   RecordSet,
   revokedTime,
+  sentFor,
 } from "../src/index.ts";
 
 /** Amina, who delegates; her agent; and the agent's own helper. */
@@ -380,6 +381,79 @@ describe(`${clause("L1 11.5")} revocation`, () => {
     expect(time()).toBe(at(30));
     expect(revokedTime(contentId(grant), agent.address, set, context.identity)).toBeUndefined();
     expect(time(new RecordSet())).toBeUndefined();
+  });
+});
+
+describe(`${clause("L1 11.2")} a packet sent on another mind's behalf`, () => {
+  const mayContact = delegation(amina, agent, 10, { command: "/oip/send" });
+  /** A packet from one mind, signed by a mind that lists a chain. */
+  const packet = (
+    from: Mind,
+    by: Mind,
+    seconds: number,
+    authority: readonly unknown[] | undefined,
+    more: JsonObject = {},
+  ) =>
+    by.sign(
+      {
+        oip: "1",
+        type: "Packet",
+        from: from.address,
+        to: [stranger.address],
+        created: T(seconds),
+        expires: T(seconds + 1000),
+        nonce: "c4e2a9f7d1b8306e",
+        purpose: { verb: "request" },
+        content: { mediaType: "text/plain", body: "Could it be ready early?" },
+        provenance: { onBehalfOf: amina.address },
+        ...more,
+      },
+      authority === undefined ? {} : { more: { authority: authority as string[] } },
+    );
+  const sent = (record: object, held: readonly object[], seen?: ReadonlyMap<object, number>) =>
+    sentFor(judged(record), amina.address, holding([...held, record], seen).context);
+
+  it("is one that names the subject, signed by its sender with a chain that covers /oip/send", () => {
+    expect(sent(packet(agent, agent, 20, [refTo(mayContact)]), [mayContact])).toBe(at(20));
+  });
+
+  it("is not one for a claim in `provenance` alone, or for a chain that grants something else", () => {
+    // No chain at all.
+    expect(sent(packet(agent, agent, 20, undefined), [])).toBeUndefined();
+    // A chain that lets the agent sign Intents, not send.
+    const mayIntend = delegation(amina, agent, 10);
+    expect(sent(packet(agent, agent, 20, [refTo(mayIntend)]), [mayIntend])).toBeUndefined();
+    // Another subject named, or none.
+    expect(
+      sent(
+        packet(agent, agent, 20, [refTo(mayContact)], {
+          provenance: { onBehalfOf: helper.address },
+        }),
+        [mayContact],
+      ),
+    ).toBeUndefined();
+    expect(
+      sent(packet(agent, agent, 20, [refTo(mayContact)], { provenance: {} }), [mayContact]),
+    ).toBeUndefined();
+  });
+
+  it("is signed by its sender: a chain on a proof by anyone else does not make it one", () => {
+    // The packet says it is from the helper; the agent, who holds the delegation, signs it.
+    expect(sent(packet(helper, agent, 20, [refTo(mayContact)]), [mayContact])).toBeUndefined();
+  });
+
+  it(`${clause("core 9.6")} does not count on a proof evaluated more than 300 seconds after it expires`, () => {
+    const made = packet(agent, agent, 20, [refTo(mayContact)]);
+    // It expires at 1020.
+    expect(sent(made, [mayContact], new Map([[made, 1320]]))).toBe(at(1320));
+    expect(sent(made, [mayContact], new Map([[made, 1321]]))).toBeUndefined();
+  });
+
+  it("is a packet, and no other record with those members", () => {
+    const intent = signedFor(agent, 20, [refTo(mayContact)], {
+      provenance: { onBehalfOf: amina.address },
+    });
+    expect(sent(intent, [mayContact])).toBeUndefined();
   });
 });
 

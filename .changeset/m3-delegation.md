@@ -9,3 +9,4 @@ First version: delegation (Layer 1, Section 11).
 - `delegatedProofTime`, `delegatedTime`: whether a proof counts for another mind through the delegation chain its `authority` lists (Layer 1, 11.4, 11.6). The list is checked exactly as given, root first, and never searched. Each refusal names the entry of `authority` at fault and the item of 11.4 it breaks.
 - `revokedTime`: a revocation takes effect from its own evaluation time, and only its delegation's author can make one (Layer 1, 11.5).
 - `RecordSet`, `RecordView`: the records a verifier holds. A record keeps every proof it was shown with that verified, from whichever copy: no copy takes a proof away.
+- `sentFor`: whether a packet counts as sent on another mind's behalf (Layer 1, 11.2): it names the subject, and a proof by its own sender lists a chain from the subject that covers `/oip/send`.

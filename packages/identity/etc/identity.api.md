@@ -175,14 +175,11 @@ export class FirstSeen implements EvidenceView {
     sawProof(digest: string, at: Instant): Instant;
 }
 
-// Warning: (ae-forgotten-export) The symbol "Shared" needs to be exported by the entry point index.d.ts
-// Warning: (ae-forgotten-export) The symbol "Chain" needs to be exported by the entry point index.d.ts
-//
 // @public
-export type ForkFields = Omit<Fork, Shared | Chain>;
+export type ForkFields = Omit<Fork, "oip" | "type" | "created" | "proof" | "mind" | "seq" | "prev">;
 
 // @public
-export type GenesisFields = Omit<Genesis, Shared>;
+export type GenesisFields = Omit<Genesis, "oip" | "type" | "created" | "proof">;
 
 // @public
 export interface IdentityState {
@@ -310,7 +307,7 @@ export interface Replayed {
 }
 
 // @public
-export type RetireFields = Omit<Retire, Shared | Chain>;
+export type RetireFields = Omit<Retire, "oip" | "type" | "created" | "proof" | "mind" | "seq" | "prev">;
 
 // @public
 export interface Revocation {
@@ -339,7 +336,7 @@ export function stateAt(log: VerifiedLog, time: Instant): IdentityState | undefi
 export type Unsigned<T extends IdentityEvent> = Omit<T, "proof">;
 
 // @public
-export type UpdateFields = Omit<Update, Shared | Chain>;
+export type UpdateFields = Omit<Update, "oip" | "type" | "created" | "proof" | "mind" | "seq" | "prev">;
 
 // @public
 export interface VerifiedLog {

@@ -20,7 +20,16 @@ import {
   witnessLog,
   witnessRecord,
 } from "../src/index.ts";
-import { at, Collective, intentBy, KeyMind, rawSign, signer, T } from "@oip/testkit/minds";
+import {
+  at,
+  Collective,
+  intentBy,
+  KeyMind,
+  rawGenesis,
+  rawSign,
+  signer,
+  T,
+} from "@oip/testkit/minds";
 
 const idOf = (event: object): string => contentId(event);
 
@@ -125,6 +134,42 @@ describe(`${clause("core 9.5")} a verifier's own first sight of a log`, () => {
     });
     expect(seen.eventSeen(idOf(ada.events[0]!))).toBeUndefined();
     expect(witnessLog(ada.events, at(50), seen, null as never).failure).toBeUndefined();
+  });
+});
+
+describe(`${clause("core 8.3", "L1 4.7")} what a verifier does not judge, it does not record`, () => {
+  it("records no event that depends on an extension the verifier does not implement", () => {
+    const genesis = rawGenesis("ada", {
+      ext: { "com.example.recovery": { v: 1 } },
+      critical: ["com.example.recovery"],
+    });
+    const seen = new FirstSeen();
+    const refused = witnessLog([genesis], at(50), seen);
+    expect(refused.log).toBeUndefined();
+    expect(refused.failure).toMatchObject({
+      issues: [{ clause: "core 8.3", path: "/0/critical" }],
+    });
+    expect(seen.eventSeen(idOf(genesis))).toBeUndefined();
+    // A verifier that implements it witnesses the event like any other.
+    const witnessed = witnessLog([genesis], at(60), seen, { understood: ["com.example.recovery"] });
+    expect(witnessed.failure).toBeUndefined();
+    expect(seen.eventSeen(idOf(genesis))).toBe(at(60));
+  });
+
+  it("records the events it reads of a log longer than it was set to read, and says there are more", () => {
+    const ada = new KeyMind("ada");
+    // Only the count matters here: what follows the genesis is never reached.
+    const long = Array.from({ length: 1001 }, () => ada.events[0]);
+    const seen = new FirstSeen();
+    const witnessed = witnessLog(long, at(50), seen, { maxEvents: 1000 });
+    expect(witnessed.log?.entries).toHaveLength(1);
+    expect(witnessed.failure).toMatchObject({ issues: [{ clause: "L1 4.6", path: "/1/type" }] });
+    expect(seen.eventSeen(idOf(ada.events[0]!))).toBe(at(50));
+    // A log whose events all verify, and that has more than were read.
+    const bea = new KeyMind("bea").update(10).update(20);
+    const cut = witnessLog(bea.events, at(50), seen, { maxEvents: 1000 });
+    expect(cut.failure).toBeUndefined();
+    expect(cut.log?.entries).toHaveLength(3);
   });
 });
 

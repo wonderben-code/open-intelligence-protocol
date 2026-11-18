@@ -15,7 +15,7 @@
 
 import type { Instant } from "@oip/core";
 
-import type { EvidenceView, FirstSeen } from "./evidence.ts";
+import { earliestEvidence, type EvidenceView, type FirstSeen } from "./evidence.ts";
 import { type LogContext, type Replayed, verifyLogPrefix } from "./log.ts";
 import { own } from "./result.ts";
 import type { JudgedRecord } from "./signing.ts";
@@ -64,15 +64,15 @@ export function witnessLog(
   const given = <K extends keyof WitnessOptions>(name: K): WitnessOptions[K] | undefined =>
     own(options, name) as WitnessOptions[K] | undefined;
   const others = given("evidence");
-  const earliest = (own: Instant | undefined, other: Instant | undefined): Instant | undefined =>
-    own === undefined || (other !== undefined && other < own) ? other : own;
+  // What is held already: the verifier's own record, and what other sources show.
+  const held: EvidenceView = others === undefined ? seen : earliestEvidence(seen, others);
   const memberLog = given("memberLog");
   const maxEvents = given("maxEvents");
   const understood = given("understood");
   const context: LogContext = {
     evidence: {
-      proofSeen: (digest) => earliest(seen.proofSeen(digest), others?.proofSeen(digest)),
-      eventSeen: (id) => earliest(seen.eventSeen(id), others?.eventSeen(id)) ?? now,
+      proofSeen: held.proofSeen.bind(held),
+      eventSeen: (id) => held.eventSeen(id) ?? now,
     },
     asOf: now,
     ...(memberLog === undefined ? {} : { memberLog }),

@@ -19,17 +19,23 @@ import type { IdentityState } from "./state.ts";
 /** An event before it is signed. */
 export type Unsigned<T extends IdentityEvent> = Omit<T, "proof">;
 
-type Shared = "oip" | "type" | "created" | "proof";
-type Chain = "mind" | "seq" | "prev";
+// The members a draft and its signing fill in are written out in each type:
+// a name for them would be part of the public types without being exported.
 
 /** What the author of a `Genesis` chooses (Layer 1, 3.6). */
-export type GenesisFields = Omit<Genesis, Shared>;
+export type GenesisFields = Omit<Genesis, "oip" | "type" | "created" | "proof">;
 /** What the author of an `Update` chooses (Layer 1, 3.7). The chain members follow from the log. */
-export type UpdateFields = Omit<Update, Shared | Chain>;
+export type UpdateFields = Omit<
+  Update,
+  "oip" | "type" | "created" | "proof" | "mind" | "seq" | "prev"
+>;
 /** What the author of a `Fork` chooses (Layer 1, 3.8). */
-export type ForkFields = Omit<Fork, Shared | Chain>;
+export type ForkFields = Omit<Fork, "oip" | "type" | "created" | "proof" | "mind" | "seq" | "prev">;
 /** What the author of a `Retire` chooses (Layer 1, 3.10). */
-export type RetireFields = Omit<Retire, Shared | Chain>;
+export type RetireFields = Omit<
+  Retire,
+  "oip" | "type" | "created" | "proof" | "mind" | "seq" | "prev"
+>;
 
 /** What the next event of a log is chained to: the mind, and the position and content ID of the latest event. */
 export type LogHead = Pick<IdentityState, "mind" | "seq" | "head">;

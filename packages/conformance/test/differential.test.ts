@@ -414,8 +414,8 @@ describe.skipIf(unavailable !== undefined && !required)("differential: record ca
         compared++;
       }
     }
-    // 32 record cases and 21 json cases, over the three sections.
-    expect(compared).toBe(32 + 21);
+    // 38 record cases and 21 json cases, over the three sections.
+    expect(compared).toBe(38 + 21);
   });
 
   it(

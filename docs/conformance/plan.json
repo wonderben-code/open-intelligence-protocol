@@ -1,6 +1,6 @@
 {
   "comment": "Which milestone of BUILD.md owes each clause of the specifications and each kind of test-vector case. `completed` lists the milestones that are done. `pnpm spec:coverage` fails if a clause owed by a completed milestone has no passing test that cites it, or if a vector case owed by one is still pending. A clause is matched by its own ID, then by its section, then by its document. A clause with parts in several milestones is owed by the last of them; earlier milestones test it in part. `informative` lists the clauses that state no requirement, each with the reason; every other clause is gated, whether or not it contains a BCP 14 key word, because most of the verification algorithms are written without one. `packages` says which milestone delivers each workspace package: a clause counts as tested once a package of the milestone that owes it, or of a later one, has a passing test that cites it, so an early test of part of a clause cannot stand in for the whole.",
-  "completed": ["M0", "M1", "M2"],
+  "completed": ["M0", "M1", "M2", "M3"],
   "packages": {
     "schema": "M0",
     "conformance": "M0",
@@ -47,6 +47,7 @@
     "L1 18.4": "M6",
     "L1 19": "M4",
     "L2": "M3",
+    "L2 10.2": "M4",
     "L0": "M9",
     "L0 2.2": "M8",
     "L0 4": "M6"
@@ -55,6 +56,9 @@
     "core 12": "Security considerations: a summary of rules stated, and tested, elsewhere.",
     "L1 1": "Overview.",
     "L2 3": "A pointer to Layer 1, Section 16.",
+    "L2 10.1": "Says where a record may be published, and that publishing does not change it. No rule of verification follows from it.",
+    "L2 10.3": "Says that backlinks are computed by indexers and clients, and that the protocol defines no global index.",
+    "L2 11.1": "Points to Layer 0, Section 8, for payment rails, which is informative in this revision.",
     "L0 5": "Informative in this revision (Layer 0, introduction).",
     "L0 6": "Informative in this revision (Layer 0, introduction).",
     "L0 7": "Informative in this revision (Layer 0, introduction).",

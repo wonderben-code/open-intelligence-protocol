@@ -38,6 +38,8 @@ jobs:
             mutate: "packages/schema/src/**/*.ts,!packages/schema/src/generated/**,!packages/**/*.d.ts"
           - package: identity
             mutate: "packages/identity/src/**/*.ts,!packages/**/*.d.ts"
+          - package: delegation
+            mutate: "packages/delegation/src/**/*.ts,!packages/**/*.d.ts"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

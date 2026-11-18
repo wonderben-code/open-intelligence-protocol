@@ -44,6 +44,8 @@ Each case has a `kind`, evaluated with the **baseline** (the identity logs and r
 - `record`: `record` is well formed (must-accept, control) or malformed (negative). Whether its proofs verify is not the question;
 - `json`: the text in `text` is JSON within the profile of core Section 1 (must-accept) or is not (negative). It needs no baseline. The text is given as a string because what it tests is lost on parsing: how a number is written, an escape, a depth of nesting.
 
+The logs of a case are the copies the verifier holds, and each is judged as it is: a copy with an event that does not verify is not a log of the mind, and where it decides the answer the case says so (Layer 1, 7.3). No case asks what a verifier keeps of a log that arrives, which is Layer 1, 4.9: the answers here are the same for a verifier that keeps the events before an invalid event and for one that keeps nothing.
+
 ## Judging other cases
 
 `--judge` gives this implementation's verdict on any case in the format above, so that another implementation can compare its own verdicts with it on cases it generates (differential testing). Cases are judged against the existing `vectors.json`.

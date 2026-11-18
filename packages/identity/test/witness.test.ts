@@ -193,6 +193,8 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
   /** The third event the mind would write next, with these members set or changed. */
   const next = (members: JsonObject = {}) =>
     new KeyMind("ada").update(10).raw(20, "Update", members).events[2]!;
+  const withoutMember = (event: object, name: string) =>
+    Object.fromEntries(Object.entries(event).filter(([member]) => member !== name));
 
   it("calls invalid what is wrong whoever looks: its form, its place, or the keys that signed it", () => {
     const invalid: [string, (ada: KeyMind) => unknown, string][] = [
@@ -217,15 +219,10 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
           ]),
         "L1 4.3",
       ],
-      // Anybody can write an event that names a critical extension. Unsigned, it is junk like any other.
-      [
-        "unsigned, with a critical extension",
-        (ada) =>
-          rawSign(draftUpdate(ada.head, T(20), { controller: ada.controller(2), ...critical }), [
-            { control: signer("thief") },
-          ]),
-        "L1 4.3",
-      ],
+      // No version and no type: it names nothing a later revision could define.
+      ["without a version", () => withoutMember(next(), "oip"), "core 7"],
+      ["with a version that is no string", () => ({ ...next(), oip: 2 }), "core 7"],
+      ["with a type that is no string", () => ({ ...next(), type: 7 }), "L1 4.6"],
     ];
     for (const [name, last, expected] of invalid) {
       expect(third(last), name).toStrictEqual({ clause: expected, undecided: false });
@@ -239,6 +236,25 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
       ["a type no revision has defined yet", () => next({ type: "Rename" }), "L1 4.6"],
       ["the reserved member", () => next({ recovery: {} }), "L1 3.12"],
       ["another version of the protocol", () => next({ oip: "2" }), "core 7"],
+      ["another version, whatever else it holds", () => ({ oip: "2", type: 7 }), "L1 4.6"],
+      // An extension listed in `critical` may change what makes an event valid: its form, its
+      // place and its signatures. Without the extension, nothing else about the event is a finding.
+      [
+        "unsigned, with a critical extension",
+        (ada) =>
+          rawSign(draftUpdate(ada.head, T(20), { controller: ada.controller(2), ...critical }), [
+            { control: signer("thief") },
+          ]),
+        "core 8.3",
+      ],
+      ["out of place, with a critical extension", () => next({ seq: 7, ...critical }), "core 8.3"],
+      [
+        "malformed, with a critical extension",
+        () => ({ ...next(critical), homes: "https://a.example" }),
+        "core 8.3",
+      ],
+      // A `critical` that is no list of names is read as naming what nobody implements.
+      ["with a critical that is no list", () => ({ ...next(), critical: "all" }), "core 8.3"],
       // Dated more than 300 seconds after this verifier's clock: one that sees it later accepts it.
       [
         "dated after the evidence",
@@ -295,6 +311,15 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
       clause: "core 9.4",
       undecided: true,
     });
+    // A proof pinned to a version of a member that the verifier's copy of its log does not have:
+    // the member may publish it yet, or a fuller copy may hold it.
+    const ahead = new KeyMind("b").update(15);
+    const pinnedAhead = rawSign(draftUpdate(club().head, T(20)), [a.asMember(), ahead.asMember()]);
+    expect(witnessedBy([a, b], [...club().events, pinnedAhead])).toStrictEqual({
+      clause: "L1 6.4",
+      undecided: true,
+    });
+    expect(witnessedBy([a, ahead], [...club().events, pinnedAhead]).undecided).toBe(false);
     // A member removed its key at 30: which came first is a matter of evidence.
     const removed = new KeyMind("b").update(30, { invocation: [] });
     expect(witnessedBy([a, removed, n], admits.events)).toStrictEqual({
@@ -343,10 +368,9 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
     // An undecided event ends it: the log as it came, which a book refuses until it can judge.
     const waiting = [...ada.events, next(critical)];
     expect(witnessLog(waiting, at(50), seen).toHold).toBe(waiting);
-    // No first sight was recorded of the event, so the book has no evidence for it yet.
     expect(held(waiting)).toMatchObject({
       ok: false,
-      issues: [{ clause: "core 9.5", path: "/2" }],
+      issues: [{ clause: "core 8.3", path: "/2/critical" }],
     });
     // Nothing verified and nothing to wait for; or what was given is no log at all.
     expect(witnessLog([{ junk: true }], at(50), seen).toHold).toBeUndefined();

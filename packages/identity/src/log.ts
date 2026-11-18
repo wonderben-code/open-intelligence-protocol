@@ -179,8 +179,10 @@ function memberProof(
   }
   const pinned = entryAt(log, versionId);
   if (pinned === undefined) {
-    // Of a duplicitous member, the version may be one that evidence would yet separate.
-    if (log.duplicitous) replay.lacking = true;
+    // The member may publish that version yet, a fuller copy of its log may
+    // hold it, and of a duplicitous member evidence may yet give it the
+    // position. None of that is a fact about the event.
+    replay.lacking = true;
     return no("the proof is pinned to a version that is not in the member's log", "L1 6.4");
   }
   if (pinned.entry.state.retired) {
@@ -568,34 +570,42 @@ function extend(
   });
 }
 
-/** An event as read, or why it is none, and whether a later revision might read it. */
+/** An event as read, or why it is none, and whether this verifier could read it at all. */
 type Read =
   | { readonly event: IdentityEvent }
   | {
       readonly refusal: Rejection;
       /**
-       * Whether the refusal is of something this revision reserves or does
-       * not know, which a verifier of a later revision may accept: another
-       * version of the protocol, a type of event this one does not define,
-       * or the reserved member `recovery`.
+       * Whether the verifier cannot read the event (Layer 1, 4.9): it is of
+       * another version of the protocol, or of a type this revision does not
+       * define, or has the reserved member `recovery`, or lists in `critical`
+       * an extension the verifier does not implement. Such an event may
+       * depend on rules the verifier does not have, so nothing else that is
+       * wrong with it is a finding.
        */
-      readonly later: boolean;
+      readonly unread: boolean;
     };
 
-/** One event as a well-formed record of an identity log (Layer 1, 4.6 and 4.8). */
-function readEvent(raw: unknown, path: string): Read {
+/**
+ * One event as a well-formed record of an identity log (Layer 1, 4.6 and
+ * 4.8).
+ *
+ * @param understood - core 8.3: the extension namespaces the verifier implements.
+ */
+function readEvent(raw: unknown, path: string, understood: ReadonlySet<string>): Read {
   const plain = validateJson(raw);
-  if (!plain.ok) return { refusal: under(path, plain), later: false };
+  if (!plain.ok) return { refusal: under(path, plain), unread: false };
   const value = plain.value;
   if (!isJsonObject(value)) {
-    return { refusal: no("an event is a JSON object", "L1 3.1", path), later: false };
+    return { refusal: no("an event is a JSON object", "L1 3.1", path), unread: false };
   }
   const type = value["type"];
+  const version = value["oip"];
   // A record of another version is another protocol's to judge (core 7).
-  const later = value["oip"] !== "1";
+  const another = typeof version === "string" && version !== "1";
   if (type === "Merge") {
     const refusal = no("Merge is reserved in this revision", "L1 3.9", `${path}/type`);
-    return { refusal, later: true };
+    return { refusal, unread: true };
   }
   if (!EVENT_TYPES.includes(type)) {
     const refusal = no(
@@ -604,19 +614,32 @@ function readEvent(raw: unknown, path: string): Read {
       `${path}/type`,
     );
     // A type that is a string may be one a later revision defines.
-    return { refusal, later: typeof type === "string" };
+    return { refusal, unread: another || typeof type === "string" };
   }
   if (Object.hasOwn(value, "recovery")) {
     const refusal = no("recovery is reserved in this revision", "L1 3.12", `${path}/recovery`);
-    return { refusal, later: true };
+    return { refusal, unread: true };
+  }
+  // Asked before anything else is: an extension listed in `critical` may
+  // change what makes the event well formed, in its place or signed, and
+  // that is what `critical` is for. A verifier without the extension can
+  // say nothing about the event, however it looks (core 8.3).
+  const [unsupported] = unsupportedCritical(value, understood);
+  if (unsupported !== undefined) {
+    const refusal = no(
+      `the event depends on an extension this verifier does not implement: ${unsupported}`,
+      "core 8.3",
+      `${path}/critical`,
+    );
+    return { refusal, unread: true };
   }
   const record = validateRecord(value);
-  if (!record.ok) return { refusal: under(path, record), later };
+  if (!record.ok) return { refusal: under(path, record), unread: another };
   const [tooLarge] = checkSize(record.value);
   if (tooLarge !== undefined) {
     // A size that could not be measured is this implementation's limit, not the event's fault.
     const refusal = under(path, { issues: [tooLarge] });
-    return { refusal, later: tooLarge.clause === IMPLEMENTATION_LIMIT };
+    return { refusal, unread: tooLarge.clause === IMPLEMENTATION_LIMIT };
   }
   return { event: record.value as IdentityEvent };
 }
@@ -632,9 +655,11 @@ export interface Replayed {
   readonly failure: Rejection | undefined;
   /**
    * Whether the failure is the verifier's and not the event's (Layer 1,
-   * 4.9): it holds no evidence for the event, or not a member's log that the
-   * event needs, known far enough; or it does not implement an extension
-   * the event lists in `critical`; or it stopped at the length it reads.
+   * 4.9): it cannot read the event (another version, a type this revision
+   * does not define, the reserved member, a critical extension it does not
+   * implement); or it holds no evidence for the event, or not a member's
+   * log that the event needs, known far enough; or it stopped at the length
+   * it reads. It is `false` only for an event shown to be invalid.
    *
    * An event that is invalid is no event, and the log ends before it. One
    * the verifier could not judge may be an event of the log, a removal among
@@ -673,17 +698,17 @@ function replay(events: readonly unknown[], context: LogContext): Replayed {
   let step: Step | undefined;
   let before: Evaluation | undefined;
   let undecided = false;
-  /** A failure for want of something the verifier lacks. */
   // Read through a function: the checks on members' proofs set the flag, where the compiler does not look.
   const wanting = (): boolean => run.lacking;
+  /** A failure for want of something the verifier lacks. */
   const lacking = (rejection: Rejection): Rejection => {
     undecided = true;
     return rejection;
   };
   const advance = (raw: unknown, i: number): Rejection | undefined => {
     const path = `/${i}`;
-    const read = readEvent(raw, path);
-    if ("refusal" in read) return read.later ? lacking(read.refusal) : read.refusal;
+    const read = readEvent(raw, path, run.understood);
+    if ("refusal" in read) return read.unread ? lacking(read.refusal) : read.refusal;
     const event = read.event;
     const id = contentId(event);
     const created = parseTimestamp(event.created);
@@ -738,18 +763,6 @@ function replay(events: readonly unknown[], context: LogContext): Replayed {
     if (!next.ok) return wanting() || !dated ? lacking(next) : next;
     const applied = applyFields(next.value.state, event, revoked, path);
     if (!applied.ok) return applied;
-    // Asked last, of an event that is the mind's own: one that anybody could
-    // have written is refused above, for what is wrong with it.
-    const [unsupported] = unsupportedCritical(event, run.understood);
-    if (unsupported !== undefined) {
-      return lacking(
-        no(
-          `the event depends on an extension this verifier does not implement: ${unsupported}`,
-          "core 8.3",
-          `${path}/critical`,
-        ),
-      );
-    }
     step = { state: applied.value, height: next.value.height };
     if (event.type === "Fork") children.push({ position: i, child: event.child });
     for (const revocation of revocationsOf(event, i)) {

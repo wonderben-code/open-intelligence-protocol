@@ -177,7 +177,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 4.6 |  | M2 | 5 | tested | Types and termination. Every event's `type` is checked: the first is `Genesis` and every later… |
 | L1 4.7 | MUST | M2 | 9 | tested | Nesting and work. Verifying a member's proof requires verifying that member's own log. The heig… |
 | L1 4.8 | MUST | M2 | 3 | tested | Well-formed events. Every event is a well-formed record of its type: it satisfies core, Section… |
-| L1 4.9 | MUST | M2 | 8 | tested | Invalid, and undecided. An event can fail this section in two ways, and a verifier treats them… |
+| L1 4.9 | MUST | M2 | 8 | tested | Invalid, and undecided. A log with an event that fails this section is rejected. What a verifie… |
 | L1 5.1 |  | M2 | 2 | tested | Replaying a log produces the identity state: address, kind, controller state (`next` and `nextT… |
 | L1 5.2 |  | M2 | 7 | tested | DID document. Resolving a `did:oip` address produces a DID Core document: - `id`: the address.… |
 | L1 5.3 | MUST | M6 | 0 | pending M6 | Aliases. An entry in `alsoKnownAs` is verified only when the alias points back to the mind: ano… |

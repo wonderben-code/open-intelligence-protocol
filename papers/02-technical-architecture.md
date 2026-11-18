@@ -376,7 +376,7 @@ Its content ID, and therefore Amina's address, is `did:oip:bciqmwrzo6zt2xnoga2rk
 
 The reference checker performs exactly these steps. Its negative test vectors include a rotation signed correctly by a key whose hash was never committed, which pre-rotation alone rejects, and a 2-of-3 rotation that lists one key twice, which the distinct-keys rule rejects.
 
-**An event that fails.** A log with an event that fails any of these steps is rejected. What a verifier may do with the events before it depends on why it failed. An event that is malformed, out of place or wrongly signed is **invalid** for every verifier: it is no event, and the log before it stands, so nobody can take a mind away from a verifier by appending junk to a copy of its log. An event the verifier cannot judge is **undecided**: it has no evidence for it yet, or lacks a member's log the event needs, or the event names a critical extension or a later revision's type. Such an event may be the one that removes a key. The verifier does not take the events before it as the log, and waits until it can judge the event.
+**An event that fails.** A log with an event that fails any of these steps is rejected. What a verifier may do with the events before it depends on why it failed. An event that the verifier can read and that is malformed, out of place or wrongly signed is **invalid** for every verifier: it is no event, and the log before it stands, so appending plain junk to a copy of a log takes nothing away. Every other event that fails is **undecided**, because the verifier cannot judge it: it has no evidence for it yet, or lacks a member's log the event needs, or the event names a critical extension the verifier does not implement or a later revision's type, either of which may bring rules of its own. Such an event may be the one that removes a key. The verifier does not take the events before it as the log, and waits until it can judge the event.
 
 **Duplicity.** Two valid events with different content IDs at the same position of a log are **duplicity**. Because thresholds are majorities, every such pair has a signer who signed both, so the pair is self-proving evidence of misuse. Resolvers keep the first valid event they saw at each position, record when they saw it, and publish any conflicting event as evidence. A verifier never chooses between branches by length or by recency, since an attacker can always make a branch longer: the branch whose event at the point of divergence has the earlier evidence (first seen by the verifier or by a witness it trusts, or anchored) wins. If the evidence cannot separate them, the mind is duplicitous for that verifier, which accepts nothing pinned to a version after the divergence; records pinned to earlier versions stay valid, and every branch's key removals apply to them, so duplicity never revives a key. A collective's records pin no version of the collective, so for a duplicitous collective the rule is one of time: nothing is signed under its threshold from its first conflicting event on. A branch takes part in the contest with the events it has that verify, so appending an invalid event to the honest branch does not hand the position to the other; but a verifier that cannot verify the winning branch to its end does not know where the log ends, and rejects the log. Minds publish identity events to at least two independent witnesses so that first-seen evidence exists. This is KERI's first-seen rule, and it makes showing different histories to different people detectable rather than silent. The test vectors include a duplicity resolved by first-seen evidence and one that evidence cannot resolve.
 
@@ -1200,10 +1200,11 @@ verifyLog(events):
     # A branch takes part with the events it has that verify. If a copy that is left
     # (the winner, or every copy held that reaches a tie) does not verify to its end,
     # the log is rejected.
-    # An event that fails is invalid (its form, its place, a key-controlled mind's
-    # signatures) or undecided (evidence, a member's log, a critical extension, a later
-    # revision). The events before an invalid event may be kept as the log; the events
-    # before an undecided one may not, since that event may be a removal.
+    # An event that fails is invalid if the verifier can read it and it is malformed,
+    # out of place, or signed in a way no evidence could make good. Otherwise it is
+    # undecided: a critical extension or a later revision, evidence, a member's log.
+    # The events before an invalid event may be kept as the log; the events before an
+    # undecided one may not, since that event may be a removal.
 ```
 
 **A.5 Valid keys**

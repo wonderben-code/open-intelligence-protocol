@@ -959,13 +959,13 @@
       "id": "L1 4.9",
       "document": "L1",
       "section": "Verifying an identity log",
-      "summary": "Invalid, and undecided. An event can fail this section in two ways, and a verifier treats them…",
+      "summary": "Invalid, and undecided. A log with an event that fails this section is rejected. What a verifie…",
       "level": "MUST",
       "keywords": {
         "MAY": 1,
         "MUST NOT": 1
       },
-      "digest": "685c14cfa5af07713daef3dc88cb34cc7dfa9ce257cd14a23e9b9976446d860f"
+      "digest": "96fd8eb9b527fe015d6a3c848addc54f1f11601bcd4222f0dedba8737bcea8b2"
     },
     {
       "id": "L1 5.1",

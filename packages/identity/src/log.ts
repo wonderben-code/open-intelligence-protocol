@@ -29,6 +29,9 @@ import {
   type Validation,
   validateJson,
   validateRecord,
+  cutShort,
+  cutShortCount,
+  judging,
   noteCutShort,
 } from "@oip/schema";
 
@@ -1050,6 +1053,11 @@ function tooLong(most: number): Rejection {
  * It never throws.
  */
 export function verifyLog(events: unknown, context: LogContext): Validation<VerifiedLog> {
+  return judging(() => verifiedLog(events, context));
+}
+
+/** The log, as `verifyLog` answers when no check is cut short. */
+function verifiedLog(events: unknown, context: LogContext): Validation<VerifiedLog> {
   try {
     const opened = open(events, context);
     if (!opened.ok) return opened;
@@ -1070,6 +1078,26 @@ export function verifyLog(events: unknown, context: LogContext): Validation<Veri
  * It never throws.
  */
 export function verifyLogPrefix(events: unknown, context: LogContext): Replayed {
+  const before = cutShortCount();
+  let replayed: Replayed;
+  try {
+    replayed = prefixOf(events, context);
+  } catch (error) {
+    // A `catch` below found no room to answer in.
+    noteCutShort(error);
+    if (cutShortCount() === before) throw error;
+    return CUT;
+  }
+  // An event refused because its check was cut short is not shown to be invalid, and the
+  // events before it are not shown to be all there is: nothing is said of the log (ADR-0010).
+  return cutShortCount() === before ? replayed : CUT;
+}
+
+/** What `verifyLogPrefix` answers when a check was cut short: nothing is known of the log. */
+const CUT: Replayed = Object.freeze({ log: undefined, failure: cutShort(), undecided: true });
+
+/** The prefix, as `verifyLogPrefix` answers when no check is cut short. */
+function prefixOf(events: unknown, context: LogContext): Replayed {
   try {
     const opened = open(events, context);
     if (!opened.ok) {

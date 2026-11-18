@@ -242,7 +242,7 @@ export class LogBook implements IdentityView {
     hold(events: unknown, asOf: Instant): Validation<string>;
     log(mind: string): Validation<VerifiedLog>;
     witness(events: unknown, now: Instant, seen: FirstSeen, options?: ReadingOptions): Validation<string>;
-    witnessHeld(now: Instant, seen: FirstSeen, options?: ReadingOptions): void;
+    witnessHeld(now: Instant, seen: FirstSeen, options?: ReadingOptions): Validation<true>;
 }
 
 // @public

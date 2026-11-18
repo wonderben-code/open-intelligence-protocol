@@ -25,14 +25,15 @@ import {
   validateExtensionRecord,
   validateJson,
   validateRecord,
-  cutShortCount,
+  finding,
+  judging,
   noteCutShort,
 } from "@oip/schema";
 
 import type { IdentityView } from "./book.ts";
 import { type Evaluation, proofTime } from "./evidence.ts";
 import { understoodOf } from "./log.ts";
-import { cutShort, deepFreeze, isJsonObject, no, ok, own } from "./result.ts";
+import { deepFreeze, isJsonObject, no, ok, own } from "./result.ts";
 import {
   compromisedSince,
   entryAt,
@@ -86,11 +87,9 @@ export interface JudgeOptions {
  * then says nothing of the record, and a caller keeps what this returns.
  */
 export function judgeRecord(record: unknown, options?: JudgeOptions): Validation<JudgedRecord> {
-  const before = cutShortCount();
-  const judged = judge(record, options);
   // A proof left out because its check was cut short would stay left out for as long
   // as the answer is held: such an answer is not one.
-  return cutShortCount() === before ? judged : cutShort();
+  return judging(() => judge(record, options));
 }
 
 function judge(record: unknown, options?: JudgeOptions): Validation<JudgedRecord> {
@@ -150,6 +149,11 @@ export function operationalProofTime(
   proof: VerifiedProof,
   view: IdentityView,
 ): Validation<Instant> {
+  return judging(() => proofTimeOf(type, proof, view));
+}
+
+/** The time, as `operationalProofTime` answers when no check is cut short. */
+function proofTimeOf(type: string, proof: VerifiedProof, view: IdentityView): Validation<Instant> {
   const evaluated = operationalProof(type, proof, view);
   return evaluated.ok ? ok(evaluated.value.time) : evaluated;
 }
@@ -229,6 +233,16 @@ export function operationalProofs(
   mind: string,
   view: IdentityView,
 ): CountedProof[] {
+  return counted(() => proofsCounted(judged, mind, view));
+}
+
+/** A list worked out for a caller: none of it where a check was cut short (ADR-0010). */
+function counted<T>(work: () => T[]): T[] {
+  return finding(work) ?? [];
+}
+
+/** The proofs, as `operationalProofs` answers when no check is cut short. */
+function proofsCounted(judged: JudgedRecord, mind: string, view: IdentityView): CountedProof[] {
   const counted: CountedProof[] = [];
   for (const proof of judged.proofs) {
     if (proof.method.kind !== "key" || proof.method.mind !== mind) continue;
@@ -272,6 +286,15 @@ function membersEver(log: VerifiedLog): Set<string> {
  * @param log - The collective's verified log.
  */
 export function collectiveSignedTime(
+  judged: JudgedRecord,
+  log: VerifiedLog,
+  view: IdentityView,
+): Instant | undefined {
+  return finding(() => thresholdTime(judged, log, view));
+}
+
+/** The time, as `collectiveSignedTime` answers when no check is cut short. */
+function thresholdTime(
   judged: JudgedRecord,
   log: VerifiedLog,
   view: IdentityView,
@@ -330,10 +353,15 @@ export function ownSignedTime(
   mind: string,
   view: IdentityView,
 ): Instant | undefined {
-  const times = operationalProofs(judged, mind, view).map((counted) => counted.time);
+  return finding(() => ownTime(judged, mind, view));
+}
+
+/** The time, as `ownSignedTime` answers when no check is cut short. */
+function ownTime(judged: JudgedRecord, mind: string, view: IdentityView): Instant | undefined {
+  const times = proofsCounted(judged, mind, view).map((proof) => proof.time);
   const held = view.log(mind);
   if (held.ok) {
-    const together = collectiveSignedTime(judged, held.value, view);
+    const together = thresholdTime(judged, held.value, view);
     if (together !== undefined) times.push(together);
   }
   return times.length === 0 ? undefined : times.reduce((a, b) => (b < a ? b : a));

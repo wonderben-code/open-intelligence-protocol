@@ -25,6 +25,9 @@ import {
   validateJson,
   validateProof,
   validateRecord,
+  cutShort,
+  cutShortCount,
+  judging,
   noteCutShort,
 } from "@oip/schema";
 import { base58 } from "@scure/base";
@@ -229,6 +232,11 @@ function verifyAgainst(subject: Subject, candidate: unknown): Validation<Verifie
  * nothing. It never throws.
  */
 export function verifyProof(record: unknown, proof: unknown): Validation<VerifiedProof> {
+  return judging(() => proofOf(record, proof));
+}
+
+/** The proof, as `verifyProof` answers when no check is cut short. */
+function proofOf(record: unknown, proof: unknown): Validation<VerifiedProof> {
   try {
     const subject = subjectOf(record);
     return subject.ok ? verifyAgainst(subject.value, proof) : subject;
@@ -284,6 +292,23 @@ function notJudged(issues: readonly Issue[]): ProofVerdicts {
  * proof gives an empty `verified`. It never throws.
  */
 export function verifyProofs(record: unknown): ProofVerdicts {
+  const before = cutShortCount();
+  let verdicts: ProofVerdicts;
+  try {
+    verdicts = proofsOf(record);
+  } catch (error) {
+    // A `catch` below found no room to answer in.
+    noteCutShort(error);
+    if (cutShortCount() === before) throw error;
+    return notJudged(cutShort().issues);
+  }
+  // A proof refused because its check was cut short is not a proof that does not verify:
+  // none was judged (ADR-0010).
+  return cutShortCount() === before ? verdicts : notJudged(cutShort().issues);
+}
+
+/** The verdicts, as `verifyProofs` answers when no check is cut short. */
+function proofsOf(record: unknown): ProofVerdicts {
   try {
     const subject = subjectOf(record);
     if (!subject.ok) return notJudged(subject.issues);

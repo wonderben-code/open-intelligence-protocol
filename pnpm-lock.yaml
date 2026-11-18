@@ -232,6 +232,9 @@ importers:
       '@oip/core':
         specifier: workspace:*
         version: link:../core
+      '@oip/delegation':
+        specifier: workspace:*
+        version: link:../delegation
       '@oip/identity':
         specifier: workspace:*
         version: link:../identity

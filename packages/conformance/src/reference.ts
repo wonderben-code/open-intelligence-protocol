@@ -6,6 +6,7 @@
 import {
   canonicalize,
   checkSize,
+  CLOCK_SKEW,
   contentId,
   createProofSync,
   type Instant,
@@ -18,11 +19,13 @@ import {
   signerFromPrivateKey,
   verifyProof,
 } from "@oip/core";
+import { delegatedTime, isDelegableType, RecordSet, sentFor } from "@oip/delegation";
 import {
   didDocument,
   type EvidenceView,
   FirstSeen,
   judgeRecord,
+  latestState,
   lineage,
   LogBook,
   ownSignedTime,
@@ -116,6 +119,13 @@ function bookFor(view: VerifierView, subject: unknown): LogBook {
   return book;
 }
 
+/** The records of a verifier's view, each held with every proof that verified. */
+function recordsOf(view: VerifierView): RecordSet {
+  const records = new RecordSet();
+  for (const record of [...view.records, ...view.extraRecords]) records.add(record);
+  return records;
+}
+
 /** Whether any proof on a record names an authority: a delegation, or a charter role. */
 function namesAuthority(record: JsonObject): boolean {
   const proofs = record["proof"];
@@ -170,10 +180,31 @@ export const referenceAdapter: ConformanceAdapter = {
     };
   },
   countsFor: (record, mind, view) => {
-    // Signing through a delegation or a charter role is judged from M3 on.
-    if (namesAuthority(record)) return NOT_JUDGED;
     const judged = judgeRecord(record);
-    return judged.ok && ownSignedTime(judged.value, mind, bookFor(view, record)) !== undefined;
+    if (!judged.ok) return false;
+    const identity = bookFor(view, record);
+    const delegable = isDelegableType(judged.value.record.type);
+    // A proof that names an authority on a record of a collective's may act through a
+    // charter role, which is not judged yet (Layer 2, 7.1 item 4).
+    const held = identity.log(mind);
+    const collective = held.ok && latestState(held.value).controller.kind === "member";
+    if (delegable && collective && namesAuthority(record)) return NOT_JUDGED;
+    const times = [ownSignedTime(judged.value, mind, identity)];
+    if (delegable) {
+      times.push(delegatedTime(judged.value, mind, { identity, records: recordsOf(view) }));
+    }
+    // core 9.6, for every route: no proof counts that is evaluated more than 300 seconds
+    // after the record expires.
+    const limit = judged.value.expires;
+    return times.some(
+      (time) => time !== undefined && (limit === undefined || time <= limit + CLOCK_SKEW),
+    );
+  },
+  sentFor: (packet, mind, view) => {
+    const judged = judgeRecord(packet);
+    if (!judged.ok) return false;
+    const context = { identity: bookFor(view, packet), records: recordsOf(view) };
+    return sentFor(judged.value, mind, context) !== undefined;
   },
   lineage: (child, view) => {
     const book = bookFor(view, undefined);

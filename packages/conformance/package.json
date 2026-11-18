@@ -44,6 +44,7 @@
   },
   "dependencies": {
     "@oip/core": "workspace:*",
+    "@oip/delegation": "workspace:*",
     "@oip/identity": "workspace:*",
     "@oip/schema": "workspace:*"
   },

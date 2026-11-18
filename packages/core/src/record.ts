@@ -17,6 +17,7 @@ import {
   type Validation,
   validateParsedExtensionRecord,
   validateParsedRecord,
+  noteCutShort,
 } from "@oip/schema";
 
 import type { JsonObject } from "./content-id.ts";
@@ -140,7 +141,8 @@ function withinSize<T extends OipRecord | ExtensionRecord>(
   try {
     const [first, ...rest] = checkSize(validated.value);
     return first === undefined ? ok(validated.value) : { ok: false, issues: [first, ...rest] };
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     // Its size could not be measured: the stack is spent, or the process is in
     // a state in which nothing can be serialised. A reader answers all the same.
     return no("the record's size could not be measured", IMPLEMENTATION_LIMIT);

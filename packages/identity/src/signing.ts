@@ -25,12 +25,14 @@ import {
   validateExtensionRecord,
   validateJson,
   validateRecord,
+  cutShortCount,
+  noteCutShort,
 } from "@oip/schema";
 
 import type { IdentityView } from "./book.ts";
 import { type Evaluation, proofTime } from "./evidence.ts";
 import { understoodOf } from "./log.ts";
-import { deepFreeze, isJsonObject, no, ok, own } from "./result.ts";
+import { cutShort, deepFreeze, isJsonObject, no, ok, own } from "./result.ts";
 import {
   compromisedSince,
   entryAt,
@@ -79,9 +81,19 @@ export interface JudgeOptions {
  * rejected under core 8.3. It is not malformed, and may be kept and passed
  * on; it may not be treated as valid for any decision.
  *
- * The result is frozen. It never throws.
+ * The result is frozen. It never throws. With the call stack too nearly
+ * spent to finish a check, it refuses and says so: what it would answer
+ * then says nothing of the record, and a caller keeps what this returns.
  */
 export function judgeRecord(record: unknown, options?: JudgeOptions): Validation<JudgedRecord> {
+  const before = cutShortCount();
+  const judged = judge(record, options);
+  // A proof left out because its check was cut short would stay left out for as long
+  // as the answer is held: such an answer is not one.
+  return cutShortCount() === before ? judged : cutShort();
+}
+
+function judge(record: unknown, options?: JudgeOptions): Validation<JudgedRecord> {
   try {
     const understood = understoodOf(own(options, "understood"));
     const plain = validateJson(record, "container");
@@ -108,7 +120,8 @@ export function judgeRecord(record: unknown, options?: JudgeOptions): Validation
         expires: expires === undefined ? undefined : parseTimestamp(expires),
       }),
     );
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     return no("the record could not be read as plain JSON data", "core 1.2");
   }
 }

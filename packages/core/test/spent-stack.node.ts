@@ -40,7 +40,6 @@ function keys(): unknown[] {
         : withStackSpent(() => isEd25519PublicKey(key));
     return {
       answers: tally(spent, kindOf),
-      cutShort: spent.includes(false),
       // Whatever it could answer then, it answers rightly now.
       verifiesAfter: verifyEd25519(made, text, key),
       isKeyAfter: isEd25519PublicKey(key),
@@ -83,6 +82,14 @@ function records(): unknown {
   const record = named("intent");
   const text = JSON.stringify(record);
   const bytes = new TextEncoder().encode(text);
+  // A record of a type that an extension defines, which the other reader is for.
+  const note = JSON.stringify({
+    oip: "1",
+    type: "com.example.Note",
+    created: "2026-11-17T09:00:00Z",
+    ext: { "com.example": { text: "A note." } },
+    critical: ["com.example"],
+  });
   const read = (answer: { ok: boolean; issues?: readonly { message: string }[] }): string => {
     if (answer.ok) return "read";
     return (answer.issues?.[0]?.message.length ?? 0) > 0 ? "refused with a reason" : "refused";
@@ -97,14 +104,14 @@ function records(): unknown {
       read,
     ),
     extension: tally(
-      withStackSpent(() => parseExtensionRecord(text)),
+      withStackSpent(() => parseExtensionRecord(note)),
       read,
     ),
     critical: tally(
       withStackSpent(() => unsupportedCritical(record)),
       kindOf,
     ),
-    after: parseRecord(text).ok,
+    after: parseRecord(text).ok && parseExtensionRecord(note).ok,
   };
 }
 

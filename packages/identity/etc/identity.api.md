@@ -299,7 +299,7 @@ export function proofTime(created: Instant, seen: Instant | undefined): Validati
 
 // @public
 export interface ReadingOptions {
-    readonly following?: Iterable<string>;
+    readonly following?: Iterable<string> | string;
 }
 
 // @public

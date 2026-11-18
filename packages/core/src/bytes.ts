@@ -9,6 +9,7 @@ import {
   hexToBytes as fromHex,
   utf8ToBytes,
 } from "@noble/hashes/utils.js";
+import { noteCutShort } from "@oip/schema";
 
 export { concatBytes };
 
@@ -70,7 +71,8 @@ export function decodeUtf8(bytes: Uint8Array): string | undefined {
   let text: string | undefined;
   try {
     text = strictDecoder.decode(bytes);
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     // Not UTF-8: there is no text.
   }
   return text;

@@ -12,6 +12,7 @@ import { ed25519 } from "@noble/curves/ed25519.js";
 
 import { bytesToHex } from "./bytes.ts";
 import { BoundedCache } from "./cache.ts";
+import { noteCutShort } from "@oip/schema";
 
 /** The length of an Ed25519 public key, and of an X25519 one: 32 bytes. */
 export const PUBLIC_KEY_LENGTH = 32;
@@ -33,7 +34,8 @@ function encodesPointOfOrderL(encoded: Uint8Array): boolean {
     // y-coordinate of 2^255 - 19 or more; ZIP 215 would accept it.
     const point = ed25519.Point.fromBytes(encoded, false);
     return !point.is0() && point.isTorsionFree();
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     return false;
   }
 }
@@ -87,7 +89,8 @@ export function isEd25519PublicKey(publicKey: Uint8Array): boolean {
   try {
     const key = snapshot(publicKey, PUBLIC_KEY_LENGTH);
     return key !== undefined && hasOrderL(key);
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     return false;
   }
 }
@@ -121,7 +124,8 @@ export function verifyEd25519(
     if (!hasOrderL(key)) return false;
     if (!encodesPointOfOrderL(sig.subarray(0, PUBLIC_KEY_LENGTH))) return false;
     return ed25519.verify(sig, text, key, { zip215: false });
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     return false;
   }
 }

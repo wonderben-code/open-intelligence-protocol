@@ -11,9 +11,13 @@
  * "packages/core/src/proof.ts"` runs it for one file.
  */
 
-// Each mutant runs the tests that cover it. The parser's campaign of a million
-// inputs is cut down for those runs; its full size runs with the ordinary tests.
+// Each mutant runs the tests that cover it, and a mutant in code that every
+// record passes through is covered by nearly all of them. The campaigns (a
+// million inputs to the parser, thousands of cases compared with the Python
+// checker) are cut down for those runs; their full size runs with the
+// ordinary tests.
 process.env["OIP_PARSER_CAMPAIGN"] ??= "20000";
+process.env["OIP_DIFFERENTIAL_RUNS"] ??= "100";
 
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {

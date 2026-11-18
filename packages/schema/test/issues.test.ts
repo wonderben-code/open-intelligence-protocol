@@ -26,6 +26,8 @@ import {
   validateRecord,
   validateRecordOfType,
 } from "../src/index.ts";
+import { containerParts, depthOf } from "../src/containers.ts";
+import { pointerDepth, pointerToken, shown } from "../src/issue.ts";
 import { AMINA, sample, sampleProof } from "./fixtures.ts";
 
 function issues(result: Validation<unknown>): readonly Issue[] {
@@ -247,6 +249,63 @@ describe(`${clause("core 1.9")} depth`, () => {
   });
 });
 
+describe(`${clause("core 1.9")} depth, for a container`, () => {
+  /** A page of a log whose own members nest `own` deep and whose one event nests `carried` deep. */
+  const page = (own: number, carried: number) => ({
+    ...sample("LogPage"),
+    ext: { "com.example.deep": { down: nested(own - 3) } },
+    events: [{ ...sample("Update"), ext: { "com.example": { v: nested(carried - 3) } } }],
+  });
+
+  it("holds the container's own part to 64 exactly, whatever it carries", () => {
+    // The whole nests 66 deep, so each part is measured on its own.
+    expect(validateRecord(page(64, 64)).ok).toBe(true);
+    expect(validateRecord(page(4, 64)).ok).toBe(true);
+    expect(issues(validateRecord(page(65, 64)))).toEqual([TOO_DEEP]);
+    expect(issues(validateRecord(page(65, 4)))).toEqual([TOO_DEEP]);
+  });
+
+  it("says which carried record is too deep, and both when both are", () => {
+    expect(issues(validateRecord(page(64, 65)))).toEqual([{ ...TOO_DEEP, path: "/events/0" }]);
+    expect(issues(validateRecord(page(65, 65)))).toEqual([
+      TOO_DEEP,
+      { ...TOO_DEEP, path: "/events/0" },
+    ]);
+  });
+});
+
+describe("the length of a path in an issue", () => {
+  /** The path of the issue about a role that is not an object, named by the input. */
+  const pathOf = (name: string) =>
+    first(validateRecord(sample("Collective", { roles: { [name]: 5 } }))).path;
+  // A tag character: valid Unicode, invisible, and written as an escape of nine characters.
+  const TAG = "\u{e0041}";
+  const escaped = "\\u{e0041}";
+
+  it("is whole when it is short", () => {
+    expect(pathOf("clerk")).toBe("/roles/clerk");
+    expect(pathOf(TAG)).toBe(`/roles/${escaped}`);
+  });
+
+  it("is cut at 256 characters", () => {
+    expect(pathOf("x".repeat(248))).toBe(`/roles/${"x".repeat(248)}`);
+    expect(pathOf("x".repeat(249))).toBe(`/roles/${"x".repeat(248)}…`);
+    expect(pathOf("x".repeat(5000))).toBe(`/roles/${"x".repeat(248)}…`);
+  });
+
+  it("is cut sooner when its characters are written as escapes: at 1,536 characters written", () => {
+    // "/roles/", eight letters and 169 escapes of nine characters: 1,536 exactly.
+    const most = `${"x".repeat(8)}${TAG.repeat(169)}`;
+    const whole = `/roles/${"x".repeat(8)}${escaped.repeat(169)}`;
+    expect(whole).toHaveLength(1536);
+    expect(pathOf(most)).toBe(whole);
+    // One more character written, and what is shown is the first 256 of them.
+    const over = pathOf(`${most}x`);
+    expect(over).toBe(`${whole.slice(0, 256)}…`);
+    expect(pathOf(TAG.repeat(240))).toBe(`${`/roles/${escaped.repeat(240)}`.slice(0, 256)}…`);
+  });
+});
+
 describe("the most values a reader reads at once", () => {
   it("says what the limit was, and counts to it exactly", () => {
     const members = (count: number) =>
@@ -425,6 +484,28 @@ describe("the clause a refusal cites", () => {
     }
   });
 
+  it("is core 6.1 for each kind of reference", () => {
+    expect(cited(sample("Branch", { fork: "did:oip:nobody" }))).toEqual(["/fork", "core 6.1"]);
+    expect(cited(sample("Revocation", { revokes: "that delegation" }))).toEqual([
+      "/revokes",
+      "core 6.1",
+    ]);
+    // A verification method is a key-ref or a control-key-ref. It is neither,
+    // and what is said of each cites the clause that defines references.
+    const method = issues(validateProof(sampleProof({ verificationMethod: "did:web:x#key" })));
+    expect(method.length).toBeGreaterThan(1);
+    expect(method.map((issue) => [issue.path, issue.clause])).toEqual(
+      method.map(() => ["/verificationMethod", "core 6.1"]),
+    );
+  });
+
+  it("is core 7 for oip and type, when a record is checked as one type and is not of it", () => {
+    const wrongVersion = validateRecordOfType("Intent", { ...sample("Intent"), oip: "2" });
+    expect(first(wrongVersion)).toMatchObject({ path: "/oip", clause: "core 7" });
+    const otherType = validateRecordOfType("Intent", { ...sample("Intent"), type: "Offer" });
+    expect(first(otherType)).toMatchObject({ path: "/type", clause: "core 7" });
+  });
+
   it("is the one for amounts, decimals and durations where a record carries them", () => {
     const offer = sample("Offer");
     const terms = offer["terms"] as JsonObject;
@@ -508,5 +589,68 @@ describe("the clause a refusal cites", () => {
     // Alone, that remark is all there is to say.
     const alone = issues(validateRecord({ ...genesis, controller: 5 }));
     expect(alone.length).toBeGreaterThan(0);
+  });
+});
+
+describe("the parts a message and a path are made of", () => {
+  it("escapes a character that is not safe to show, in the short form up to U+FFFF", () => {
+    expect(shown("a")).toBe("a");
+    expect(shown("‮")).toBe("\\u202e");
+    // The last code point of the short form, and the first of the long one.
+    expect(shown("￿")).toBe("\\uffff");
+    expect(shown("\u{e0001}")).toBe("\\u{e0001}");
+  });
+
+  it("escapes the two characters a JSON Pointer token cannot hold as they are (RFC 6901)", () => {
+    expect(pointerToken("a/b~c")).toBe("a~1b~0c");
+    expect(pointerToken("~1")).toBe("~01");
+    expect(pointerToken(7)).toBe("7");
+  });
+
+  it("counts how deep a path goes, not how long it is written", () => {
+    expect(pointerDepth("")).toBe(0);
+    expect(pointerDepth("/alsoKnownAs")).toBe(1);
+    expect(pointerDepth("/to/0")).toBe(2);
+    expect(pointerDepth("/a~1b/0/c")).toBe(3);
+  });
+});
+
+describe(`${clause("core 1.9")} how deep a value nests`, () => {
+  it("counts arrays and objects, and nothing else", () => {
+    expect(depthOf(1)).toBe(0);
+    expect(depthOf("text")).toBe(0);
+    expect(depthOf(null)).toBe(0);
+    expect(depthOf([])).toBe(1);
+    expect(depthOf({ a: 1 })).toBe(1);
+    expect(depthOf({ a: [1] })).toBe(2);
+    expect(depthOf({ a: [{}], b: 1 })).toBe(3);
+  });
+});
+
+describe(`${clause("core 7")} the records a container carries`, () => {
+  it("are a Bundle's events, and its location and participant only when it has them", () => {
+    const bundle = sample("Bundle") as JsonObject & { log: unknown[] };
+    const { location: _location, participant: _participant, ...bare } = bundle;
+    const paths = (record: JsonObject): string[] => {
+      const checked = validateRecord(record);
+      if (!checked.ok) throw new Error(JSON.stringify(checked.issues));
+      return (containerParts(checked.value)?.carried ?? []).map(([path]) => path);
+    };
+    const events = bundle.log.map((_, i) => `/log/${i}`);
+    expect(events.length).toBeGreaterThan(0);
+    expect(paths(bare)).toStrictEqual(events);
+    expect(paths({ ...bare, location: sample("Location") })).toStrictEqual([
+      ...events,
+      "/location",
+    ]);
+    expect(paths({ ...bare, participant: sample("Participant") })).toStrictEqual([
+      ...events,
+      "/participant",
+    ]);
+  });
+
+  it("are none for a record that is not a container", () => {
+    const checked = validateRecord(sample("Intent"));
+    expect(checked.ok && containerParts(checked.value)).toBeUndefined();
   });
 });

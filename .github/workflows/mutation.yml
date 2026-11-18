@@ -20,8 +20,22 @@ permissions:
 
 jobs:
   mutation:
+    # One job for each package. A mutant in code that every record passes
+    # through is covered by nearly every test, and since the tests of every
+    # package are counted (scripts/lib/source-aliases.ts) one package takes
+    # hours on its own.
+    name: Mutation testing of @oip/${{ matrix.package }}
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: core
+            mutate: "packages/core/src/**/*.ts,!packages/**/*.d.ts"
+          - package: schema
+            # The validators Ajv generates are tested through the schemas.
+            mutate: "packages/schema/src/**/*.ts,!packages/schema/src/generated/**,!packages/**/*.d.ts"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,10 +47,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Mutation testing (fails below a score of 85%)
-        run: pnpm mutation
+        run: pnpm mutation --mutate "${{ matrix.mutate }}"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
-          name: mutation-report
+          name: mutation-report-${{ matrix.package }}
           path: reports/mutation
           retention-days: 30

@@ -54,3 +54,8 @@ export function quote(value: string, max = 64): string {
 export function pointerToken(token: string | number): string {
   return String(token).replaceAll("~", "~0").replaceAll("/", "~1");
 }
+
+/** How many reference tokens a JSON Pointer has: 0 for the whole value, 1 for a member of it. */
+export function pointerDepth(pointer: string): number {
+  return pointer.split("/").length - 1;
+}

@@ -14,7 +14,15 @@
  */
 
 export type { ExtensionRecord, Issue, JsonValue, Limits, OipRecord, Validation } from "@oip/schema";
-export { bytesEqual, bytesToHex, decodeUtf8, hexToBytes, isWellFormed, utf8 } from "./bytes.ts";
+export {
+  bytesEqual,
+  bytesToHex,
+  concatBytes,
+  decodeUtf8,
+  hexToBytes,
+  isWellFormed,
+  utf8,
+} from "./bytes.ts";
 export {
   contentId,
   contentIdOfDigest,

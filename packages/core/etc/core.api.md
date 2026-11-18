@@ -5,6 +5,7 @@
 ```ts
 
 import { AuthorityItem } from '@oip/schema';
+import { concatBytes } from '@noble/hashes/utils.js';
 import { ExtensionRecord } from '@oip/schema';
 import { Issue } from '@oip/schema';
 import { JsonValue } from '@oip/schema';
@@ -37,6 +38,8 @@ export const CLOCK_SKEW: bigint;
 
 // @public
 export function compareDecimals(a: unknown, b: unknown): -1 | 0 | 1 | undefined;
+
+export { concatBytes }
 
 // @public
 export function contentId(record: unknown, limits?: Limits): string;

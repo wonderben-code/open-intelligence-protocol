@@ -102,7 +102,7 @@ A valid signature is not yet authority. Verifying this event as the start of an 
 | `compareDecimals`, `isDecimal`, `isAmount`                                                                                                                                       | Decimal quantities, compared exactly                                                                                 |
 | `unsupportedCritical`, `understandsCritical`, `isNamespace`                                                                                                                      | Critical extensions                                                                                                  |
 | `OipError`, `PROBLEMS`, `problemDetails`, `problemType`, `problemCode`, `errorFrom`, `MEDIA_TYPE`                                                                                | Problem types and the one error this implementation throws                                                           |
-| `sha256`, `sha256Digest`, `utf8`, `decodeUtf8`, `isWellFormed`, `bytesToHex`, `hexToBytes`, `bytesEqual`                                                                         | Hashing, text and bytes                                                                                              |
+| `sha256`, `sha256Digest`, `utf8`, `decodeUtf8`, `isWellFormed`, `bytesToHex`, `hexToBytes`, `bytesEqual`, `concatBytes`                                                          | Hashing, text and bytes                                                                                              |
 
 The API report is [`etc/core.api.md`](etc/core.api.md).
 

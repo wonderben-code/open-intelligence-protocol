@@ -7,7 +7,7 @@
  * implementations must produce the same bytes for the same value.
  */
 
-import { type JsonValue, type Limits, validateJson } from "@oip/schema";
+import { type JsonValue, type Limits, UnfitProcess, validateJson } from "@oip/schema";
 import serialise from "canonicalize";
 
 import { utf8 } from "./bytes.ts";
@@ -32,7 +32,7 @@ export function canonicalText(value: JsonValue): string {
   // of all arrays: every record would then have the same canonical form, and
   // the same content ID. Nothing is hashed or signed in a process in that state.
   if ("toJSON" in Array.prototype || "toJSON" in Object.prototype) {
-    throw new Error(
+    throw new UnfitProcess(
       "Object.prototype or Array.prototype has a toJSON: nothing can be serialised safely",
     );
   }
@@ -112,7 +112,7 @@ export function canonicalBytesOf(value: JsonValue): Uint8Array {
  * @throws OipError `invalid-record` if the value is not within the JSON
  * profile of core Section 1 (a float, a Date, an unpaired surrogate, ...).
  * Nothing outside the profile has a canonical form.
- * @throws Error if other code in the process has put a `toJSON` on the
+ * @throws UnfitProcess if other code in the process has put a `toJSON` on the
  * prototype of every object or every array: nothing is serialised then.
  */
 export function canonicalize(value: unknown, limits?: Limits): string {

@@ -6,6 +6,7 @@ import {
   containerParts,
   IMPLEMENTATION_LIMIT,
   type OipRecord,
+  UnfitProcess,
   validateRecord,
 } from "@oip/schema";
 import {
@@ -136,6 +137,30 @@ describe("reading a record from text", () => {
       }),
       { numRuns: 1000 },
     );
+  });
+
+  it("reads, and hashes nothing, in a process where nothing can be serialised", () => {
+    // Other code has put a `toJSON` on every object. Reading needs no canonical form: the
+    // size is counted without writing it. Nothing is hashed in that state (core 2).
+    const text = JSON.stringify(named("intent"));
+    Object.defineProperty(Object.prototype, "toJSON", {
+      value: () => "rewritten",
+      configurable: true,
+      writable: true,
+    });
+    let thrown: unknown;
+    let read = false;
+    try {
+      read = parseRecord(text).ok;
+      const parsed = parseRecord(text);
+      if (parsed.ok) contentId(parsed.value);
+    } catch (error) {
+      thrown = error;
+    } finally {
+      delete (Object.prototype as { toJSON?: unknown }).toJSON;
+    }
+    expect(read).toBe(true);
+    expect(thrown).toBeInstanceOf(UnfitProcess);
   });
 
   it("reads no clock and no randomness", () => {

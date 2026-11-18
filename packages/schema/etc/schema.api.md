@@ -329,6 +329,12 @@ export const Controller: Type.TUnsafe<{
 // @public (undocumented)
 export type Controller = Static<typeof Controller>;
 
+// @public
+export const CUT_SHORT = "this could not be judged: the call stack was too nearly spent, or the process is in no state to serialise anything. Ask again";
+
+// @public
+export function cutShortCount(): number;
+
 // @public (undocumented)
 export const Delegation: Type.TObject<{
     type: Type.TLiteral<"Delegation">;
@@ -828,6 +834,9 @@ export interface MultipartContent {
     // (undocumented)
     parts: (InlineContent | ReferencedContent)[];
 }
+
+// @public
+export function noteCutShort(error: unknown): void;
 
 // @public (undocumented)
 export const Offer: Type.TObject<{
@@ -1422,6 +1431,11 @@ export type TextFault = "unpaired surrogate" | "noncharacter";
 
 // @public
 export function textFault(text: string): TextFault | undefined;
+
+// @public
+export class UnfitProcess extends Error {
+    constructor(message: string);
+}
 
 // @public
 export const UNSIGNED_RECORD_TYPES: readonly ["Session", "Resume", "Branch", "Bundle", "LogPage", "FeedPage", "DuplicityEvidence", "Sealed"];

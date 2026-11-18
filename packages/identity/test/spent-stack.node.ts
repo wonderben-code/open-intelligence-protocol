@@ -12,6 +12,27 @@ import { at, bookOf, intentBy, KeyMind, LATER, witness } from "@oip/testkit/mind
 
 import { judgeRecord, ownSignedTime, verifyLog } from "../src/index.ts";
 
+/**
+ * A book that has verified nothing yet, asked for the first time with the
+ * stack spent. It runs first, while the verifier's code is as cold as the
+ * book: a refusal reached with a check cut short was once kept as the log's
+ * verdict.
+ */
+function coldBook(): unknown {
+  const ada = new KeyMind("ada");
+  const intent = ada.sign(intentBy(ada, 10));
+  const record = judgeRecord(intent);
+  if (!record.ok) return { error: record.issues[0].message };
+  const book = bookOf([ada], [intent]);
+  const signed = (): string => {
+    const time = ownSignedTime(record.value, ada.address, book);
+    return time === at(10) ? "signed at 10" : `signed at ${String(time)}`;
+  };
+  const answers = withStackSpent(signed);
+  const log = book.log(ada.address);
+  return { signed: tally(answers, (answer) => answer), after: signed(), log: log.ok };
+}
+
 function logs(): unknown {
   const ada = new KeyMind("ada").update(10);
   const context = { evidence: witness([ada.events]), asOf: LATER };
@@ -41,4 +62,6 @@ function records(): unknown {
   return { signed: tally(answers, (answer) => answer), last: answers.at(-1), after: signed() };
 }
 
-process.stdout.write(JSON.stringify({ logs: logs(), records: records() }));
+// In this order: the first is for code that has never run.
+const cold = coldBook();
+process.stdout.write(JSON.stringify({ cold, logs: logs(), records: records() }));

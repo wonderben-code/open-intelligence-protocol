@@ -3,7 +3,7 @@
 
 /** Content identifiers and key hashes (core Section 3). */
 
-import { type JsonValue, type Limits, patterns, validateJson } from "@oip/schema";
+import { type JsonValue, type Limits, patterns, validateJson, noteCutShort } from "@oip/schema";
 import { base32nopad } from "@scure/base";
 
 import { concatBytes, utf8 } from "./bytes.ts";
@@ -97,7 +97,7 @@ export function documentHash(record: unknown, limits?: Limits): Uint8Array {
  *
  * @throws OipError `invalid-record` if the value is not a JSON object within
  * the profile of core Section 1.
- * @throws Error if other code in the process has put a `toJSON` on the
+ * @throws UnfitProcess if other code in the process has put a `toJSON` on the
  * prototype of every object or every array: nothing is hashed then.
  */
 export function contentId(record: unknown, limits?: Limits): string {
@@ -114,7 +114,8 @@ export function contentIdIfAny(record: unknown): string | undefined {
     return checked.ok && isJsonObject(checked.value)
       ? contentIdOfDigest(documentHashOf(checked.value))
       : undefined;
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     // Nothing could be worked out, so there is nothing to compare with.
     return undefined;
   }

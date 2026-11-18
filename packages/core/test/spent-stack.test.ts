@@ -21,7 +21,6 @@ type Tally = Readonly<Record<string, number>>;
 const report = inNode(new URL("./spent-stack.node.ts", import.meta.url)) as {
   readonly keys: readonly {
     readonly answers: Tally;
-    readonly cutShort: boolean;
     readonly verifiesAfter: boolean;
     readonly isKeyAfter: boolean;
   }[];
@@ -59,9 +58,8 @@ describe(`${clause("core 4.4")} a check that could not be finished`, () => {
       expect(key.verifiesAfter).toBe(true);
       expect(key.isKeyAfter).toBe(true);
     }
-    // Whether a check really was cut short depends on the engine, so it is not asserted
-    // here. `ed25519.stack.test.ts` makes the same fault without the engine's help.
-    expect(report.keys.filter((key) => key.cutShort).length).toBeGreaterThanOrEqual(0);
+    // Whether a check really was cut short depends on the engine, so nothing is asserted
+    // of it here. `ed25519.stack.test.ts` makes the same fault without the engine's help.
   });
 });
 

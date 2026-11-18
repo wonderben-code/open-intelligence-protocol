@@ -22,6 +22,8 @@ import {
   type Validation,
   validateJson,
   validateWithoutProof,
+  cutShortCount,
+  noteCutShort,
 } from "@oip/schema";
 
 import type { EvidenceView, FirstSeen } from "./evidence.ts";
@@ -34,7 +36,7 @@ import {
   understoodOf,
   Unread,
 } from "./log.ts";
-import { deepFreeze, isJsonObject, no, ok, own, type Rejection } from "./result.ts";
+import { cutShort, deepFreeze, isJsonObject, no, ok, own, type Rejection } from "./result.ts";
 import type { LogEntry, Revocation, VerifiedLog } from "./state.ts";
 
 /** The verified logs a verifier holds, and its evidence of time. */
@@ -90,19 +92,23 @@ export interface ReadingOptions {
    * is published of them reaches it. With the reading, every copy the book
    * holds of each is known up to that reading (core 9.4), every branch of
    * it. Default: none, and each log is known up to when it was last held. A
-   * name that is no string, or of a mind not held, names no log.
+   * name that is no string, or of a mind not held, names no log. One
+   * address by itself names that one mind.
    */
-  readonly following?: Iterable<string>;
+  readonly following?: Iterable<string> | string;
 }
 
 /** The minds a caller says it follows. One that says nothing readable follows none. */
 function followingOf(options: unknown): ReadonlySet<string> {
   const following = new Set<string>();
   try {
-    for (const mind of (own(options, "following") ?? []) as Iterable<unknown>) {
+    const named = own(options, "following") ?? [];
+    // One address is one mind. Read as a list, a string is its characters.
+    for (const mind of typeof named === "string" ? [named] : (named as Iterable<unknown>)) {
       if (typeof mind === "string") following.add(mind);
     }
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     // Not a list of minds: no more are followed than were read.
   }
   return following;
@@ -364,7 +370,11 @@ export class LogBook implements IdentityView {
    *   longer, until the mind is dropped.
    */
   hold(events: unknown, asOf: Instant): Validation<string> {
+    const before = cutShortCount();
     const taken = this.#take(events, asOf);
+    // A value that could not be read for want of room would be held as one the
+    // verifier cannot judge, and stop the mind for good: nothing of such a reading is kept.
+    if (cutShortCount() !== before) return cutShort();
     if (!taken.ok) return taken;
     const { mind, copy } = taken.value;
     const [first] = copy;
@@ -458,17 +468,21 @@ export class LogBook implements IdentityView {
    *
    * An event that does not verify is not recorded, and neither is anything
    * after it, nor any event of a mind the book answers for no longer. Where
-   * the evidence gives an event a time later than `now`, nothing is
-   * recorded yet: the event verified at that later time, and a sight at
-   * `now` would be of a time when it had not. Where it gives an earlier
-   * time, that time stands, and the verifier's own is recorded beside it:
-   * it is what is left if the other is ever withdrawn.
+   * the evidence already has a time for an event, the event is judged at
+   * the earlier of that time and `now`, which is the time the evidence
+   * gives once this sight is recorded, and recorded if it verifies so. The
+   * earlier of the two stands, and the verifier's own sight is what is left
+   * if the other is ever withdrawn.
    *
    * @param now - The time the verifier obtained the copy: its own clock,
    *   read by the caller. It is also the time the copy is known up to.
    * @param seen - The verifier's own record, which is written to. It should
    *   be, or be part of, the evidence the book was made with.
-   * @returns What `hold` returns. A copy that is not taken changes nothing.
+   * @returns What `hold` returns. A copy that is not taken is not looked at,
+   *   and the logs named in `following` are left as they were. A copy
+   *   refused for showing more proofs than the book holds for one event is
+   *   the one refusal that changes something: the book answers for that mind
+   *   no longer, as `hold` says.
    */
   witness(
     events: unknown,
@@ -507,10 +521,13 @@ export class LogBook implements IdentityView {
    *   removes that was first seen in between counts. A verifier that calls
    *   this at least every 300 seconds is never late;
    * - a log held from a witness the verifier trusts, or that witness's
-   *   first-seen times taken into the evidence, after `forget`;
-   * - a log the verifier has begun to follow.
+   *   first-seen times taken into the evidence, after `forget`.
    *
    * The logs named in `following` are known up to `now`, as for `witness`.
+   * A verifier begins to follow a log by taking a fresh copy of it in with
+   * `witness` at that reading. To name a log it holds from an older fetch,
+   * without a fresh copy, is to say the old copy is complete, and a key
+   * removed since would count.
    *
    * Its cost is that of verifying every log held that has an event the
    * verifier has not recorded.
@@ -581,11 +598,19 @@ export class LogBook implements IdentityView {
     }
     if (all) return false;
     const context = this.#context(mind, 0);
+    const checks = cutShortCount();
     const first = new LogRun({
       ...context,
       evidence: {
         proofSeen: (digest) => this.evidence.proofSeen(digest),
-        eventSeen: (id) => this.evidence.eventSeen(id) ?? now,
+        // Each event is judged at the time the evidence will give it once this sight is
+        // recorded: the earlier of what the evidence gives now and `now`. An event the
+        // verifier has recorded before keeps the time the evidence gives.
+        eventSeen: (id) => {
+          const dated = this.evidence.eventSeen(id);
+          if (dated === undefined) return now;
+          return dated > now && seen.eventSeen(id) === undefined ? now : dated;
+        },
       },
     });
     const found: string[] = [];
@@ -600,16 +625,12 @@ export class LogBook implements IdentityView {
         const { at, run } = next;
         if (run.advance(eventOf(tree, at)) !== undefined) continue;
         const id = run.entries.at(-1)?.state.head;
+        // The event verified as seen at `now`, or at an earlier time the evidence gives.
+        // Where the evidence has a time for it, the earlier of the two stands, and the
+        // verifier's own sight is what is left if the other is ever withdrawn (Layer 1, 7.2).
         if (id !== undefined && !recorded.has(id) && seen.eventSeen(id) === undefined) {
-          // Earlier than a time the evidence gives, its own sight would be of a time when
-          // the event had not verified: it verified here at the time the evidence gives.
-          // Later, the evidence stands, and its own sight is what is left if that
-          // evidence is ever withdrawn (Layer 1, 7.2).
-          const dated = this.evidence.eventSeen(id);
-          if (dated === undefined || dated <= now) {
-            recorded.add(id);
-            found.push(id);
-          }
+          recorded.add(id);
+          found.push(id);
         }
         // As far as the book reads, and no further.
         if (run.entries.length >= this.#maxEvents) continue;
@@ -620,7 +641,9 @@ export class LogBook implements IdentityView {
     } finally {
       if (!visited) this.#visiting.delete(mind);
     }
-    if (found.length === 0) return false;
+    // An event that failed because its check was cut short may be one that verifies,
+    // and what followed it was not looked at: nothing is recorded of such a look.
+    if (found.length === 0 || cutShortCount() !== checks) return false;
     try {
       for (const id of found) seen.sawEvent(id, now);
     } finally {
@@ -688,7 +711,8 @@ export class LogBook implements IdentityView {
       // A first value with no content ID is the genesis of no mind.
       if (first.id === undefined) return NOT_A_LOG;
       mind = mindAddress(first.id);
-    } catch {
+    } catch (error) {
+      noteCutShort(error);
       // What cannot be read as far as its first event is no log.
       return NOT_A_LOG;
     }
@@ -698,7 +722,8 @@ export class LogBook implements IdentityView {
       let next: Taken;
       try {
         next = this.#sorted((events as readonly unknown[])[i]);
-      } catch {
+      } catch (error) {
+        noteCutShort(error);
         // Whatever went wrong, the events before it were shown and are kept. A value
         // the book could not so much as sort may be an event: the log stops at it.
         next = UNSORTED;
@@ -791,6 +816,7 @@ export class LogBook implements IdentityView {
     if (depth > MAX_HEIGHT) return this.#here(TOO_DEEP);
     if (this.#visiting.has(mind)) return this.#here(IN_ITSELF);
     const before = this.#refusals;
+    const checks = cutShortCount();
     this.#visiting.add(mind);
     let result: Validation<VerifiedLog>;
     try {
@@ -798,6 +824,10 @@ export class LogBook implements IdentityView {
     } finally {
       this.#visiting.delete(mind);
     }
+    // An event refused because its check was cut short may have been the one that
+    // removed a key, or the branch that had the position. Whatever came of it is no
+    // verdict on the log: it is neither given nor kept.
+    if (cutShortCount() !== checks) return cutShort();
     // A log that verifies is the same log wherever it is asked from: no
     // event of it rests on a log that was refused, for an event that does is
     // one the verifier cannot judge, and stops the log. A refusal may be for

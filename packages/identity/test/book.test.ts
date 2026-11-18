@@ -2436,35 +2436,63 @@ describe(`${clause("core 9.5", "L1 7.1")} a verifier that follows a log itself`,
     expect(counts([100, 2000], 1100, 1500)).toStrictEqual({ counts: true, recordedAt: 2000 });
   });
 
-  it(`${clause("core 9.5")} leaves alone an event that the evidence gives a time for`, () => {
+  it(`${clause("core 9.5")} records its own sight only of an event that verifies as seen then`, () => {
     // A witness the verifier trusts saw both events at 1000, with a clock ahead of the
     // verifier's own, which reads 800. The update is dated 1200.
     const ada = new KeyMind("ada").update(1200);
+    const [genesis, update] = ada.events.map((event) => contentId(event)) as [string, string];
     const theirs = new FirstSeen();
     for (const event of ada.events) theirs.sawEvent(contentId(event), at(1000));
     const seen = new FirstSeen();
     const book = new LogBook(earliestEvidence(seen, theirs));
     book.hold(ada.events, LATER);
     expect(heads(book, ada.address).heads).toHaveLength(2);
-    // Its own sight at 800 would be of an event that did not verify at 800.
+    // The genesis verifies as seen at 800, and is recorded. The update does not: seen at
+    // 800 it is dated more than 300 seconds ahead, and a record of it then would make
+    // a log that verifies fail.
     book.witness(ada.events, at(800), seen);
     book.witnessHeld(at(800), seen);
-    expect(ada.events.map((event) => seen.eventSeen(contentId(event)))).toStrictEqual([
-      undefined,
-      undefined,
-    ]);
+    expect([seen.eventSeen(genesis), seen.eventSeen(update)]).toStrictEqual([at(800), undefined]);
     expect(heads(book, ada.address).heads).toHaveLength(2);
-    // Nor at any reading before the time it is given.
-    book.witnessHeld(at(999.999999999), seen);
-    expect(seen.eventSeen(contentId(ada.events[1]))).toBeUndefined();
-    // From that time on its own sight is recorded beside it, and the earlier time stands.
-    book.witnessHeld(at(1000), seen);
+    book.witnessHeld(at(899.999999999), seen);
+    expect(seen.eventSeen(update)).toBeUndefined();
+    // From 300 seconds before its date it verifies as seen then, whatever the witness's time.
+    book.witnessHeld(at(900), seen);
     book.witnessHeld(at(5000), seen);
-    expect(ada.events.map((event) => seen.eventSeen(contentId(event)))).toStrictEqual([
-      at(1000),
-      at(1000),
-    ]);
+    expect([seen.eventSeen(genesis), seen.eventSeen(update)]).toStrictEqual([at(800), at(900)]);
     expect(heads(book, ada.address).heads).toHaveLength(2);
+  });
+
+  it(`${clause("L1 7.2")} keeps its own sight of an event that a witness dated later, for when the witness is trusted no longer`, () => {
+    // Ada removes her key in an event dated 140. A witness the verifier trusts, with a
+    // clock 250 seconds ahead, saw it at 400. The verifier takes the log in at 150, and a
+    // proof by the removed key is first seen at 420.
+    const ada = new KeyMind("ada").update(140, { keys: [] });
+    const removal = contentId(ada.events[1]);
+    const signed = judgeRecord(ada.sign(intentBy(ada, 145), { position: 0 }));
+    if (!signed.ok) throw new Error(JSON.stringify(signed.issues));
+    const theirs = new FirstSeen();
+    for (const event of ada.events) theirs.sawEvent(contentId(event), at(400));
+    let trusted: EvidenceView = theirs;
+    const seen = new FirstSeen();
+    const book = new LogBook({
+      proofSeen: (digest) => earliestEvidence(seen, trusted).proofSeen(digest),
+      eventSeen: (id) => earliestEvidence(seen, trusted).eventSeen(id),
+    });
+    const following = [ada.address];
+    book.witness(ada.events, at(150), seen, { following });
+    // It verified as seen at 150, and that is recorded, though the witness says 400.
+    expect(seen.eventSeen(removal)).toBe(at(150));
+    book.witnessHeld(at(450), seen, { following });
+    for (const proof of signed.value.proofs) seen.sawProof(proof.digest, at(420));
+    expect(ownSignedTime(signed.value, ada.address, book)).toBeUndefined();
+    // The witness is withdrawn. The verifier is where one that never trusted it would be.
+    trusted = new FirstSeen();
+    book.forget();
+    book.witnessHeld(at(750), seen, { following });
+    expect(seen.eventSeen(removal)).toBe(at(150));
+    expect(heads(book, ada.address).heads).toHaveLength(2);
+    expect(ownSignedTime(signed.value, ada.address, book)).toBeUndefined();
   });
 
   it(`${clause("L1 7.2")} keeps its own sight of an event that a witness saw earlier, for when the witness is trusted no longer`, () => {
@@ -2570,6 +2598,41 @@ describe(`${clause("core 9.5", "L1 7.1")} a verifier that follows a log itself`,
     // A reading earlier than one given before takes nothing back.
     book.witnessHeld(at(120), seen, { following });
     expect(heads(book, club.address).log.asOf).toBe(at(170));
+  });
+
+  it("follows the one mind named, where `following` is one address and no list", () => {
+    const { a, b, c, club, removal, whole } = removedByTwo();
+    const seen = new FirstSeen();
+    const book = new LogBook(seen);
+    const following = [a, b, c, club].map((mind) => mind.address);
+    for (const mind of [a, b, c, club]) book.witness(mind.events, at(100), seen, { following });
+    // Read as a list, a string would be its characters, and name nobody.
+    book.witnessHeld(at(150), seen, { following: a.address });
+    expect(heads(book, a.address).log.asOf).toBe(at(150));
+    expect(heads(book, b.address).log.asOf).toBe(at(100));
+    book.witness(whole, at(160), seen, { following: b.address });
+    expect(heads(book, b.address).log.asOf).toBe(at(160));
+    // The removal needs both signers' logs known up to then.
+    expect(seen.eventSeen(contentId(removal))).toBeUndefined();
+    book.witnessHeld(at(170), seen, { following });
+    expect(seen.eventSeen(contentId(removal))).toBe(at(170));
+  });
+
+  it("looks at nothing, and follows nothing, for a copy that is not taken", () => {
+    const { a, b, c, club, removal, whole } = removedByTwo();
+    const seen = new FirstSeen();
+    const book = new LogBook(seen);
+    const following = [a, b, c, club].map((mind) => mind.address);
+    for (const mind of [a, b, c, club]) book.witness(mind.events, at(100), seen, { following });
+    book.hold(whole, at(100));
+    // What is no log is refused, and the reading that came with it is not used.
+    expect(book.witness([5], at(150), seen, { following }).ok).toBe(false);
+    expect(book.witness(whole, 150 as never, seen, { following }).ok).toBe(false);
+    expect(seen.eventSeen(contentId(removal))).toBeUndefined();
+    expect(heads(book, a.address).log.asOf).toBe(at(100));
+    // The same reading with a copy that is taken.
+    expect(book.witness(whole, at(150), seen, { following }).ok).toBe(true);
+    expect(seen.eventSeen(contentId(removal))).toBe(at(150));
   });
 
   it("follows no log for a name that is no string, a mind not held, or options it cannot read", () => {

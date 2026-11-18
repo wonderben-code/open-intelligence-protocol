@@ -10,17 +10,33 @@
  * own and not under the test runner: `inNode` says why.
  */
 
-import { inNode } from "@oip/testkit";
+import { clause, inNode } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 type Tally = Readonly<Record<string, number>>;
 
 const report = inNode(new URL("./spent-stack.node.ts", import.meta.url)) as {
+  readonly cold: { readonly signed: Tally; readonly after: string; readonly log: boolean };
   readonly logs: { readonly verified: Tally; readonly after: boolean };
   readonly records: { readonly signed: Tally; readonly last: string; readonly after: string };
 };
 
 const total = (tally: Tally) => Object.values(tally).reduce((sum, count) => sum + count, 0);
+
+describe(`${clause("core 4.4")} a book asked for the first time with the stack all but spent`, () => {
+  it("keeps no verdict from a check that was cut short, and is right afterwards", () => {
+    expect(total(report.cold.signed)).toBe(200);
+    // It answers that the record is signed, or that it cannot tell: never anything else.
+    expect(
+      Object.keys(report.cold.signed).filter(
+        (kind) => kind !== "signed at 10" && kind !== "signed at undefined",
+      ),
+    ).toStrictEqual([]);
+    // With room again, it tells: the refusals it gave then were of the moment.
+    expect(report.cold.after).toBe("signed at 10");
+    expect(report.cold.log).toBe(true);
+  });
+});
 
 describe("judging with the stack all but spent", () => {
   it("answers for a log and does not throw, and is right again afterwards", () => {

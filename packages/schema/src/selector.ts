@@ -3,6 +3,8 @@
 
 /** The selector grammar of the policy language (Layer 1, 11.3). */
 
+import { noteCutShort } from "./cut-short.ts";
+
 /** One step of a selector's path: a member name or an array index. */
 export type SelectorStep = string | number;
 
@@ -57,7 +59,8 @@ export function parseSelector(selector: unknown): SelectorStep[] | undefined {
       let name: unknown;
       try {
         name = JSON.parse(selector.slice(at + 1, stop + 1));
-      } catch {
+      } catch (error) {
+        noteCutShort(error);
         return undefined;
       }
       if (typeof name !== "string") return undefined;

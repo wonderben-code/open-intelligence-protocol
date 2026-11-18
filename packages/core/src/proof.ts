@@ -25,6 +25,7 @@ import {
   validateJson,
   validateProof,
   validateRecord,
+  noteCutShort,
 } from "@oip/schema";
 import { base58 } from "@scure/base";
 
@@ -231,7 +232,8 @@ export function verifyProof(record: unknown, proof: unknown): Validation<Verifie
   try {
     const subject = subjectOf(record);
     return subject.ok ? verifyAgainst(subject.value, proof) : subject;
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     return no("the record or the proof could not be read as plain JSON data", "core 1.2");
   }
 }
@@ -312,7 +314,8 @@ export function verifyProofs(record: unknown): ProofVerdicts {
       else rejected.push({ index, issues: issuesUnder(`/proof/${index}`, verdict) });
     });
     return { verified, rejected, issues: [] };
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     return notJudged([
       {
         path: "",

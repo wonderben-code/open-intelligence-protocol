@@ -65,7 +65,8 @@ describe("the budgets of BUILD.md 3.8", () => {
     // lucky one moved this ratio between 1.2 and 1.45 where the medians give about 1.1.
     // One event is measured before the log and after it, and the faster of the two is
     // what the log is compared with: other work on the machine while one of them is
-    // measured cannot make the log look cheaper than it is.
+    // measured does not make the log look cheaper than it is. Work that slows both of
+    // them and not the log would, which their lengths make unlikely.
     expect(whole.latency.p50 / (EVENTS * Math.min(before, after))).toBeLessThan(
       BUDGETS.overTheSignatures,
     );

@@ -3,7 +3,7 @@
 
 /** Extensions and forward compatibility (core Section 8). */
 
-import { patterns, SHORT_NAMESPACES } from "@oip/schema";
+import { patterns, SHORT_NAMESPACES, noteCutShort } from "@oip/schema";
 
 const REVERSE_DNS = new RegExp(patterns.reverseDnsNamespace);
 const OIP_PROFILE = new RegExp(patterns.oipNamespace);
@@ -39,7 +39,8 @@ export function unsupportedCritical(
 ): string[] {
   try {
     return unsupportedIn(record["critical"], understood);
-  } catch {
+  } catch (error) {
+    noteCutShort(error);
     // A record that cannot be read names nothing anybody understands.
     return ["critical"];
   }

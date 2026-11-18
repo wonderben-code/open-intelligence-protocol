@@ -43,8 +43,10 @@ import {
  *
  * A ratio is of two medians measured one after the other, taken in several
  * rounds, and the middle ratio is compared. Other work on the machine while
- * one side is measured moves that round's ratio, up or down, and leaves the
- * middle one where it was: it neither fails a build nor hides a regression.
+ * one side is measured moves that round's ratio, up or down. Where it touches
+ * one round of the three, the middle ratio stays where it was. Where it
+ * touches two the same way, the middle moves with them: the check can then
+ * fail a good build or pass a bad one, and a second run tells.
  */
 export const BUDGETS = {
   /** Verify a record with two proofs, read from text. */

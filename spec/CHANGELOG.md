@@ -61,6 +61,23 @@ Two independent reviews of `@oip/identity` found the rest. In the first six, bot
 
 **Test vectors.** For the items above (OEP-0002 lists them): 29 negative cases, 29 controls and five must-accept cases. The vectors now hold 22 must-accept cases, 109 negative cases and 59 controls.
 
+**Delegation and Mind Web clarifications ([OEP-0003](../oeps/oep-0003-delegation-and-mind-web-clarifications.md), found while building `@oip/delegation` and `@oip/web`).** No address, content ID or proof in the test vectors changes.
+
+- **A role needs the collective's log, and stops where its members are no longer known (Layer 2, 7.1, item 4; core 9.4).** A member's proof counts for its collective through a charter role only if the verifier holds the collective's log as served no earlier than the evidence for the proof, as for a threshold: a copy older than that may lack the event that removed the member. And it counts only before a duplicitous collective's first conflicting event, from which on nothing is signed for it, under its threshold or through a role.
+- **Reserved commands are told by their first segment (Layer 1, 11.2).** `/oipx/pay` is an extension's command.
+- **Policy depth (Layer 1, 11.3).** A statement of the policy is at depth 0, and none is deeper than 8. A policy is well formed or not whatever record it is asked of: the statement of a quantifier is part of it where the array is empty too. The reference implementation's evaluator, given a policy that had not been validated, did not look there; it reads a policy whole now.
+- **Revocations (Layer 1, 11.5).** A revocation by any mind other than the delegation's author revokes nothing.
+- **What a proof is for its signer (Layer 1, 11.6).** A proof whose `authority` is not a valid chain counts for no mind through it and is its signer's own proof all the same. A delegation given inline is judged with the proofs it carries there, a delegation named and not held leaves the proof not counting for the principal, and a principal's own proof never counts through a chain.
+- **`status` (Layer 2, Section 2).** It means something as `withdrawn` or `satisfied` on an Intent and as `withdrawn` on an Offer. A superseding record with any other `status` is neither a withdrawal nor an edit.
+- **Copies of a record (Layer 2, Section 2).** Every copy of a record with the same content ID is the same record, of whatever type, and a verifier SHOULD judge it with the proofs of every copy it holds. 5.3 said so for Commitments.
+- **An Offer's `quantity` is at least 1 (Layer 2, 4.2).** The text said "integer".
+- **Which members of inline objects are required (Layer 2, 2, 4.1, 4.2, 5.1, 6.2).** A budget's `max`, both members of an Offer's price, all four of a Commitment's, a power's `command`, and both members of an assignment and of a link. A budget's `currency` and a role's `purpose` and `powers` are optional, and a power's `policy` defaults to `[]`. The JSON Schemas already had it so.
+- **The time of computation of a status (Layer 2, Section 8).** It is compared with `expires` and with a deadline exactly, with no tolerance, and a time "has passed" only after the instant it names. It does not limit which signatures are counted.
+- **Which Receipts are superseded (Layer 2, 8.3).** One that another Receipt of the same author names in `supersedes`, if that Receipt is itself a party's and counts for its author. "Later" is not asked.
+- **`disputed` (Layer 2, 8.3, item 1).** Every mind's compromise declarations are disregarded for it, not the parties' alone.
+
+**Test vectors.** For the items above (OEP-0003 lists them): 17 negative cases, 16 controls and nine must-accept cases, among them the items of Layer 1, 11.4 broken one at a time on a two-step chain. The vectors now hold 31 must-accept cases, 126 negative cases and 75 controls.
+
 ## Revision 2026-11-17 (Draft)
 
 Security and consistency fixes from two independent reviews of revision 2026-10-30, one of the technical paper and one of the specifications, and from a third independent check of those fixes before publication ([reviews/](../reviews/)). Record formats change little; most changes are clearer rules about who may sign what, and when. Every mind address in the test vectors is unchanged.

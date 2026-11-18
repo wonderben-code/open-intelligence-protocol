@@ -70,6 +70,7 @@ export {
   type JudgedRecord,
   type JudgeOptions,
   judgeRecord,
+  operationalProofEvaluation,
   operationalProofs,
   operationalProofTime,
   ownSignedTime,

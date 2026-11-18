@@ -431,7 +431,7 @@
       "keywords": {
         "MUST": 2
       },
-      "digest": "07b7f2f51264e0f46b00b90f2eee31e95e3a0cdf85cf31e2ad1548097e293d25"
+      "digest": "b5c5f54123117a4a03f747d494ba71b49fc8a28ed844016fd35538bca29ce7e7"
     },
     {
       "id": "core 9.5",
@@ -1265,7 +1265,7 @@
       "keywords": {
         "MUST NOT": 1
       },
-      "digest": "b80da0fd0e24e34b8f2dfa8bb443d9a8a8445dd67c342433e135d46b47ea5f8f"
+      "digest": "e15f8d24ea9d493c773436cd044e39f0abcfdb7d9cd381445d2bc225a40fa4e8"
     },
     {
       "id": "L1 11.3",
@@ -1276,7 +1276,7 @@
       "keywords": {
         "SHOULD": 2
       },
-      "digest": "5d0df494615d355d577533652c60c58be640778859c1e1d17f01cfda367f2c73"
+      "digest": "d372a1cd5f83da18512eb2ce26b4a9388a22888ec76aeb25447086e0f83c749f"
     },
     {
       "id": "L1 11.4",
@@ -1296,7 +1296,7 @@
       "keywords": {
         "SHOULD": 3
       },
-      "digest": "e5b1f36335c7a8d1d2d20a9f69dee750cfbdd6424814863b1fc0bf63405270fe"
+      "digest": "879a4a79254f69b1bf84634d72e34f83596a7cf90e06bc50de71e51743ae152f"
     },
     {
       "id": "L1 11.6",
@@ -1308,7 +1308,7 @@
         "MUST NOT": 1,
         "SHOULD": 1
       },
-      "digest": "6555951429d489d77247e775eebe25abb704e327b1b59e1639c7a58e93a77206"
+      "digest": "082f827b0ee093379965a865178cc24738e99342b92e30e1985b6dd3bdf6242f"
     },
     {
       "id": "L1 12.1",
@@ -1717,9 +1717,11 @@
       "level": "MUST",
       "keywords": {
         "MAY": 1,
-        "MUST": 1
+        "REQUIRED": 1,
+        "MUST": 1,
+        "SHOULD": 1
       },
-      "digest": "006f28f391c31ca2d7c073a4283c434bac80f81a5e29e21b0392da7229392b66"
+      "digest": "cb3c2e06424ca9dd933bf0e2d0d6d4f176093f4bcd942322ac38fa45adecce93"
     },
     {
       "id": "L2 3",
@@ -1735,9 +1737,11 @@
       "document": "L2",
       "section": "Intent and Offer",
       "summary": "`Intent`: | Member | Required | Value | |---|---|---| | `want` | yes | Plain-language statement…",
-      "level": "none",
-      "keywords": {},
-      "digest": "c0013a9925a0be8f5eedfad0c34e93a3374e5936e60a9e434c01f374db3d8960"
+      "level": "MUST",
+      "keywords": {
+        "REQUIRED": 1
+      },
+      "digest": "61e14ca0a74b618c1945dfc1bc32e393092b3e434e0136e77194485a38f245bd"
     },
     {
       "id": "L2 4.2",
@@ -1746,9 +1750,9 @@
       "summary": "`Offer`: | Member | Required | Value | |---|---|---| | `provides` | yes | Plain-language statem…",
       "level": "MUST",
       "keywords": {
-        "REQUIRED": 1
+        "REQUIRED": 2
       },
-      "digest": "cf04f0acdbb67854e2b896023b5d648c051e426b1b9575ca3f0f4c12210c9696"
+      "digest": "55ef751676900fc6308b6188fa8a3293b90ad305b014b86bb7bc26d605052225"
     },
     {
       "id": "L2 4.3",
@@ -1769,7 +1773,7 @@
         "MUST": 2,
         "REQUIRED": 1
       },
-      "digest": "878585e3ef07b7d294ac1b63777476b79b438fdf85d6e164a48015e7a30d3222"
+      "digest": "471a993a1133c416edc3110c5cbdb0040f668c8a68ea4a48ea3c76979a274990"
     },
     {
       "id": "L2 5.2",
@@ -1822,12 +1826,13 @@
       "summary": "`Collective` (a charter): | Member | Required | Value | |---|---|---| | `author` | yes | The co…",
       "level": "MUST",
       "keywords": {
+        "REQUIRED": 2,
         "MUST NOT": 1,
         "MUST": 1,
         "SHOULD": 2,
         "MAY": 1
       },
-      "digest": "8bce8a1ebf599ba2e7541e0ddd3bb297d7a72dd729a0c6e291d165d7e3d0b0aa"
+      "digest": "a820830e2456a2f45dd767233a41308c0a65b57bab80c1fe2218659079ec6fab"
     },
     {
       "id": "L2 7.1",
@@ -1838,7 +1843,7 @@
       "keywords": {
         "SHOULD": 1
       },
-      "digest": "95e552e1ed1e0dcf81216cb39f7b413868dab8927e3dc3ce69985069203762e4"
+      "digest": "15b1b50dada5cdf32737815d248402dd44cf774a461a13511e556b712655450a"
     },
     {
       "id": "L2 7.2",
@@ -1867,7 +1872,7 @@
       "keywords": {
         "MUST": 1
       },
-      "digest": "4b9c653cd56ff25eb6e1c3be771fb808eabec541f47a4c810fb61fadedf96d4d"
+      "digest": "6d3be8f319a5523af057a16153d39c748f9347bec7fbd10041bac6cb376b14b8"
     },
     {
       "id": "L2 8.1",
@@ -1896,7 +1901,7 @@
       "keywords": {
         "SHOULD": 1
       },
-      "digest": "90a408589e10ee2e5f89a4604ecf7c478e3db3929852276570140d07e9c0d0d4"
+      "digest": "3efdd35d7549523e9e74ebcfa106a2eb0700f14fcf025afaff57ddbbaaa86d1a"
     },
     {
       "id": "L2 8.4",

@@ -232,6 +232,64 @@ describe(`${clause("L2 7.1")} a collective's role (item 4)`, () => {
   });
 });
 
+describe(`${clause("L2 7.1")} a role, and what is known of the collective`, () => {
+  const rules = charter(10);
+
+  it(`${clause("core 9.4")} needs the collective's log to be known up to the evidence for the proof`, () => {
+    // Cy is a clerk, and a member until 100. A verifier whose copy of the club's log
+    // is older than the proof cannot tell whether Cy still was one.
+    const record = signedBy(cy, 60, [refTo(rules)]);
+    const context = holding([rules, record]);
+    const knownUpTo = (seconds: number) => {
+      const identity = new LogBook(context.identity.evidence);
+      for (const mind of minds) identity.hold(mind.events, mind === club ? at(seconds) : LATER);
+      const log = identity.log(club.address);
+      if (!log.ok) throw new Error("the club's log does not verify");
+      const value = judged(record);
+      return roleProofTime(value, value.proofs[0]!, club.address, log.value, {
+        ...context,
+        identity,
+      });
+    };
+    expect(knownUpTo(60)).toStrictEqual({ ok: true, value: at(60) });
+    expect(knownUpTo(59.999999999)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "core 9.4", path: "/verificationMethod" }],
+    });
+  });
+
+  it(`${clause("L1 7.3")} is nobody's from the first conflicting event of a duplicitous collective`, () => {
+    // At 100 two members signed two events for one position. Ann is a member after
+    // either, and a clerk throughout.
+    const rival = new Collective("club", [ann, bo, cy], 2, 5).update(100, [ann, bo], {
+      homes: ["https://club.example"],
+    });
+    expect(rival.address).toBe(club.address);
+    /** What a verifier holds, with the rival event too, seen when it was made as the other was. */
+    const withBoth = (records: readonly object[]) => {
+      const context = holding(records);
+      (context.identity.evidence as FirstSeen).sawEvent(contentId(rival.events[1]), at(100));
+      (context.identity as LogBook).hold(rival.events, LATER);
+      return context;
+    };
+    const counts = (seconds: number, both: boolean) => {
+      const record = signedBy(ann, seconds, [refTo(rules)]);
+      const context = (both ? withBoth : holding)([rules, record]);
+      return signedTime(judged(record), club.address, context);
+    };
+    expect(withBoth([]).identity.log(club.address)).toMatchObject({
+      value: { duplicitous: true },
+    });
+    // With either event alone the record counts, before and after.
+    expect(counts(99, false)).toBe(at(99));
+    expect(counts(150, false)).toBe(at(150));
+    // With both, it counts up to the moment the branches part.
+    expect(counts(99.999999999, true)).toBe(at(99.999999999));
+    expect(counts(100, true)).toBeUndefined();
+    expect(counts(150, true)).toBeUndefined();
+  });
+});
+
 describe(`${clause("L2 6.2")} the charter in force`, () => {
   it("is the one signed for the collective most recently at or before the time", () => {
     const [first, second] = [charter(10), charter(50, { name: "The club, revised" })];

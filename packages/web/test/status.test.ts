@@ -303,9 +303,10 @@ describe(`${clause("L2 8.2")} the status of an Offer`, () => {
     expect(statusOf(two, [first, first])).toBe("open");
     // No quantity, no end.
     expect(statusOf(made, [taking(made, 30, bo, ann), taking(made, 31, bo, ann)])).toBe("open");
-    // A quantity of none is exhausted from the start.
-    const none = signedBy(offer(10, { terms: { summary: "Nothing.", quantity: 0 } }), bo);
-    expect(statusOf(none, [])).toBe("exhausted");
+    // An Offer of nothing is no Offer (4.2).
+    expect(() => signedBy(offer(10, { terms: { summary: "Nothing.", quantity: 0 } }), bo)).toThrow(
+      /quantity/,
+    );
   });
 
   it("counts only Commitments that also count for its author", () => {

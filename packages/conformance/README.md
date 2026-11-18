@@ -34,12 +34,15 @@ export function report(recordIsWellFormed: (record: unknown) => boolean): string
 }
 ```
 
-This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the 13 malformed records it should have rejected:
+This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the 16 malformed records it should have rejected:
 
 ```
-my implementation: 20 passed, 13 failed, 178 pending
+my implementation: 23 passed, 16 failed, 214 pending
 FAIL negative packet-short-nonce: must be rejected. A packet nonce has 8 to 64 characters.
 FAIL negative delegation-to-self: must be rejected. A delegation's delegate must differ from its author.
+FAIL negative policy-nested-nine-deep: must be rejected. A statement of a policy is at depth 0, and no statement is deeper than 8 (Layer 1, 11.3). Here a comparison stands under nine negations.
+FAIL negative delegation-with-a-reserved-command: must be rejected. Under `/oip` there are five commands, and every other command whose first segment is `oip` is reserved (Layer 1, 11.2).
+FAIL negative offer-with-a-quantity-of-zero: must be rejected. An Offer's `quantity` says how many times it can be taken up, and is at least 1 (Layer 2, 4.2). An Offer of nothing is no Offer.
 FAIL negative proof-entry-not-an-object: must be rejected. Every entry of `proof` is an object (core 5.1). A proof that does not verify never counts and does not make the record malformed (core 5.5); an entry that is not an object at all does.
 FAIL negative extension-name-not-a-namespace: must be rejected. A member of `ext` is named by a reverse-DNS namespace, one of the short names the specification lists, or a name under `oip.` (core 8.1). Any other name makes the record malformed.
 FAIL negative unknown-type-without-critical-extension: must be rejected. A record whose type this revision does not define is defined by an extension, and lists that extension in `critical` (core 7). Without it nobody can say what the record is.

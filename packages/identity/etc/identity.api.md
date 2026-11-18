@@ -283,6 +283,9 @@ export const MAX_LOG_EVENTS = 10000;
 export const MIN_ACCEPTED_LOG_EVENTS = 1000;
 
 // @public
+export function operationalProofEvaluation(type: string, proof: VerifiedProof, view: IdentityView): Validation<Evaluation>;
+
+// @public
 export function operationalProofs(judged: JudgedRecord, mind: string, view: IdentityView): CountedProof[];
 
 // @public

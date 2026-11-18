@@ -14,8 +14,8 @@ import {
   JsonObject,
   MindAddress,
   Namespaced,
+  PositiveInteger,
   RecordRef,
-  SafeInteger,
   Sha256Digest,
   Strings,
   Timestamp,
@@ -121,7 +121,8 @@ export const OfferTerms = define(
     summary: Type.String(),
     price: Type.Optional(Price),
     deliveryBy: Type.Optional(Timestamp),
-    quantity: Type.Optional(SafeInteger),
+    // 4.2: how many times the Offer can be taken up, and so at least once.
+    quantity: Type.Optional(PositiveInteger),
     conditions: Type.Optional(Strings),
   }),
 );

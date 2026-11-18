@@ -211,7 +211,7 @@ describe("readings the specification does not state", () => {
   const accepted: [RecordType, string, Record<string, unknown>][] = [
     ["Location", "L1 15.1", { seq: -3 }],
     ["Location", "L1 15.1", { endpoints: [{ binding: "", url: "" }] }],
-    ["Offer", "L2 4.2", { terms: { summary: "", quantity: 0 } }],
+    ["Offer", "L2 4.2", { terms: { summary: "", quantity: 1 } }],
     ["Offer", "L2 4.2", { terms: { summary: "s", price: { amount: "1", currency: "" } } }],
     ["Intent", "L2 4.1", { constraints: { budget: { max: "5" } } }],
     ["Intent", "L2 4.1", { audience: { query: { limit: 0 } } }],
@@ -230,6 +230,18 @@ describe("readings the specification does not state", () => {
     expect(clause(id)).toContain(id);
     const result = validateRecord(sample(type, changes));
     expect(result.ok ? [] : result.issues).toEqual([]);
+  });
+
+  it(`${clause("L2 4.2")} takes an Offer's quantity to be at least 1`, () => {
+    for (const quantity of [0, -1, "1", true]) {
+      const result = validateRecord(sample("Offer", { terms: { summary: "s", quantity } }));
+      expect(result.ok ? [] : result.issues.map((issue) => issue.path), String(quantity)).toEqual([
+        "/terms/quantity",
+      ]);
+    }
+    expect(
+      validateRecord(sample("Offer", { terms: { summary: "s", quantity: 2 ** 53 - 1 } })).ok,
+    ).toBe(true);
   });
 
   it(`${clause("L1 18.3")} sets no maximum on the results of a query`, () => {

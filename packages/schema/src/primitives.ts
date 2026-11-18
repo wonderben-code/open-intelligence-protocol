@@ -138,6 +138,12 @@ export const UnitDecimal = define(
 /** core 1.2: a non-negative safe integer. */
 export const Count = define("count", Type.Integer({ minimum: 0, maximum: MAX_SAFE_INTEGER }));
 
+/** core 1.2: a safe integer of at least 1. */
+export const PositiveInteger = define(
+  "positiveInteger",
+  Type.Integer({ minimum: 1, maximum: MAX_SAFE_INTEGER }),
+);
+
 /** core 1.2: any safe integer. */
 export const SafeInteger = define(
   "safeInteger",

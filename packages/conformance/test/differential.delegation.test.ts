@@ -768,7 +768,7 @@ const statusPlan: fc.Arbitrary<StatusPlan> = fc.record({
     }),
     { maxLength: 3 },
   ),
-  quantity: fc.constantFrom(undefined, 0, 1, 2),
+  quantity: fc.constantFrom(undefined, 1, 1, 2),
   signers,
   watched: fc.constantFrom(false, false, true),
   deadline: fc.constantFrom(undefined, 2000),

@@ -19,7 +19,7 @@ import {
 import {
   type JudgedRecord,
   judgeRecord,
-  operationalProofTime,
+  operationalProofEvaluation,
   ownSignedTime,
   stateAt,
   type VerifiedLog,
@@ -120,9 +120,31 @@ export function roleProofTime(
     return no("a control key signs identity events only", "L1 6.1", "/verificationMethod");
   }
   const member = proof.method.mind;
-  const time = operationalProofTime(type, proof, context.identity);
-  if (!time.ok) return time;
-  const state = stateAt(log, time.value);
+  const evaluated = operationalProofEvaluation(type, proof, context.identity);
+  if (!evaluated.ok) return evaluated;
+  const time = evaluated.value.time;
+  // core 9.4: who the members are at the proof's time is read from the collective's
+  // log, which must be known up to the evidence for the proof. A copy older than
+  // that may lack the event that removed the signer.
+  if (log.asOf < evaluated.value.evidenced) {
+    return no(
+      "the collective's log was obtained before the evidence for this proof: it may lack a later event",
+      "core 9.4",
+      "/verificationMethod",
+    );
+  }
+  // Layer 1, 7.3: from its first conflicting event on, the members of a duplicitous
+  // collective are not known, and nobody signs for it.
+  for (const tail of log.branchTails) {
+    if (time >= tail.time) {
+      return no(
+        "the collective is duplicitous, and the proof is evaluated at or after its first conflicting event",
+        "L1 7.3",
+        "/verificationMethod",
+      );
+    }
+  }
+  const state = stateAt(log, time);
   if (
     state === undefined ||
     state.retired ||
@@ -135,7 +157,7 @@ export function roleProofTime(
       "/verificationMethod",
     );
   }
-  if (charterInForce(mind, time.value, context, [charter]) !== contentId(charter.record)) {
+  if (charterInForce(mind, time, context, [charter]) !== contentId(charter.record)) {
     return no(
       "the charter named is not the one in force at the proof's time",
       "L2 6.2",
@@ -155,7 +177,7 @@ export function roleProofTime(
         covers(power.command, need) &&
         evaluatePolicy(power.policy, judged.record as unknown as JsonValue).ok
       ) {
-        return ok(time.value);
+        return ok(time);
       }
     }
   }

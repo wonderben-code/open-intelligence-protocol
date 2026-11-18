@@ -1580,6 +1580,13 @@ def record_ok(r) -> bool:
                     not is_amount(price.get("amount")) or
                     not isinstance(price.get("currency"), str)):
                 return False
+        if t == "Offer":
+            quantity = r.get("terms", {}).get("quantity")
+            if quantity is not None and (
+                    isinstance(quantity, bool) or
+                    not isinstance(quantity, int) or
+                    not 1 <= quantity <= MAX_SAFE_INT):
+                return False                # Layer 2, 4.2
         if t == "Intent":
             budget = r.get("constraints", {}).get("budget")
             if budget is not None and not is_amount(budget.get("max")):
@@ -1999,6 +2006,10 @@ class Verifier:
                not self.valid_key(record, p, ref[0], depth + 1):
                 continue
             member, t = ref[0], self.t_of(record, p)
+            # Layer 1, 7.3: from its first conflicting event on, the
+            # members of a duplicitous collective are not known.
+            if any(t >= when for when, _, _ in log.branch_tails):
+                continue
             st = log.state_at(t)
             if st is None or st.retired or member not in st.members:
                 continue
@@ -3382,6 +3393,79 @@ def build():
                           "close Amina's Intent.",
                 "kind": "status", "of": intent, "records": [intent, sock],
                 "at": "2026-10-30T12:00:00Z", "expect": "open"})
+    # Layer 2, Section 8: the time of computation is compared exactly.
+    V["valid"].append({
+        "name": "intent-at-its-expiry-is-open",
+        "reason": "An Intent is `expired` when `expires` has passed. At "
+                  "the instant it names, it has not: a status is computed "
+                  "at a time, and the tolerance of core 9.1 is for judging "
+                  "signatures (Layer 2, 8.1).",
+        "kind": "status", "of": intent, "records": [intent],
+        "at": intent["expires"], "expect": "open"})
+    V["valid"].append({
+        "name": "commitment-at-its-deadline-is-not-overdue",
+        "reason": "A Commitment is `overdue` when its deadline has passed "
+                  "(Layer 2, 8.3, item 7). At the deadline it is "
+                  "`accepted`.",
+        "kind": "status", "of": commit_accepted,
+        "records": [commit_accepted],
+        "at": commit["terms"]["deadline"], "expect": "accepted"})
+    # Layer 2, 8.3: which Receipts are heard.
+    receipt_amended = signed({
+        "oip": OIP_VERSION, "type": "Receipt", "author": amina,
+        "created": "2026-11-01T19:30:00Z", "about": commit_ref,
+        "outcome": "fulfilled", "supersedes": record_ref(amina,
+                                                         receipt_broken),
+        "statement": "It had been delivered to another address."},
+        a_op1, amina_vm1)
+    V["valid"].append({
+        "name": "receipt-superseded-by-its-author",
+        "reason": "Amina said the Commitment was broken, and then "
+                  "superseded that Receipt with one that says fulfilled. "
+                  "The first no longer counts (Layer 2, 8.3).",
+        "kind": "status", "of": commit_accepted,
+        "records": [commit_accepted, receipt_broken, receipt_amended],
+        "at": "2026-11-01T20:00:00Z", "expect": "fulfilled"})
+    receipt_taken_back = signed({
+        "oip": OIP_VERSION, "type": "Receipt", "author": amina,
+        "created": "2026-11-01T19:30:00Z", "about": commit_ref,
+        "outcome": "revoked", "supersedes": record_ref(amina,
+                                                       receipt_broken)},
+        a_op1, amina_vm1)
+    V["valid"].append({
+        "name": "receipt-revoked-by-its-author",
+        "reason": "Amina said the Commitment was broken, and then revoked "
+                  "that Receipt. Neither counts: the deadline has passed "
+                  "and nothing says how it went (Layer 2, 6.1 and 8.3).",
+        "kind": "status", "of": commit_accepted,
+        "records": [commit_accepted, receipt_broken, receipt_taken_back],
+        "at": "2026-11-01T20:00:00Z", "expect": "overdue"})
+    receipt_overruled = signed({
+        "oip": OIP_VERSION, "type": "Receipt", "author": lexis_ltd,
+        "created": "2026-11-01T19:30:00Z", "about": commit_ref,
+        "outcome": "progress", "supersedes": record_ref(amina,
+                                                        receipt_broken)},
+        l_op, ltd_vm)
+    neg.append({"name": "receipt-superseded-by-another-party",
+                "reason": "Lexis Ltd publishes a Receipt that names Amina's "
+                          "`broken` Receipt in `supersedes`. A Receipt is "
+                          "superseded only by a Receipt of the same author "
+                          "(Layer 2, 2 and 8.3): Amina's stands, and the "
+                          "status is hers to claim.",
+                "kind": "status", "of": commit_accepted,
+                "records": [commit_accepted, receipt_broken,
+                            receipt_overruled],
+                "at": "2026-11-01T20:00:00Z", "expect": "broken"})
+    offer_satisfied = signed(variant_of(offer, created="2026-10-30T10:15:00Z",
+                                        supersedes=offer_ref,
+                                        status="satisfied"), t_op, agent_vm)
+    V["valid"].append({
+        "name": "offer-superseded-with-a-status-that-is-not-an-offers",
+        "reason": "`satisfied` is a status of an Intent. On a superseding "
+                  "Offer it is neither a withdrawal nor an edit (Layer 2, "
+                  "4.3), so the Offer it names is still `open`.",
+        "kind": "status", "of": offer, "records": [offer, offer_satisfied],
+        "at": "2026-10-30T12:00:00Z", "expect": "open"})
     a_withdraw = control_event(
         "Update", amina, a_upd, "2026-11-02T08:00:00Z", [a_c2], [a_c3],
         fields={"keys": [{"key": a_op2.mk, "label": a_op2.label}],
@@ -3559,6 +3643,178 @@ def build():
                 "kind": "record",
                 "record": signed(variant(deleg, delegate=lexis_ltd,
                                          nonce="5e7a9c1b3d0f2846"),
+                                 l_op, ltd_vm)})
+
+    # Layer 1, 11.4, item by item, on the two-step chain: Lexis Ltd to its
+    # agent, the agent to the fork that signs.
+    def by_child(authority, created=None):
+        doc = variant(chain_commit, **({"created": created} if created else {}))
+        return signed(doc, f_op, child_vm, authority=authority)
+
+    def sub_with(signer=(t_op, agent_vm), **changes):
+        return signed(variant(sub_deleg, **changes), *signer)
+
+    bad_sig("chain-without-its-first-delegation",
+            "The fork's proof lists only the delegation that names it. A "
+            "chain starts with a delegation by the mind the proof acts for "
+            "(Layer 1, 11.4, item 2), and verifiers do not look for the "
+            "missing one among the records they hold.",
+            by_child([sub_ref]), lexis_ltd)
+    bad_sig("chain-with-a-delegation-twice",
+            "The first delegation is listed twice. Its delegate is the "
+            "agent, and the delegation after it is by Lexis Ltd, so the "
+            "list is not a chain (Layer 1, 11.4, item 3). A verifier takes "
+            "the list as given, and drops nothing from it (11.6).",
+            by_child([deleg_ref, deleg_ref, sub_ref]), lexis_ltd)
+    bad_sig("delegation-for-another-subject",
+            "The agent's delegation to the fork has the agent as its "
+            "subject. Every delegation of a chain has the principal as its "
+            "subject (Layer 1, 11.4, item 2): the agent can pass on Lexis "
+            "Ltd's authority only by naming Lexis Ltd.",
+            by_child([deleg_ref, sub_with(subject=lexis,
+                                          nonce="2f4a6c8e0b1d3f57")]),
+            lexis_ltd)
+    bad_sig("delegation-signed-in-its-authors-name",
+            "The delegation to the fork names the agent as its author and "
+            "is signed by the fork. A delegation counts only when signed "
+            "by its author's own authority (Layer 1, 11.4, item 1).",
+            by_child([deleg_ref, sub_with(signer=(f_op, child_vm),
+                                          nonce="3a5c7e9b1d2f4068")]),
+            lexis_ltd)
+    bad_sig("delegation-to-another-delegate",
+            "The agent delegated to the researcher, and the fork signs. "
+            "The last delegation of a chain names the signer of the proof "
+            "(Layer 1, 11.4, item 3).",
+            by_child([deleg_ref, sub_with(delegate=researcher,
+                                          nonce="4b6d8f0a2c3e5179")]),
+            lexis_ltd)
+    less_policy = sub_with(policy=usd_500 + [
+        ["<=", ".terms.price.amount", "200"],
+        ["all", ".parties", ["!=", ".mind", child]]],
+        nonce="5c7e9a1b3d4f628a")
+    bad_sig("sub-delegation-drops-a-statement",
+            "Lexis Ltd's delegation says who is paid and that its agent is "
+            "no party. The agent's delegation to the fork leaves both "
+            "statements out. Every policy statement of a delegation "
+            "appears in the next (Layer 1, 11.4, item 4), whether or not "
+            "the record at hand would satisfy it.",
+            by_child([deleg_ref, less_policy]), lexis_ltd)
+    bad_sig("sub-delegation-outlives-its-parent",
+            "Lexis Ltd's delegation expires on 30 Nov at 09:30. The agent's "
+            "delegation to the fork expires a second later. A delegation "
+            "expires no later than the one before it (Layer 1, 11.4, item "
+            "4), exactly: the tolerance of core 9.1 is for clocks, and "
+            "these are two dates.",
+            by_child([deleg_ref,
+                      sub_with(expires="2026-11-30T09:30:01Z",
+                               nonce="6d8f0b2c4e5a739b")]), lexis_ltd)
+    bad_sig("delegation-not-yet-valid",
+            "The agent's delegation to the fork starts at 11:05:01. The "
+            "fork's proof is evaluated at 11:00:00, more than 300 seconds "
+            "before (Layer 1, 11.4, item 5).",
+            by_child([deleg_ref,
+                      sub_with(notBefore="2026-10-30T11:05:01Z",
+                               nonce="7e9a1c3d5f6b84ac")]), lexis_ltd)
+    made_late = sub_with(created="2026-10-30T11:30:00Z",
+                         nonce="8f0b2d4e6a7c95bd")
+    bad_sig("delegation-made-after-the-proof",
+            "The fork's proof is evaluated at 11:00. The delegation it "
+            "relies on was signed at 11:30. The evaluation time of a "
+            "delegation's signature is not after that of the proof that "
+            "uses it (Layer 1, 11.4, item 1): authority cannot be given "
+            "to what was already signed.",
+            by_child([deleg_ref, made_late]), lexis_ltd)
+    past_expiry = by_child([deleg_ref, sub_ref], "2026-11-15T00:05:01Z")
+    bad_sig("delegation-expired-beyond-the-tolerance",
+            "The agent's delegation to the fork expires on 15 Nov at "
+            "00:00:00. The fork's proof is evaluated 301 seconds later "
+            "(Layer 1, 11.4, item 5).", past_expiry, lexis_ltd)
+    unheld = sub_with(nonce="9a1c3e5f7b8da6ce")
+    bad_sig("delegation-named-and-not-held",
+            "The fork's proof names a delegation by reference, and the "
+            "verifier does not hold it. A chain is checked with the "
+            "delegations themselves (Layer 1, 11.6).",
+            by_child([deleg_ref, record_ref(lexis, unheld)]), lexis_ltd)
+    text_policy = signed(variant(
+        deleg, policy=ltd_policy + [["<", ".terms.price.currency", "V"]],
+        nonce="0b2d4f6a8c9eb7df"), l_op, ltd_vm)
+    bad_sig("policy-orders-what-is-no-decimal",
+            "The policy asks that the currency come before `V`. `USD` "
+            "does, as text. Ordering is defined between integers and "
+            "decimal strings and nothing else, so the statement is an "
+            "error, and an error anywhere fails the policy (Layer 1, 11.3).",
+            signed(variant(commit), t_op, agent_vm, authority=[text_policy]),
+            lexis_ltd)
+
+    def nested(depth):
+        statement = ["==", ".terms.price.currency", "USD"]
+        for _ in range(depth):
+            statement = ["not", statement]
+        return statement
+
+    def with_policy(policy, nonce):
+        return signed(variant(deleg, policy=policy, nonce=nonce), l_op, ltd_vm)
+
+    neg.append({"name": "policy-nested-nine-deep",
+                "reason": "A statement of a policy is at depth 0, and no "
+                          "statement is deeper than 8 (Layer 1, 11.3). Here "
+                          "a comparison stands under nine negations.",
+                "kind": "record",
+                "record": with_policy([nested(9)], "1c3e5a7b9d0fc8e0")})
+    V["valid"].append({
+        "name": "policy-nested-eight-deep",
+        "reason": "A comparison under eight negations is at depth 8, the "
+                  "deepest a statement may be (Layer 1, 11.3).",
+        "kind": "record",
+        "record": with_policy([nested(8)], "2d4f6b8c0e1ad9f1")})
+    neg.append({"name": "delegation-with-a-reserved-command",
+                "reason": "Under `/oip` there are five commands, and every "
+                          "other command whose first segment is `oip` is "
+                          "reserved (Layer 1, 11.2).",
+                "kind": "record",
+                "record": signed(variant(deleg, command="/oip/pay",
+                                         nonce="3e5a7c9d1f2beaf2"),
+                                 l_op, ltd_vm)})
+    V["valid"].append({
+        "name": "command-whose-first-segment-begins-oip",
+        "reason": "`/oipx/pay` is an extension's command. What is reserved "
+                  "is the first segment `oip`, not every command whose "
+                  "text begins with those letters (Layer 1, 11.2).",
+        "kind": "record",
+        "record": signed(variant(deleg, command="/oipx/pay",
+                                 nonce="4f6b8d0e2a3cfb03"), l_op, ltd_vm)})
+    V["valid"].append({
+        "name": "proof-with-a-broken-chain-counts-for-its-signer",
+        "reason": "The fork's proof lists its two delegations in the wrong "
+                  "order, so it does not count for Lexis Ltd. It is the "
+                  "fork's own signature all the same, by the fork's own "
+                  "key (Layer 1, 11.6; Layer 2, 7.1): what a proof says "
+                  "of acting for another takes nothing from what it is "
+                  "for its signer.",
+        "kind": "countsFor",
+        "record": by_child([sub_ref, deleg_ref]), "mind": child})
+    stranger_rev = signed({"oip": OIP_VERSION, "type": "Revocation",
+                           "author": lexis,
+                           "created": "2026-10-30T10:00:00Z",
+                           "revokes": deleg_ref}, t_op, agent_vm)
+    V["valid"].append({
+        "name": "revocation-by-another-mind",
+        "reason": "The agent signs a revocation of the delegation Lexis "
+                  "Ltd gave it. A revocation is its delegation's author's "
+                  "to make (Layer 1, 11.5): this one revokes nothing, and "
+                  "the commitment the agent signed later still counts.",
+        "kind": "countsFor",
+        "record": signed(variant(commit), t_op, agent_vm,
+                         authority=[deleg_ref]),
+        "mind": lexis_ltd, "extraRecords": [stranger_rev]})
+
+    # Layer 2, 4.2: an Offer can be taken up at least once.
+    neg.append({"name": "offer-with-a-quantity-of-zero",
+                "reason": "An Offer's `quantity` says how many times it "
+                          "can be taken up, and is at least 1 (Layer 2, "
+                          "4.2). An Offer of nothing is no Offer.",
+                "kind": "record",
+                "record": signed(variant(offer_glossary, terms__quantity=0),
                                  l_op, ltd_vm)})
 
     # who a proof acts for, and for what
@@ -4240,6 +4496,25 @@ def build():
             "agree on.", signed_by_two("2026-10-30T23:00:00Z"), collective,
             extra_logs=[[coll, c_homed]], branches=[[coll, c_without_agent]])
 
+    # Layer 2, 7.1 item 4, with Layer 1, 7.3: nobody signs for a
+    # duplicitous collective through a role either.
+    def steward_signs(created):
+        doc = variant(steward_doc, created=created)
+        return signed(doc, t_op, agent_vm, authority=[charter_ref])
+
+    bad_sig("duplicitous-collective-acts-through-a-role",
+            "At 22:00 two members signed two events for one position of "
+            "the collective's log. One sets a home; the other removes the "
+            "researcher. The Lexis agent is a member after either, and the "
+            "charter in force makes it the steward. Evidence cannot "
+            "separate the two events, so the collective is duplicitous, "
+            "and from its first conflicting event on its members are not "
+            "known: the steward's commitment of 23:00 does not count for "
+            "the collective, as a record signed under its threshold would "
+            "not (Layer 1, 7.3; Layer 2, 7.1).",
+            steward_signs("2026-10-30T23:00:00Z"), collective,
+            extra_logs=[[coll, c_homed]], branches=[[coll, c_shrink]])
+
     # Layer 1, 4.9 and 7.3: an event this verifier cannot judge, at a
     # position another copy fills.
     a_rival = control_event("Update", amina, a_upd, "2026-10-30T11:00:00Z",
@@ -4540,6 +4815,60 @@ def build():
     # With one of the two events alone, the record counts.
     control("duplicitous-collective-whose-branches-keep-the-signers",
             branches=None)
+    # Layer 1, 11.4: each negative with the one thing put right.
+    control("chain-without-its-first-delegation",
+            record=by_child([deleg_ref, sub_ref]))
+    control("chain-with-a-delegation-twice",
+            record=by_child([deleg_ref, sub_ref]))
+    control("delegation-for-another-subject",
+            record=by_child([deleg_ref,
+                             sub_with(nonce="2f4a6c8e0b1d3f57")]))
+    control("delegation-signed-in-its-authors-name",
+            record=by_child([deleg_ref,
+                             sub_with(nonce="3a5c7e9b1d2f4068")]))
+    # The same delegation, used by the researcher it names.
+    to_researcher = sub_with(delegate=researcher, nonce="4b6d8f0a2c3e5179")
+    control("delegation-to-another-delegate",
+            record=signed(variant(chain_commit), r_op, res_vm,
+                          authority=[deleg_ref, to_researcher]))
+    control("sub-delegation-drops-a-statement",
+            record=by_child([deleg_ref,
+                             sub_with(nonce="5c7e9a1b3d4f628a")]))
+    # Expiring at the very time its parent does.
+    control("sub-delegation-outlives-its-parent",
+            record=by_child([deleg_ref,
+                             sub_with(expires="2026-11-30T09:30:00Z",
+                                      nonce="6d8f0b2c4e5a739b")]))
+    # A second earlier, the start is exactly 300 seconds after the proof.
+    control("delegation-not-yet-valid",
+            record=by_child([deleg_ref,
+                             sub_with(notBefore="2026-10-30T11:05:00Z",
+                                      nonce="7e9a1c3d5f6b84ac")]))
+    # The proof first seen at noon is evaluated at noon, after the
+    # delegation was signed: the rule is about evaluation times.
+    control("delegation-made-after-the-proof",
+            seen=seen_at(by_child([deleg_ref, made_late]),
+                         "2026-10-30T12:00:00Z"))
+    # A second earlier, the proof is exactly 300 seconds past the expiry.
+    control("delegation-expired-beyond-the-tolerance",
+            record=by_child([deleg_ref, sub_ref], "2026-11-15T00:05:00Z"))
+    control("delegation-named-and-not-held", extraRecords=[unheld])
+    # The same policy with a statement that compares text as text.
+    control("policy-orders-what-is-no-decimal",
+            record=signed(variant(commit), t_op, agent_vm, authority=[
+                with_policy(ltd_policy + [
+                    ["!=", ".terms.price.currency", "V"]],
+                    "0b2d4f6a8c9eb7df")]))
+    control("offer-with-a-quantity-of-zero", record=offer_glossary)
+    # Q30: the same records with what the negative lacks.
+    control("delegation-outside-the-proof",
+            record=signed(variant(commit), t_op, agent_vm,
+                          authority=[deleg_ref]))
+    control("role-without-charter", record=steward_commit)
+    # Signed an hour before the branches part, the steward's commitment
+    # counts for the collective.
+    control("duplicitous-collective-acts-through-a-role",
+            record=steward_signs("2026-10-30T21:00:00Z"))
     # The same event without `critical` can be judged. The two are then
     # separated by evidence, the event of 11:00 has the position, and the
     # record pinned to it counts.

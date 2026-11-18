@@ -137,12 +137,18 @@ export function operationalProofTime(
   proof: VerifiedProof,
   view: IdentityView,
 ): Validation<Instant> {
-  const evaluated = operationalProof(type, proof, view);
+  const evaluated = operationalProofEvaluation(type, proof, view);
   return evaluated.ok ? ok(evaluated.value.time) : evaluated;
 }
 
-/** `operationalProofTime`, with the evidence the time rests on. */
-function operationalProof(
+/**
+ * `operationalProofTime`, with the evidence the time rests on. A caller that
+ * goes on to ask another log about the proof needs it: what a collective's
+ * members were when a member signed for it, for one. That log must be known
+ * up to `evidenced` (core 9.4), or it may lack the event that changed the
+ * answer.
+ */
+export function operationalProofEvaluation(
   type: string,
   proof: VerifiedProof,
   view: IdentityView,
@@ -276,7 +282,7 @@ export function collectiveSignedTime(
     // A proof that names an authority acts for that principal, not under the threshold.
     if (method.kind !== "key" || proof.proof.authority !== undefined) continue;
     if (!everyone.has(method.mind)) continue;
-    const counted = operationalProof(type, proof, view);
+    const counted = operationalProofEvaluation(type, proof, view);
     if (!counted.ok || log.asOf < counted.value.evidenced) continue;
     candidates.push({ time: counted.value.time, member: method.mind });
   }

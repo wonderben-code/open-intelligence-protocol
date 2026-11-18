@@ -107,7 +107,11 @@ describe("running a case", () => {
     }
     for (const section of ["valid", "controls"] as const) {
       for (const vectorCase of vectors[section]) {
-        expect(runCase(accepting, vectors, section, vectorCase).outcome).toBe("pass");
+        // A status is right or wrong in every section: accepting everything does not guess it.
+        const named = vectorCase.kind === "status" || vectorCase.kind === "assurance";
+        expect(runCase(accepting, vectors, section, vectorCase).outcome, vectorCase.name).toBe(
+          named ? "fail" : "pass",
+        );
       }
     }
   });

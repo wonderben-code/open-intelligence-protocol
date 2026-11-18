@@ -50,7 +50,10 @@ function refusal(record: Signed, book: LogBook): string {
   const [proof] = proofs;
   if (proof === undefined) return "no proof verifies";
   const time = operationalProofTime(validated.type, proof, book);
-  return time.ok ? "it counts" : time.issues[0].clause;
+  if (time.ok) return "it counts";
+  // A refusal says why, in words, wherever it comes from.
+  expect(time.issues[0].message.length).toBeGreaterThan(20);
+  return time.issues[0].clause;
 }
 
 /** A book that holds some logs, and has seen what it is told, when it is told. */
@@ -667,9 +670,57 @@ describe("judging a record", () => {
   });
 });
 
+describe(`${clause("L1 7.3")} a proof by a key of a duplicitous mind`, () => {
+  it("is refused for the duplicity, where it is pinned after the branches part or describes the present", () => {
+    const left = new KeyMind("ada").update(20, { homes: ["https://left.example"] });
+    const right = new KeyMind("ada").update(20, { homes: ["https://right.example"] });
+    // Pinned to the event one branch has at the position where they part.
+    const pinned = left.sign(intentBy(left, 30), { position: 1 });
+    expect(refusal(pinned, bookSeeing([left, right], [[pinned, 30]]))).toBe("L1 7.3");
+    // Pinned before it, a record that describes the present is refused all the same.
+    const present = left.sign(locationBy(left, 30), { position: 0 });
+    expect(refusal(present, bookSeeing([left, right], [[present, 30]]))).toBe("L1 7.3");
+    // And one that does not describe the present counts.
+    const before = left.sign(intentBy(left, 30), { position: 0 });
+    expect(refusal(before, bookSeeing([left, right], [[before, 30]]))).toBe("it counts");
+  });
+});
+
 describe(`${clause("L1 9.5", "L1 7.3", "core 9.4")} what a collective's threshold rests on`, () => {
   const people = () =>
     [new KeyMind("a"), new KeyMind("b"), new KeyMind("c"), new KeyMind("d")] as const;
+
+  it("signs nothing from the earliest event of a duplicitous collective's branches on, whichever is held first", () => {
+    const [a, b, c] = people();
+    const club = () => new Collective("club", [a, b, c], 2, 5);
+    // Two events for position 1, both seen at 100. One is dated 100; the other is dated
+    // 150, and so takes effect later.
+    const sooner = rawSign(draftUpdate(club().head, T(100), { homes: ["https://x.example"] }), [
+      a.asMember(),
+      b.asMember(),
+    ]);
+    const later = rawSign(draftUpdate(club().head, T(150), { homes: ["https://y.example"] }), [
+      a.asMember(),
+      b.asMember(),
+    ]);
+    const signedBetween = b.sign(a.sign(intentBy(club(), 120)));
+    const signedBefore = b.sign(a.sign(intentBy(club(), 90)));
+    for (const order of [
+      [sooner, later],
+      [later, sooner],
+    ]) {
+      const evidence = witness([a.events, b.events, c.events, club().events]);
+      for (const event of order) evidence.sawEvent(contentId(event), at(100));
+      for (const record of [signedBetween, signedBefore]) {
+        for (const proof of record.proof) evidence.sawProof(proofDigest(proof), at(0));
+      }
+      const book = new LogBook(evidence);
+      for (const mind of [a, b, c]) book.hold(mind.events, LATER);
+      for (const event of order) book.hold([...club().events, event], LATER);
+      expect(ownSignedTime(judged(signedBefore), club().address, book)).toBe(at(90));
+      expect(ownSignedTime(judged(signedBetween), club().address, book)).toBeUndefined();
+    }
+  });
 
   it("is first met when a proof is made, or when the collective's members change", () => {
     const [a, b, c, d] = people();

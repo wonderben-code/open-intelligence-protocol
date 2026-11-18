@@ -49,6 +49,8 @@ const events = (log: VerifiedLog) => log.entries.map((entry) => entry.event);
 
 function refusal(result: Validation<unknown>): Issue {
   if (result.ok) throw new Error("the log verified");
+  // A refusal says why, in words, wherever it comes from.
+  expect(result.issues[0].message.length).toBeGreaterThan(8);
   return result.issues[0];
 }
 

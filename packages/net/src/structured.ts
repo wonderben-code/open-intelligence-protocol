@@ -14,6 +14,7 @@
  */
 
 import { base64ToBytes, bytesToBase64 } from "@oip/core";
+import { finding } from "@oip/schema";
 
 /** A value of a structured field, of the kinds read here. */
 export type Bare =
@@ -176,6 +177,13 @@ class Reader {
  *   member twice.
  */
 export function parseDictionary(text: unknown): Map<string, Item | InnerList> | undefined {
+  // Text that could not be read for want of room has not been found to be no dictionary:
+  // nothing is read of it, and that is noted (ADR-0010).
+  return finding(() => dictionaryOf(text));
+}
+
+/** The dictionary, as `parseDictionary` answers when no check is cut short. */
+function dictionaryOf(text: unknown): Map<string, Item | InnerList> | undefined {
   if (typeof text !== "string" || text.length > MAX_LENGTH) return undefined;
   const reader = new Reader(text);
   const members = new Map<string, Item | InnerList>();

@@ -119,6 +119,11 @@ const PRINTABLE = /^[\x20-\x7e]*$/u;
  *   member: its covered components, and its parameters.
  */
 export function signatureBase(request: HttpRequest, input: InnerList): Validation<string> {
+  return judging(() => baseOf(request, input));
+}
+
+/** The base, as `signatureBase` answers when no check is cut short. */
+function baseOf(request: HttpRequest, input: InnerList): Validation<string> {
   const lines: string[] = [];
   const named = new Set<string>();
   for (const [index, component] of input.items.entries()) {
@@ -233,7 +238,7 @@ export async function signRequest(
     items: ["@method", "@target-uri", ...(hasBody ? ["content-digest"] : [])].map(name),
     parameters,
   };
-  const base = signatureBase(signed, input);
+  const base = baseOf(signed, input);
   if (!base.ok) throw new TypeError(base.issues[0].message);
   const made = await signer.sign(utf8(base.value));
   added.push(["Signature-Input", `${label}=${writeInnerList(input)}`]);
@@ -318,7 +323,7 @@ export function verifyRequest(
 ): Validation<AuthenticatedRequest> {
   if (typeof (server.now as unknown) !== "bigint") throw new TypeError("now is not a time");
   const answer = judging(() => authenticated(request, server));
-  // Remembered last, for an answer that stands (ADR-0004).
+  // Remembered last, for an answer that stands (ADR-0010).
   if (answer.ok)
     server.nonces.remember(answer.value.keyid, answer.value.nonce, answer.value.expires);
   return answer;
@@ -415,7 +420,7 @@ function judgedSignature(
   if (key === undefined || publicKey?.ok !== true) {
     return no("`keyid` is not a key reference of a mind", "L1 13.3", `${at}/keyid`);
   }
-  const base = signatureBase(request, input);
+  const base = baseOf(request, input);
   if (!base.ok) return base;
   if (!verifyEd25519(signature, utf8(base.value), publicKey.value)) {
     return no("the signature does not verify", "L1 13.3", `/signature/${label}`);

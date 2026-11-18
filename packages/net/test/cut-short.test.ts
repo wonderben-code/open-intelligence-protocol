@@ -3,7 +3,7 @@
 
 /**
  * A check that was cut short, and what the judges of this package answer
- * (ADR-0004).
+ * (ADR-0010).
  *
  * With the call stack all but spent, a check below one of these judges
  * answers with a refusal that is true of the moment and not of what was
@@ -23,10 +23,10 @@ import {
   x25519PublicKey,
 } from "@oip/core";
 import { type IdentityView, type JudgedRecord, judgeRecord, LogBook } from "@oip/identity";
-import { type Entry, noteCutShort } from "@oip/schema";
+import { cutShortCount, type Entry, noteCutShort } from "@oip/schema";
 import { clause, type JsonObject } from "@oip/testkit";
 import { at, KeyMind, LATER, type Mind, T, witness } from "@oip/testkit/minds";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   AcceptedPackets,
@@ -38,6 +38,8 @@ import {
   currentLocation,
   currentParticipant,
   draftAck,
+  type InnerList,
+  parseDictionary,
   receivePacket,
   receiveSealed,
   recordsCarried,
@@ -45,6 +47,7 @@ import {
   sealPacket,
   sessionCarried,
   Sessions,
+  signatureBase,
   signRequest,
   verifyAck,
   verifyBranch,
@@ -538,6 +541,47 @@ describe(`${clause("core 4.4")} a check that was cut short, for an authenticated
     cut.now = false;
     expect(verifyRequest(signed, server).ok).toBe(true);
     expect(nonces.size).toBe(1);
+  });
+});
+
+describe(`${clause("L1 13.3")} a check that was cut short, for what a request's signature is read from`, () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("builds no signature base for a request that could not be read", () => {
+    const covered: InnerList = {
+      kind: "list",
+      items: [{ kind: "item", value: { kind: "string", value: "date" }, parameters: [] }],
+      parameters: [],
+    };
+    const spent = {
+      method: "GET",
+      url: "https://mailbox.example/oip/mbox/abc",
+      headers: new Proxy([], {
+        get: () => {
+          throw new RangeError("Maximum call stack size exceeded");
+        },
+      }),
+    };
+    expect(signatureBase(spent as never, covered)).toMatchObject(SPENT);
+    const read = { ...spent, headers: [["Date", "Tue, 20 Apr 2021 02:07:55 GMT"]] };
+    expect(signatureBase(read as never, covered)).toMatchObject({ ok: true });
+  });
+
+  it("reads nothing of a field where the reading found no room, and notes it", () => {
+    // The text is text, and cannot be made to throw: a spy stands in for the call that
+    // found no room.
+    vi.spyOn(RegExp.prototype, "exec").mockImplementationOnce(() => {
+      throw new RangeError("Maximum call stack size exceeded");
+    });
+    const before = cutShortCount();
+    expect(parseDictionary("a=1")).toBeUndefined();
+    expect(cutShortCount()).toBe(before + 1);
+    expect(parseDictionary("a=1")?.size).toBe(1);
+    // Text that is no dictionary is no sign of anything else.
+    expect(parseDictionary("a=")).toBeUndefined();
+    expect(cutShortCount()).toBe(before + 1);
   });
 });
 

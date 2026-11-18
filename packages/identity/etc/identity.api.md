@@ -9,6 +9,7 @@ import type { Fork } from '@oip/schema';
 import type { Genesis } from '@oip/schema';
 import type { IdentityEvent } from '@oip/schema';
 import { Instant } from '@oip/core';
+import { KeyRef } from '@oip/core';
 import { OipRecord } from '@oip/schema';
 import { PlacedProof } from '@oip/core';
 import type { Proof } from '@oip/schema';
@@ -318,6 +319,9 @@ export interface Replayed {
     readonly log: VerifiedLog | undefined;
     readonly undecided: boolean;
 }
+
+// @public
+export function requestKeyTime(key: KeyRef, created: Instant, seen: Instant, view: IdentityView): Validation<Instant>;
 
 // @public
 export type RetireFields = Omit<Retire, "oip" | "type" | "created" | "proof" | "mind" | "seq" | "prev">;

@@ -16,7 +16,19 @@ import { ProofPurpose } from '@oip/schema';
 import { Validation } from '@oip/schema';
 
 // @public
+export function base64ToBytes(text: unknown): Uint8Array | undefined;
+
+// @public
+export function base64urlToBytes(text: unknown): Uint8Array | undefined;
+
+// @public
 export function bytesEqual(a: Uint8Array, b: Uint8Array): boolean;
+
+// @public
+export function bytesToBase64(bytes: Uint8Array): string;
+
+// @public
+export function bytesToBase64url(bytes: Uint8Array): string;
 
 // @public
 export function bytesToHex(bytes: Uint8Array): string;
@@ -108,6 +120,39 @@ export function formatVersionId(seq: number, eventContentId: string): string;
 
 // @public
 export function hexToBytes(hex: string): Uint8Array;
+
+// @public
+export const HPKE_SUITE = "hpke-base-x25519-sha256-chacha20poly1305";
+
+// @public
+export function hpkeOpen(input: HpkeOpenInput): Promise<Uint8Array | undefined>;
+
+// @public
+export interface HpkeOpenInput {
+    readonly aad: Uint8Array;
+    readonly ciphertext: Uint8Array;
+    readonly enc: Uint8Array;
+    readonly info: Uint8Array;
+    readonly recipientPrivateKey: Uint8Array;
+}
+
+// @public
+export function hpkeSeal(input: HpkeSealInput): Promise<HpkeSealed | undefined>;
+
+// @public
+export interface HpkeSealed {
+    readonly ciphertext: Uint8Array;
+    readonly enc: Uint8Array;
+}
+
+// @public
+export interface HpkeSealInput {
+    readonly aad: Uint8Array;
+    readonly info: Uint8Array;
+    readonly plaintext: Uint8Array;
+    readonly randomness: Uint8Array;
+    readonly recipientPublicKey: Uint8Array;
+}
 
 // @public
 export type Instant = bigint;
@@ -472,5 +517,8 @@ export interface VersionId {
 export function withProofs<T extends object>(record: T, proofs: readonly Proof[]): Omit<T, "proof"> & {
     proof: Proof[];
 };
+
+// @public
+export function x25519PublicKey(privateKey: Uint8Array): Uint8Array;
 
 ```

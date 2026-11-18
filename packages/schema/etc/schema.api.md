@@ -14,6 +14,7 @@ export const Ack: Type.TObject<{
     packet: Type.TUnsafe<string>;
     received: Type.TUnsafe<string>;
     sealed: Type.TOptional<Type.TUnsafe<string>>;
+    proofs: Type.TOptional<Type.TArray<Type.TUnsafe<string>>>;
     created: Type.TUnsafe<string>;
     proof: Type.TUnsafe<Readonly<Record<string, unknown>>[]>;
     oip: Type.TLiteral<"1">;

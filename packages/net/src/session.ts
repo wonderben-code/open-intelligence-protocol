@@ -278,7 +278,7 @@ export class Sessions {
    */
   take(received: ReceivedPacket): Validation<Placed> {
     // The answer and what to keep are worked out first. Nothing is kept of an answer reached
-    // while a check was cut short (ADR-0004).
+    // while a check was cut short (ADR-0010).
     const planned = judging(() => this.#place(received));
     if (!planned.ok) return planned;
     planned.value.keep?.();

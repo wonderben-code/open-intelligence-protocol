@@ -92,7 +92,7 @@ export function verifyHello(value: unknown, server: HelloServer): Validation<Aut
   }
   const answer = judging(() => authenticated(value, server));
   // The challenge is used up last, by an answer that stands: a check that was cut short uses
-  // nothing (ADR-0004).
+  // nothing (ADR-0010).
   if (answer.ok) server.challenges.use(answer.value.challenge);
   return answer;
 }

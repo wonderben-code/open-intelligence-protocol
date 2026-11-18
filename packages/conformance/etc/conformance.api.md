@@ -5,6 +5,16 @@
 ```ts
 
 // @public
+export interface AckCase extends CaseBase {
+    // (undocumented)
+    readonly ack: JsonObject;
+    // (undocumented)
+    readonly kind: "ack";
+    // (undocumented)
+    readonly packet: JsonObject;
+}
+
+// @public
 export type Agreement = "same" | "no-laxer";
 
 // @public
@@ -21,7 +31,7 @@ export interface AssuranceCase extends CaseBase {
 }
 
 // @public
-export const CASE_KINDS: readonly ["log", "countsFor", "sentFor", "status", "assurance", "record", "json"];
+export const CASE_KINDS: readonly ["log", "countsFor", "sentFor", "status", "assurance", "record", "json", "feed", "checkpoint", "receive", "chain", "hello", "ack", "location", "participant"];
 
 // @public
 export interface CaseBase {
@@ -51,6 +61,38 @@ export interface CaseResult {
 }
 
 // @public
+export interface ChainCase extends CaseBase {
+    // (undocumented)
+    readonly kind: "chain";
+    // (undocumented)
+    readonly packets: readonly JsonObject[];
+    // (undocumented)
+    readonly receiver: string;
+    // (undocumented)
+    readonly session: JsonObject;
+}
+
+// @public
+export interface ChainReading {
+    readonly ahead: number;
+    readonly delivered: readonly string[];
+    readonly equivocation: {
+        readonly seq: number;
+        readonly packets: readonly string[];
+    } | null;
+}
+
+// @public
+export interface CheckpointCase extends CaseBase {
+    // (undocumented)
+    readonly checkpoint: JsonObject;
+    // (undocumented)
+    readonly entries: readonly unknown[];
+    // (undocumented)
+    readonly kind: "checkpoint";
+}
+
+// @public
 export function claimHolds(adapter: ConformanceAdapter, vectors: Vectors, vectorCase: VectorCase): boolean | undefined;
 
 // @public
@@ -61,19 +103,27 @@ export function compareVerdicts(adapter: ConformanceAdapter, judge: Judge, vecto
 
 // @public
 export interface ConformanceAdapter {
+    ack?(vectorCase: AckCase, view: VerifierView): NetworkAnswer<readonly string[] | null>;
     assurance?(profile: JsonObject, view: VerifierView): string;
     canonicalize?(value: unknown): string;
+    chain?(vectorCase: ChainCase, view: VerifierView): NetworkAnswer<Readonly<Record<string, ChainReading>>>;
+    checkpoint?(vectorCase: CheckpointCase, view: VerifierView): NetworkAnswer<readonly string[] | null>;
     contentId?(record: JsonObject): string;
     countsFor?(record: JsonObject, mind: string, view: VerifierView): Answer;
     createProof?(record: JsonObject, request: ProofRequest, privateKey: Uint8Array): JsonObject;
     didDocument?(mind: string, versionId: string | undefined, view: VerifierView): unknown;
+    feed?(vectorCase: FeedCase, view: VerifierView): NetworkAnswer<FeedReading>;
+    hello?(vectorCase: HelloCase, view: VerifierView): NetworkAnswer<string | null>;
     jsonIsWithinProfile?(text: string): boolean;
     keyHash?(multikey: string): string;
     lineage?(child: string, view: VerifierView): Readonly<Record<string, LineageStatus>>;
+    location?(vectorCase: LocationCase, view: VerifierView): NetworkAnswer<string | null>;
     logIntake?(log: unknown, view: VerifierView): LogIntake;
     logVerifies?(log: Log, view: VerifierView): boolean;
     readonly name: string;
+    participant?(vectorCase: ParticipantCase, view: VerifierView): NetworkAnswer<string | null>;
     proofVerifies?(record: JsonObject, proof: unknown): boolean;
+    receive?(vectorCase: ReceiveCase, view: VerifierView): NetworkAnswer<Received | null>;
     recordIsWellFormed?(record: unknown): boolean;
     sentFor?(packet: JsonObject, mind: string, view: VerifierView): boolean;
     status?(of: JsonObject, records: readonly JsonObject[], at: string, view: VerifierView): string;
@@ -114,6 +164,36 @@ export interface ExpectedStatus {
 }
 
 // @public
+export interface FeedCase extends CaseBase {
+    // (undocumented)
+    readonly author: string;
+    // (undocumented)
+    readonly entries: readonly unknown[];
+    // (undocumented)
+    readonly kind: "feed";
+}
+
+// @public
+export interface FeedReading {
+    readonly equivocation: readonly string[];
+    readonly verified: number;
+}
+
+// @public
+export interface HelloCase extends CaseBase {
+    // (undocumented)
+    readonly at: string;
+    // (undocumented)
+    readonly hello: JsonObject;
+    // (undocumented)
+    readonly issued: Readonly<Record<string, string>>;
+    // (undocumented)
+    readonly kind: "hello";
+    // (undocumented)
+    readonly origin: string;
+}
+
+// @public
 export interface JsonCase extends CaseBase {
     // (undocumented)
     readonly kind: "json";
@@ -138,6 +218,16 @@ export type LineageStatus = "acknowledged" | "claimed";
 
 // @public
 export function loadVectors(file?: string): Vectors;
+
+// @public
+export interface LocationCase extends CaseBase {
+    // (undocumented)
+    readonly kind: "location";
+    // (undocumented)
+    readonly record: JsonObject;
+    // (undocumented)
+    readonly records?: readonly JsonObject[];
+}
 
 // @public
 export type Log = readonly JsonObject[];
@@ -168,6 +258,14 @@ export const METHOD_FOR_KIND: {
     readonly assurance: "assurance";
     readonly record: "recordIsWellFormed";
     readonly json: "jsonIsWithinProfile";
+    readonly feed: "feed";
+    readonly checkpoint: "checkpoint";
+    readonly receive: "receive";
+    readonly chain: "chain";
+    readonly hello: "hello";
+    readonly ack: "ack";
+    readonly location: "location";
+    readonly participant: "participant";
 };
 
 // @public
@@ -177,6 +275,17 @@ export function namedLog(vectors: Vectors, name: string): Log;
 export function namedRecord(vectors: Vectors, name: string): JsonObject;
 
 // @public
+export interface NetworkAnswer<T> {
+    // (undocumented)
+    readonly holds: boolean;
+    // (undocumented)
+    readonly value: T;
+}
+
+// @public
+export type NetworkCase = FeedCase | CheckpointCase | ReceiveCase | ChainCase | HelloCase | AckCase | LocationCase | ParticipantCase;
+
+// @public
 export const NOT_JUDGED: unique symbol;
 
 // @public
@@ -184,6 +293,20 @@ export type Outcome = "pass" | "fail" | "pending";
 
 // @public
 export function parseVectors(value: unknown): Vectors;
+
+// @public
+export interface ParticipantCase extends CaseBase {
+    // (undocumented)
+    readonly entries?: readonly unknown[];
+    // (undocumented)
+    readonly kind: "participant";
+    // (undocumented)
+    readonly locations?: readonly JsonObject[];
+    // (undocumented)
+    readonly record: JsonObject;
+    // (undocumented)
+    readonly records?: readonly JsonObject[];
+}
 
 // @public
 export const POSITIVE_CHECKS: readonly PositiveCheck[];
@@ -231,6 +354,26 @@ export interface PythonJudgeOptions {
 
 // @public
 export function pythonJudgeUnavailable(options?: PythonJudgeOptions): string | undefined;
+
+// @public
+export interface ReceiveCase extends CaseBase {
+    // (undocumented)
+    readonly arrived: JsonObject;
+    // (undocumented)
+    readonly at: string;
+    readonly holdsChain?: boolean;
+    // (undocumented)
+    readonly kind: "receive";
+    // (undocumented)
+    readonly receiver: string;
+    readonly window?: number;
+}
+
+// @public
+export interface Received {
+    readonly broker: string | null;
+    readonly packet: string;
+}
 
 // @public
 export interface RecordCase extends CaseBase {
@@ -299,7 +442,7 @@ export interface TestKey {
 }
 
 // @public (undocumented)
-export type VectorCase = LogCase | CountsForCase | SentForCase | StatusCase | AssuranceCase | RecordCase | JsonCase;
+export type VectorCase = LogCase | CountsForCase | SentForCase | StatusCase | AssuranceCase | RecordCase | JsonCase | NetworkCase;
 
 // @public
 export interface Vectors {

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { formatKeyRef, parseKeyRef, parseVerificationMethod } from "@oip/core";
+import { cutShort, noteCutShort } from "@oip/schema";
 import { clause } from "@oip/testkit";
 import { at, bookOf, Collective, KeyMind, type Mind } from "@oip/testkit/minds";
 import { describe, expect, it } from "vitest";
@@ -37,6 +38,25 @@ describe(`${clause("L1 13.3", "L1 6.1")} the key of an authenticated request`, (
       value: at(400),
     });
     expect(refusal(keyOf(ada), at(400.000000001), at(100), book)).toBe("core 9.3");
+  });
+
+  it("is not judged where the check was cut short: the answer says so (ADR-0010)", () => {
+    const ada = new KeyMind("ada");
+    const book = bookOf([ada]);
+    const cut = { now: true };
+    const noting = {
+      evidence: book.evidence,
+      log: (mind: string) => {
+        if (cut.now) noteCutShort(new RangeError("Maximum call stack size exceeded"));
+        return book.log(mind);
+      },
+    };
+    expect(requestKeyTime(keyOf(ada), at(90), at(100), noting)).toStrictEqual(cutShort());
+    cut.now = false;
+    expect(requestKeyTime(keyOf(ada), at(90), at(100), noting)).toStrictEqual({
+      ok: true,
+      value: at(100),
+    });
   });
 
   it("is a key of the version it names", () => {

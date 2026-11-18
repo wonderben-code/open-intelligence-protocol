@@ -4,7 +4,7 @@
 /**
  * The judges of this package, called with the call stack all but spent:
  * each answers from the moment it can be entered, answers nothing that is
- * true only of the moment, and is right again afterwards (ADR-0004).
+ * true only of the moment, and is right again afterwards (ADR-0010).
  *
  * The calls are made by `spent-stack.node.ts`, in a Node.js process of its
  * own and not under the test runner: `inNode` says why. `cut-short.test.ts`

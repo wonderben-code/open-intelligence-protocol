@@ -1091,36 +1091,58 @@ def log_intake(events, verifier) -> dict:
                                            log.states[-1])}
 
 
+def _proofs_count(ev) -> bool:
+    """Layer 1, 7.1: whether a copy of an event is one whose proofs count:
+    its `proof` is what core 5.1 says, and the event is within core 1.6
+    with it."""
+    proofs = ev.get("proof")
+    return isinstance(proofs, list) and \
+        1 <= len(proofs) <= MAX_PROOFS and \
+        all(isinstance(p, dict) for p in proofs) and \
+        len(jcs(ev)) <= MAX_RECORD_BYTES
+
+
 def _with_every_proof(copies) -> list:
     """Layer 1, 7.1: the same event with another set of proofs is the same
     event, and each proof stands on its own (core 5.5). So each copy of an
-    event is given the proofs of every copy of it, each proof once, in the
-    order they were first held. An event is told by its position and its
-    content ID, which names the event before it."""
+    event is given the proofs of every well-formed copy of it, each proof
+    once, in the order they were first held. An event is told by its
+    content ID, wherever in a copy it stands.
+
+    A copy of an event that is not well formed adds no proof and takes
+    none away: the content ID does not cover `proof`, so anyone can make
+    such a copy of any event. It keeps its place, and what follows it in
+    its copy is held.
+
+    Together the proofs may be more than one record carries (core 1.6,
+    5.1). A verifier cannot tell which to leave out, so it then answers
+    for the log no longer."""
     held = {}
 
     def events_of(copy):
-        """The events of a copy that could be events: nothing follows a
-        value that is none."""
+        """The events of a copy that have a content ID: nothing follows a
+        value that has none."""
         for i, ev in enumerate(copy if isinstance(copy, list) else []):
-            if not isinstance(ev, dict) or not values_ok(ev) or \
-               not isinstance(ev.get("proof"), list):
+            if not isinstance(ev, dict) or not values_ok(ev):
                 return
             yield i, ev
 
     for copy in copies:
-        for i, ev in events_of(copy):
-            proofs = held.setdefault((i, content_id(ev)), {})
-            for p in ev["proof"]:
-                proofs.setdefault(jcs(p), p)
-            if len(proofs) > MAX_PROOFS:
-                raise ValueError("more proofs were shown for one event than "
-                                 "an event may carry")
+        for _, ev in events_of(copy):
+            if _proofs_count(ev):
+                proofs = held.setdefault(content_id(ev), {})
+                for p in ev["proof"]:
+                    proofs.setdefault(jcs(p), p)
     out = []
     for copy in copies:
         merged = list(copy) if isinstance(copy, list) else copy
         for i, ev in events_of(copy):
-            merged[i] = {**ev, "proof": list(held[(i, content_id(ev))].values())}
+            proofs = list(held.get(content_id(ev), {}).values())
+            merged[i] = {**ev, "proof": proofs}
+            if len(proofs) > MAX_PROOFS or \
+               proofs and len(jcs(merged[i])) > MAX_RECORD_BYTES:
+                raise ValueError("more proofs were shown for one event than "
+                                 "one record carries")
         out.append(merged)
     return out
 
@@ -4235,6 +4257,36 @@ def build():
             "signed is not signed by it.", two_of_all, collective3,
             extra_logs=[[coll3, with_proofs(c3_shrink, [0])]])
 
+    # Layer 1, 7.1: a copy of an event that is not well formed.
+    def spoiled(event):
+        return {**event, "proof": [*event["proof"], "no proof"]}
+
+    bad_sig("event-held-in-a-copy-that-is-not-well-formed",
+            "Amina removed her phone key on 2 Nov, and the verifier holds "
+            "her log with that event. It also holds a second copy of the "
+            "log, in which the `proof` of that event has an entry that is "
+            "no object. A content ID does not cover `proof`, so anyone can "
+            "make such a copy of any event. It is not well formed: it adds "
+            "no proof to the event and takes none away (Layer 1, 7.1). The "
+            "event stands with the proofs of the first copy, the key is "
+            "removed, and a record signed with it and first seen on 3 Nov "
+            "does not count.", late_intent, amina,
+            extra_logs=[[a_gen, a_upd, a_rm]],
+            branches=[[a_gen, a_upd, spoiled(a_rm)]],
+            seen=seen_at(late_intent, "2026-11-03T08:00:00Z"))
+    bad_sig("events-after-a-copy-that-is-not-well-formed",
+            "The verifier holds Amina's log as it was on 30 Oct. It also "
+            "holds a later copy with the event of 2 Nov that removes her "
+            "phone key, in which the `proof` of the event before it has "
+            "an entry that is no object. That copy of the earlier event "
+            "adds no proof to it, but the event is the one the first copy "
+            "shows, with its place in the log (Layer 1, 7.1), so what "
+            "follows it is held and judged: the key is removed, and a "
+            "record signed with it and first seen on 3 Nov does not count.",
+            late_intent, amina, extra_logs=[[a_gen, a_upd]],
+            branches=[[a_gen, spoiled(a_upd), a_rm]],
+            seen=seen_at(late_intent, "2026-11-03T08:00:00Z"))
+
     V["valid"].append({
         "name": "home-that-is-no-host",
         "reason": "The grammar of an HTTPS origin bounds its characters "
@@ -4385,6 +4437,12 @@ def build():
     # both copies: the collective became the two, and the record is signed.
     control("event-held-with-too-few-of-its-proofs",
             branches=[[coll3, with_proofs(c3_shrink, [1, 2])]])
+    # First seen before the removal, the record counts: the copy that is
+    # not well formed does not stop the log from verifying.
+    control("event-held-in-a-copy-that-is-not-well-formed",
+            seen=seen_at(late_intent, "2026-11-01T08:00:05Z"))
+    control("events-after-a-copy-that-is-not-well-formed",
+            seen=seen_at(late_intent, "2026-11-01T08:00:05Z"))
     return V
 
 

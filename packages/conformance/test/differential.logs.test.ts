@@ -737,10 +737,27 @@ const branchCase: fc.Arbitrary<VectorCase> = fc
       { minLength: 2, maxLength: 3 },
     ),
     junk: fc.constantFrom(undefined, undefined, undefined, undefined, 0, 1),
-    // A further copy of one branch: with an invalid event after it, cut short, or with the
-    // proofs of its last event lost. None is another branch (Layer 1, 4.9, 7.1).
-    again: fc.constantFrom(...NO_COPY, "junk after", "cut short", "proofs lost"),
+    // A further copy of one branch: with an invalid event after it, cut short, with the
+    // proofs of its last event lost, or with a `proof` that is not well formed on its last
+    // event or on the one before. None is another branch, and none takes anything away
+    // (Layer 1, 4.9, 7.1).
+    again: fc.constantFrom(
+      ...NO_COPY,
+      "junk after",
+      "cut short",
+      "proofs lost",
+      "proofs spoiled",
+      "proofs spoiled",
+      "spoiled before",
+      "spoiled before",
+    ),
     againOf: fc.nat(2),
+    spoiling: fc.constantFrom(
+      "an entry that is no object",
+      "an entry that is no object",
+      "no entry",
+      "no list",
+    ),
     seenAfter: fc.array(fc.constantFrom(0, 0, 0, 0, 1, 7, 200), { minLength: 3, maxLength: 3 }),
     branch: fc.nat(2),
     position: fc.nat(6),
@@ -777,9 +794,24 @@ const branchCase: fc.Arbitrary<VectorCase> = fc
       });
       // Signed before the junk is added: an event that does not verify is no version to pin.
       if (plan.junk !== undefined) branches[plan.junk]?.raw(30_000, "Merge");
-      const [first, ...others] = branches.map((branch) => branch.events as unknown as Events);
-      const copied = (branches[plan.againOf % branches.length]?.events ?? []) as unknown as Events;
+      const whole = branches.map((branch) => branch.events as unknown as Events);
+      const which = plan.againOf % branches.length;
+      const copied = whole[which] ?? [];
       const last = copied.at(-1) as (JsonObject & { proof: JsonObject[] }) | undefined;
+      /** The event with a `proof` that core 5.1 does not allow: the copy adds no proof to it. */
+      const spoiled = (event: JsonObject & { proof: JsonObject[] }) => ({
+        ...event,
+        proof:
+          plan.spoiling === "an entry that is no object"
+            ? [...event.proof, "no proof"]
+            : plan.spoiling === "no entry"
+              ? []
+              : (event.proof[0] ?? null),
+      });
+      const spoiledAt = (index: number) =>
+        copied.map((event, i) =>
+          i === index ? spoiled(event as unknown as JsonObject & { proof: JsonObject[] }) : event,
+        ) as Events;
       const again: Events[] =
         plan.again === undefined || last === undefined
           ? []
@@ -787,15 +819,24 @@ const branchCase: fc.Arbitrary<VectorCase> = fc
             ? [[...copied, { junk: true }] as Events]
             : plan.again === "cut short"
               ? [copied.slice(0, -1)]
-              : [
-                  [
-                    ...copied.slice(0, -1),
-                    {
-                      ...last,
-                      proof: last.proof.map((proof) => ({ ...proof, proofValue: "z1111" })),
-                    },
-                  ] as Events,
-                ];
+              : plan.again === "proofs spoiled"
+                ? [spoiledAt(copied.length - 1)]
+                : plan.again === "spoiled before"
+                  ? [spoiledAt(copied.length - 2)]
+                  : [
+                      [
+                        ...copied.slice(0, -1),
+                        {
+                          ...last,
+                          proof: last.proof.map((proof) => ({ ...proof, proofValue: "z1111" })),
+                        },
+                      ] as Events,
+                    ];
+      // The copy spoiled before its end is then the only one with the last event: the
+      // branch itself is held without it. The event spoiled is the one that copy shows
+      // whole, so the last event has its place (Layer 1, 7.1).
+      if (plan.again === "spoiled before" && copied.length > 1) whole[which] = copied.slice(0, -1);
+      const [first, ...others] = whole;
       return {
         kind: "countsFor",
         name: "generated",

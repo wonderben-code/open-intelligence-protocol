@@ -6,8 +6,17 @@
  * their events existed: what every question about a mind's keys is asked of.
  */
 
-import { canonicalize, contentId, type Instant, MAX_PROOFS, mindAddress } from "@oip/core";
-import { IMPLEMENTATION_LIMIT, type Validation, validateJson } from "@oip/schema";
+import {
+  canonicalBytes,
+  canonicalize,
+  contentId,
+  type Instant,
+  type JsonObject,
+  MAX_PROOFS,
+  MAX_RECORD_BYTES,
+  mindAddress,
+} from "@oip/core";
+import { IMPLEMENTATION_LIMIT, type JsonValue, type Validation, validateJson } from "@oip/schema";
 
 import type { EvidenceView } from "./evidence.ts";
 import {
@@ -69,10 +78,8 @@ export interface LogBookOptions {
 }
 
 /**
- * One event of a mind's log, as held: what the event says, and every proof
- * it has been shown with. The same event with another set of proofs is the
- * same event (Layer 1, 7.1), and each proof stands on its own (core 5.5), so
- * the proofs of every copy are kept together.
+ * One event of a mind's log, in its place in a copy: what the event says.
+ * Its proofs are held apart, for the event wherever it stands (`Tree.proofs`).
  */
 interface Held {
   /**
@@ -83,11 +90,11 @@ interface Held {
    */
   readonly body: unknown;
   /**
-   * The proofs it was shown with, each once, by its canonical form.
-   * `undefined` for a value whose proofs did not come as a list: it is held
-   * whole, as it came.
+   * The event's content ID, which its proofs are held under. `undefined`
+   * for a value that has none: it is no object of plain data, and is held
+   * whole, as what stands for it.
    */
-  readonly proofs: Map<string, unknown> | undefined;
+  readonly id: string | undefined;
   /** The events held after this one, by what each says. */
   readonly next: Map<string, Held>;
   /** core 9.4: the latest time up to which a copy that ended with this event was known. */
@@ -97,6 +104,13 @@ interface Held {
 /** Everything held of one mind's log: a tree of events, from its genesis. */
 interface Tree {
   readonly genesis: Held;
+  /**
+   * Layer 1, 7.1: every proof held for each event, by the event's content
+   * ID and then by the proof's canonical form. The same event with another
+   * set of proofs is the same event, and each proof stands on its own (core
+   * 5.5), so the proofs of every well-formed copy are kept together.
+   */
+  readonly proofs: Map<string, Map<string, JsonObject>>;
   /** The ends of the tree: the copies held, less every copy that is the beginning of another. */
   ends: number;
   /**
@@ -111,8 +125,13 @@ interface Taken {
   /** What tells this event from another at its position: its content ID, where it has one. */
   readonly key: string;
   readonly body: unknown;
-  /** Its proofs, if they came as a list. Otherwise they stay part of the body. */
-  readonly proofs: readonly unknown[] | undefined;
+  /** Its content ID, if it is an object of plain data. */
+  readonly id: string | undefined;
+  /**
+   * The proofs this copy of the event adds to it: all of them if the copy
+   * is well formed, and none if it is not (Layer 1, 7.1).
+   */
+  readonly proofs: readonly JsonObject[];
   /** Whether a copy goes on after it. Nothing follows a value that is no event. */
   readonly last: boolean;
 }
@@ -131,7 +150,7 @@ const refusal = (message: string, clause: string): Rejection =>
   deepFreeze({ ok: false, issues: [{ path: "", message, clause }] });
 
 const TOO_MANY = refusal(
-  `the book was shown more of this mind's log than it holds: more than ${MAX_COPIES} copies that are not the beginning of one another, or more than ${MAX_PROOFS} proofs on one event`,
+  `the book was shown more of this mind's log than it holds: more than ${MAX_COPIES} copies that are not the beginning of one another, or more proofs for one event than one record carries (${MAX_PROOFS}, and 1 MiB with the event)`,
   IMPLEMENTATION_LIMIT,
 );
 
@@ -151,20 +170,43 @@ const NOT_A_LOG: Rejection = deepFreeze({
 });
 
 /** The event a run is given for a held event: what it says, with every proof held for it. */
-function eventOf(held: Held): unknown {
-  return held.proofs === undefined
+function eventOf(tree: Tree, held: Held): unknown {
+  return held.id === undefined
     ? held.body
-    : { ...(held.body as object), proof: [...held.proofs.values()] };
+    : { ...(held.body as object), proof: [...(tree.proofs.get(held.id)?.values() ?? [])] };
 }
 
-/** A place in a tree for an event as it was taken, with none of its proofs yet. */
+/** A place in a tree for an event as it was taken. */
 function placeFor(event: Taken): Held {
-  return {
-    body: event.body,
-    proofs: event.proofs === undefined ? undefined : new Map(),
-    next: new Map(),
-    asOf: undefined,
-  };
+  return { body: event.body, id: event.id, next: new Map(), asOf: undefined };
+}
+
+/**
+ * core 1.6: whether an event is within the size of a record, with the proofs
+ * it is given. It is measured as it stands, whatever it says its type is:
+ * the value is not a validated record, and an event is no container.
+ */
+function fits(event: JsonObject): boolean {
+  return canonicalBytes(event).length <= MAX_RECORD_BYTES;
+}
+
+/**
+ * Layer 1, 7.1: whether a copy of an event is one whose proofs count. Its
+ * `proof` is what core 5.1 says, and the event is within core 1.6 with it.
+ *
+ * A copy that is not adds nothing. It cannot be allowed to: the content ID
+ * does not cover `proof`, so anyone can make such a copy of any event, and
+ * one entry that is no object would make the event with every proof held
+ * for it a record that is not well formed.
+ */
+function proofsOf(event: JsonObject, proof: JsonValue | undefined): readonly JsonObject[] {
+  return Array.isArray(proof) &&
+    proof.length > 0 &&
+    proof.length <= MAX_PROOFS &&
+    proof.every(isJsonObject) &&
+    fits(event)
+    ? proof
+    : [];
 }
 
 /** The latest time up to which any copy that ended at or after an event was known. */
@@ -246,7 +288,7 @@ export class LogBook implements IdentityView {
     const [first] = copy;
     let tree = this.#held.get(mind);
     if (tree === undefined) {
-      tree = { genesis: placeFor(first), ends: 1, full: false };
+      tree = { genesis: placeFor(first), proofs: new Map(), ends: 1, full: false };
       this.#held.set(mind, tree);
     }
     // Shown more than it holds once, the book takes nothing more of this mind.
@@ -267,13 +309,21 @@ export class LogBook implements IdentityView {
         }
         at = next;
       }
-      const proofs = at.proofs;
-      for (const proof of proofs === undefined ? [] : (event.proofs ?? [])) {
+      if (event.id === undefined || event.proofs.length === 0) continue;
+      let proofs = tree.proofs.get(event.id);
+      if (proofs === undefined) tree.proofs.set(event.id, (proofs = new Map<string, JsonObject>()));
+      const before = proofs.size;
+      for (const proof of event.proofs) {
         const key = canonicalize(proof);
-        if (proofs?.has(key) !== false) continue;
+        if (proofs.has(key)) continue;
         if (proofs.size < MAX_PROOFS) proofs.set(key, proof);
         else tree.full = true;
         added = true;
+      }
+      // The proofs of several copies may be more together than one record
+      // carries (core 1.6). The book cannot tell which to leave out.
+      if (before > 0 && proofs.size > before && !fits(eventOf(tree, at) as JsonObject)) {
+        tree.full = true;
       }
     }
     if (tree.ends > MAX_COPIES) tree.full = true;
@@ -325,10 +375,10 @@ export class LogBook implements IdentityView {
       const genesis = validateJson(events[0]);
       if (!genesis.ok) return NOT_A_LOG;
       const first = this.#sorted(genesis.value);
-      // A first event whose proofs are no list is no genesis that could verify.
-      if (first.proofs === undefined) return NOT_A_LOG;
+      // A first value with no content ID is the genesis of no mind.
+      if (first.id === undefined) return NOT_A_LOG;
       const copy: [Taken, ...Taken[]] = [first];
-      const mind = mindAddress(contentId(genesis.value));
+      const mind = mindAddress(first.id);
       for (let i = 1; i < length && i <= this.#maxEvents && !copy[i - 1]?.last; i++) {
         copy.push(this.#sorted(events[i]));
       }
@@ -348,25 +398,34 @@ export class LogBook implements IdentityView {
       // as that (Layer 1, 4.9). Otherwise it is nothing.
       const unread = cannotRead(raw, this.#understood, "");
       return unread === undefined
-        ? { key: "not data", body: NOT_DATA, proofs: undefined, last: true }
+        ? { key: "not data", body: NOT_DATA, id: undefined, proofs: [], last: true }
         : {
             key: `unread ${canonicalize(unread.issues[0])}`,
             body: new Unread(unread),
-            proofs: undefined,
+            id: undefined,
+            proofs: [],
             last: true,
           };
     }
     const value = plain.value;
-    if (isJsonObject(value)) {
-      const { proof, ...body } = value;
-      // Proofs that came as a list are kept apart, to be held with any others
-      // of the same event. A content ID does not cover them (core 3.1).
-      if (Array.isArray(proof)) {
-        return { key: contentId(value), body, proofs: proof, last: false };
-      }
+    if (!isJsonObject(value)) {
+      // No event, and nothing tells what would follow it. What it is, is said when it is judged.
+      return {
+        key: `odd ${canonicalize(value)}`,
+        body: value,
+        id: undefined,
+        proofs: [],
+        last: true,
+      };
     }
-    // No event that could verify. What it is, is said when it is judged.
-    return { key: `odd ${canonicalize(value)}`, body: value, proofs: undefined, last: true };
+    // The proofs are kept apart, to be held with any others of the same
+    // event: a content ID does not cover them (core 3.1). So the event has
+    // its place whatever came as its proofs, and what follows it is kept.
+    // That holds for an event the verifier cannot read, too: it is judged by
+    // what it says of itself, whatever its proofs are (Layer 1, 4.9).
+    const { proof, ...body } = value;
+    const id = contentId(value);
+    return { key: id, body, id, proofs: proofsOf(value, proof), last: false };
   }
 
   /** Forgets the verdict on a mind, and every verdict that asked for its log, and so on up. */
@@ -448,7 +507,7 @@ export class LogBook implements IdentityView {
     if (tree.full) return TOO_MANY;
     let run = new LogRun(this.#context(mind, depth));
     let at = tree.genesis;
-    const first = run.advance(eventOf(at));
+    const first = run.advance(eventOf(tree, at));
     if (first !== undefined) return first.failure;
     for (;;) {
       // Every event held for the next position is judged, each from here.
@@ -459,7 +518,7 @@ export class LogBook implements IdentityView {
       const going: { readonly held: Held; readonly run: LogRun }[] = [];
       for (const next of held) {
         const forked = held.length === 1 ? run : run.fork();
-        const refused = forked.advance(eventOf(next));
+        const refused = forked.advance(eventOf(tree, next));
         // One that cannot be judged may be the mind's own, so no other takes the position.
         if (refused?.undecided === true) return refused.failure;
         // One that is invalid is no event, and nothing that follows it is one.
@@ -490,7 +549,7 @@ export class LogBook implements IdentityView {
             winner = undefined;
           }
         }
-        if (winner === undefined) return this.#duplicitous(run, going);
+        if (winner === undefined) return this.#duplicitous(tree, run, going);
       }
       ({ held: at, run } = winner);
     }
@@ -503,10 +562,12 @@ export class LogBook implements IdentityView {
    * declarations of every branch do: each is judged, and one that cannot be
    * stops the log.
    *
+   * @param tree - Everything held of the mind's log.
    * @param shared - The run up to the last event the branches share.
    * @param branches - The events that verify at the position where they part.
    */
   #duplicitous(
+    tree: Tree,
     shared: LogRun,
     branches: readonly { readonly held: Held; readonly run: LogRun }[],
   ): Validation<VerifiedLog> {
@@ -528,7 +589,7 @@ export class LogBook implements IdentityView {
       }
       for (const next of held.next.values()) {
         const forked = held.next.size === 1 ? run : run.fork();
-        const refused = forked.advance(eventOf(next));
+        const refused = forked.advance(eventOf(tree, next));
         if (refused?.undecided === true) return refused.failure;
         if (refused !== undefined) continue;
         pending.push({ held: next, run: forked });

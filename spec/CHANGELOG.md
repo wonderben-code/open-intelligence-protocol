@@ -49,7 +49,7 @@ Two independent reviews of `@oip/identity` found the rest. In the first six, bot
 - **A member's proof that names an `authority` does not count on an identity event (Layer 1, 6.4).**
 - **core 9.3 and 9.6 apply to the proofs on an identity event (core 9.5; Layer 1, 6.4, 4.8).** A proof there dated more than 300 seconds after the evidence for the event does not count, and an event evaluated more than 300 seconds after its `expires` is invalid.
 - **An event that fails is invalid or undecided (Layer 1, 4.9, new).** An event is invalid if the verifier can read it and what is wrong can be seen in the log alone: it is malformed, out of place, or carries proofs that no evidence and no member's log could make good. It is no event, and a copy ends before it. Every other event that fails is undecided (for want of evidence, of a member's log, of an extension, or of a later revision); it may be a removal, and the events before it are not taken as the log. A verifier keeps what it has been shown: every event of every copy, with every proof, judged when it is asked. A verifier that kept "what verified" of a log could otherwise go on counting a key that the next event removed.
-- **The proofs of one event count together (Layer 1, 7.1).** The same event with another set of proofs is not duplicity; a verifier that holds it in two copies judges it with the proofs of both.
+- **The proofs of one event count together (Layer 1, 7.1).** The same event with another set of proofs is not duplicity; a verifier that holds it in two copies judges it with the proofs of both, wherever in a copy the event stands. Only a well-formed copy of the event counts for this. One whose `proof` is not what core 5.1 requires, or that is too large with it (core 1.6), adds no proof and takes none away; it keeps its place, and what follows it in its copy is held. A content ID does not cover `proof`, so without this rule anyone could undo an event that a verifier holds, a removal among them, by serving a copy of it with one bad entry in `proof`. A verifier that holds more proofs for one event than one record carries, and does not judge them all, treats the log as not verified.
 - **An event dated ahead of its evidence "does not verify" (core 9.5).** The text said "is invalid", which now has a meaning that failure does not have: another verifier's evidence may differ.
 - **Evidence for an identity event is evidence of the event with valid proofs (core 9.5).** A verifier records its first sight of an event only once the event has verified. The text already said "with proofs meeting Layer 1, Section 4"; it now says what follows from it.
 - **The logs a verifier must hold (core 9.4)** include the log of a collective under whose threshold a proof is counted, and a member's log as far as the latest evidence among an event and those before it.
@@ -59,7 +59,7 @@ Two independent reviews of `@oip/identity` found the rest. In the first six, bot
 
 **The Python checker** also read a `controller` whose value is `null` as absent on a collective's event; it now rejects it, as the schemas do.
 
-**Test vectors.** For the items above (OEP-0002 lists them): 22 negative cases, 22 controls and five must-accept cases. The vectors now hold 22 must-accept cases, 102 negative cases and 52 controls.
+**Test vectors.** For the items above (OEP-0002 lists them): 24 negative cases, 24 controls and five must-accept cases. The vectors now hold 22 must-accept cases, 104 negative cases and 54 controls.
 
 ## Revision 2026-11-17 (Draft)
 

@@ -1110,6 +1110,182 @@ describe(`${clause("L1 4.9")} an event held that is invalid`, () => {
   });
 });
 
+describe(`${clause("L1 7.1")} a copy of an event that is not well formed`, () => {
+  // ada removes her operational key at 20. A record signed with it at 25 counts
+  // if, and only if, that event is passed over.
+  const ada = new KeyMind("ada").update(10).update(20, { keys: [] });
+  const [genesis, update, removal] = ada.events as unknown as [JsonObject, JsonObject, JsonObject];
+  const good = (removal["proof"] as JsonObject[])[0]!;
+  const late = judgeRecord(ada.sign(intentBy(ada, 25), { position: 1 }));
+  if (!late.ok) throw new Error("the record is well formed");
+  const evidence = () => {
+    const seen = witness([ada.events]);
+    for (const proof of late.value.proofs) seen.sawProof(proof.digest, at(26));
+    return seen;
+  };
+  const removedKeyCounts = (book: LogBook) =>
+    ownSignedTime(late.value, ada.address, book) !== undefined;
+  const withProof = (event: JsonObject, proof: unknown): Record<string, unknown> => ({
+    ...event,
+    proof,
+  });
+  const bare = (event: JsonObject) =>
+    Object.fromEntries(Object.entries(event).filter(([name]) => name !== "proof"));
+
+  /** What a `proof` that core 5.1 or core 1.6 does not allow looks like. */
+  const spoiled: readonly (readonly [string, (event: JsonObject) => unknown])[] = [
+    ["an entry that is a string, beside its proof", (e) => withProof(e, [...proofsOn(e), "junk"])],
+    ["an entry that is a number, before its proof", (e) => withProof(e, [7, ...proofsOn(e)])],
+    ["an entry that is null, beside its proof", (e) => withProof(e, [...proofsOn(e), null])],
+    ["an entry that is a list, beside its proof", (e) => withProof(e, [...proofsOn(e), []])],
+    ["one entry, a string", (e) => withProof(e, ["junk"])],
+    ["no entry", (e) => withProof(e, [])],
+    ["a `proof` that is its proof and no list", (e) => withProof(e, proofsOn(e)[0])],
+    ["no `proof`", bare],
+    [
+      "257 entries, its proof among them",
+      (e) =>
+        withProof(e, [
+          ...proofsOn(e),
+          ...Array.from({ length: 256 }, (_, n) => ({ ...proofsOn(e)[0], n })),
+        ]),
+    ],
+    [
+      "an entry that makes it larger than a record may be, beside its proof",
+      (e) => withProof(e, [...proofsOn(e), { ...proofsOn(e)[0], pad: "x".repeat(2 ** 20) }]),
+    ],
+  ];
+  function proofsOn(event: JsonObject): JsonObject[] {
+    return event["proof"] as JsonObject[];
+  }
+
+  it.each(spoiled)(
+    "takes no proof away from the event, and adds none: %s",
+    (_, spoil) => {
+      const copy = [genesis, update, spoil(removal)];
+      expect(contentId(copy[2] as object)).toBe(contentId(removal));
+      // Anyone can make such a copy of any event. Held beside the log, in either order, it changes nothing.
+      for (const copies of [
+        [ada.events, copy],
+        [copy, ada.events],
+      ]) {
+        const book = new LogBook(evidence());
+        for (const events of copies) {
+          expect(book.hold(events, LATER)).toStrictEqual({ ok: true, value: ada.address });
+        }
+        expect(heads(book, ada.address).heads).toHaveLength(3);
+        expect(removedKeyCounts(book)).toBe(false);
+      }
+      // Alone, it is the event with no proof: invalid, as `witnessLog` says of the copy.
+      const alone = new LogBook(evidence());
+      alone.hold(copy, LATER);
+      expect(heads(alone, ada.address).heads).toHaveLength(2);
+      expect(witnessLog(copy, LATER, evidence())).toMatchObject({ undecided: false });
+      expect(witnessLog(copy, LATER, evidence()).log?.entries).toHaveLength(2);
+    },
+    60_000,
+  );
+
+  it.each(spoiled)(
+    "keeps its place, so what follows it in its copy is held: %s",
+    (_, spoil) => {
+      // A later copy of the log, with the removal, whose event before it is spoiled.
+      const copy = [genesis, spoil(update), removal];
+      const earlier = [genesis, update];
+      for (const copies of [
+        [earlier, copy],
+        [copy, earlier],
+      ]) {
+        const book = new LogBook(evidence());
+        for (const events of copies) book.hold(events, LATER);
+        expect(heads(book, ada.address).heads).toHaveLength(3);
+        expect(removedKeyCounts(book)).toBe(false);
+      }
+      // Alone, the copy shows nothing after its genesis.
+      const alone = new LogBook(evidence());
+      alone.hold(copy, LATER);
+      expect(heads(alone, ada.address).heads).toHaveLength(1);
+    },
+    60_000,
+  );
+
+  it("is the genesis as much as any other event", () => {
+    const copy = [withProof(genesis, [...proofsOn(genesis), "junk"]), update, removal];
+    const book = new LogBook(evidence());
+    expect(book.hold(copy, LATER)).toStrictEqual({ ok: true, value: ada.address });
+    // No copy held shows the genesis with a proof, so nothing is known of the mind.
+    expect(book.log(ada.address)).toMatchObject({ ok: false });
+    book.hold([genesis], LATER);
+    expect(heads(book, ada.address).heads).toHaveLength(3);
+  });
+
+  it("counts the proofs of an event wherever in a copy the event stands", () => {
+    // One copy has the removal in its place, with a proof that does not verify. Another has
+    // it out of place, with its proof. It is one event, and the proof is a proof of it.
+    const unsigned = [genesis, update, withProof(removal, [{ ...good, proofValue: "z1111" }])];
+    const misplaced = [genesis, removal];
+    for (const copies of [
+      [unsigned, misplaced],
+      [misplaced, unsigned],
+    ]) {
+      const book = new LogBook(evidence());
+      for (const events of copies) book.hold(events, LATER);
+      expect(heads(book, ada.address).heads).toHaveLength(3);
+    }
+    const without = new LogBook(evidence());
+    without.hold(unsigned, LATER);
+    expect(heads(without, ada.address).heads).toHaveLength(2);
+  });
+
+  it(`${clause("L1 4.9")} does not judge by its proofs an event the verifier cannot read`, () => {
+    // An event of a type this revision does not define may have other rules for `proof`,
+    // and for its size. Whatever it calls itself, it is held, and stops the log.
+    for (const [type, refused] of [
+      ["Merge", "L1 3.9"],
+      ["Bundle", "L1 4.6"],
+      ["Sealed", "L1 4.6"],
+      ["LogPage", "L1 4.6"],
+    ] as const) {
+      const unread = { ...bare(removal), type, proof: ["junk"] };
+      const book = new LogBook(evidence());
+      expect(book.hold([genesis, update, unread], LATER).ok).toBe(true);
+      expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ clause: refused }] });
+      // With well-formed proofs from two copies, it is still one event that cannot be read.
+      for (const n of [1, 2]) {
+        book.hold([genesis, update, { ...unread, proof: [{ ...good, n }] }], LATER);
+      }
+      expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ clause: refused }] });
+    }
+  });
+
+  it("answers for a mind no longer, once it was shown more proofs for one event than one record carries", () => {
+    const limit = { ok: false, issues: [{ clause: "implementation limit" }] };
+    const copyWith = (proofs: unknown[]) => [genesis, update, withProof(removal, proofs)];
+    // core 5.1: 256 proofs. Each copy is well formed; the proofs of all are one more.
+    const numbered = (from: number, count: number) =>
+      Array.from({ length: count }, (_, n) => ({ ...good, n: from + n }));
+    const counted = new LogBook(evidence());
+    counted.hold(ada.events, LATER);
+    expect(counted.hold(copyWith(numbered(0, 255)), LATER).ok).toBe(true);
+    expect(heads(counted, ada.address).heads).toHaveLength(3);
+    expect(counted.hold(copyWith(numbered(255, 1)), LATER)).toMatchObject(limit);
+    expect(counted.log(ada.address)).toMatchObject(limit);
+    // core 1.6: 1 MiB with the event. Each copy is within it; the proofs of all are not.
+    const padded = (tag: string) => copyWith([{ ...good, pad: tag.repeat(600_000) }]);
+    const sized = new LogBook(evidence());
+    sized.hold(ada.events, LATER);
+    expect(sized.hold(padded("a"), LATER).ok).toBe(true);
+    expect(heads(sized, ada.address).heads).toHaveLength(3);
+    expect(sized.hold(padded("b"), LATER)).toMatchObject(limit);
+    expect(sized.log(ada.address)).toMatchObject(limit);
+    // The book cannot tell which proofs to leave out. The caller can: it drops the mind.
+    sized.drop(ada.address);
+    sized.hold(ada.events, LATER);
+    expect(heads(sized, ada.address).heads).toHaveLength(3);
+    expect(removedKeyCounts(sized)).toBe(false);
+  });
+});
+
 describe(`${clause("L1 4.9")} what a book has been shown, it keeps`, () => {
   const critical = {
     ext: { "com.example.recovery": { v: 1 } },

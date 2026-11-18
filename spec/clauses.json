@@ -964,7 +964,7 @@
       "keywords": {
         "MUST NOT": 1
       },
-      "digest": "a9df36f60d4d1afcd514a48a490358257646364fc3bef0b9924fd06036f13515"
+      "digest": "1a4c8f0b29912d87f3c3cc183f9236926e37afac5ee5e4aaa3931520e5ab51bf"
     },
     {
       "id": "L1 5.1",
@@ -1042,7 +1042,7 @@
       "summary": "Two events with different content IDs in logs with the same genesis, at the same `seq`, each va…",
       "level": "none",
       "keywords": {},
-      "digest": "d0db6a1a778521f2162f943e969eaa3ac0e00a5f7923735171e6e344f33cbe6d"
+      "digest": "dd065b9ac4d34be32f44a5a5e366f8877ec13e27afbf40e8bbb99223fba5fed1"
     },
     {
       "id": "L1 7.2",

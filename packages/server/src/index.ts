@@ -18,6 +18,7 @@ export {
   responseFor,
   Unavailable,
 } from "./http.ts";
+export { type Address, inRange, isPublicAddress, parseAddress } from "./ip.ts";
 export { addressKey, type Allowance, type RateLimit, RateLimiter } from "./rate.ts";
 export {
   appendOnly,

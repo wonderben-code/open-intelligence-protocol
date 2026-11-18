@@ -11,11 +11,10 @@
  * answers.
  */
 
-import { isIP } from "node:net";
-
 import type { Instant } from "@oip/core";
 
 import type { Clock } from "./edges.ts";
+import { parseAddress } from "./ip.ts";
 
 /** How much one client may ask. */
 export interface RateLimit {
@@ -113,27 +112,11 @@ export class RateLimiter {
  * @returns The key, or `undefined` for what is no IP address.
  */
 export function addressKey(address: string): string | undefined {
-  const family = isIP(address);
-  if (family === 4) return address;
-  if (family !== 6) return undefined;
-  // A zone is a matter of the local link, and no part of who the client is.
-  const [text = ""] = address.split("%", 1);
-  const [head = "", tail] = text.split("::", 2);
-  const groups = (part: string): string[] => (part === "" ? [] : part.split(":"));
-  const before = groups(head);
-  const after = tail === undefined ? [] : groups(tail);
-  // An IPv4 address at the end stands for the last two groups.
-  const last = after.at(-1) ?? before.at(-1) ?? "";
-  const embedded = last.includes(".") ? 1 : 0;
-  const missing = 8 - before.length - after.length - embedded;
-  const all = [
-    ...before,
-    ...Array.from({ length: tail === undefined ? 0 : missing }, () => "0"),
-    ...after,
-  ];
-  return all
-    .slice(0, 4)
-    .map((group) => (group.includes(".") ? "0" : Number.parseInt(group, 16).toString(16)))
-    .join(":")
-    .concat("::/64");
+  const read = parseAddress(address);
+  if (read === undefined) return undefined;
+  if (read.family === 4) return address;
+  const groups = [0, 2, 4, 6].map((at) =>
+    (((read.bytes[at] ?? 0) << 8) | (read.bytes[at + 1] ?? 0)).toString(16),
+  );
+  return `${groups.join(":")}::/64`;
 }

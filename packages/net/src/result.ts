@@ -17,3 +17,15 @@ export function ok<T>(value: T): Validation<T> {
 export function no(message: string, clause: string, path = ""): Rejection {
   return { ok: false, issues: [{ path, message, clause }] };
 }
+
+/** A rejection for the reasons of another, with its paths under `path`. */
+export function under(path: string, rejection: Rejection): Rejection {
+  const [first, ...rest] = rejection.issues;
+  return {
+    ok: false,
+    issues: [
+      { ...first, path: path + first.path },
+      ...rest.map((issue) => ({ ...issue, path: path + issue.path })),
+    ],
+  };
+}

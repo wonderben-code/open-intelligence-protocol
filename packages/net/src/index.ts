@@ -11,7 +11,7 @@
  * @packageDocumentation
  */
 
-export { isStale } from "./dates.ts";
+export { isStale, type PacketClock, packetDates } from "./dates.ts";
 export {
   committedProofs,
   type CoveredFeed,
@@ -20,6 +20,13 @@ export {
   verifyCheckpoint,
   verifyFeed,
 } from "./feed.ts";
+export {
+  type Authenticated,
+  Challenges,
+  type HelloServer,
+  type IssuedChallenges,
+  verifyHello,
+} from "./hello.ts";
 export {
   type Binding,
   currentLocation,
@@ -30,6 +37,23 @@ export {
   webSocketUrl,
 } from "./location.ts";
 export { checkpointRoot, merkleTreeHash } from "./merkle.ts";
+export {
+  AcceptedPackets,
+  type ReceivedPacket,
+  receivePacket,
+  type Receiver,
+  type SendingChain,
+} from "./packet.ts";
+export {
+  type ChainEquivocation,
+  lacking,
+  type OwnChain,
+  type Placed,
+  recordsCarried,
+  sessionCarried,
+  type SessionLimits,
+  Sessions,
+} from "./session.ts";
 export {
   currentParticipant,
   type HeldParticipant,

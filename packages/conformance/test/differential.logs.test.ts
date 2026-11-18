@@ -991,7 +991,11 @@ describe.skipIf(unavailable !== undefined && !required)("differential: identity 
 
   const cases = (generator: fc.Arbitrary<VectorCase>) => fc.tuple(generator, fc.nat(8), fc.nat(7));
 
-  it("generates cases that hold and cases that do not, of every kind", () => {
+  // The next two tests are about the generators. A mutation run measures the
+  // tests of the code, and leaves them out.
+  const measured = process.env["OIP_MUTATION"] !== undefined;
+
+  it.skipIf(measured)("generates cases that hold and cases that do not, of every kind", () => {
     const generators = {
       keyLogCase,
       collectiveLogCase,
@@ -1009,7 +1013,7 @@ describe.skipIf(unavailable !== undefined && !required)("differential: identity 
     }
   });
 
-  it("reaches the rules it is there for", () => {
+  it.skipIf(measured)("reaches the rules it is there for", () => {
     // Duplicity that evidence cannot separate, for a mind and for a collective.
     const duplicitous = (generator: fc.Arbitrary<VectorCase>) =>
       fc.sample(generator, { numRuns: 60, seed: 11 }).filter((vectorCase) => {

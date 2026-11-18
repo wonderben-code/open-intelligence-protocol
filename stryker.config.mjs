@@ -18,6 +18,9 @@
 // ordinary tests.
 process.env["OIP_PARSER_CAMPAIGN"] ??= "20000";
 process.env["OIP_DIFFERENTIAL_RUNS"] ??= "100";
+process.env["OIP_DIFFERENTIAL_LOGS"] ??= "20";
+// Tests that measure the test generators themselves, and not the code, say nothing about a mutant.
+process.env["OIP_MUTATION"] ??= "1";
 
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {

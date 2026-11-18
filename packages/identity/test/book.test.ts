@@ -11,6 +11,7 @@ import {
   divergence,
   draftGenesis,
   draftUpdate,
+  earliestEvidence,
   type EvidenceView,
   FirstSeen,
   judgeRecord,
@@ -2374,6 +2375,208 @@ describe(`${clause("core 9.5", "L1 7.1")} a verifier that follows a log itself`,
     expect(() => {
       book.witnessHeld(60 as never, seen);
     }).toThrow(TypeError);
+  });
+
+  it(`${clause("core 9.4")} sees a collective's events when every log they rest on is known up to then`, () => {
+    const { a, b, c, club, removal, whole } = removedByTwo();
+    const seen = new FirstSeen();
+    const book = new LogBook(seen);
+    // Each copy at its own reading of the clock: no time is one that every founder's
+    // log is known up to, and the collective's genesis never verifies.
+    for (const [reading, log] of [a.events, b.events, c.events, whole].entries()) {
+      book.witness(log, at(1 + reading), seen);
+    }
+    for (const [reading, log] of [whole, c.events, b.events, a.events].entries()) {
+      book.witness(log, at(10 + reading), seen);
+    }
+    expect(seen.eventSeen(contentId(club.events[0]))).toBeUndefined();
+    expect(book.log(club.address).ok).toBe(false);
+    // Everything it follows at one reading, whatever the order.
+    for (const log of [whole, a.events, b.events, c.events]) book.hold(log, at(20));
+    book.witnessHeld(at(20), seen);
+    expect(seen.eventSeen(contentId(club.events[0]))).toBe(at(20));
+    expect(seen.eventSeen(contentId(removal))).toBe(at(20));
+    expect(heads(book, club.address).heads).toHaveLength(2);
+    // Or one copy after another at one reading, the collective's last.
+    const again = new FirstSeen();
+    const other = new LogBook(again);
+    for (const log of [a.events, b.events, c.events, whole]) other.witness(log, at(30), again);
+    expect(again.eventSeen(contentId(removal))).toBe(at(30));
+    expect(heads(other, club.address).heads).toHaveLength(2);
+  });
+
+  it(`${clause("core 9.5")} sees an event dated ahead when the clock comes within 300 seconds of its date`, () => {
+    // Ada removes her key in an event dated 1000. The verifier holds it from 100 on.
+    const ada = new KeyMind("ada").update(1000, { keys: [] });
+    const removal = contentId(ada.events[1]);
+    /** Whether a record by the removed key counts, its proof first seen at `proofAt`, for a verifier that looks at these times. */
+    const counts = (readings: readonly number[], madeAt: number, proofAt: number) => {
+      const signed = judgeRecord(ada.sign(intentBy(ada, madeAt), { position: 0 }));
+      if (!signed.ok) throw new Error(JSON.stringify(signed.issues));
+      const seen = new FirstSeen();
+      const book = new LogBook(seen);
+      for (const proof of signed.value.proofs) seen.sawProof(proof.digest, at(proofAt));
+      let recordedAt: number | undefined;
+      for (const reading of readings) {
+        // The log has not changed. It is known up to now, and the clock has moved.
+        book.hold(ada.events, at(reading));
+        book.witnessHeld(at(reading), seen);
+        if (seen.eventSeen(removal) !== undefined) recordedAt ??= reading;
+      }
+      return { counts: ownSignedTime(signed.value, ada.address, book) !== undefined, recordedAt };
+    };
+    // Every 300 seconds: at 400 the event is still 600 seconds ahead; at 700 it verifies,
+    // and it takes effect at its date. A record made and seen after that does not count.
+    const steady = [100, 400, 700, 1000, 1300, 1600];
+    expect(counts(steady, 1100, 1500)).toStrictEqual({ counts: false, recordedAt: 700 });
+    // One made and seen before the date does.
+    expect(counts(steady, 800, 900)).toStrictEqual({ counts: true, recordedAt: 700 });
+    // A verifier that next looks long after the date sees the removal then, and counts
+    // what it saw in between: the reason to look at least every 300 seconds.
+    expect(counts([100, 2000], 1100, 1500)).toStrictEqual({ counts: true, recordedAt: 2000 });
+  });
+
+  it(`${clause("core 9.5")} leaves alone an event that the evidence gives a time for`, () => {
+    // A witness the verifier trusts saw both events at 1000, with a clock ahead of the
+    // verifier's own, which reads 800. The update is dated 1200.
+    const ada = new KeyMind("ada").update(1200);
+    const theirs = new FirstSeen();
+    for (const event of ada.events) theirs.sawEvent(contentId(event), at(1000));
+    const seen = new FirstSeen();
+    const book = new LogBook(earliestEvidence(seen, theirs));
+    book.hold(ada.events, LATER);
+    expect(heads(book, ada.address).heads).toHaveLength(2);
+    // Its own sight at 800 would be of an event that did not verify at 800.
+    book.witness(ada.events, at(800), seen);
+    book.witnessHeld(at(800), seen);
+    expect(ada.events.map((event) => seen.eventSeen(contentId(event)))).toStrictEqual([
+      undefined,
+      undefined,
+    ]);
+    expect(heads(book, ada.address).heads).toHaveLength(2);
+    // Nor does a later sight of its own add to an earlier time it is given.
+    book.witnessHeld(at(5000), seen);
+    expect(seen.eventSeen(contentId(ada.events[1]))).toBeUndefined();
+  });
+
+  it(`${clause("L1 7.1")} records nothing of a mind it was shown more proofs for than it holds`, () => {
+    const { a, b, c, club, removal, whole } = removedByTwo();
+    const seen = new FirstSeen();
+    const book = new LogBook(seen);
+    for (const member of [a, c]) {
+      book.witness(member.events, at(1), seen);
+      book.hold(member.events, LATER);
+    }
+    book.witness(whole, at(40), seen);
+    // 257 proofs for the removal, in copies that are each well formed.
+    const [good] = removal.proof;
+    const flooded = (from: number, count: number) => [
+      ...club.events,
+      { ...removal, proof: Array.from({ length: count }, (_, n) => ({ ...good, n: from + n })) },
+    ];
+    expect(book.hold(flooded(0, 200), at(41)).ok).toBe(true);
+    expect(book.hold(flooded(200, 57), at(42))).toMatchObject({
+      ok: false,
+      issues: [{ clause: "implementation limit" }],
+    });
+    // b's log arrives. The removal would verify with the two proofs that are held.
+    book.witness(b.events, at(60), seen);
+    book.hold(b.events, LATER);
+    book.witnessHeld(at(61), seen);
+    expect(seen.eventSeen(contentId(removal))).toBeUndefined();
+    expect(book.log(club.address)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "implementation limit" }],
+    });
+  });
+
+  it("goes on looking at what rests on a mind that was dropped and is held again", () => {
+    const { a, b, c, club, removal, whole } = removedByTwo();
+    const seen = new FirstSeen();
+    const book = new LogBook(seen);
+    for (const member of [a, c]) {
+      book.witness(member.events, at(1), seen);
+      book.hold(member.events, LATER);
+    }
+    // b's log is known up to 1 only, so the club's events wait on it.
+    book.witness(b.events, at(1), seen);
+    book.witness(whole, at(40), seen);
+    expect(seen.eventSeen(contentId(club.events[0]))).toBeUndefined();
+    expect(book.drop(b.address)).toBe(true);
+    book.witness(b.events, at(60), seen);
+    expect(seen.eventSeen(contentId(removal))).toBe(at(60));
+    book.hold(b.events, LATER);
+    expect(heads(book, club.address).heads).toHaveLength(2);
+  });
+
+  it(`${clause("L1 7.2")} records both events at a position when it first sees them together`, () => {
+    const { left, right, mind } = twoBranches();
+    const seen = new FirstSeen();
+    const book = new LogBook(seen);
+    book.hold(left.events, LATER);
+    book.hold(right.events, LATER);
+    book.witnessHeld(at(50), seen);
+    expect(seen.eventSeen(contentId(left.events[1]))).toBe(at(50));
+    expect(seen.eventSeen(contentId(right.events[1]))).toBe(at(50));
+    // Seen at one time, neither has the position (Layer 1, 7.3).
+    expect(heads(book, mind).log.duplicitous).toBe(true);
+  });
+
+  it.skipIf(process.env["OIP_MUTATION"] !== undefined)(
+    "records the events of a log too long for it as far as it reads",
+    () => {
+      const long = unchecked(() => {
+        const mind = new KeyMind("long");
+        for (let n = 1; n <= 1001; n++) mind.update(n);
+        return mind;
+      });
+      const seen = new FirstSeen();
+      const book = new LogBook(seen, { maxEvents: 1000 });
+      expect(book.witness(long.events, at(5000), seen).ok).toBe(true);
+      expect(seen.eventSeen(contentId(long.events[999]))).toBe(at(5000));
+      expect(seen.eventSeen(contentId(long.events[1000]))).toBeUndefined();
+      expect(seen.eventSeen(contentId(long.events[1001]))).toBeUndefined();
+      expect(book.log(long.address)).toMatchObject({
+        ok: false,
+        issues: [{ clause: "implementation limit" }],
+      });
+    },
+    60_000,
+  );
+
+  it("comes to an end, and keeps no verdict from before, whatever the record it writes to does", () => {
+    const { a, b, c, club, whole } = removedByTwo();
+    // A record that keeps nothing of what it is told.
+    class Forgetful extends FirstSeen {
+      override sawEvent(_id: string, time: bigint): bigint {
+        return time;
+      }
+    }
+    const forgetful = new Forgetful();
+    const idle = new LogBook(new FirstSeen());
+    for (const member of [a, c]) idle.hold(member.events, LATER);
+    idle.hold(whole, LATER);
+    idle.log(club.address);
+    // b's log, and the club that rests on it: two minds to look at, again and again.
+    expect(idle.witness(b.events, at(60), forgetful).ok).toBe(true);
+    idle.witnessHeld(at(61), forgetful);
+    // A record that fails at the second event it is told.
+    class Failing extends FirstSeen {
+      #told = 0;
+      override sawEvent(id: string, time: bigint): bigint {
+        if (++this.#told === 2) throw new Error("the disk is full");
+        return super.sawEvent(id, time);
+      }
+    }
+    const ada = new KeyMind("ada").update(10).update(20);
+    const failing = new Failing();
+    const book = new LogBook(failing);
+    book.hold(ada.events, at(30));
+    expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ path: "/0" }] });
+    expect(() => book.witness(ada.events, at(30), failing)).toThrow("the disk is full");
+    // The genesis was recorded before the failure, and the verdict is of what is held now.
+    expect(failing.eventSeen(contentId(ada.events[0]))).toBe(at(30));
+    expect(book.log(ada.address)).toMatchObject({ ok: false, issues: [{ path: "/1" }] });
   });
 
   it("answers as `hold` does for what is no log, and takes nothing in then", () => {

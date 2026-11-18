@@ -405,9 +405,9 @@ export class LogBook implements IdentityView {
 
   /**
    * Holds `events` as `hold` does, and then records the verifier's own
-   * first sight (core 9.5) of every event that verifies now and was not
-   * seen before, as seen at `now`. It is how a verifier that follows a log
-   * itself takes a copy in.
+   * first sight (core 9.5) of every event that verifies now and that the
+   * evidence has no time for, as seen at `now`. It is how a verifier that
+   * follows a log itself takes a copy in.
    *
    * An event is judged here as the book judges it: with the proofs of every
    * copy held (Layer 1, 7.1), and as if each event not seen before were
@@ -418,11 +418,14 @@ export class LogBook implements IdentityView {
    *
    * The events looked at are those of the copy's mind, and those of every
    * mind held whose log has asked for that mind's log, and so on up: an
-   * event of a collective that waited on a member's log is recorded when
-   * the member's log arrives.
+   * event of a collective that waited on this log may verify now. It does
+   * only if every other log it rests on is known up to `now` as well (core
+   * 9.4). A verifier that follows several logs therefore takes them in at
+   * one reading of its clock: see `witnessHeld`.
    *
    * An event that does not verify is not recorded, and neither is anything
-   * after it. An earlier time already held for an event stays.
+   * after it, nor any event of a mind the book answers for no longer.
+   * Evidence already held for an event stands, whichever is the earlier.
    *
    * @param now - The time the verifier obtained the copy: its own clock,
    *   read by the caller. It is also the time the copy is known up to.
@@ -448,11 +451,24 @@ export class LogBook implements IdentityView {
 
   /**
    * Records the verifier's own first sight (core 9.5) of every event held,
-   * of any mind, that verifies now and was not seen before, as seen at
-   * `now`. `witness` does this for a copy that arrives. This is for every
-   * other change that may let an event verify: a log held from a witness
-   * the verifier trusts, or that witness's first-seen times taken into the
-   * evidence, after `forget`. Its cost is that of verifying everything held.
+   * of any mind, that verifies now and that the evidence has no time for,
+   * as seen at `now`. `witness` does this for one copy that arrives. This is
+   * for everything else that may let an event verify:
+   *
+   * - several logs taken in at one reading of the clock: `hold` each at
+   *   `now`, the logs that have not changed among them, and then call this.
+   *   A collective's event verifies only when every log it rests on is known
+   *   up to the time it is seen (core 9.4);
+   * - a log held from a witness the verifier trusts, or that witness's
+   *   first-seen times taken into the evidence, after `forget`;
+   * - the clock. An event dated more than 300 seconds ahead of the clock
+   *   does not verify until the clock is within 300 seconds of its date
+   *   (core 9.5). Seen then, it takes effect at its date. Seen later than
+   *   its date, it takes effect when it is seen, and a proof by a key it
+   *   removes that was first seen in between counts. A verifier that calls
+   *   this at least every 300 seconds is never late.
+   *
+   * Its cost is that of verifying everything held.
    *
    * @param now - The present: the verifier's own clock, read by the caller.
    * @param seen - The verifier's own record, as for `witness`.
@@ -465,28 +481,30 @@ export class LogBook implements IdentityView {
 
   /** Records first sight of what verifies now in the logs of `minds`. */
   #witness(minds: readonly string[], now: Instant, seen: FirstSeen): void {
+    // No event is recorded twice in one call, whatever `seen` keeps of what it is told.
+    const recorded = new Set<string>();
     // What is recorded for one mind may be what an event of another waited on, in
     // whatever order they stand here: so again, until nothing more is recorded.
     for (let again = true; again;) {
       again = false;
       for (const mind of minds) {
-        if (!this.#sight(mind, now, seen)) continue;
-        // A verdict given for want of this evidence is given no longer.
-        this.#changed(mind);
-        again = minds.length > 1;
+        if (this.#sight(mind, now, seen, recorded)) again = minds.length > 1;
       }
     }
   }
 
   /**
    * Records first sight of every event held of one mind's log that
-   * verifies now and was not seen before.
+   * verifies now and that the evidence has no time for.
    *
+   * @param recorded - The events recorded in this call, to which it adds.
    * @returns Whether anything was recorded.
    */
-  #sight(mind: string, now: Instant, seen: FirstSeen): boolean {
+  #sight(mind: string, now: Instant, seen: FirstSeen, recorded: Set<string>): boolean {
     const tree = this.#held.get(mind);
-    if (tree === undefined) return false;
+    // Shown more proofs for an event than it holds, the book treats the log as not
+    // verified (Layer 1, 7.1): no event of it has verified.
+    if (tree === undefined || tree.full) return false;
     const context = this.#context(mind, 0);
     const first = new LogRun({
       ...context,
@@ -495,7 +513,7 @@ export class LogBook implements IdentityView {
         eventSeen: (id) => this.evidence.eventSeen(id) ?? now,
       },
     });
-    let recorded = false;
+    const found: string[] = [];
     // Every event held, each from the state its place gives it, whichever would win
     // a contested position: a verifier records every valid event it sees (Layer 1, 7.2).
     const pending = [{ at: tree.genesis, run: first }];
@@ -507,10 +525,14 @@ export class LogBook implements IdentityView {
         const { at, run } = next;
         if (run.advance(eventOf(tree, at)) !== undefined) continue;
         const id = run.entries.at(-1)?.state.head;
-        if (id !== undefined && seen.eventSeen(id) === undefined) {
-          seen.sawEvent(id, now);
-          recorded = true;
+        // Evidence the verifier holds for the event stands. Its own sight, if later,
+        // adds nothing; if earlier, it would be of a time when the event had not
+        // verified, for it verified here at the time the evidence gives.
+        if (id !== undefined && !recorded.has(id) && this.evidence.eventSeen(id) === undefined) {
+          recorded.add(id);
+          found.push(id);
         }
+        // As far as the book reads, and no further.
         if (run.entries.length >= this.#maxEvents) continue;
         for (const child of at.next.values()) {
           pending.push({ at: child, run: at.next.size === 1 ? run : run.fork() });
@@ -519,7 +541,15 @@ export class LogBook implements IdentityView {
     } finally {
       if (!visited) this.#visiting.delete(mind);
     }
-    return recorded;
+    if (found.length === 0) return false;
+    try {
+      for (const id of found) seen.sawEvent(id, now);
+    } finally {
+      // A verdict given for want of this evidence is given no longer, whatever
+      // became of the rest.
+      this.#changed(mind);
+    }
+    return true;
   }
 
   /**
@@ -532,7 +562,10 @@ export class LogBook implements IdentityView {
     if (held) {
       this.#changed(mind);
       // Nothing of it is left to verify. What rests on it still does.
-      for (const resting of this.#restingOn.values()) resting.delete(mind);
+      for (const [member, resting] of this.#restingOn) {
+        resting.delete(mind);
+        if (resting.size === 0) this.#restingOn.delete(member);
+      }
     }
     return held;
   }

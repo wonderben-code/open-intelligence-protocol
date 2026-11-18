@@ -15,7 +15,7 @@
  * makes it by spending the stack.
  */
 
-import { contentId, proofDigest } from "@oip/core";
+import { contentId, encodeX25519Multikey, proofDigest, x25519PublicKey } from "@oip/core";
 import { type IdentityView, type JudgedRecord, judgeRecord, LogBook } from "@oip/identity";
 import { type Entry, noteCutShort } from "@oip/schema";
 import { clause, type JsonObject } from "@oip/testkit";
@@ -33,7 +33,9 @@ import {
   currentParticipant,
   draftAck,
   receivePacket,
+  receiveSealed,
   recordsCarried,
+  sealPacket,
   sessionCarried,
   Sessions,
   verifyAck,
@@ -377,6 +379,66 @@ describe(`${clause("core 4.4")} a check that was cut short, for an acknowledgeme
   });
 });
 
+describe(`${clause("core 4.4")} a check that was cut short, for a sealed packet`, () => {
+  it("seals nothing and receives nothing, and does both when asked again", async () => {
+    const secret = new Uint8Array(32).fill(3);
+    const carol = new KeyMind("carol", 0, {
+      agreement: [{ key: encodeX25519Multikey(x25519PublicKey(secret)) }],
+    });
+    const seen = witness([ada.events, carol.events]);
+    const book = new LogBook(seen);
+    for (const mind of [ada, carol]) book.hold(mind.events, LATER);
+    const cut = { now: false };
+    const view: IdentityView = {
+      evidence: book.evidence,
+      log: (mind) => {
+        if (cut.now) noteCutShort(new RangeError("Maximum call stack size exceeded"));
+        return book.log(mind);
+      },
+    };
+    const packet = ada.sign({
+      oip: "1",
+      type: "Packet",
+      from: ada.address,
+      to: [carol.address],
+      created: T(10),
+      expires: T(3610),
+      nonce: "nonce-0001",
+      purpose: { verb: "inform" },
+      content: { mediaType: "text/plain", body: "Hello." },
+    });
+    const draft = { packet, to: carol.address, view, randomness: new Uint8Array(32).fill(8) };
+    cut.now = true;
+    expect(await sealPacket(draft)).toMatchObject(SPENT);
+    cut.now = false;
+    const sealed = await sealPacket(draft);
+    if (!sealed.ok) throw new Error(JSON.stringify(sealed.issues));
+    const receiver = {
+      address: carol.address,
+      now: at(20),
+      view,
+      seen,
+      accepted: () => false,
+      window: 3_600_000_000_000n,
+      agreementKey: () => secret,
+    };
+    cut.now = true;
+    expect(await receiveSealed(sealed.value, receiver)).toMatchObject(SPENT);
+    cut.now = false;
+    expect((await receiveSealed(sealed.value, receiver)).ok).toBe(true);
+    // Cut short while the record is opened, before any packet is judged: it is refused, and
+    // not called a record that does not open.
+    const whileOpening = {
+      ...receiver,
+      agreementKey: () => {
+        noteCutShort(new RangeError("Maximum call stack size exceeded"));
+        return secret;
+      },
+    };
+    expect(await receiveSealed(sealed.value, whileOpening)).toMatchObject(SPENT);
+  });
+});
+
 describe("a failure that is no check cut short", () => {
   it("is a mistake in the calling program, and is not hidden", () => {
     const { view } = cutting();
@@ -390,5 +452,29 @@ describe("a failure that is no check cut short", () => {
     expect(() => currentLocation(records, ada.address, broken)).toThrow("the view is broken");
     const entries = feedOf([intent(1)]);
     expect(() => verifyFeed(entries, ada.address, broken)).toThrow("the view is broken");
+  });
+
+  it("is not hidden by a judge that waits either", async () => {
+    const { view } = cutting();
+    const broken: IdentityView = {
+      evidence: view.evidence,
+      log: () => {
+        throw new Error("the view is broken");
+      },
+    };
+    const packet = ada.sign({
+      oip: "1",
+      type: "Packet",
+      from: ada.address,
+      to: [bob.address],
+      created: T(10),
+      expires: T(3610),
+      nonce: "nonce-0001",
+      purpose: { verb: "inform" },
+      content: { mediaType: "text/plain", body: "Hello." },
+    });
+    await expect(
+      sealPacket({ packet, to: bob.address, view: broken, randomness: new Uint8Array(32) }),
+    ).rejects.toThrow("the view is broken");
   });
 });

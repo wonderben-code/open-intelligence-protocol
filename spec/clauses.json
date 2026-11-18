@@ -1372,11 +1372,13 @@
       "document": "L1",
       "section": "Packets and sealing",
       "summary": "`Sealed`. To send a packet privately, the sender encrypts it to one of the recipient's agreemen…",
-      "level": "SHOULD",
+      "level": "MUST",
       "keywords": {
+        "MUST NOT": 1,
+        "MUST": 1,
         "SHOULD": 2
       },
-      "digest": "deff633b80c095b0b51a8da3d4ee7f7758c1dcfe12c3ba89c614a0240008f38d"
+      "digest": "4b8acb2bec7b0c95a8d13090f9d2e74c44439a0d2a5a560220d054523169075c"
     },
     {
       "id": "L1 13.1",

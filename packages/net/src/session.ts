@@ -156,6 +156,13 @@ export interface SessionLimits {
   readonly maxWaiting?: number;
 }
 
+/** The limits of a `Sessions` that is given none. */
+export const DEFAULT_SESSION_LIMITS: Required<SessionLimits> = Object.freeze({
+  maxSessions: 1024,
+  maxInstances: 16,
+  maxWaiting: 256,
+});
+
 const chainKey = (from: string, instance: string | undefined): string =>
   // An address has no space, so the two parts cannot run together. An absent instance is one
   // instance (14.3), and not the instance named by the empty string.
@@ -218,9 +225,9 @@ export class Sessions {
       throw new TypeError("a participant is named by its address, a string");
     }
     this.#self = self;
-    this.#maxSessions = limits.maxSessions ?? 1024;
-    this.#maxInstances = limits.maxInstances ?? 16;
-    this.#maxWaiting = limits.maxWaiting ?? 256;
+    this.#maxSessions = limits.maxSessions ?? DEFAULT_SESSION_LIMITS.maxSessions;
+    this.#maxInstances = limits.maxInstances ?? DEFAULT_SESSION_LIMITS.maxInstances;
+    this.#maxWaiting = limits.maxWaiting ?? DEFAULT_SESSION_LIMITS.maxWaiting;
     for (const limit of [this.#maxSessions, this.#maxInstances, this.#maxWaiting]) {
       if (!Number.isSafeInteger(limit) || limit < 1) {
         throw new TypeError("a limit is a whole number of at least 1");

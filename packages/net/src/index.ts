@@ -55,7 +55,15 @@ export {
   type SendingChain,
 } from "./packet.ts";
 export {
+  type ReceivedSealed,
+  receiveSealed,
+  type SealDraft,
+  type SealedReceiver,
+  sealPacket,
+} from "./sealed.ts";
+export {
   type ChainEquivocation,
+  DEFAULT_SESSION_LIMITS,
   lacking,
   type OwnChain,
   type Placed,

@@ -47,7 +47,14 @@ describe("the README", () => {
       [...cell.matchAll(/`([A-Za-z0-9_]+)(?:\([^`]*\))?`/g)].map((match) => match[1]),
     );
     expect(names.length).toBeGreaterThan(60);
-    const typesOnly = ["Signer", "SyncSigner", "Instant"];
+    const typesOnly = [
+      "Signer",
+      "SyncSigner",
+      "Instant",
+      "HpkeSealInput",
+      "HpkeOpenInput",
+      "HpkeSealed",
+    ];
     for (const name of names) {
       if (name === undefined || typesOnly.includes(name)) continue;
       expect(Object.hasOwn(core, name), name).toBe(true);

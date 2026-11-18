@@ -80,3 +80,21 @@ export function finding<T>(work: () => T | undefined): T | undefined {
   }
   return cutShortCount() === before ? found : undefined;
 }
+
+/**
+ * As `judging`, for work that waits. The count is read before the work
+ * starts and after it ends: other work of the process that is cut short in
+ * between refuses this answer too, once, and never makes it wrong.
+ */
+export async function judgingLater<T>(work: () => Promise<Validation<T>>): Promise<Validation<T>> {
+  const before = cutShortCount();
+  let settled: Validation<T>;
+  try {
+    settled = await work();
+  } catch (error) {
+    noteCutShort(error);
+    if (cutShortCount() === before) throw error;
+    return cutShort();
+  }
+  return cutShortCount() === before ? settled : cutShort();
+}

@@ -343,7 +343,7 @@ A packet's identifier is its content ID. A packet sent on another mind's behalf 
 | `enc` | base64url (no padding) of the encapsulated key |
 | `ciphertext` | base64url (no padding) of the ciphertext |
 
-The recipient decrypts, then verifies the inner packet as in 12.4. Intermediaries handle `Sealed` records without being able to read them. Sealing in this revision gives neither forward secrecy nor post-quantum confidentiality: anyone who later obtains the recipient's agreement key can read packets sealed to it. Minds SHOULD rotate agreement keys, and parties needing forward secrecy SHOULD use a binding that provides it (Section 13.6).
+A sender MUST NOT seal to an agreement key that is a point of small order, with which every sender would share the same secret (RFC 9180, Section 7.1.4): it uses another of the recipient's agreement keys, and if there is none the packet cannot be sealed. The recipient decrypts, then verifies the inner packet as in 12.4. It MUST reject a record that opens to anything but the canonical form of a `Packet`: one writing for one packet, and no other record. Intermediaries handle `Sealed` records without being able to read them. Sealing in this revision gives neither forward secrecy nor post-quantum confidentiality: anyone who later obtains the recipient's agreement key can read packets sealed to it. Minds SHOULD rotate agreement keys, and parties needing forward secrecy SHOULD use a binding that provides it (Section 13.6).
 
 ## 13. Bindings
 

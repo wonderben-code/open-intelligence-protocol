@@ -37,6 +37,8 @@ A receiver decides, packet by packet, what it will act on. Two receivers that ho
 11. **What is a valid packet of a chain?** 14.3 called "two valid packets with the same values and different content IDs" equivocation. If valid means only "signed", then what a receiver concludes depends on the order in which packets arrive, which a network attacker can choose.
 12. **The first packet of a chain with a `prev`.** As item 2.
 13. **Is the packet that carries a `Resume` in a chain?** 14.4 did not say. And "the receiver verifies the chains" did not say what a receiver does with a `Resume` that names a packet it never sent.
+14. **Sealing to a key of small order.** RFC 9180, 7.1.4 requires a sender to refuse a recipient key with which the shared secret is all zero. 12.6 did not say what a sender then does, and nothing stops a mind from listing such a key.
+15. **What a `Sealed` record opens to.** 12.6 says the plaintext is "the canonical form of the signed packet". It did not say what a recipient does with a record that opens to another writing of a packet, or to another record.
 
 ## Specification
 
@@ -55,10 +57,13 @@ Each item is in the specification as of this proposal, and the [CHANGELOG](../sp
 11. **14.3.** "A packet is a link of its chain if it has `seq` 0 and no `prev`, or if its `prev` is the link at the `seq` before its own; a session packet that is no link has no place in its chain, and receivers MUST reject it. Receivers deduplicate links by (`session`, `from`, `instance`, `seq`); two links with the same values and different content IDs are equivocation, treated as in Section 10.3."
 12. Covered by item 11.
 13. **14.4.** "A `Resume` that names, for a chain of the receiver's own, a packet that the chain does not have at that `seq` is invalid. The packet that carries a `Resume` is a packet of the session like any other, with its place in its sender's chain."
+14. **12.6.** "A sender MUST NOT seal to an agreement key that is a point of small order, with which every sender would share the same secret (RFC 9180, Section 7.1.4): it uses another of the recipient's agreement keys, and if there is none the packet cannot be sealed."
+15. **12.6.** "It MUST reject a record that opens to anything but the canonical form of a `Packet`: one writing for one packet, and no other record."
 
 ## Rationale and alternatives
 
 - **Item 5.** The alternative is to leave the format alone and say that an `Ack` is evidence only for what the content ID covers. Then nothing is evidence for the packet's own proof but a witness or an anchored feed, and 13.2's "evidence that the packet, with the sender's proof, existed" would be untrue. A sender whose key is later compromised needs that evidence most.
+- **Item 14.** An agreement key of small order could instead make the identity event that lists it invalid. That is a change to what a log is, for a fault that harms only the mind that lists the key, and a sender can check it for itself.
 - **Item 11.** The feed has this rule already (10.2, 10.4): an entry counts only where it stands. With it, two receivers that hold the same packets come to the same chain, whatever order the packets came in.
 
 ## Backwards compatibility

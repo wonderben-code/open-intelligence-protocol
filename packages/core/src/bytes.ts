@@ -10,8 +10,34 @@ import {
   utf8ToBytes,
 } from "@noble/hashes/utils.js";
 import { noteCutShort } from "@oip/schema";
+import { base64urlnopad } from "@scure/base";
 
 export { concatBytes };
+
+/**
+ * Bytes as base64url text without padding (RFC 4648, Section 5).
+ *
+ * @throws TypeError if the value is not bytes.
+ */
+export function bytesToBase64url(bytes: Uint8Array): string {
+  return base64urlnopad.encode(bytes);
+}
+
+/**
+ * The bytes that base64url text without padding writes, or `undefined` if
+ * the value is no such text: it has a character outside the alphabet, a
+ * padding character, a length no encoding has, or bits set that encode
+ * nothing, so that two texts never read as the same bytes.
+ */
+export function base64urlToBytes(text: unknown): Uint8Array | undefined {
+  try {
+    // The decoder refuses what is no string along with what is no base64url.
+    return base64urlnopad.decode(text as string);
+  } catch (error) {
+    noteCutShort(error);
+    return undefined;
+  }
+}
 
 /** Bytes as lower-case hexadecimal text, two digits a byte. */
 export function bytesToHex(bytes: Uint8Array): string {

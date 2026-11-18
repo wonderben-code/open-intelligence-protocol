@@ -111,7 +111,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 9.1 | MUST | M2 | 2 | tested | Implementations MUST tolerate clock skew of up to 300 seconds when checking whether a record is… |
 | core 9.2 |  | M2 | 2 | tested | `created`, in a record or in a proof, is asserted by the signer. A signer holding a stolen, rem… |
 | core 9.3 | MUST | M2 | 11 | tested | Evaluation time. Every rule that depends on when a proof was made (key removal and compromise,… |
-| core 9.4 | MUST | M2 | 25 | tested | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
+| core 9.4 | MUST | M2 | 26 | tested | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
 | core 9.5 |  | M2 | 11 | tested | Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where… |
 | core 9.6 |  | M2 | 5 | tested | Expiry. A proof whose evaluation time is more than 300 seconds after its record's `expires` doe… |
 | core 9.7 |  | M2 | 1 | tested | Consequence. A verifier that first sees a record long after it was made can count its proofs on… |
@@ -187,7 +187,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 6.4 |  | M2 | 11 | tested | Member proofs on identity events. A proof `p` by member `M` on another mind's identity event `e… |
 | L1 7.1 |  | M2 | 6 | tested | Two events with different content IDs in logs with the same genesis, at the same `seq`, each va… |
 | L1 7.2 | MUST | M5 | 0 | pending M5 | Resolvers MUST retain the first valid event they saw at each position of each log, MUST record… |
-| L1 7.3 | MUST | M2 | 26 | tested | Resolution. A verifier MUST NOT choose between conflicting branches by their length or by which… |
+| L1 7.3 | MUST | M2 | 28 | tested | Resolution. A verifier MUST NOT choose between conflicting branches by their length or by which… |
 | L1 7.4 | MUST | M6 | 0 | pending M6 | Protecting the log. Implementations MUST destroy a control key's private part once the event it… |
 | L1 8.1 |  | M2 | 4 | tested | A fork is a new mind whose genesis lists a parent in `parents`, with `at` naming the version of… |
 | L1 8.2 |  | M2 | 5 | tested | Lineage is acknowledged when the child's `at` names a version of the parent and either the pare… |
@@ -198,7 +198,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 9.2 | MUST | M2 | 3 | tested | Genesis consent. Every founding member MUST sign the genesis with one of its own invocation key… |
 | L1 9.3 |  | M2 | 3 | tested | Changes. Later identity events require the threshold of current members, plus every newly added… |
 | L1 9.4 |  | M2 | 8 | tested | Members sign with their own keys. A member signs a collective's identity events with its own in… |
-| L1 9.5 | MAY | M2 | 19 | tested | Acting as one. The state of a collective at time `T` is its identity state after the last event… |
+| L1 9.5 | MAY | M2 | 20 | tested | Acting as one. The state of a collective at time `T` is its identity state after the last event… |
 | L1 9.6 | MUST | M5 | 2 | tested in part (due M5) | Keeping a collective verifiable. Unlike control keys, which sign once and are destroyed, member… |
 | L1 10.1 |  | M4 | 4 | tested in part (due M4) | A mind's public feed is a sequence of `Entry` records: \| Member \| Required \| Value \| \|---\|---\|-… |
 | L1 10.2 | MUST | M5 | 0 | pending M5 | A feed MAY list records authored by other minds, such as Commitments the mind is a party to, th… |

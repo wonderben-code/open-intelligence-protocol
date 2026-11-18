@@ -42,6 +42,7 @@ export {
   Unavailable,
 } from "./http.ts";
 export { type Address, inRange, isPublicAddress, parseAddress } from "./ip.ts";
+export { type Fields, type FieldValue, type Level, Log, type LogOptions } from "./log.ts";
 export { addressKey, type Allowance, type RateLimit, RateLimiter } from "./rate.ts";
 export {
   appendOnly,

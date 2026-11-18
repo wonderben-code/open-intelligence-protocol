@@ -4287,6 +4287,43 @@ def build():
             branches=[[a_gen, spoiled(a_upd), a_rm]],
             seen=seen_at(late_intent, "2026-11-03T08:00:00Z"))
 
+    # Layer 1, 4.9: an event that cannot be read is not an invalid one.
+    unreadable = {"oip": OIP_VERSION, "type": "Merge"}
+    bad_sig("copy-with-an-unreadable-event-after-the-log",
+            "The verifier holds Amina's log, and a second copy of it with "
+            "one more value: an object of the type `Merge`, with no proof "
+            "at all. Anyone could have written it. But this revision "
+            "defines no such event, so the verifier cannot read it, and "
+            "an event it cannot read is undecided, never invalid: a later "
+            "revision may give it rules for its form and its signatures "
+            "alike (Layer 1, 4.9). It may be Amina's own event and may "
+            "remove a key, so the log does not verify for this verifier, "
+            "and a record pinned to her latest event does not count.",
+            intent, amina, extra_logs=[[a_gen, a_upd]],
+            branches=[[a_gen, a_upd, unreadable]])
+
+    # Layer 1, 7.3: where no event has strictly the earliest evidence,
+    # every event that verifies at the position is a branch.
+    a_upd_third = control_event(
+        "Update", amina, a_gen, "2026-10-30T09:05:45Z", [a_c1],
+        [k("amina-control-2c")],
+        fields={"homes": ["https://amina-three.example"]})
+    tie_and_later = {**tie, content_id(a_upd_third): "2026-10-30T11:00:00Z"}
+    bad_sig("event-seen-after-a-tie-is-a-branch-too",
+            "Three events sit at position 1 of Amina's log. Evidence "
+            "cannot separate two of them, so she is duplicitous; the "
+            "third was seen later than both. It has not lost the position "
+            "to an event that has it, for none has it: each event that "
+            "verifies there is a conflicting branch, and every event held "
+            "after each of them applies (Layer 1, 7.3). In the copy this "
+            "verifier holds, the third is followed by an event the "
+            "verifier cannot read, which may declare a key compromised. "
+            "So the log does not verify for this verifier, and a record "
+            "pinned to her genesis, before the divergence, does not count.",
+            early, amina,
+            branches=[[a_gen, a_upd_alt], [a_gen, a_upd_third, unreadable]],
+            seen=tie_and_later)
+
     V["valid"].append({
         "name": "home-that-is-no-host",
         "reason": "The grammar of an HTTPS origin bounds its characters "
@@ -4443,6 +4480,14 @@ def build():
             seen=seen_at(late_intent, "2026-11-01T08:00:05Z"))
     control("events-after-a-copy-that-is-not-well-formed",
             seen=seen_at(late_intent, "2026-11-01T08:00:05Z"))
+    # The same copy with an event after the log that is invalid, and so no
+    # event: the record counts.
+    control("copy-with-an-unreadable-event-after-the-log",
+            branches=[[a_gen, a_upd, a_junk]])
+    # Without the event that cannot be read, the log verifies as that of a
+    # duplicitous mind, and the record pinned before the divergence counts.
+    control("event-seen-after-a-tie-is-a-branch-too",
+            branches=[[a_gen, a_upd_alt], [a_gen, a_upd_third]])
     return V
 
 

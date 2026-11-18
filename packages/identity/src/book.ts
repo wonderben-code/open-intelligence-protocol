@@ -111,8 +111,6 @@ interface Tree {
    * 5.5), so the proofs of every well-formed copy are kept together.
    */
   readonly proofs: Map<string, Map<string, JsonObject>>;
-  /** The ends of the tree: the copies held, less every copy that is the beginning of another. */
-  ends: number;
   /**
    * Set when a copy could not be taken in whole. The book has then been
    * shown something it does not hold, and no longer answers for the mind.
@@ -139,18 +137,11 @@ interface Taken {
 /** What stands in a tree for a value that is not plain data and says nothing a verifier could wait for. */
 const NOT_DATA = Symbol("not plain data");
 
-/**
- * The most ends one mind's tree may have: the copies of its log that are
- * held and are not the beginning of one another. Two that conflict are
- * duplicity; a mind with more is rare.
- */
-const MAX_COPIES = 8;
-
 const refusal = (message: string, clause: string): Rejection =>
   deepFreeze({ ok: false, issues: [{ path: "", message, clause }] });
 
 const TOO_MANY = refusal(
-  `the book was shown more of this mind's log than it holds: more than ${MAX_COPIES} copies that are not the beginning of one another, or more proofs for one event than one record carries (${MAX_PROOFS}, and 1 MiB with the event)`,
+  `the book was shown more proofs for one event of this mind's log than one record carries: ${MAX_PROOFS}, and 1 MiB with the event`,
   IMPLEMENTATION_LIMIT,
 );
 
@@ -211,10 +202,12 @@ function proofsOf(event: JsonObject, proof: JsonValue | undefined): readonly Jso
 
 /** The latest time up to which any copy that ended at or after an event was known. */
 function latestBelow(held: Held): Instant | undefined {
-  let latest = held.asOf;
-  for (const next of held.next.values()) {
-    const below = latestBelow(next);
-    if (below !== undefined && (latest === undefined || below > latest)) latest = below;
+  let latest: Instant | undefined;
+  // A copy may hold thousands of values after this one, each below the last: no recursion.
+  const pending = [held];
+  for (let at = pending.pop(); at !== undefined; at = pending.pop()) {
+    if (at.asOf !== undefined && (latest === undefined || at.asOf > latest)) latest = at.asOf;
+    pending.push(...at.next.values());
   }
   return latest;
 }
@@ -278,8 +271,9 @@ export class LogBook implements IdentityView {
    *   a witness the verifier trusts served it, or the present for a verifier
    *   that follows the log itself (core 9.4).
    * @returns The mind's address. Or why the copy was not taken: it is no
-   *   log; or it is more than the book holds of one mind, and the book then
-   *   answers for that mind no longer, until the mind is dropped.
+   *   log; or it shows more proofs for one event than one record carries,
+   *   with those held already, and the book then answers for that mind no
+   *   longer, until the mind is dropped.
    */
   hold(events: unknown, asOf: Instant): Validation<string> {
     const taken = this.#take(events, asOf);
@@ -288,24 +282,21 @@ export class LogBook implements IdentityView {
     const [first] = copy;
     let tree = this.#held.get(mind);
     if (tree === undefined) {
-      tree = { genesis: placeFor(first), proofs: new Map(), ends: 1, full: false };
+      tree = { genesis: placeFor(first), proofs: new Map(), full: false };
       this.#held.set(mind, tree);
     }
-    // Shown more than it holds once, the book takes nothing more of this mind.
+    // Shown more proofs for an event than it holds, the book takes nothing more of this mind.
     if (tree.full) return TOO_MANY;
     /** Whether the copy showed an event or a proof that was not held. */
     let added = false;
-    let branched = false;
     let at = tree.genesis;
     for (const event of copy) {
       if (event !== first) {
         let next = at.next.get(event.key);
         if (next === undefined) {
-          // An event beside another at one position is one more end; one after the last is not.
-          if (!branched && at.next.size > 0) tree.ends++;
           next = placeFor(event);
           at.next.set(event.key, next);
-          added = branched = true;
+          added = true;
         }
         at = next;
       }
@@ -326,7 +317,6 @@ export class LogBook implements IdentityView {
         tree.full = true;
       }
     }
-    if (tree.ends > MAX_COPIES) tree.full = true;
     // The latest time up to which a copy that ended here was known.
     const further = at.asOf === undefined || asOf > at.asOf;
     if (further) at.asOf = asOf;

@@ -496,7 +496,7 @@
       "summary": "The security analysis of the protocol is in Section 8 of the technical architecture paper. Thre…",
       "level": "none",
       "keywords": {},
-      "digest": "ebe4bccdfd35c4e76700b6773db19fd00b7e0b2d73bf545387be73d77d8fb128"
+      "digest": "9150f470faea7f4534966f49d2c711956b1a9e21aa6335efe015f61d7bfb6d18"
     },
     {
       "id": "L0 1.1",
@@ -1064,7 +1064,7 @@
       "keywords": {
         "MUST NOT": 2
       },
-      "digest": "05f90beb4c768c75d1c186ed38e1805fd10d64e69b2cfdcd5b1312ed30100b94"
+      "digest": "b196f2af6404c22b12e7e76a0cfc9998cd38935f52440d64c4e561de6376da61"
     },
     {
       "id": "L1 7.4",

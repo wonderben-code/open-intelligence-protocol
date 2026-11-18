@@ -1535,37 +1535,61 @@ describe(`${clause("L1 4.9")} what a book has been shown, it keeps`, () => {
     expect(heads(book, ada.address).log.asOf).toBe(at(120));
   });
 
-  it("answers for a mind no longer, once it was shown more of its log than it holds", () => {
+  it(`${clause("L1 7.3")} holds every event it is shown for one position, and the evidence decides among them`, () => {
     // Nine events for one position, each signed by the control key: the mind's own, which
-    // a witness saw first, and eight more.
+    // a witness saw first, and eight more. No number of them is too many, and none is
+    // refused, so the order they come in decides nothing.
     const rivals = Array.from({ length: 9 }, (_, n) =>
       new KeyMind("ada").update(20, { homes: [`https://home${n}.example`] }),
     );
     const [own, ...others] = rivals as [KeyMind, ...KeyMind[]];
     const evidence = witness(rivals.map((rival) => rival.events));
     evidence.sawEvent(contentId(own.events[1]), at(19));
-    // With eight in all, the evidence decides, whatever order they came in.
-    const book = new LogBook(evidence);
-    for (const rival of others.slice(0, 7)) book.hold(rival.events, LATER);
-    book.hold(own.events, LATER);
-    expect(heads(book, own.address).heads[1]).toBe(contentId(own.events[1]));
-    // The ninth is more than the book holds. It says so, and answers for the mind no more:
-    // what it holds is not all it was shown.
-    const full = new LogBook(evidence);
-    for (const rival of others) full.hold(rival.events, LATER);
-    expect(full.hold(own.events, LATER)).toMatchObject({
-      ok: false,
-      issues: [{ clause: "implementation limit" }],
-    });
-    expect(full.log(own.address)).toMatchObject({
-      ok: false,
-      issues: [{ clause: "implementation limit" }],
-    });
-    expect(full.hold(own.events, LATER).ok).toBe(false);
-    full.drop(own.address);
-    full.hold(own.events, LATER);
-    expect(heads(full, own.address).heads).toHaveLength(2);
+    for (const order of [
+      [own, ...others],
+      [...others, own],
+      [...others.slice(4), own, ...others.slice(0, 4)],
+    ]) {
+      const book = new LogBook(evidence);
+      for (const rival of order) {
+        expect(book.hold(rival.events, LATER)).toStrictEqual({ ok: true, value: own.address });
+      }
+      expect(heads(book, own.address).heads[1]).toBe(contentId(own.events[1]));
+    }
   });
+
+  it("is not locked by copies that end in junk, however many", () => {
+    // Twenty copies of the log, each with another value after it that is no event.
+    const ada = new KeyMind("ada").update(10).update(20, { keys: [] });
+    const book = new LogBook(witness([ada.events]));
+    for (let n = 0; n < 20; n++) {
+      const junk = n % 2 === 0 ? { junk: n } : { junk: n, proof: [{ n }] };
+      expect(book.hold([...ada.events, junk], LATER).ok).toBe(true);
+    }
+    expect(heads(book, ada.address).heads).toHaveLength(3);
+  });
+
+  it(
+    "answers, and does not throw, for a copy with thousands of values after the log",
+    { timeout: 120_000 },
+    () => {
+      // Each value has a place after the one before, so what is held is ten thousand deep.
+      const ada = new KeyMind("ada").update(10).update(20, { keys: [] });
+      const tail = Array.from({ length: 9_990 }, (_, n) => ({ proof: [], n }));
+      // After the log, the copy that ends in them is a copy of the whole log. After the
+      // genesis, it is a copy of the genesis.
+      for (const [copy, known] of [
+        [[...ada.events, ...tail], LATER],
+        [[ada.events[0], ...tail], at(100)],
+      ] as const) {
+        const book = new LogBook(witness([ada.events]));
+        expect(book.hold(copy, LATER).ok).toBe(true);
+        book.hold(ada.events, at(100));
+        expect(heads(book, ada.address).heads).toHaveLength(3);
+        expect(heads(book, ada.address).log.asOf).toBe(known);
+      }
+    },
+  );
 
   it("answers by what it was shown, in whatever order the copies and the evidence came", () => {
     const ada = new KeyMind("ada").update(10).update(20).update(30).update(40);
@@ -1622,6 +1646,112 @@ describe(`${clause("L1 4.9")} what a book has been shown, it keeps`, () => {
         }
       }),
       { numRuns: process.env["OIP_MUTATION"] === undefined ? 300 : 60 },
+    );
+  });
+});
+
+describe(`${clause("L1 4.9", "L1 7.1")} the copies a book was shown, as a set`, () => {
+  // ada removes a key at position 2. A rival for that position is signed by the same control key.
+  const ada = new KeyMind("ada").update(10).update(20, { keys: [] }).update(30).update(40);
+  const rival = new KeyMind("ada")
+    .update(10)
+    .update(20, { homes: ["https://rival.example"] })
+    .update(31);
+  const treatment = fc.constantFrom("kept", "kept", "kept", "lost", "spoiled", "padded", "bare");
+  const copyOf = fc.record({
+    branch: fc.constantFrom("own", "own", "rival"),
+    length: fc.integer({ min: 1, max: 5 }),
+    proofs: fc.array(treatment, { minLength: 5, maxLength: 5 }),
+    tail: fc.constantFrom("none", "none", "invalid", "unread"),
+  });
+  type Copy = typeof copyOf extends fc.Arbitrary<infer T> ? T : never;
+
+  /** One event of a copy, with what the copy did to its proofs. */
+  function treated(event: Events[number], how: string, n: number): unknown {
+    const [first] = event.proof;
+    if (how === "lost") return { ...event, proof: [{ ...first, proofValue: "z1111" }] };
+    if (how === "spoiled") return { ...event, proof: [...event.proof, "no proof"] };
+    if (how === "padded") return { ...event, proof: [{ ...first, pad: n }, ...event.proof] };
+    if (how === "bare") {
+      return Object.fromEntries(Object.entries(event).filter(([name]) => name !== "proof"));
+    }
+    return event;
+  }
+  function made(copy: Copy, n: number): unknown[] {
+    const branch = copy.branch === "own" ? ada : rival;
+    const events: unknown[] = branch.events
+      .slice(0, copy.length)
+      .map((event, i) => treated(event, copy.proofs[i] ?? "kept", n));
+    if (copy.tail === "invalid") events.push({ junk: n });
+    if (copy.tail === "unread") events.push({ oip: "1", type: "Merge" });
+    return events;
+  }
+  /** What a book answers, without what may depend on the order of what it holds. */
+  function answer(book: LogBook) {
+    const log = book.log(ada.address);
+    if (!log.ok) return "refused";
+    return {
+      heads: log.value.entries.map((entry) => entry.state.head),
+      duplicitous: log.value.duplicitous,
+      tails: log.value.branchTails.map((entry) => entry.state.head).sort(),
+      revoked: log.value.revocations.map((revocation) => revocation.key).sort(),
+    };
+  }
+  const runs = process.env["OIP_MUTATION"] === undefined ? 300 : 40;
+
+  it("answers the same in whatever order they came, and however often", () => {
+    fc.assert(
+      fc.property(
+        fc.array(copyOf, { minLength: 1, maxLength: 6 }),
+        // When the rival's event was seen: before ada's own, with it, or after.
+        fc.constantFrom(19, 20, 21),
+        fc.array(fc.nat(5), { minLength: 6, maxLength: 6 }),
+        (copies, rivalSeen, shuffle) => {
+          const evidence = witness([ada.events, rival.events]);
+          evidence.sawEvent(contentId(rival.events[2]), at(rivalSeen));
+          const all = copies.map(made);
+          const shown = (order: readonly unknown[][]) => {
+            const book = new LogBook(evidence);
+            for (const events of order) book.hold(events, LATER);
+            return answer(book);
+          };
+          const first = shown(all);
+          // Backwards; in an order drawn at random; and each copy twice.
+          expect(shown([...all].reverse())).toStrictEqual(first);
+          const mixed = all
+            .map((events, i) => ({ events, key: shuffle[i] ?? 0, i }))
+            .sort((a, b) => a.key - b.key || b.i - a.i)
+            .map(({ events }) => events);
+          expect(shown(mixed)).toStrictEqual(first);
+          expect(shown([...all, ...all])).toStrictEqual(first);
+        },
+      ),
+      { numRuns: runs },
+    );
+  });
+
+  it("answers with every event that some well-formed copy shows with its proofs", () => {
+    const own = copyOf.map((copy) => ({ ...copy, branch: "own" as const }));
+    fc.assert(
+      fc.property(fc.array(own, { minLength: 1, maxLength: 6 }), (copies) => {
+        const book = new LogBook(witness([ada.events]));
+        copies.forEach((copy, n) => book.hold(made(copy, n), LATER));
+        // An event has its proofs if a copy that is well formed there carries them: one
+        // that lost them, or spoiled its `proof`, adds nothing and takes nothing away.
+        const signed = (position: number) =>
+          copies.some(
+            (copy) =>
+              copy.length > position && ["kept", "padded"].includes(copy.proofs[position] ?? ""),
+          );
+        let verified = 0;
+        while (verified < 5 && signed(verified)) verified++;
+        // An event nobody can read stops the log if the events before it verify.
+        const stopped = copies.some((copy) => copy.tail === "unread" && copy.length <= verified);
+        const log = book.log(ada.address);
+        if (verified === 0 || stopped) expect(log.ok).toBe(false);
+        else expect(log.ok && log.value.entries.length).toBe(verified);
+      }),
+      { numRuns: runs },
     );
   });
 });

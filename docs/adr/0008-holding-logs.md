@@ -30,7 +30,7 @@ ADR-0003 fixed how time enters verification: an `EvidenceView`, two formulas, an
   - where several verify, the one with strictly the earliest evidence has the position, never the longer branch or the later copy. What follows an event that lost is not judged at all;
   - where the evidence cannot separate them, the log it gives stops before that position, and every event held after each of them is judged, so that the removals and compromise declarations of every branch apply.
 - **The time a log is known up to** is the latest time given with a copy that ended where the log ends, an invalid event after it or not. A copy that ended earlier says nothing of a log that goes on.
-- **Bounds.** A tree has at most eight ends, and an event at most the proofs that one record carries: 256, and 1 MiB with the event. Shown more than that of one mind, the book says so and answers for that mind no longer, until the mind is dropped: what it holds is then not all it was shown.
+- **Bounds.** A tree has no limit on its ends. Each event held is judged once when the log is asked for, so the work grows with what is held and no faster; and a limit that fails closed would let nine copies that end in junk stop a mind. An event has at most the proofs that one record carries: 256, and 1 MiB with the event. Shown more than that for one event, the book says so and answers for that mind no longer, until the mind is dropped: what it holds is then not all it was shown.
 - It is plain data in memory. It fetches nothing and reads no clock; the client and the services fill it.
 
 `verifyLog` is the function underneath, for one log and a way to obtain a member's verified log. Most callers want the book.

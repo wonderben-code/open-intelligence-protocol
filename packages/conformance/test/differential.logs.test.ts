@@ -20,6 +20,7 @@
  */
 
 import { contentId, formatTimestamp, proofDigest } from "@oip/core";
+import { draftUpdate } from "@oip/identity";
 import {
   agreementKey,
   at,
@@ -849,6 +850,337 @@ const branchCase: fc.Arbitrary<VectorCase> = fc
     }),
   );
 
+/**
+ * Sets of copies of one mind's log, made by hand: what a verifier may come to
+ * hold of a log from several sources (Layer 1, 4.9, 7.1, 7.3). Each asks
+ * whether a record counts, and says what the answer is. Most came from the
+ * independent reviews of the log book, as cases one implementation got wrong
+ * or the two answered differently.
+ */
+function copiesByHand(): { readonly counts: boolean; readonly vectorCase: VectorCase }[] {
+  type Any = JsonObject & { proof: JsonObject[] };
+  type Copies = readonly (readonly unknown[])[];
+  // A key-controlled mind that removes its operational key at 20.
+  const ada = new KeyMind("h-ada").update(10).update(20, { keys: [] });
+  const [g, u1, rm] = ada.events as unknown as [Any, Any, Any];
+  const [good] = rm.proof as [JsonObject];
+  /** Signed with the removed key after the removal: counts if, and only if, the removal is not in the log. */
+  const late = ada.sign(intentBy(ada, 25), { position: 1 });
+  /** Signed and seen before the removal: counts whenever version 1 is in a log that verifies. */
+  const early = ada.sign(intentBy(ada, 15), { position: 1 });
+  const withProof = (event: JsonObject, proof: unknown) => ({ ...event, proof });
+  /** A proof that is an object, verifies nothing, and is as large as asked. */
+  const big = (tag: string, size: number) => ({ ...good, "@context": tag + "x".repeat(size) });
+  const numbered = (from: number, count: number) =>
+    Array.from({ length: count }, (_, n) => ({ ...good, n: from + n }));
+  const rivals = Array.from({ length: 9 }, (_, n) =>
+    new KeyMind("h-ada").update(10).update(21 + n, { homes: [`https://r${n}.example`] }),
+  );
+  const tied = [0, 1].map((n) =>
+    new KeyMind("h-ada").update(10).update(20, { homes: [`https://t${n}.example`] }),
+  ) as [KeyMind, KeyMind];
+  const tiedOn = [0, 1].map((n) =>
+    new KeyMind("h-ada")
+      .update(10)
+      .update(20, { homes: ["https://t0.example"] })
+      .update(30 + n, { homes: [`https://later${n}.example`] }),
+  );
+  const third = new KeyMind("h-ada").update(10).update(21, { homes: ["https://third.example"] });
+  const MERGE = { oip: "1", type: "Merge" };
+  const junkWithProofs = { oip: "1", type: "Update", junk: true, proof: [] };
+
+  const own: [string, boolean, Copies, (Copies | undefined)?, object?][] = [
+    ["the log alone", false, [ada.events]],
+    // 7.1: a copy of an event that is not well formed adds no proof and takes none away.
+    [
+      "the log, and a copy whose removal has a string beside its proof",
+      false,
+      [ada.events],
+      [[g, u1, withProof(rm, [good, "junk"])]],
+    ],
+    [
+      "a copy whose removal has only a string for proof, and the log",
+      false,
+      [[g, u1, withProof(rm, ["junk"])]],
+      [ada.events],
+    ],
+    [
+      "the log, and a copy whose removal has null for a proof",
+      false,
+      [ada.events],
+      [[g, u1, withProof(rm, [null])]],
+    ],
+    [
+      "the log, and a copy whose removal has a proof of 1.1 MB beside its own",
+      false,
+      [ada.events],
+      [[g, u1, withProof(rm, [good, big("a", 1_100_000)])]],
+    ],
+    [
+      "a copy whose removal has a string beside its proof, alone",
+      true,
+      [[g, u1, withProof(rm, [good, "junk"])]],
+    ],
+    [
+      "the log cut short, and a later copy whose second event has a string beside its proof",
+      false,
+      [[g, u1]],
+      [[g, withProof(u1, [...u1.proof, "junk"]), rm]],
+    ],
+    [
+      "a copy whose genesis has no proofs, alone",
+      false,
+      [[withProof(g, []), u1, rm]],
+      undefined,
+      early,
+    ],
+    [
+      "a copy whose genesis has no proofs, and the genesis",
+      false,
+      [[withProof(g, []), u1, rm]],
+      [[g]],
+    ],
+    // 7.1: the proofs of well-formed copies, together more than one record carries.
+    [
+      "two copies, each within 1 MiB, whose proofs together are not",
+      false,
+      [[g, u1, withProof(rm, [good, big("a", 600_000)])]],
+      [[g, u1, withProof(rm, [good, big("b", 600_000)])]],
+      early,
+    ],
+    [
+      "one copy with a proof of 600 kB beside its own",
+      true,
+      [[g, u1, withProof(rm, [good, big("a", 600_000)])]],
+      undefined,
+      early,
+    ],
+    [
+      "two copies whose removal has 256 proofs between them",
+      true,
+      [[g, u1, withProof(rm, [good, ...numbered(0, 127)])]],
+      [[g, u1, withProof(rm, numbered(127, 128))]],
+      early,
+    ],
+    [
+      "two copies whose removal has 257 proofs between them",
+      false,
+      [[g, u1, withProof(rm, [good, ...numbered(0, 127)])]],
+      [[g, u1, withProof(rm, numbered(127, 129))]],
+      early,
+    ],
+    [
+      "the log, and a copy with the proof twice",
+      false,
+      [ada.events],
+      [[g, u1, withProof(rm, [good, good])]],
+    ],
+    // What a copy shows after a value that is not the event of that place.
+    [
+      "the log, and a copy with an odd value and then the removal",
+      false,
+      [ada.events],
+      [[g, u1, { odd: true }, rm]],
+    ],
+    [
+      "a copy with an odd value and then the removal, and the log cut short",
+      true,
+      [[g, u1, { odd: true }, rm]],
+      [[g, u1]],
+    ],
+    [
+      "an invalid event with a proof list, then the log's events; and the log cut short",
+      true,
+      [[g, junkWithProofs, u1, rm]],
+      [[g, u1]],
+    ],
+    // 7.3: any number of events for one position, and of copies that end in junk.
+    [
+      "the log and eight rivals for position 2, all seen later",
+      true,
+      [ada.events],
+      rivals.slice(0, 8).map((rival) => rival.events),
+      early,
+    ],
+    [
+      "the log and nine rivals for position 2, all seen later",
+      false,
+      [ada.events],
+      rivals.map((rival) => rival.events),
+    ],
+    [
+      "the log, and nine copies of it each with other junk after",
+      true,
+      [ada.events],
+      Array.from({ length: 9 }, (_, n) => [...ada.events, { junk: n }]),
+      early,
+    ],
+    // 7.3: events the evidence cannot separate.
+    ["two events tied at position 2", true, [tied[0].events], [tied[1].events], early],
+    ["two tied at position 2, one of them the removal", false, [ada.events], [tied[0].events]],
+    [
+      "tied at 2, and one of the tied goes on in two ways",
+      true,
+      [tied[1].events],
+      tiedOn.map((branch) => branch.events),
+      early,
+    ],
+    [
+      "tied at 2, and one tied branch ends in an event nobody can read",
+      false,
+      [tied[1].events],
+      [[...tied[0].events, MERGE]],
+      early,
+    ],
+    [
+      "tied at 2, and one tied branch ends in junk",
+      true,
+      [tied[1].events],
+      [[...tied[0].events, { junk: true }]],
+      early,
+    ],
+    [
+      "two tied at 2, and a third seen later whose copy goes on to an event nobody can read",
+      false,
+      [tied[0].events],
+      [tied[1].events, [...third.events, MERGE]],
+      early,
+    ],
+    [
+      "two tied at 2, and a third seen later",
+      true,
+      [tied[0].events],
+      [tied[1].events, third.events],
+      early,
+    ],
+    [
+      "the removal has position 2; a rival seen later goes on to an event nobody can read",
+      false,
+      [ada.events],
+      [[...(rivals[0]?.events ?? []), MERGE]],
+    ],
+    [
+      "the removal, and beside it at position 2 an event nobody can read",
+      false,
+      [ada.events],
+      [[g, u1, MERGE]],
+      early,
+    ],
+  ];
+
+  // A collective of three, threshold two, that removes its operational key at 20.
+  const [a, b, c] = ["a", "b", "c"].map((name) => new KeyMind(`h-${name}`)) as [
+    KeyMind,
+    KeyMind,
+    KeyMind,
+  ];
+  const founded = () => new Collective("h-club", [a, b, c], 2, 5);
+  const club = founded().update(10, [a, b], { homes: ["https://club.example"] });
+  const rivalAtOne = founded().update(11, [a, b], { homes: ["https://rival.example"] });
+  const [c0, c1] = club.events as unknown as [Any, Any];
+  const c1x = rivalAtOne.events[1];
+  const removal = draftUpdate(club.head, T(20), { keys: [] });
+  const c2 = (...members: KeyMind[]) =>
+    rawSign(
+      removal,
+      members.map((member) => member.asMember()),
+    ) as unknown as Any;
+  const strangers = rawSign(removal, [
+    { member: a.address, versionId: a.versionId(), invocation: signer("h-fake/0") },
+    { member: b.address, versionId: b.versionId(), invocation: signer("h-fake/1") },
+  ]);
+  const clubLate = club.sign(intentBy(club, 25), { position: 1 });
+  const members = [a.events, b.events, c.events];
+
+  const clubs: [string, boolean, Copies][] = [
+    ["a collective's log", false, [[c0, c1, c2(a, b)]]],
+    [
+      "a collective's removal in two halves",
+      false,
+      [
+        [c0, c1, c2(a)],
+        [c0, c1, c2(b)],
+      ],
+    ],
+    ["one half of a collective's removal, alone", true, [[c0, c1, c2(a)]]],
+    [
+      "a collective's removal in three copies with overlapping proofs",
+      false,
+      [
+        [c0, c1, c2(a)],
+        [c0, c1, c2(a, b)],
+        [c0, c1, c2(b, c)],
+      ],
+    ],
+    // 7.1: the proofs of an event count for it wherever in a copy it stands.
+    [
+      "one half after the event that has position 1, the other half after its rival",
+      false,
+      [
+        [c0, c1, c2(a)],
+        [c0, c1x, c2(b)],
+      ],
+    ],
+    [
+      "one half in its place, the other half after an invalid event with a proof list",
+      false,
+      [
+        [c0, c1, c2(a)],
+        [c0, junkWithProofs, c2(b)],
+      ],
+    ],
+    [
+      "one half in its place, the other half after an odd value",
+      false,
+      [
+        [c0, c1, c2(a)],
+        [c0, { odd: true }, c2(b)],
+      ],
+    ],
+    [
+      "a collective's removal under keys that are not the members', and with the members' own",
+      false,
+      [
+        [c0, c1, strangers],
+        [c0, c1, c2(a, b)],
+      ],
+    ],
+    [
+      "a collective's log, and a copy whose removal has a number among its proofs",
+      false,
+      [
+        [c0, c1, c2(a, b)],
+        [c0, c1, withProof(c2(a, b), [...c2(a, b).proof, 7])],
+      ],
+    ],
+  ];
+
+  return [
+    ...own.map(([name, counts, extraLogs, branches, record]) => ({
+      counts,
+      vectorCase: {
+        kind: "countsFor",
+        name,
+        record: record ?? late,
+        mind: ada.address,
+        extraLogs,
+        branches: branches ?? [],
+      } as unknown as VectorCase,
+    })),
+    ...clubs.map(([name, counts, copies]) => ({
+      counts,
+      vectorCase: {
+        kind: "countsFor",
+        name,
+        record: clubLate,
+        mind: club.address,
+        extraLogs: [copies[0], ...members],
+        branches: copies.slice(1),
+      } as unknown as VectorCase,
+    })),
+  ];
+}
+
 const CLUB_CHANGES = ["nothing", "expel", "admit", "tighten", "retire"] as const;
 
 /** A collective of ada, bea and cy that lives through some changes, each signed by everyone it needs. */
@@ -1264,6 +1596,22 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
           }),
           { numRuns: Math.ceil(RUNS / 8) },
         );
+      },
+      TIMEOUT,
+    );
+
+    it(
+      "agrees with the Python checker, and with what each says, on sets of copies made by hand",
+      async () => {
+        const made = copiesByHand();
+        for (const { counts, vectorCase } of made) {
+          expect(
+            claimHolds(referenceAdapter, vectors, vectorCase),
+            `whether the record counts: ${vectorCase.name}`,
+          ).toBe(counts);
+          await compare("sets of copies made by hand", vectorCase, 0, 0);
+        }
+        expect(made.length).toBeGreaterThan(35);
       },
       TIMEOUT,
     );

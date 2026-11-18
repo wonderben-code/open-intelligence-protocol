@@ -37,7 +37,7 @@ export function report(recordIsWellFormed: (record: unknown) => boolean): string
 This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the 13 malformed records it should have rejected:
 
 ```
-my implementation: 20 passed, 13 failed, 168 pending
+my implementation: 20 passed, 13 failed, 172 pending
 FAIL negative packet-short-nonce: must be rejected. A packet nonce has 8 to 64 characters.
 FAIL negative delegation-to-self: must be rejected. A delegation's delegate must differ from its author.
 FAIL negative proof-entry-not-an-object: must be rejected. Every entry of `proof` is an object (core 5.1). A proof that does not verify never counts and does not make the record malformed (core 5.5); an entry that is not an object at all does.

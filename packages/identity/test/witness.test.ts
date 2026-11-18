@@ -349,11 +349,15 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
       undecided: true,
     });
     // A member's own proof, made for another, is no proof of the member's (Layer 1, 6.4).
-    const delegated = rawSign(draftUpdate(club().head, T(20)), [a.asMember()], {
-      authority: [`${a.address}/${contentId(a.events[0])}`],
+    // With the other member's proof beside it, one member has signed, and two must.
+    const delegated = rawSign(draftUpdate(club().head, T(20)), [b.asMember()], {
+      authority: [`${b.address}/${contentId(b.events[0])}`],
     });
     const both = { ...delegated, proof: [...delegated.proof, ...alone.proof] };
-    expect(witnessedBy([a, b], [...club().events, both]).undecided).toBe(false);
+    expect(witnessedBy([a, b], [...club().events, both])).toStrictEqual({
+      clause: "L1 6.4",
+      undecided: false,
+    });
     // A member the event admits has no proof on it; nor has a founder on a genesis.
     const unasked = rawSign(
       draftUpdate(club().head, T(20), {

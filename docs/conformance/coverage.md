@@ -31,14 +31,14 @@ Cases the implementation cannot answer yet are pending, never passed.
 | valid | `record` | M0 | 8 | 0 | 0 |
 | valid | `json` | M1 | 5 | 0 | 0 |
 | negative | `log` | M2 | 31 | 0 | 0 |
-| negative | `countsFor` | M3 | 25 | 18 | 0 |
+| negative | `countsFor` | M3 | 27 | 18 | 0 |
 | negative | `sentFor` | M3 | 0 | 1 | 0 |
 | negative | `status` | M3 | 0 | 3 | 0 |
 | negative | `assurance` | M9 | 0 | 1 | 0 |
 | negative | `record` | M0 | 13 | 0 | 0 |
 | negative | `json` | M1 | 12 | 0 | 0 |
 | controls | `log` | M2 | 16 | 0 | 0 |
-| controls | `countsFor` | M3 | 19 | 4 | 0 |
+| controls | `countsFor` | M3 | 21 | 4 | 0 |
 | controls | `record` | M0 | 11 | 0 | 0 |
 | controls | `json` | M1 | 4 | 0 | 0 |
 
@@ -177,7 +177,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 4.6 |  | M2 | 5 | tested | Types and termination. Every event's `type` is checked: the first is `Genesis` and every later… |
 | L1 4.7 | MUST | M2 | 10 | tested | Nesting and work. Verifying a member's proof requires verifying that member's own log. The heig… |
 | L1 4.8 | MUST | M2 | 3 | tested | Well-formed events. Every event is a well-formed record of its type: it satisfies core, Section… |
-| L1 4.9 | MUST | M2 | 27 | tested | Invalid, and undecided. A log with an event that fails this section is rejected. What a verifie… |
+| L1 4.9 | MUST | M2 | 31 | tested | Invalid, and undecided. A log with an event that fails this section is rejected. What a verifie… |
 | L1 5.1 |  | M2 | 2 | tested | Replaying a log produces the identity state: address, kind, controller state (`next` and `nextT… |
 | L1 5.2 |  | M2 | 7 | tested | DID document. Resolving a `did:oip` address produces a DID Core document: - `id`: the address.… |
 | L1 5.3 | MUST | M6 | 0 | pending M6 | Aliases. An entry in `alsoKnownAs` is verified only when the alias points back to the mind: ano… |
@@ -185,9 +185,9 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 6.2 |  | M2 | 1 | tested | Removing a key stops it signing anything new while leaving what it signed earlier valid, provid… |
 | L1 6.3 | MUST | M2 | 1 | tested | When a verifier encounters a `versionId` it does not have, it SHOULD fetch the missing events f… |
 | L1 6.4 |  | M2 | 11 | tested | Member proofs on identity events. A proof `p` by member `M` on another mind's identity event `e… |
-| L1 7.1 |  | M2 | 30 | tested | Two events with different content IDs in logs with the same genesis, at the same `seq`, each va… |
+| L1 7.1 |  | M2 | 32 | tested | Two events with different content IDs in logs with the same genesis, at the same `seq`, each va… |
 | L1 7.2 | MUST | M5 | 0 | pending M5 | Resolvers MUST retain the first valid event they saw at each position of each log, MUST record… |
-| L1 7.3 | MUST | M2 | 28 | tested | Resolution. A verifier MUST NOT choose between conflicting branches by their length or by which… |
+| L1 7.3 | MUST | M2 | 29 | tested | Resolution. A verifier MUST NOT choose between conflicting branches by their length or by which… |
 | L1 7.4 | MUST | M6 | 0 | pending M6 | Protecting the log. Implementations MUST destroy a control key's private part once the event it… |
 | L1 8.1 |  | M2 | 4 | tested | A fork is a new mind whose genesis lists a parent in `parents`, with `at` naming the version of… |
 | L1 8.2 |  | M2 | 5 | tested | Lineage is acknowledged when the child's `at` names a version of the parent and either the pare… |

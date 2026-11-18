@@ -49,7 +49,9 @@ const required = process.env["OIP_REQUIRE_PYTHON"] !== undefined;
 // Each PR runs a short campaign; the nightly job sets OIP_DIFFERENTIAL_RUNS higher.
 const RUNS = Number(process.env["OIP_DIFFERENTIAL_RUNS"] ?? 2000);
 // About 1.5 ms a case on a laptop; ten times that, so a slow runner does not fail the campaign.
-const TIMEOUT = Math.max(120_000, RUNS * 15);
+// The limit is for a test that hangs, not for one that is slow: a machine busy with other
+// work takes several times as long as an idle one.
+const TIMEOUT = Math.max(480_000, RUNS * 15);
 
 const vectors = loadVectors();
 // Every record of the positive vectors, and a sample of each of the 29

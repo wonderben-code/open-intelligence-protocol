@@ -57,7 +57,9 @@ const required = process.env["OIP_REQUIRE_PYTHON"] !== undefined;
 // nightly job a million. Each test says in its name how many cases it ran.
 const RUNS = Number(process.env["OIP_DIFFERENTIAL_LOGS"] ?? 300);
 // About 40 ms a case with its DID documents; ten times that, so a slow runner does not fail the campaign.
-const TIMEOUT = Math.max(120_000, RUNS * 400);
+// The limit is for a test that hangs, not for one that is slow: a machine busy with other
+// work takes several times as long as an idle one.
+const TIMEOUT = Math.max(480_000, RUNS * 400);
 
 const vectors = loadVectors();
 

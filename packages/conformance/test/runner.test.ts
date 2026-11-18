@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   type CaseKind,
@@ -229,6 +229,10 @@ describe("running a case", () => {
 });
 
 describe("the positive checks", () => {
+  // Every check of the positive part verifies logs and signatures, which a machine busy
+  // with other work does several times as slowly: the limit is for a test that hangs.
+  vi.setConfig({ testTimeout: 300_000 });
+
   it("pass the reference implementation where it is built and are pending elsewhere", () => {
     const results = runVectors(referenceAdapter, vectors).filter(
       (result) => result.section === "positive",

@@ -238,6 +238,9 @@ importers:
       '@oip/identity':
         specifier: workspace:*
         version: link:../identity
+      '@oip/net':
+        specifier: workspace:*
+        version: link:../net
       '@oip/schema':
         specifier: workspace:*
         version: link:../schema

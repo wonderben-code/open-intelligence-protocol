@@ -93,7 +93,7 @@ Item 11 removes a way in which the order of arrival, which a network attacker ma
 
 ## Test vectors
 
-To come with the part of the milestone that gives the Python checker its verdicts on feeds, packets and sessions. Until then the rules above are held by the unit tests of `@oip/net`, each of which cites its clause.
+The vectors have eight kinds of case for Layer 1, Sections 10 and 12 to 16 (`feed`, `checkpoint`, `receive`, `chain`, `hello`, `ack`, `location`, `participant`), with 13 must-accept cases, 37 negative cases and a control for each negative. Among them, for the items above: a feed with two entries at one place and a checkpoint over it (item 1), a first entry with a `prev` (item 2), an entry held in two copies (item 4), a packet addressed by a list inside a `Forwarded` record that nobody signed for its broker (item 6), a packet to a query that lives a second over an hour (item 7), a session packet that arrives before the `Session` record (item 9), and a session packet that is no link of its chain (item 11). Items 3, 5, 8, 10 and 12 to 19 are held by the unit tests of `@oip/net`, each of which cites its clause, and items 14 to 19 have no vector yet: the Python checker neither seals nor reads HTTP signatures.
 
 ## Reference implementation
 

@@ -137,6 +137,20 @@ describe(`${clause("L1 15.2")} the current location record`, () => {
     expect(current(club, [byTwo, byOne, byNew], minds)?.id).toBe(contentId(byNew));
   });
 
+  it(`${clause("core 3.1")} is judged with the proofs of every copy held of it`, () => {
+    // Each of two members sent the copy that carries its own proof. It is one record, and
+    // the two proofs together meet the threshold.
+    const [ann, bo] = [new KeyMind("ann"), new KeyMind("bo")];
+    const club = new Collective("club", [ann, bo], 2, 5);
+    const content = draft(club, 1, 10);
+    const [byAnn, byBo] = [ann.sign(content) as Signed, bo.sign(content) as Signed];
+    const minds = [ann, bo, club];
+    expect(current(club, [byAnn], minds)).toBeUndefined();
+    expect(current(club, [byBo], minds)).toBeUndefined();
+    expect(current(club, [byAnn, byBo], minds)?.id).toBe(contentId(content));
+    expect(current(club, [byBo, byAnn, byAnn], minds)?.id).toBe(contentId(content));
+  });
+
   it("stands for the location record of the test vectors", () => {
     const cases = (readVectors() as unknown as { cases: Record<string, JsonObject> }).cases;
     const record = judged(cases["location"]!).record as Location;

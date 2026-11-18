@@ -89,8 +89,113 @@ export interface JsonCase extends CaseBase {
   readonly text: string;
 }
 
+/**
+ * The values in `entries`, taken together, are the feed of `author` (Layer 1,
+ * Section 10): each is an entry of it, and they verify from `seq` 0 with no
+ * equivocation and nothing left over.
+ */
+export interface FeedCase extends CaseBase {
+  readonly kind: "feed";
+  readonly author: string;
+  readonly entries: readonly unknown[];
+}
+
+/** `checkpoint` is valid for the feed that `entries` verify as (Layer 1, 10.5). */
+export interface CheckpointCase extends CaseBase {
+  readonly kind: "checkpoint";
+  readonly checkpoint: JsonObject;
+  readonly entries: readonly unknown[];
+}
+
+/**
+ * The mind `receiver` accepts what arrived, a `Packet` or a `Forwarded`
+ * record, at the time `at` on its clock (Layer 1, 12.4). Whether it accepted
+ * the packet before is not part of the case.
+ */
+export interface ReceiveCase extends CaseBase {
+  readonly kind: "receive";
+  readonly arrived: JsonObject;
+  readonly receiver: string;
+  readonly at: string;
+  /** The receiver's duplicate-detection window, in seconds. An hour if absent. */
+  readonly window?: number;
+  /** Whether the receiver still holds the state of the packet's sending chain (14.3). */
+  readonly holdsChain?: boolean;
+}
+
+/**
+ * Every packet in `packets` is a link of its sending chain in the session,
+ * in order from `seq` 0, and no chain is equivocated (Layer 1, 14.3). The
+ * receiver holds the `Session` record, and the packets arrive in the order
+ * given.
+ */
+export interface ChainCase extends CaseBase {
+  readonly kind: "chain";
+  readonly session: JsonObject;
+  readonly packets: readonly JsonObject[];
+  readonly receiver: string;
+}
+
+/**
+ * The server at `origin` accepts the `Hello` at the time `at` on its clock,
+ * having issued the challenges of `issued`, each at the time given, and
+ * seen none of them used (Layer 1, 13.3).
+ */
+export interface HelloCase extends CaseBase {
+  readonly kind: "hello";
+  readonly hello: JsonObject;
+  readonly origin: string;
+  readonly issued: Readonly<Record<string, string>>;
+  readonly at: string;
+}
+
+/** The `Ack` is signed by its author and acknowledges `packet` for one of its recipients (Layer 1, 13.2). */
+export interface AckCase extends CaseBase {
+  readonly kind: "ack";
+  readonly ack: JsonObject;
+  readonly packet: JsonObject;
+}
+
+/** `record` is the current location record of its author, among itself and `records` (Layer 1, 15.2). */
+export interface LocationCase extends CaseBase {
+  readonly kind: "location";
+  readonly record: JsonObject;
+  readonly records?: readonly JsonObject[];
+}
+
+/**
+ * `record` is the current profile of its author (Layer 1, 16.4), given the
+ * other profiles in `records`, the location records in `locations` and the
+ * feed entries in `entries`.
+ */
+export interface ParticipantCase extends CaseBase {
+  readonly kind: "participant";
+  readonly record: JsonObject;
+  readonly records?: readonly JsonObject[];
+  readonly locations?: readonly JsonObject[];
+  readonly entries?: readonly unknown[];
+}
+
+/** A case of Layer 1, Sections 10 and 12 to 16. */
+export type NetworkCase =
+  | FeedCase
+  | CheckpointCase
+  | ReceiveCase
+  | ChainCase
+  | HelloCase
+  | AckCase
+  | LocationCase
+  | ParticipantCase;
+
 export type VectorCase =
-  LogCase | CountsForCase | SentForCase | StatusCase | AssuranceCase | RecordCase | JsonCase;
+  | LogCase
+  | CountsForCase
+  | SentForCase
+  | StatusCase
+  | AssuranceCase
+  | RecordCase
+  | JsonCase
+  | NetworkCase;
 
 /** The kinds of case, in the order the vectors' README lists them. */
 export const CASE_KINDS = [
@@ -101,6 +206,14 @@ export const CASE_KINDS = [
   "assurance",
   "record",
   "json",
+  "feed",
+  "checkpoint",
+  "receive",
+  "chain",
+  "hello",
+  "ack",
+  "location",
+  "participant",
 ] as const;
 export type CaseKind = (typeof CASE_KINDS)[number];
 
@@ -160,6 +273,21 @@ const REQUIRED_MEMBERS: Readonly<Record<CaseKind, readonly string[]>> = {
   assurance: ["record", "expect"],
   record: ["record"],
   json: ["text"],
+  feed: ["author", "entries"],
+  checkpoint: ["checkpoint", "entries"],
+  receive: ["arrived", "receiver", "at"],
+  chain: ["session", "packets", "receiver"],
+  hello: ["hello", "origin", "issued", "at"],
+  ack: ["ack", "packet"],
+  location: ["record"],
+  participant: ["record"],
+};
+
+/** The members a kind of case may have besides. */
+const OPTIONAL_MEMBERS: Readonly<Partial<Record<CaseKind, readonly string[]>>> = {
+  receive: ["window", "holdsChain"],
+  location: ["records"],
+  participant: ["records", "locations", "entries"],
 };
 
 /** The members any case may have. */
@@ -203,8 +331,13 @@ function checkCase(section: Section, value: unknown, index: number): void {
   }
   // A member this suite does not know would be ignored, and the case judged
   // with the wrong view: a misspelt `extraLogs` must not pass unnoticed.
+  const optional = OPTIONAL_MEMBERS[kind as CaseKind] ?? [];
   for (const member of Object.keys(value)) {
-    if (!required.includes(member) && !(COMMON_MEMBERS as readonly string[]).includes(member)) {
+    if (
+      !required.includes(member) &&
+      !optional.includes(member) &&
+      !(COMMON_MEMBERS as readonly string[]).includes(member)
+    ) {
       fail(`${where} (${name}) has the unknown member ${JSON.stringify(member)}`);
     }
   }
@@ -215,6 +348,29 @@ function checkCase(section: Section, value: unknown, index: number): void {
     ["log", isLog, "a log"],
     ["records", isLog, "an array of records"],
     ["mind", (found) => typeof found === "string", "an address"],
+    ["author", (found) => typeof found === "string", "an address"],
+    ["receiver", (found) => typeof found === "string", "an address"],
+    ["origin", (found) => typeof found === "string", "an origin"],
+    ["entries", (found) => Array.isArray(found), "an array"],
+    ["packets", isLog, "an array of packets"],
+    ["locations", isLog, "an array of records"],
+    ["checkpoint", isObject, "a record"],
+    ["arrived", isObject, "a record"],
+    ["session", isObject, "a record"],
+    ["hello", isObject, "a record"],
+    ["ack", isObject, "a record"],
+    ["packet", isObject, "a record"],
+    [
+      "window",
+      (found) => typeof found === "number" && Number.isSafeInteger(found) && found >= 0,
+      "a whole number of seconds",
+    ],
+    ["holdsChain", (found) => typeof found === "boolean", "true or false"],
+    [
+      "issued",
+      (found) => isObject(found) && Object.values(found).every((time) => typeof time === "string"),
+      "a map of timestamps",
+    ],
     ["at", (found) => typeof found === "string", "a timestamp"],
     ["expect", (found) => typeof found === "string", "a string"],
     ["text", (found) => typeof found === "string", "a string"],

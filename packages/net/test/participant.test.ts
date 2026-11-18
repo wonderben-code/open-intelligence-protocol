@@ -193,6 +193,39 @@ describe(`${clause("L1 16.4")} the current profile`, () => {
     ).toBe(contentId(old));
   });
 
+  it(`${clause("core 3.1")} is judged with the proofs of every copy held of it`, () => {
+    // Each of two members sent the copy that carries its own proof. It is one profile, and
+    // the two proofs together meet the collective's threshold.
+    const [ann, bo] = [new KeyMind("ann"), new KeyMind("bo")];
+    const club = new Collective("club", [ann, bo], 2, 5);
+    const content = draft(club, 10, { kind: "collective" });
+    const [byAnn, byBo] = [ann.sign(content) as Signed, bo.sign(content) as Signed];
+    const where = bo.sign(
+      ann.sign({
+        oip: "1",
+        type: "Location",
+        author: club.address,
+        seq: 1,
+        created: T(40),
+        ttl: 900,
+        status: "active",
+        endpoints: [],
+        participant: contentId(content),
+      }),
+    );
+    const view: IdentityView = bookOf([ann, bo, club], [byAnn, byBo, where]);
+    const asked = (profiles: readonly object[]) =>
+      currentParticipant(
+        profiles.map((profile) => judged(profile)),
+        club.address,
+        view,
+        { location: currentLocation([judged(where)], club.address, view) },
+      )?.id;
+    expect(asked([byAnn])).toBeUndefined();
+    expect(asked([byBo])).toBeUndefined();
+    expect(asked([byAnn, byBo])).toBe(contentId(content));
+  });
+
   it("is, failing that, the most recent profile that counts among those the feed publishes", () => {
     const intent = ada.sign({
       oip: "1",

@@ -2409,6 +2409,445 @@ def commitment_status(V, c, records, at) -> str:
         return "overdue"
     return candidate
 
+# ---------------------------------------------------------------- network
+#
+# Layer 1, Sections 10 and 12 to 16: feeds and checkpoints, packets as a
+# receiver judges them, sessions, acknowledgements, authentication,
+# locations and profiles. Each function answers for whatever values it is
+# given, in whatever order they are given.
+
+HOUR_NS = 3600 * 10**9
+PACKET_LIFETIME_NS = 7 * 24 * HOUR_NS   # Layer 1, 12.1 and Section 19
+QUERY_LIFETIME_NS = HOUR_NS             # Layer 1, 12.1
+RECORD_MEDIA_TYPE = "application/oip+json"
+DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
+
+
+def _cid(v) -> bool:
+    return isinstance(v, str) and fullmatch(CID_RE, v)
+
+
+def _address(v) -> bool:
+    return isinstance(v, str) and fullmatch(ADDR_RE, v)
+
+
+def _digests(v, most=None) -> bool:
+    return isinstance(v, list) and (most is None or len(v) <= most) and \
+        all(isinstance(d, str) and fullmatch(DIGEST_RE, d) for d in v)
+
+
+def _link_ok(r) -> bool:
+    """`seq` and `prev`, as an entry (10.1) and a session packet (12.1)
+    have them: `prev` is a content ID, and is there when `seq` is not 0."""
+    return _is_int(r.get("seq"), 0, MAX_SAFE_INT) and \
+        ("prev" not in r or _cid(r["prev"])) and \
+        (r["seq"] == 0 or "prev" in r)
+
+
+def _content_ok(content) -> bool:
+    """Layer 1, 12.2: exactly one of the three forms."""
+    def single(part):
+        if not isinstance(part, dict) or "parts" in part or \
+           not isinstance(part.get("mediaType"), str):
+            return False
+        if "body" in part:
+            return "ref" not in part and "digest" not in part
+        return isinstance(part.get("ref"), str) and \
+            isinstance(part.get("digest"), str) and \
+            bool(fullmatch(DIGEST_RE, part["digest"]))
+    if isinstance(content, dict) and "parts" in content:
+        return set(content) == {"parts"} and \
+            isinstance(content["parts"], list) and \
+            len(content["parts"]) <= 32 and \
+            all(single(part) for part in content["parts"])
+    return single(content)
+
+
+def network_ok(r) -> bool:
+    """A well-formed record, with the members of a network record that the
+    functions below read as Layer 1 writes them. Like record_ok(), on which
+    it rests, it is not a full schema."""
+    if not record_ok(r):
+        return False
+    t = r["type"]
+    signed = t not in ("Session",)
+    if signed and "proof" not in r:
+        return False
+    try:
+        if t == "Entry":
+            return _address(r["author"]) and _link_ok(r) and \
+                _cid(r["object"]) and isinstance(r["objectType"], str) and \
+                ("proofs" not in r or _digests(r["proofs"]))
+        if t == "Checkpoint":
+            return _address(r["author"]) and \
+                _is_int(r["size"], 1, MAX_SAFE_INT) and \
+                _cid(r["head"]) and _cid(r["root"])
+        if t == "Packet":
+            to = r["to"]
+            if isinstance(to, list):
+                if not 1 <= len(to) <= 64 or not all(map(_address, to)):
+                    return False
+            elif not isinstance(to, dict):
+                return False
+            elif "query" in to:
+                brokers = to.get("brokers")
+                if brokers is not None and (
+                        not isinstance(brokers, list) or
+                        not 1 <= len(brokers) <= 8 or
+                        not all(map(_address, brokers))):
+                    return False
+            elif not isinstance(to.get("subject"), str):
+                return False
+            if ("session" in r) != ("seq" in r):
+                return False
+            if "session" in r and not (_cid(r["session"]) and _link_ok(r)):
+                return False
+            if "instance" in r and (not isinstance(r["instance"], str) or
+                                    len(r["instance"]) > 64):
+                return False
+            return _content_ok(r["content"])
+        if t == "Forwarded":
+            return _address(r["broker"]) and _address(r["to"]) and \
+                isinstance(r["packet"], dict)
+        if t == "Ack":
+            ts(r["received"])
+            return _address(r["author"]) and _cid(r["packet"]) and \
+                ("sealed" not in r or _cid(r["sealed"])) and \
+                ("proofs" not in r or _digests(r["proofs"], 256))
+        if t == "Hello":
+            return _address(r["author"])
+        if t == "Session":
+            members = r["participants"]
+            return "proof" not in r and isinstance(members, list) and \
+                2 <= len(members) <= 256 and all(map(_address, members)) \
+                and members == sorted(set(members))
+        if t == "Location":
+            return _address(r["author"]) and \
+                _is_int(r["seq"], 0, MAX_SAFE_INT) and \
+                _is_int(r["ttl"], 60, 86400) and \
+                ("participant" not in r or _cid(r["participant"]))
+        if t == "Participant":
+            ids = [c["id"] for c in r.get("capabilities", [])]
+            return _address(r["author"]) and isinstance(r["kind"], str) \
+                and len(set(ids)) == len(ids)
+        return True
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False
+
+
+def verify_feed(V, values, author) -> dict:
+    """Layer 1, 10.1 to 10.4: how far the values held verify as the feed of
+    `author`. An entry is valid if it is a well-formed `Entry` of the
+    author, is signed by the author's own authority (Section 6.1; for a
+    collective its threshold, 9.5), and stands where it says: at `seq` 0
+    with no `prev`, or after the valid entry its `prev` names, at the next
+    `seq`. The same entry in several copies is one entry with the proofs of
+    them all (10.1). What is not valid is no entry: it takes no place and
+    is no equivocation (10.4).
+
+    Returns `entries`, the feed from `seq` 0 for as long as exactly one
+    valid entry stands at each place, and `equivocation`, the content IDs
+    of the valid entries at the place after them when there is more than
+    one (10.3), in order."""
+    if not isinstance(values, list):
+        raise ValueError("a feed is a list of entries")
+    entries = _merged([v for v in values if network_ok(v) and
+                       v["type"] == "Entry" and v["author"] == author])
+    # Signatures are the costly part: an entry is judged when it is reached.
+    by_place = {}
+    for e in entries:
+        by_place.setdefault((e["seq"], e.get("prev")), []).append(e)
+    feed, before = [], None
+    while True:
+        here = [e for e in by_place.get((len(feed), before), [])
+                if V.signed_time(e, author) is not None]
+        if len(here) != 1:
+            break
+        feed.append(here[0])
+        before = content_id(here[0])
+    return {"entries": feed,
+            "equivocation": sorted(content_id(e) for e in here)}
+
+
+def checkpoint_covers(V, checkpoint, values):
+    """Layer 1, 10.5: the digests of the proofs a checkpoint covers (10.1,
+    10.6), over the feed that `values` verify as. None if the checkpoint is
+    not valid for that feed: it is signed by its author's own authority,
+    covers at least one entry and no more than verify, names the last of
+    them in `head`, and its `root` is the Merkle Tree Hash of their content
+    IDs."""
+    if not network_ok(checkpoint) or checkpoint["type"] != "Checkpoint":
+        return None
+    author = checkpoint["author"]
+    if V.signed_time(checkpoint, author) is None:
+        return None
+    feed = verify_feed(V, values, author)["entries"]
+    if checkpoint["size"] > len(feed):
+        return None
+    ids = [content_id(e) for e in feed[:checkpoint["size"]]]
+    if checkpoint["head"] != ids[-1] or \
+       checkpoint["root"] != checkpoint_root(ids):
+        return None
+    return sorted({d for e in feed[:len(ids)] for d in e.get("proofs", [])})
+
+
+def current_location(V, mind, records):
+    """Layer 1, 15.2: among the mind's location records that are signed by
+    its own authority under the current-state rule, the one with the
+    highest `seq`, and of two with that `seq` the one with the lower
+    content ID. None if no record held counts."""
+    counted = [r for r in _merged([r for r in records if network_ok(r) and
+                                   r["type"] == "Location" and
+                                   r["author"] == mind])
+               if V.signed_time(r, mind) is not None]
+    if not counted:
+        return None
+    return min(counted, key=lambda r: (-r["seq"], content_id(r)))
+
+
+def participant_counts(V, profile) -> bool:
+    """Layer 1, 16.1: the profile is signed by its author's own authority
+    under the current-state rule, and its `kind` is the kind in the mind's
+    identity state."""
+    if not network_ok(profile) or profile["type"] != "Participant":
+        return False
+    mind = profile["author"]
+    try:
+        kind = V.log(mind).latest.kind
+    except (KeyError, ValueError):
+        return False
+    return profile["kind"] == kind and \
+        V.signed_time(profile, mind) is not None
+
+
+def current_participant(V, mind, profiles, locations, entries):
+    """Layer 1, 16.4: the profile the current location record names, if it
+    is held and counts; failing that, the most recent profile that counts
+    among those the mind's feed publishes. None if there is neither."""
+    held = {content_id(r): r
+            for r in _merged([r for r in profiles if network_ok(r) and
+                              r["type"] == "Participant" and
+                              r["author"] == mind])}
+
+    def counted(cid):
+        profile = held.get(cid)
+        return profile if profile is not None and \
+            participant_counts(V, profile) else None
+
+    location = current_location(V, mind, locations)
+    named = counted(location.get("participant")) if location else None
+    if named is not None:
+        return named
+    for entry in reversed(verify_feed(V, entries, mind)["entries"]):
+        if entry["objectType"] == "Participant":
+            published = counted(entry["object"])
+            if published is not None:
+                return published
+    return None
+
+
+def receive(V, arrived, receiver, at, window=HOUR_NS, holds_chain=False):
+    """Layer 1, 12.4: the packet a receiver accepts from what arrived, a
+    `Packet` or a `Forwarded` record that carries one (18.5), at the time
+    `at` on its clock; and the broker that forwarded it, for a packet
+    addressed to a query. Raises ValueError if the receiver rejects it.
+
+    `window` is the receiver's duplicate-detection window, for a packet
+    that states no `expires`; `holds_chain` says that the receiver still
+    holds the state of that packet's sending chain. Whether the receiver
+    accepted the packet before is not asked here."""
+    if not network_ok(arrived) or arrived["type"] not in ("Packet",
+                                                           "Forwarded"):
+        raise ValueError("neither a Packet nor a Forwarded record")
+    carried = arrived["type"] == "Forwarded"
+    packet = arrived["packet"] if carried else arrived
+    if not network_ok(packet) or packet["type"] != "Packet":
+        raise ValueError("a Forwarded record carries a Packet")
+    to, broker = packet["to"], None
+    query = isinstance(to, dict) and "query" in to
+    if isinstance(to, list):
+        # Judged by its own proof, however it arrived.
+        if receiver not in to:
+            raise ValueError("not addressed to the receiver")
+    elif query:
+        if not carried:
+            raise ValueError("a packet addressed to a query arrives only "
+                             "inside a Forwarded record")
+        if arrived["to"] != receiver:
+            raise ValueError("forwarded to another mind")
+        broker = arrived["broker"]
+        if "brokers" in to and broker not in to["brokers"]:
+            raise ValueError("forwarded by a broker the packet does not "
+                             "list")
+    else:
+        raise ValueError("a packet addressed to a subject is reserved")
+    created = ts(packet["created"])
+    if created > at + SKEW_NS:
+        raise ValueError("created more than 300 seconds in the future")
+    if "expires" in packet:
+        expires = ts(packet["expires"])
+        if expires < at - SKEW_NS:
+            raise ValueError("expired more than 300 seconds ago")
+        if expires - created > (QUERY_LIFETIME_NS if query
+                                else PACKET_LIFETIME_NS):
+            raise ValueError("it lives longer than a packet may")
+    elif created < at - window and not holds_chain:
+        raise ValueError("older than the duplicate-detection window")
+    if broker is not None and V.signed_time(arrived, broker) is None:
+        raise ValueError("not signed by its broker")
+    if V.signed_time(packet, packet["from"]) is None:
+        raise ValueError("not signed by its sender")
+    return packet, broker
+
+
+def session_carried(packet):
+    """Layer 1, 14.2: the `Session` record a packet carries for its own
+    session, as a body or a part; None if it carries none."""
+    content = packet["content"]
+    for part in content.get("parts", [content]):
+        body = part.get("body")
+        if part.get("mediaType") == RECORD_MEDIA_TYPE and \
+           network_ok(body) and body["type"] == "Session" and \
+           content_id(body) == packet.get("session"):
+            return body
+    return None
+
+
+def session_chains(V, session, packets, receiver) -> dict:
+    """Layer 1, 14.2 and 14.3: what a participant holds of each sending
+    chain of a session once the packets given have arrived, in the order
+    given. `session` is the session's `Session` record. The receiver holds
+    nothing of the session to begin with, and has the record from the
+    first packet it keeps that carries it; until then it rejects a packet
+    that does not (14.2). After that, the order decides nothing.
+
+    A packet is kept if it names the session, comes from a participant,
+    lists every other participant in `to`, is signed by its sender's own
+    authority, and does not stand at `seq` 0 with a `prev`. Each arrival is
+    judged by the proofs it came with. A packet kept is a link of its chain
+    if it has `seq` 0, or if its `prev` is a link at the `seq` before its
+    own.
+
+    For each chain, by its sender, `#` and its instance: `links`, the chain
+    from `seq` 0 for as long as each place has exactly one link;
+    `equivocated`, whether any place has two links; `places`, for each
+    `seq` that has links, their content IDs in order; and `ahead`, how
+    many packets kept stand after a place that has no link."""
+    if not network_ok(session) or session["type"] != "Session":
+        raise ValueError("no Session record")
+    sid, members = content_id(session), session["participants"]
+    if receiver not in members:
+        raise ValueError("the receiver is not a participant")
+    known, chains = False, {}
+    for p in packets:
+        if not network_ok(p) or p["type"] != "Packet" or \
+           p.get("session") != sid:
+            continue
+        to, sender = p["to"], p["from"]
+        if sender not in members or not isinstance(to, list) or \
+           not all(m == sender or m in to for m in members) or \
+           (p["seq"] == 0 and "prev" in p) or \
+           V.signed_time(p, sender) is None:
+            continue
+        if not known and session_carried(p) is None:
+            continue
+        known = True
+        key = sender + "#" + p.get("instance", "")
+        chains.setdefault(key, {})[content_id(p)] = p
+    out = {}
+    for key, held in sorted(chains.items()):
+        places, before, seq = {}, None, 0
+        while True:
+            here = sorted(cid for cid, p in held.items() if p["seq"] == seq
+                          and (seq == 0 or p["prev"] in before))
+            if not here:
+                break
+            places[seq], before = here, set(here)
+            seq += 1
+        links = []
+        for n in range(seq):
+            if len(places[n]) != 1:
+                break
+            links.append(places[n][0])
+        out[key] = {
+            "links": links,
+            "equivocated": any(len(ids) > 1 for ids in places.values()),
+            "places": {str(n): ids for n, ids in places.items()},
+            "ahead": sum(1 for p in held.values() if p["seq"] > seq)}
+    return out
+
+
+def hello_mind(V, hello, origin, issued, at):
+    """Layer 1, 13.3: the mind a `Hello` authenticates to the server at
+    `origin`, at the time `at` on the server's clock, where `issued` maps
+    each challenge the server has issued and not seen used to the time it
+    issued it. None if the server rejects the `Hello`."""
+    if not network_ok(hello) or hello["type"] != "Hello" or \
+       len(hello["proof"]) != 1:
+        return None
+    p = hello["proof"][0]
+    challenge = p.get("challenge")
+    if p.get("domain") != origin or not isinstance(challenge, str) or \
+       challenge not in issued:
+        return None
+    since = at - ts(issued[challenge])
+    if not 0 <= since <= SKEW_NS:
+        return None
+    mind = hello["author"]
+    return mind if V.signed_time(hello, mind) is not None else None
+
+
+def ack_evidence(V, ack, packet):
+    """Layer 1, 13.2 and core 9.4, item 4: the digests of the proofs for
+    which an `Ack` is evidence, at its `received` time, to a verifier that
+    holds the packet it acknowledges. None if the `Ack` is not signed by
+    its author's own authority, or does not acknowledge this packet for
+    one of its recipients.
+
+    The proofs are those on the records in the packet's `content`, which
+    the packet's content ID covers, and those of the packet's own proofs
+    whose digests the `Ack` lists in `proofs`. Only proofs that verify are
+    proofs."""
+    if not network_ok(ack) or ack["type"] != "Ack" or \
+       not network_ok(packet) or packet["type"] != "Packet":
+        return None
+    to = packet["to"]
+    if isinstance(to, list):
+        if ack["author"] not in to:
+            return None
+    elif "query" not in to:
+        return None
+    if ack["packet"] != content_id(packet) or \
+       V.signed_time(ack, ack["author"]) is None:
+        return None
+    listed = set(ack.get("proofs", []))
+    found = {proof_digest(p) for p in packet["proof"]
+             if proof_digest(p) in listed and _proof_verifies(packet, p)}
+    content = packet["content"]
+    for part in content.get("parts", [content]):
+        body = part.get("body")
+        if part.get("mediaType") != RECORD_MEDIA_TYPE or \
+           not isinstance(body, dict) or \
+           not isinstance(body.get("proof"), list):
+            continue
+        found.update(proof_digest(p) for p in body["proof"]
+                     if isinstance(p, dict) and _proof_verifies(body, p))
+    return sorted(found)
+
+
+def _proof_verifies(record, p) -> bool:
+    """core 5.4: the proof verifies against the record under the key its
+    verification method names. Whose key that is, and whether it may sign,
+    is another question."""
+    try:
+        method = p.get("verificationMethod")
+        ref = parse_key_ref(method)
+        key = ref[2] if ref else parse_control_ref(method)
+        return bool(key) and verify_proof(record, p, key)
+    except (TypeError, ValueError, AttributeError, KeyError):
+        return False
+
+
 # ---------------------------------------------------------------- scenario
 
 
@@ -5324,6 +5763,446 @@ def build():
     # duplicitous mind, and the record pinned before the divergence counts.
     control("event-seen-after-a-tie-is-a-branch-too",
             branches=[[a_gen, a_upd_alt], [a_gen, a_upd_third]])
+    def network_cases():
+        """The cases of Layer 1, Sections 10 and 12 to 16. They come last, so
+        that every earlier case keeps its place in its list."""
+        def net(section, name, reason, kind, extra_logs=(), seen=None,
+                **members):
+            case = {"name": name, "reason": reason, "kind": kind, **members}
+            if extra_logs:
+                case["extraLogs"] = list(extra_logs)
+            if seen:
+                case["seen"] = seen
+            V[section].append(case)
+
+        def checkpoint_of(author, entries, key, vm, created, **changes):
+            ids = [content_id(e) for e in entries]
+            doc = {"oip": OIP_VERSION, "type": "Checkpoint", "author": author,
+                   "created": created, "size": len(ids), "head": ids[-1],
+                   "root": checkpoint_root(ids)}
+            doc.update(changes)
+            return signed(doc, key, vm)
+
+        # feeds
+        entry1_alt = signed({"oip": OIP_VERSION, "type": "Entry",
+                             "author": lexis, "seq": 1,
+                             "prev": content_id(entry),
+                             "created": "2026-10-30T10:24:00Z",
+                             "object": content_id(offer_glossary),
+                             "objectType": "Offer",
+                             "proofs": [proof_digest(p)
+                                        for p in offer_glossary["proof"]]},
+                            t_op, agent_vm)
+        entry0_prev = signed(variant(entry, prev=content_id(entry1)),
+                             t_op, agent_vm)
+        entry0_again = signed(variant(entry, created="2026-10-30T10:04:02Z"),
+                              t_op, agent_vm)
+        net("valid", "feed-held-in-another-order",
+            "A feed is the entries a verifier holds, in whatever order they "
+            "came. Each has its place by its `seq` and `prev`.", "feed",
+            author=lexis, entries=[entry1, entry])
+        net("valid", "feed-entry-held-in-two-copies",
+            "The same entry with other proofs is one entry (core 3.1; Layer "
+            "1, 10.1). A proof by another mind on one copy takes nothing from "
+            "it.", "feed", author=lexis,
+            entries=[entry, sign(entry, create_proof(
+                variant(entry), l_op, ltd_vm, "assertionMethod",
+                entry["created"])), entry1])
+        net("negative", "feed-with-two-entries-at-one-place",
+            "Two valid entries at `seq` 1 after the same entry are feed "
+            "equivocation (Layer 1, 10.3). The feed is verified up to the "
+            "entry before them, and no further.", "feed",
+            author=lexis, entries=[entry, entry1, entry1_alt])
+        net("negative", "feed-entry-after-a-gap",
+            "An entry counts only where it stands: after the valid entry its "
+            "`prev` names. With that entry not held, it has no place.", "feed",
+            author=lexis, entries=[entry1])
+        net("negative", "feed-first-entry-with-a-prev",
+            "An entry at `seq` 0 has no `prev`: one that has is not valid "
+            "(Layer 1, 10.1).", "feed", author=lexis, entries=[entry0_prev])
+        net("negative", "feed-of-another-mind",
+            "The entries are of the agent's feed. They are no entries of "
+            "Amina's.", "feed", author=amina, entries=[entry, entry1])
+        # Amina's feed, across the event that declares her phone key
+        # compromised since 31 Oct: what it signed before stands, and what it
+        # signed after is no entry.
+        cmp_logs = [[a_gen, a_upd, a_cmp]]
+        a_entry = signed({"oip": OIP_VERSION, "type": "Entry", "author": amina,
+                          "seq": 0, "created": "2026-10-30T12:00:00Z",
+                          "object": content_id(intent), "objectType": "Intent",
+                          "proofs": [proof_digest(p) for p in intent["proof"]]},
+                         a_op1, amina_vm1)
+        a_entry1 = {"oip": OIP_VERSION, "type": "Entry", "author": amina,
+                    "seq": 1, "prev": content_id(a_entry),
+                    "object": content_id(receipt), "objectType": "Receipt",
+                    "proofs": [proof_digest(p) for p in receipt["proof"]]}
+        a_entry1_lost = signed({**a_entry1, "created": "2026-10-31T06:00:00Z"},
+                               a_op1, amina_vm1)
+        a_entry1_kept = signed({**a_entry1, "created": "2026-11-02T09:00:00Z"},
+                               a_op2, amina_vm2)
+        net("negative", "feed-entry-by-a-key-since-compromised",
+            "Amina declared her phone key compromised since 31 Oct 00:00. An "
+            "entry it signed at 06:00 that day is invalid (Layer 1, 10.4).",
+            "feed", extra_logs=cmp_logs, author=amina,
+            entries=[a_entry, a_entry1_lost])
+        net("valid", "feed-goes-on-from-its-last-valid-entry",
+            "The entry the compromised key signed is no entry, so it is no "
+            "equivocation, and the feed goes on from the last valid entry "
+            "(Layer 1, 10.4). The checkpoint covers the two entries that "
+            "count.", "checkpoint", extra_logs=cmp_logs,
+            checkpoint=checkpoint_of(amina, [a_entry, a_entry1_kept], a_op2,
+                                     amina_vm2, "2026-11-02T10:00:00Z"),
+            entries=[a_entry, a_entry1_lost, a_entry1_kept])
+
+        # checkpoints
+        net("negative", "checkpoint-over-entries-not-held",
+            "A checkpoint is checked against the entries it covers. A "
+            "verifier that holds only the first cannot check a root over "
+            "two.", "checkpoint", checkpoint=checkpoint, entries=[entry])
+        net("negative", "checkpoint-with-the-leaves-in-another-order",
+            "`root` is the Merkle Tree Hash over the covered entries in `seq` "
+            "order (Layer 1, 10.5). This one is over the same two in the "
+            "other order.", "checkpoint",
+            checkpoint=checkpoint_of(lexis, [entry, entry1], t_op, agent_vm,
+                                     checkpoint["created"],
+                                     root=checkpoint_root(
+                                         [content_id(entry1),
+                                          content_id(entry)])),
+            entries=[entry, entry1])
+        net("negative", "checkpoint-head-not-its-last-entry",
+            "`head` is the content ID of the last entry covered (Layer 1, "
+            "10.5). This one names the first of two.", "checkpoint",
+            checkpoint=checkpoint_of(lexis, [entry, entry1], t_op, agent_vm,
+                                     checkpoint["created"],
+                                     head=content_id(entry)),
+            entries=[entry, entry1])
+        net("negative", "checkpoint-over-an-equivocated-feed",
+            "With two valid entries at `seq` 1 the feed is verified only up "
+            "to `seq` 0 (Layer 1, 10.3), so a checkpoint over two entries "
+            "covers more than verifies.", "checkpoint",
+            checkpoint=checkpoint, entries=[entry, entry1, entry1_alt])
+        net("negative", "checkpoint-signed-by-another-mind",
+            "A checkpoint is signed by the author of the feed. This one "
+            "names the agent as its author and carries a proof by Lexis Ltd.",
+            "checkpoint",
+            checkpoint=sign(variant(checkpoint), create_proof(
+                variant(checkpoint), l_op, ltd_vm, "assertionMethod",
+                checkpoint["created"])),
+            entries=[entry, entry1])
+
+        # packets that arrive (Layer 1, 12.4)
+        def arrives(section, name, reason, arrived, receiver, at, **more):
+            net(section, name, reason, "receive", arrived=arrived,
+                receiver=receiver, at=at, **more)
+
+        arrives("valid", "packet-arrives-within-its-dates",
+                "Signed by its sender, addressed to the receiver, made 5 "
+                "seconds ago and good until the evening.",
+                packet, amina, "2026-10-30T10:04:10Z")
+        arrives("negative", "packet-for-another-mind",
+                "`to` lists Amina. Lexis Ltd is not a recipient.",
+                packet, lexis_ltd, "2026-10-30T10:04:10Z")
+        arrives("negative", "packet-dated-ahead",
+                "`created` is 301 seconds ahead of the receiver's clock.",
+                packet, amina, "2026-10-30T09:59:04Z")
+        arrives("negative", "packet-expired",
+                "`expires` is 301 seconds behind the receiver's clock.",
+                packet, amina, "2026-10-30T22:05:01Z")
+        week = signed(variant(packet, expires="2026-11-06T10:04:05Z"),
+                      t_op, agent_vm)
+        over_week = signed(variant(packet, expires="2026-11-06T10:04:06Z"),
+                           t_op, agent_vm)
+        arrives("negative", "packet-that-lives-over-seven-days",
+                "`expires` is seven days and a second after `created`.",
+                over_week, amina, "2026-10-30T10:04:10Z")
+
+        def to_query(expires="2026-10-30T11:04:05Z", **to):
+            doc = variant(packet, to={"query": {"want": "A translator of "
+                                                "leases."}, **to},
+                          expires=expires)
+            for member in ("session", "seq"):
+                del doc[member]
+            return signed(doc, t_op, agent_vm)
+
+        def forwarded(inner, broker, key, vm, to=amina):
+            return signed({"oip": OIP_VERSION, "type": "Forwarded",
+                           "broker": broker, "to": to, "packet": inner,
+                           "created": "2026-10-30T10:04:08Z"}, key, vm)
+
+        asked = to_query()
+        arrives("negative", "packet-to-a-query-that-arrives-as-itself",
+                "A packet addressed to a query is accepted only inside a "
+                "`Forwarded` record from a broker (Layer 1, 12.4).",
+                asked, amina, "2026-10-30T10:04:10Z")
+        listed = to_query(brokers=[researcher])
+        arrives("negative", "packet-forwarded-by-a-broker-it-does-not-list",
+                "The packet lists its brokers, and Lexis Ltd, which forwarded "
+                "it, is not among them.",
+                forwarded(listed, lexis_ltd, l_op, ltd_vm), amina,
+                "2026-10-30T10:04:10Z")
+        arrives("negative", "packet-forwarded-to-another-mind",
+                "The `Forwarded` record is addressed to the researcher. Amina "
+                "did not get the packet from the broker.",
+                forwarded(asked, lexis_ltd, l_op, ltd_vm, to=researcher),
+                amina, "2026-10-30T10:04:10Z")
+        arrives("negative", "packet-forwarded-by-nobody",
+                "The `Forwarded` record names Lexis Ltd as the broker and is "
+                "signed by the researcher.",
+                forwarded(asked, lexis_ltd, r_op, res_vm), amina,
+                "2026-10-30T10:04:10Z")
+        arrives("negative", "packet-to-a-query-that-lives-over-an-hour",
+                "A packet addressed to a query expires at most one hour "
+                "after `created` (Layer 1, 12.1). This one has an hour and a "
+                "second.",
+                forwarded(to_query(expires="2026-10-30T11:04:06Z"), lexis_ltd,
+                          l_op, ltd_vm), amina, "2026-10-30T10:04:10Z")
+        arrives("valid", "packet-addressed-by-a-list-inside-a-forwarded-record",
+                "A packet whose `to` lists addresses is judged by its own "
+                "proof however it arrived. The wrapper, which nobody signed "
+                "for the broker it names, takes nothing from it (Layer 1, "
+                "12.4).",
+                forwarded(packet, lexis_ltd, r_op, res_vm, to=researcher),
+                amina, "2026-10-30T10:04:10Z")
+        lasting = variant(packet)
+        del lasting["expires"]
+        lasting = signed(lasting, t_op, agent_vm)
+        arrives("negative", "session-packet-older-than-the-window",
+                "A packet that states no `expires` is rejected when it is "
+                "older than the receiver's duplicate-detection window, here "
+                "an hour, unless the receiver still holds its sending chain.",
+                lasting, amina, "2026-10-30T11:04:06Z")
+
+        # sessions (Layer 1, Section 14)
+        def in_session(seq, prev, body, key=t_op, vm=agent_vm, sender=lexis,
+                       to=(amina,), carries=False, **more):
+            text = {"mediaType": "text/plain", "body": body}
+            doc = {"oip": OIP_VERSION, "type": "Packet", "from": sender,
+                   "to": list(to), "created": f"2026-10-30T10:1{seq}:00Z",
+                   "nonce": "c4d1e7a90b3f5a26", "session": content_id(session),
+                   "seq": seq, "purpose": {"verb": "inform"},
+                   "content": {"parts": [{"mediaType": RECORD_MEDIA_TYPE,
+                                          "body": session}, text]}
+                   if carries else text, **more}
+            if prev is not None:
+                doc["prev"] = content_id(prev)
+            return signed(doc, key, vm)
+
+        second = in_session(1, packet, "The first page is done.")
+        third = in_session(2, second, "The second page is done.")
+        reply = in_session(0, None, "Thank you.", a_op2, amina_vm2, amina,
+                           (lexis,), carries=True)
+
+        def chain(section, name, reason, packets, receiver=amina, **more):
+            net(section, name, reason, "chain", session=session,
+                packets=packets, receiver=receiver, **more)
+
+        chain("valid", "session-chain-in-order",
+              "Three packets of the agent's sending chain, each naming the "
+              "one before it, and the first carrying the `Session` record.",
+              [packet, second, third])
+        chain("valid", "session-chain-arrives-out-of-order",
+              "The third packet arrives before the second. It waits, and is "
+              "in order once the gap is filled (Layer 1, 14.3).",
+              [packet, third, second])
+        chain("valid", "session-chains-of-two-senders",
+              "Each sending chain numbers its own packets from `seq` 0. "
+              "The agent receives its own two and Amina's first.",
+              [packet, reply, second], receiver=lexis)
+        chain("negative", "session-packet-before-the-session-record",
+              "A receiver that does not hold the `Session` record rejects a "
+              "session packet that does not carry it (Layer 1, 14.2). The "
+              "second packet arrives first, and is not kept.",
+              [second, packet])
+        chain("negative", "session-chain-with-a-gap",
+              "The second packet never arrives. The third is not in order "
+              "until the gap is filled (Layer 1, 14.3).", [packet, third])
+        chain("negative", "session-chain-with-two-links-at-one-place",
+              "Two packets at `seq` 1 name the same first packet: "
+              "equivocation, treated as for a feed (Layer 1, 14.3).",
+              [packet, second, in_session(1, packet, "Another first page.")])
+        chain("negative", "session-packet-that-names-another-before-it",
+              "A packet at `seq` 2 whose `prev` is the first packet is no "
+              "link of its chain: the link before it is the second.",
+              [packet, second, in_session(2, packet, "The second page.")])
+        chain("negative", "session-packet-from-a-mind-that-is-no-participant",
+              "`from` is among the session's participants (Layer 1, 14.3). "
+              "Lexis Ltd is not.",
+              [packet, in_session(0, None, "May I join?", l_op, ltd_vm,
+                                  lexis_ltd, (amina, lexis), carries=True)])
+        session3 = {**session, "participants": sorted([amina, lexis,
+                                                       researcher])}
+        opening3 = signed({**variant(packet), "session": content_id(session3),
+                           "content": {"mediaType": RECORD_MEDIA_TYPE,
+                                       "body": session3}}, t_op, agent_vm)
+        net("negative", "session-packet-that-leaves-a-participant-out",
+            "`to` lists every other participant, so that none misses a link "
+            "(Layer 1, 14.3). The session has three participants, and the "
+            "packet is addressed to one.", "chain", session=session3,
+            packets=[opening3], receiver=amina)
+
+        # acknowledgements (Layer 1, 13.2) and authentication (13.3)
+        net("valid", "ack-of-the-packet-it-names",
+            "Amina acknowledges the packet addressed to her. The `Ack` is "
+            "evidence for the proof on the Offer the packet carries, which "
+            "the packet's content ID covers.", "ack", ack=ack, packet=packet)
+        net("negative", "ack-by-a-mind-the-packet-is-not-addressed-to",
+            "An `Ack` is signed by a recipient (Layer 1, 13.2). The "
+            "researcher is not one of this packet's.", "ack",
+            ack=signed({**variant(ack), "author": researcher}, r_op, res_vm),
+            packet=packet)
+        net("negative", "ack-of-another-packet",
+            "The `Ack` names the packet it acknowledges by content ID. This "
+            "packet has another.", "ack", ack=ack, packet=week)
+        challenge = hello["proof"][0]["challenge"]
+        origin = hello["proof"][0]["domain"]
+
+        def greets(section, name, reason, record, at="2026-10-30T10:06:05Z",
+                   issued="2026-10-30T10:05:55Z", at_origin=origin, **more):
+            net(section, name, reason, "hello", hello=record, origin=at_origin,
+                issued={challenge: issued}, at=at, **more)
+
+        greets("valid", "hello-over-a-fresh-challenge",
+               "The proof is over a challenge the server issued ten seconds "
+               "ago, for the server's own origin, by a key in the agent's "
+               "latest state.", hello)
+        greets("negative", "hello-for-another-origin",
+               "`domain` is the origin the client connected to. A server at "
+               "another origin cannot use the proof (Layer 1, 13.3).", hello,
+               at_origin="https://relay.example")
+        greets("negative", "hello-over-a-stale-challenge",
+               "The challenge was issued 301 seconds ago.", hello,
+               at="2026-10-30T10:10:56Z")
+        net("negative", "hello-over-a-challenge-the-server-did-not-issue",
+            "The server holds no such challenge: it issued another.", "hello",
+            hello=hello, origin=origin, at="2026-10-30T10:06:05Z",
+            issued={"Zr5tQ1nB8yK3mW7pX0aV2c": "2026-10-30T10:05:55Z"})
+        hello_doc = variant(hello)
+        greets("negative", "hello-with-two-proofs",
+               "A `Hello` carries a single proof (Layer 1, 13.3).",
+               sign(hello, create_proof(hello_doc, t_op, agent_vm,
+                                        "authentication",
+                                        "2026-10-30T10:06:01Z",
+                                        challenge=challenge, domain=origin)))
+
+        # locations (Layer 1, Section 15) and profiles (Section 16)
+        def located(seq, key=t_op, vm=agent_vm, **changes):
+            return signed(variant(location, seq=seq, **changes), key, vm)
+
+        newer = located(2, created="2026-10-30T11:00:00Z")
+        net("valid", "location-with-the-highest-seq",
+            "Among the location records that count, the one with the highest "
+            "`seq` is current (Layer 1, 15.2).", "location", record=newer,
+            records=[location])
+        net("negative", "location-superseded-by-a-higher-seq",
+            "A record with `seq` 2 counts, so the record with `seq` 1 is not "
+            "current.", "location", record=location, records=[newer])
+        twin = located(1, ttl=600)
+        low, high = sorted([location, twin], key=content_id)
+        net("negative", "location-with-the-higher-content-id-of-two",
+            "Two records share the highest `seq`: the one with the lower "
+            "content ID is current (Layer 1, 15.2).", "location", record=high,
+            records=[low])
+        a_located = signed({**variant(location), "author": amina, "seq": 9,
+                            "created": "2026-11-01T09:00:00Z"},
+                           a_op1, amina_vm1)
+        for member in ("participant", "feed", "homes"):
+            del a_located[member]
+        a_located = signed(variant(a_located), a_op1, amina_vm1)
+        net("negative", "location-signed-by-a-key-since-removed",
+            "A location record describes the present. Amina removed her "
+            "phone key on 2 Nov, so the record it signed counts no longer, "
+            "however high its `seq` (Layer 1, 15.2).", "location",
+            extra_logs=[[a_gen, a_upd, a_rm]], record=a_located)
+        net("valid", "profile-named-by-the-current-location",
+            "The current profile is the one the current location record "
+            "names (Layer 1, 16.4).", "participant", record=participant,
+            locations=[location])
+        renamed = signed(variant(participant, name="Lexis Legal Translation",
+                                 created="2026-10-30T10:20:00Z"),
+                         t_op, agent_vm)
+        net("negative", "profile-the-current-location-does-not-name",
+            "The location record names the agent's first profile, which is "
+            "held and counts. A later profile is not current for being "
+            "later.", "participant", record=renamed, records=[participant],
+            locations=[location])
+        net("negative", "profile-of-another-kind-of-mind",
+            "`kind` equals the kind in the mind's identity state (Layer 1, "
+            "16.1). The agent's log says `agent`.", "participant",
+            record=signed(variant(participant, kind="human"), t_op, agent_vm))
+        profile_entry = signed({"oip": OIP_VERSION, "type": "Entry",
+                                "author": lexis, "seq": 0,
+                                "created": "2026-10-30T10:21:00Z",
+                                "object": content_id(renamed),
+                                "objectType": "Participant"}, t_op, agent_vm)
+        net("valid", "profile-published-in-the-feed",
+            "With no location record held, the current profile is the most "
+            "recent one that counts among those the feed publishes (Layer 1, "
+            "16.4).", "participant", record=renamed, entries=[profile_entry])
+
+        by_name.update({case["name"]: case for case in neg})
+        # The Mind Network: each negative with the one thing its reason names
+        # put right.
+        control("feed-with-two-entries-at-one-place", entries=[entry, entry1])
+        control("feed-entry-after-a-gap", entries=[entry, entry1])
+        control("feed-first-entry-with-a-prev", entries=[entry0_again])
+        control("feed-of-another-mind", author=lexis)
+        # The same entries, where the key was removed and not declared
+        # compromised: what it signed before the removal stands.
+        control("feed-entry-by-a-key-since-compromised",
+                extraLogs=[[a_gen, a_upd, a_rm]])
+        control("checkpoint-over-entries-not-held", entries=[entry, entry1])
+        control("checkpoint-with-the-leaves-in-another-order",
+                checkpoint=checkpoint)
+        control("checkpoint-head-not-its-last-entry", checkpoint=checkpoint)
+        control("checkpoint-over-an-equivocated-feed", entries=[entry, entry1])
+        control("checkpoint-signed-by-another-mind", checkpoint=checkpoint)
+        control("packet-for-another-mind", receiver=amina)
+        control("packet-dated-ahead", at="2026-10-30T09:59:05Z")
+        control("packet-expired", at="2026-10-30T22:05:00Z")
+        control("packet-that-lives-over-seven-days", arrived=week)
+        control("packet-to-a-query-that-arrives-as-itself",
+                arrived=forwarded(asked, lexis_ltd, l_op, ltd_vm))
+        control("packet-forwarded-by-a-broker-it-does-not-list",
+                arrived=forwarded(to_query(brokers=[lexis_ltd]), lexis_ltd,
+                                  l_op, ltd_vm))
+        control("packet-forwarded-to-another-mind",
+                arrived=forwarded(asked, lexis_ltd, l_op, ltd_vm))
+        control("packet-forwarded-by-nobody",
+                arrived=forwarded(asked, lexis_ltd, l_op, ltd_vm))
+        control("packet-to-a-query-that-lives-over-an-hour",
+                arrived=forwarded(asked, lexis_ltd, l_op, ltd_vm))
+        control("session-packet-older-than-the-window", holdsChain=True)
+        control("session-packet-before-the-session-record",
+                packets=[packet, second])
+        control("session-chain-with-a-gap", packets=[packet, second, third])
+        control("session-chain-with-two-links-at-one-place",
+                packets=[packet, second])
+        control("session-packet-that-names-another-before-it",
+                packets=[packet, second, third])
+        control("session-packet-from-a-mind-that-is-no-participant",
+                packets=[packet])
+        control("session-packet-that-leaves-a-participant-out",
+                packets=[signed({**variant(opening3),
+                                 "to": [amina, researcher]}, t_op, agent_vm)])
+        control("ack-by-a-mind-the-packet-is-not-addressed-to", ack=ack)
+        control("ack-of-another-packet", packet=packet)
+        control("hello-for-another-origin", origin=origin)
+        control("hello-over-a-stale-challenge", at="2026-10-30T10:10:55Z")
+        control("hello-over-a-challenge-the-server-did-not-issue",
+                issued={challenge: "2026-10-30T10:05:55Z"})
+        control("hello-with-two-proofs", hello=hello)
+        control("location-superseded-by-a-higher-seq", records=None)
+        control("location-with-the-higher-content-id-of-two", record=low,
+                records=[high])
+        # With the key still among her keys, the record counts.
+        control("location-signed-by-a-key-since-removed", extraLogs=None)
+        control("profile-the-current-location-does-not-name",
+                locations=None, records=None,
+                entries=[profile_entry])
+        control("profile-of-another-kind-of-mind", record=participant,
+                locations=[location])
+
+    network_cases()
     return V
 
 
@@ -5545,11 +6424,111 @@ def _case_verifier(c, case):
                         case.get("branches", ()))
 
 
+def _feed_case(V, case):
+    """`feed`: the values in `entries`, taken together, are the feed of
+    `author`: each is an entry of it, and they verify from `seq` 0 with
+    no equivocation and nothing left over."""
+    values, author = case["entries"], case["author"]
+    feed = verify_feed(V, values, author)
+    ids = {content_id(v) for v in values
+           if network_ok(v) and v["type"] == "Entry" and
+           v["author"] == author}
+    whole = all(network_ok(v) and v["type"] == "Entry" and
+                v["author"] == author for v in values) and \
+        len(feed["entries"]) == len(ids) and not feed["equivocation"]
+    return whole, {"verified": len(feed["entries"]),
+                   "equivocation": feed["equivocation"]}
+
+
+def _checkpoint_case(V, case):
+    """`checkpoint`: the checkpoint is valid for the feed that `entries`
+    verify as."""
+    covered = checkpoint_covers(V, case["checkpoint"], case["entries"])
+    return covered is not None, covered
+
+
+def _receive_case(V, case):
+    """`receive`: the receiver accepts what arrived, at `at` on its clock.
+    `window`, in seconds, is its duplicate-detection window (an hour if
+    absent), and `holdsChain` says that it still holds the state of the
+    packet's sending chain."""
+    try:
+        packet, broker = receive(
+            V, case["arrived"], case["receiver"], ts(case["at"]),
+            case["window"] * 10**9 if "window" in case else HOUR_NS,
+            case.get("holdsChain") is True)
+    except ValueError:
+        return False, None
+    return True, {"packet": content_id(packet), "broker": broker}
+
+
+def _chain_case(V, case):
+    """`chain`: a participant that holds nothing of the session takes the
+    packets in the order given, and every one of them is a link of its
+    sending chain, from `seq` 0, with no chain equivocated."""
+    chains = session_chains(V, case["session"], case["packets"],
+                            case["receiver"])
+    given = {content_id(p) for p in case["packets"] if isinstance(p, dict)}
+    linked = {cid for chain in chains.values() for cid in chain["links"]}
+    whole = all(isinstance(p, dict) for p in case["packets"]) and \
+        given == linked and \
+        not any(chain["equivocated"] for chain in chains.values())
+    return whole, chains
+
+
+def _hello_case(V, case):
+    """`hello`: the server at `origin` accepts the `Hello` at `at`, having
+    issued the challenges of `issued` at the times given."""
+    mind = hello_mind(V, case["hello"], case["origin"], case["issued"],
+                      ts(case["at"]))
+    return mind is not None, mind
+
+
+def _ack_case(V, case):
+    """`ack`: the `Ack` is signed by its author and acknowledges the
+    packet for one of its recipients."""
+    proofs = ack_evidence(V, case["ack"], case["packet"])
+    return proofs is not None, proofs
+
+
+def _location_case(V, case):
+    """`location`: `record` is the current location record of its author
+    among `records` and itself."""
+    record = case["record"]
+    current = current_location(V, record.get("author"),
+                               [record, *case.get("records", [])])
+    cid = None if current is None else content_id(current)
+    return cid is not None and cid == content_id(record), cid
+
+
+def _participant_case(V, case):
+    """`participant`: `record` is the current profile of its author, given
+    the location records and the feed entries held."""
+    record = case["record"]
+    current = current_participant(
+        V, record.get("author"), [record, *case.get("records", [])],
+        case.get("locations", []), case.get("entries", []))
+    cid = None if current is None else content_id(current)
+    return cid is not None and cid == content_id(record), cid
+
+
+# The kinds of case of Layer 1, Sections 10 and 12 to 16. Each function
+# gives whether the case's claim holds, and what was computed on the way,
+# which a differential test compares too.
+NETWORK_KINDS = {"feed": _feed_case, "checkpoint": _checkpoint_case,
+                 "receive": _receive_case, "chain": _chain_case,
+                 "hello": _hello_case, "ack": _ack_case,
+                 "location": _location_case,
+                 "participant": _participant_case}
+
+
 def _holds(c, case) -> bool:
     """Whether a case's claim holds: the log verifies, the record counts
     for (or was sent for) the mind, the status or assurance is `expect`,
-    the record is well formed, or the text is JSON within the profile of
-    core Section 1."""
+    the record is well formed, the text is JSON within the profile of
+    core Section 1, or what a network case says of a feed, a checkpoint,
+    a packet that arrives, a session's chains, a `Hello`, an `Ack`, a
+    location record or a profile is so."""
     kind = case["kind"]
     if kind == "json":
         return json_ok(case["text"])
@@ -5572,6 +6551,8 @@ def _holds(c, case) -> bool:
         return bridge_assurance(V, case["record"]) == case["expect"]
     if kind == "record":
         return record_ok(case["record"])
+    if kind in NETWORK_KINDS:
+        return NETWORK_KINDS[kind](V, case)[0]
     raise ValueError(f"unknown case kind {kind}")
 
 
@@ -5580,7 +6561,9 @@ def judge(c, case) -> dict:
     testing against another implementation. `holds` says whether the case's
     claim holds, as _holds() does. For `status` and `assurance` cases,
     `value` is the result computed, whatever `expect` says (and `expect`
-    may be absent). Four further kinds are questions, not cases:
+    may be absent). For the network kinds, `value` is what was worked out
+    on the way (see NETWORK_KINDS). Four further kinds are questions, not
+    cases:
     `didDocument` gives the resolution of `mind` (at `versionId`, if
     given), `lineage` the lineage of `mind`, `intake` how far the copy in
     `log` verifies and whether the event after that is invalid or
@@ -5620,6 +6603,11 @@ def judge(c, case) -> dict:
             # Not a kind of case in the vectors either: whether a policy
             # holds for a record (Layer 1, 11.3), with no log and no chain.
             out["holds"] = bool(policy_ok(case["policy"], case["record"]))
+        elif kind in NETWORK_KINDS:
+            holds, value = NETWORK_KINDS[kind](_case_verifier(c, case), case)
+            out["holds"] = bool(holds)
+            if holds or kind in ("feed", "chain", "location", "participant"):
+                out["value"] = value
         else:
             out["holds"] = bool(_holds(c, case))
     except RecursionError:

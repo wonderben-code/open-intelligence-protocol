@@ -54,8 +54,8 @@ export function viewFor(vectors: Vectors, vectorCase: VectorCase): VerifierView 
 /**
  * Whether a case's claim holds for the implementation: the log verifies, the
  * record counts for (or was sent for) the mind, the status or assurance is
- * the one expected, the record is well formed, or the text is JSON within
- * the profile. `undefined` when the adapter lacks the method the case needs,
+ * the one expected, the record is well formed, the text is JSON within the
+ * profile, or what a case of the Mind Network says is so. `undefined` when the adapter lacks the method the case needs,
  * or says that it does not judge the case yet.
  *
  * It lets an exception from the adapter through. A verifier judges hostile
@@ -89,6 +89,22 @@ export function claimHolds(
       return verdict(adapter.recordIsWellFormed?.(vectorCase.record));
     case "json":
       return verdict(adapter.jsonIsWithinProfile?.(vectorCase.text));
+    case "feed":
+      return held(adapter.feed?.(vectorCase, view));
+    case "checkpoint":
+      return held(adapter.checkpoint?.(vectorCase, view));
+    case "receive":
+      return held(adapter.receive?.(vectorCase, view));
+    case "chain":
+      return held(adapter.chain?.(vectorCase, view));
+    case "hello":
+      return held(adapter.hello?.(vectorCase, view));
+    case "ack":
+      return held(adapter.ack?.(vectorCase, view));
+    case "location":
+      return held(adapter.location?.(vectorCase, view));
+    case "participant":
+      return held(adapter.participant?.(vectorCase, view));
   }
 }
 
@@ -102,6 +118,14 @@ function verdict(answer: unknown): boolean {
     throw new TypeError(`the adapter answered ${describe(answer)}, not true or false`);
   }
   return answer;
+}
+
+/** Whether the claim of a network case holds, from an answer that says so with `holds`. */
+function held(answer: unknown): boolean {
+  if (typeof answer !== "object" || answer === null) {
+    throw new TypeError(`the adapter answered ${describe(answer)}, not an answer with \`holds\``);
+  }
+  return verdict((answer as { readonly holds?: unknown }).holds);
 }
 
 function named(answer: unknown): string {
@@ -335,6 +359,12 @@ export interface PositiveCheck {
   readonly milestone: string;
   /** Returns `undefined` when the adapter cannot run it yet, or a list of mismatches (empty for a pass). */
   run(adapter: ConformanceAdapter, vectors: Vectors): string[] | undefined;
+}
+
+/** Whether two lists hold the same strings, in whatever order. */
+function sameSet(a: readonly string[], b: readonly string[]): boolean {
+  const [left, right] = [new Set(a), new Set(b)];
+  return left.size === right.size && [...left].every((one) => right.has(one));
 }
 
 const later = (name: string, milestone: string): PositiveCheck => ({
@@ -789,8 +819,114 @@ export const POSITIVE_CHECKS: readonly PositiveCheck[] = [
       return mismatches;
     },
   },
-  later("feed entries commit to proofs; checkpoint Merkle root", "M4"),
-  later("packet opens its session; Ack names the packet", "M4"),
+  {
+    name: "feed entries commit to proofs; checkpoint Merkle root",
+    milestone: "M4",
+    run(adapter, vectors) {
+      const id = adapter.contentId?.bind(adapter);
+      const feed = adapter.feed?.bind(adapter);
+      const checkpoint = adapter.checkpoint?.bind(adapter);
+      const ack = adapter.ack?.bind(adapter);
+      if (id === undefined || feed === undefined || checkpoint === undefined || ack === undefined) {
+        return undefined;
+      }
+      const view = baselineView(vectors);
+      const [entry, entry1] = [
+        namedRecord(vectors, "feed_entry"),
+        namedRecord(vectors, "feed_entry_1"),
+      ];
+      const entries = [entry, entry1];
+      const author = addressOf(vectors, "lexis_agent");
+      const mismatches: string[] = [];
+      if (entry["object"] !== id(namedRecord(vectors, "offer"))) {
+        mismatches.push("feed_entry does not name the offer");
+      }
+      if (entry1["prev"] !== id(entry)) mismatches.push("feed_entry_1 does not name feed_entry");
+      const location = namedRecord(vectors, "location")["feed"] as JsonObject | undefined;
+      if (location?.["head"] !== id(entry)) {
+        mismatches.push("the location record does not name feed_entry as the head of the feed");
+      }
+      const read = feed({ kind: "feed", name: "the feed", author, entries }, view);
+      if (!read.holds || read.value.verified !== 2) {
+        mismatches.push("the two entries do not verify as the agent's feed");
+      }
+      const covered = checkpoint(
+        {
+          kind: "checkpoint",
+          name: "the checkpoint",
+          checkpoint: namedRecord(vectors, "checkpoint"),
+          entries,
+        },
+        view,
+      );
+      const committed = entries.flatMap((one) => one["proofs"] as string[]);
+      if (!sameSet(covered.value ?? [], committed)) {
+        mismatches.push("the checkpoint does not cover the proofs its two entries commit to");
+      }
+      // The first entry commits to the proofs on the offer. The packet carries the offer, so
+      // those are the proofs its acknowledgement is evidence for.
+      const acknowledged = ack(
+        {
+          kind: "ack",
+          name: "the acknowledgement",
+          ack: namedRecord(vectors, "ack"),
+          packet: namedRecord(vectors, "packet"),
+        },
+        view,
+      );
+      if (!sameSet(acknowledged.value ?? [], entry["proofs"] as string[])) {
+        mismatches.push("feed_entry does not commit to the proofs on the offer");
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "packet opens its session; Ack names the packet",
+    milestone: "M4",
+    run(adapter, vectors) {
+      const id = adapter.contentId?.bind(adapter);
+      const receive = adapter.receive?.bind(adapter);
+      const chain = adapter.chain?.bind(adapter);
+      const ack = adapter.ack?.bind(adapter);
+      if (id === undefined || receive === undefined || chain === undefined || ack === undefined) {
+        return undefined;
+      }
+      const view = baselineView(vectors);
+      const packet = namedRecord(vectors, "packet");
+      const session = namedRecord(vectors, "session");
+      const receiver = addressOf(vectors, "amina");
+      const mismatches: string[] = [];
+      if (packet["session"] !== id(session))
+        mismatches.push("the packet does not name the session");
+      const arrived = receive(
+        {
+          kind: "receive",
+          name: "the packet",
+          arrived: packet,
+          receiver,
+          at: "2026-10-30T10:04:10Z",
+        },
+        view,
+      );
+      if (arrived.value?.packet !== id(packet)) mismatches.push("Amina does not accept the packet");
+      const chains = chain(
+        { kind: "chain", name: "the session", session, packets: [packet], receiver },
+        view,
+      );
+      const delivered = Object.values(chains.value).flatMap((one) => one.delivered);
+      if (!chains.holds || delivered.length !== 1 || delivered[0] !== id(packet)) {
+        mismatches.push("the packet does not open its sender's chain in the session");
+      }
+      const acknowledged = ack(
+        { kind: "ack", name: "the acknowledgement", ack: namedRecord(vectors, "ack"), packet },
+        view,
+      );
+      if (namedRecord(vectors, "ack")["packet"] !== id(packet) || !acknowledged.holds) {
+        mismatches.push("the Ack does not acknowledge the packet");
+      }
+      return mismatches;
+    },
+  },
   later("a bridged mind, attested in its gateway's feed", "M9"),
 ];
 

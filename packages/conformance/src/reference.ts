@@ -23,21 +23,41 @@ import {
   didDocument,
   type EvidenceView,
   FirstSeen,
+  type JudgedRecord,
   judgeRecord,
   lineage,
   LogBook,
+  ownSignedTime,
   verifyLog,
   witnessLog,
 } from "@oip/identity";
 import {
+  ackEvidence,
+  currentLocation,
+  currentParticipant,
+  type ReceivedPacket,
+  receivePacket,
+  Sessions,
+  verifyAck,
+  verifyCheckpoint,
+  verifyFeed,
+  verifyHello,
+} from "@oip/net";
+import {
   isRecordType,
+  type Packet,
   validateExtensionRecord,
   validateRecord,
   type Validation,
 } from "@oip/schema";
 import { countsFor, status, type WebRecords, WebRecordSet } from "@oip/web";
 
-import { type ConformanceAdapter, type VerifierView } from "./adapter.ts";
+import {
+  type ChainReading,
+  type ConformanceAdapter,
+  type NetworkAnswer,
+  type VerifierView,
+} from "./adapter.ts";
 import type { JsonObject } from "./vectors.ts";
 
 /**
@@ -122,6 +142,37 @@ function recordsOf(view: VerifierView): RecordSet {
   const records = new RecordSet();
   for (const record of [...view.records, ...view.extraRecords]) records.add(record);
   return records;
+}
+
+const SECOND = 1_000_000_000n;
+const HOUR = 3600n * SECOND;
+
+/** The records among `values` that are well formed, each as judged. */
+function judgedAmong(values: readonly unknown[]): JudgedRecord[] {
+  return values.flatMap((value) => {
+    const judged = judgeRecord(value);
+    return judged.ok ? [judged.value] : [];
+  });
+}
+
+/** An answer whose claim holds when there is a value. */
+function found<T>(value: T | undefined): NetworkAnswer<T | null> {
+  return { holds: value !== undefined, value: value ?? null };
+}
+
+/** In the order of code points, as the Python checker sorts. */
+function inOrder(strings: Iterable<string>): string[] {
+  return [...strings].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/** The content ID of a value, if it has one. */
+function idOf(value: unknown): string | undefined {
+  try {
+    return contentId(value);
+  } catch {
+    // A value with no canonical form is no record.
+    return undefined;
+  }
 }
 
 /**
@@ -223,6 +274,171 @@ export const referenceAdapter: ConformanceAdapter = {
     if (!log.ok) return undefined;
     const resolved = didDocument(log.value, versionId === undefined ? {} : { versionId });
     return resolved.ok ? resolved.value : undefined;
+  },
+  feed: ({ entries, author }, view) => {
+    const feed = verifyFeed(entries, author, bookFor(view, entries));
+    if (!feed.ok) return { holds: false, value: { verified: 0, equivocation: [] } };
+    const { entries: verified, equivocation, refused } = feed.value;
+    const given = new Set(entries.map(idOf));
+    return {
+      holds: refused.length === 0 && equivocation.length === 0 && verified.length === given.size,
+      value: { verified: verified.length, equivocation: equivocation.map((entry) => entry.id) },
+    };
+  },
+  checkpoint: ({ checkpoint, entries }, view) => {
+    const book = bookFor(view, [checkpoint, entries]);
+    const judged = judgeRecord(checkpoint);
+    const author = (checkpoint as { author?: unknown }).author;
+    if (!judged.ok || typeof author !== "string") return found<readonly string[]>(undefined);
+    const feed = verifyFeed(entries, author, book);
+    if (!feed.ok) return found<readonly string[]>(undefined);
+    const covered = verifyCheckpoint(judged.value, feed.value, book);
+    return found(covered.ok ? inOrder(covered.value.proofs) : undefined);
+  },
+  receive: ({ arrived, receiver, at, window, holdsChain }, view) => {
+    const now = parseTimestamp(at);
+    if (now === undefined) return found<{ packet: string; broker: string | null }>(undefined);
+    const received = receivePacket(arrived, {
+      address: receiver,
+      now,
+      view: bookFor(view, arrived),
+      accepted: () => false,
+      window: window === undefined ? HOUR : BigInt(window) * SECOND,
+      holdsChain: () => holdsChain === true,
+    });
+    return found(
+      received.ok
+        ? { packet: received.value.id, broker: received.value.broker ?? null }
+        : undefined,
+    );
+  },
+  chain: ({ session, packets, receiver }, view) => {
+    const book = bookFor(view, packets);
+    const sessionId = idOf(session);
+    const sessions = new Sessions(receiver);
+    const chains = new Map<string, { delivered: string[]; waited: Map<string, number> }>();
+    let whole = true;
+    // Each arrival is judged as it comes. One that is not taken says nothing against the
+    // packet, which may come again: the claim is about the packets, by their content IDs.
+    for (const value of packets) {
+      const judged = judgeRecord(value);
+      const packet = judged.ok ? (judged.value.record as Packet) : undefined;
+      const time =
+        judged.ok && packet?.type === "Packet"
+          ? ownSignedTime(judged.value, packet.from, book)
+          : undefined;
+      if (
+        !judged.ok ||
+        packet === undefined ||
+        time === undefined ||
+        packet.session !== sessionId
+      ) {
+        continue;
+      }
+      const id = contentId(packet);
+      const received: ReceivedPacket = {
+        id,
+        packet,
+        judged: judged.value,
+        time,
+        duplicate: false,
+        forgetAfter: ALWAYS,
+        broker: undefined,
+      };
+      const placed = sessions.take(received);
+      if (!placed.ok) continue;
+      const key = `${packet.from}#${packet.instance ?? ""}`;
+      let chain = chains.get(key);
+      if (chain === undefined) {
+        chain = { delivered: [], waited: new Map() };
+        chains.set(key, chain);
+      }
+      if (placed.value.kind === "waiting") chain.waited.set(id, packet.seq ?? 0);
+      if (placed.value.kind === "in order") {
+        for (const one of placed.value.delivered) {
+          chain.delivered.push(one.id);
+          chain.waited.delete(one.id);
+        }
+      }
+    }
+    const value: Record<string, ChainReading> = {};
+    for (const key of inOrder(chains.keys())) {
+      const chain = chains.get(key);
+      if (chain === undefined) continue;
+      const [from = "", instance = ""] = key.split("#");
+      const equivocation =
+        sessionId === undefined
+          ? undefined
+          : sessions.equivocation({
+              session: sessionId,
+              from,
+              instance: instance === "" ? undefined : instance,
+            });
+      // What waited at a place the chain has reached was no link, and is kept no longer.
+      const ahead = [...chain.waited.values()].filter((seq) => seq > chain.delivered.length);
+      value[key] = {
+        delivered: chain.delivered,
+        equivocation:
+          equivocation === undefined
+            ? null
+            : { seq: equivocation.seq, packets: equivocation.packets },
+        ahead: ahead.length,
+      };
+      if (equivocation !== undefined || ahead.length > 0) whole = false;
+    }
+    const delivered = new Set(Object.values(value).flatMap((chain) => chain.delivered));
+    return {
+      holds: whole && packets.every((packet) => delivered.has(idOf(packet) ?? "")),
+      value,
+    };
+  },
+  hello: ({ hello, origin, issued, at }, view) => {
+    const now = parseTimestamp(at);
+    if (now === undefined) return found<string>(undefined);
+    const authenticated = verifyHello(hello, {
+      origin,
+      now,
+      view: bookFor(view, hello),
+      challenges: {
+        issuedAt: (challenge) =>
+          Object.hasOwn(issued, challenge) ? parseTimestamp(issued[challenge]) : undefined,
+        use: () => undefined,
+      },
+    });
+    return found(authenticated.ok ? authenticated.value.mind : undefined);
+  },
+  ack: ({ ack, packet }, view) => {
+    const verified = verifyAck(ack, { view: bookFor(view, [ack, packet]) });
+    const judged = judgeRecord(packet);
+    if (!verified.ok || !judged.ok) return found<readonly string[]>(undefined);
+    const evidence = ackEvidence(verified.value, judged.value);
+    return found(evidence === undefined ? undefined : inOrder(evidence.proofs));
+  },
+  location: ({ record, records = [] }, view) => {
+    const mind = (record as { author?: unknown }).author;
+    const all = [record, ...records];
+    const current =
+      typeof mind === "string"
+        ? currentLocation(judgedAmong(all), mind, bookFor(view, all))
+        : undefined;
+    return {
+      holds: current !== undefined && current.id === idOf(record),
+      value: current?.id ?? null,
+    };
+  },
+  participant: ({ record, records = [], locations = [], entries = [] }, view) => {
+    const mind = (record as { author?: unknown }).author;
+    if (typeof mind !== "string") return { holds: false, value: null };
+    const book = bookFor(view, [record, records, locations, entries]);
+    const feed = verifyFeed(entries, mind, book);
+    const current = currentParticipant(judgedAmong([record, ...records]), mind, book, {
+      location: currentLocation(judgedAmong(locations), mind, book),
+      feed: feed.ok ? feed.value : undefined,
+    });
+    return {
+      holds: current !== undefined && current.id === idOf(record),
+      value: current?.id ?? null,
+    };
   },
   canonicalize,
   contentId,

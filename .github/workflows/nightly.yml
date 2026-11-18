@@ -5,7 +5,8 @@ name: Nightly
 
 # The longer campaigns that are too slow for every push: differential testing
 # against the Python checker with many more generated cases, a million
-# generated identity logs, and delegation chains, policies and statuses.
+# generated identity logs, delegation chains, policies and statuses, and
+# the records of the Mind Network.
 
 on:
   schedule:
@@ -21,6 +22,9 @@ on:
       delegation:
         description: Generated delegation chains, and as many statuses (four times as many policies)
         default: "30000"
+      network:
+        description: Generated checkpoints, and as many of each other network record (twice as many feeds and sessions, three times as many arrivals)
+        default: "20000"
 
 permissions:
   contents: read
@@ -74,6 +78,33 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Delegation and status against the Python checker
         run: pnpm test:differential:delegation
+
+  # BUILD.md, W1: the Mind Network against the Python checker, each night:
+  # 40,000 feeds, 20,000 checkpoints, 60,000 arrivals of a packet, 40,000
+  # sessions, and 20,000 each of Hello records, acknowledgements, sets of
+  # location records and profiles.
+  network:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      OIP_REQUIRE_PYTHON: "1"
+      OIP_DIFFERENTIAL_NETWORK: ${{ inputs.network || '20000' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --require-hashes -r .github/requirements/vector-checker.txt
+      - run: pnpm install --frozen-lockfile
+      - name: The Mind Network against the Python checker
+        run: pnpm test:differential:network
 
   # BUILD.md, M2: a million generated identity logs each night. Six jobs of
   # 170,625 logs each (105,000 of key-controlled minds, 52,500 of collectives

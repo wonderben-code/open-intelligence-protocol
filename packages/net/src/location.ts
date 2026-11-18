@@ -6,10 +6,11 @@
  * and in what order a sender tries its endpoints.
  */
 
-import { contentId, type Instant } from "@oip/core";
+import type { Instant } from "@oip/core";
 import { type IdentityView, type JudgedRecord, ownSignedTime } from "@oip/identity";
 import type { Endpoint, Location } from "@oip/schema";
 
+import { oneOfEach } from "./copies.ts";
 import { finding } from "./result.ts";
 
 /** A location record that counts for its mind. */
@@ -32,6 +33,10 @@ export interface HeldLocation {
  * removed counts no longer, however high its `seq`, so nobody who held a
  * key can lock the mind out.
  *
+ * A record held in several copies is one record, judged with the proofs of
+ * them all (core 3.1): the members of a collective may each have sent the
+ * copy that carries their own proof.
+ *
  * @param records - The records held, from `judgeRecord`. Those that are no
  *   location record of this mind are passed over.
  * @returns `undefined` if no record held counts.
@@ -51,13 +56,14 @@ function locationAmong(
   view: IdentityView,
 ): HeldLocation | undefined {
   let current: HeldLocation | undefined;
-  for (const judged of records) {
-    const { type, author } = judged.record as { type: string; author?: unknown };
-    if (type !== "Location" || author !== mind) continue;
+  const held = oneOfEach(records, (record) => {
+    const { type, author } = record as { type: string; author?: unknown };
+    return type === "Location" && author === mind;
+  });
+  for (const [id, judged] of held) {
     const record = judged.record as Location;
     // A record that cannot win is not judged: its signature is the costly part.
     if (current !== undefined && record.seq < current.record.seq) continue;
-    const id = contentId(record);
     if (record.seq === current?.record.seq && id >= current.id) continue;
     const time = ownSignedTime(judged, mind, view);
     if (time !== undefined) current = { id, record, time };

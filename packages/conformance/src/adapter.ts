@@ -3,7 +3,20 @@
 
 /** How the suite calls an implementation. */
 
-import type { JsonObject, Log, LogCopy, Seen } from "./vectors.ts";
+import type {
+  AckCase,
+  ChainCase,
+  CheckpointCase,
+  FeedCase,
+  HelloCase,
+  JsonObject,
+  LocationCase,
+  Log,
+  LogCopy,
+  ParticipantCase,
+  ReceiveCase,
+  Seen,
+} from "./vectors.ts";
 
 /**
  * What the verifier holds when it judges a case: the baseline of the vectors,
@@ -58,6 +71,47 @@ export interface LogIntake {
    * verified.
    */
   readonly undecided: boolean | null;
+}
+
+/**
+ * An answer to a case of Layer 1, Sections 10 and 12 to 16: whether its claim
+ * holds, and what the implementation worked out on the way. The suite reads
+ * `holds`. A differential test compares `value` too, so that two
+ * implementations are compared on what they concluded and not only on a yes
+ * or a no.
+ */
+export interface NetworkAnswer<T> {
+  readonly holds: boolean;
+  readonly value: T;
+}
+
+/** How far a feed verifies (Layer 1, 10.1 to 10.4). */
+export interface FeedReading {
+  /** How many entries verify, from `seq` 0. */
+  readonly verified: number;
+  /**
+   * The content IDs of the valid entries at the place after them, in order,
+   * when there is more than one (10.3). Empty otherwise.
+   */
+  readonly equivocation: readonly string[];
+}
+
+/** What a receiver took from what arrived (Layer 1, 12.4). */
+export interface Received {
+  /** The packet's content ID. */
+  readonly packet: string;
+  /** The broker that forwarded it, for a packet addressed to a query. */
+  readonly broker: string | null;
+}
+
+/** What a receiver holds of one sending chain once every packet of a case has arrived (Layer 1, 14.3). */
+export interface ChainReading {
+  /** The content IDs of the packets it delivered, in the order of the chain. */
+  readonly delivered: readonly string[];
+  /** The two links at one place that it found, if it found any. */
+  readonly equivocation: { readonly seq: number; readonly packets: readonly string[] } | null;
+  /** How many packets wait behind a gap. */
+  readonly ahead: number;
 }
 
 /**
@@ -121,6 +175,45 @@ export interface ConformanceAdapter {
   /** `assurance` cases: the assurance level of a profile (Layer 0, 1.3). */
   assurance?(profile: JsonObject, view: VerifierView): string;
 
+  /** `feed` cases: how far the entries verify as their author's feed (Layer 1, Section 10). */
+  feed?(vectorCase: FeedCase, view: VerifierView): NetworkAnswer<FeedReading>;
+  /**
+   * `checkpoint` cases (Layer 1, 10.5). The value is the digests of the
+   * proofs the checkpoint covers, in order, or `null` if it is not valid.
+   */
+  checkpoint?(
+    vectorCase: CheckpointCase,
+    view: VerifierView,
+  ): NetworkAnswer<readonly string[] | null>;
+  /** `receive` cases (Layer 1, 12.4). The value is `null` for what the receiver rejects. */
+  receive?(vectorCase: ReceiveCase, view: VerifierView): NetworkAnswer<Received | null>;
+  /**
+   * `chain` cases (Layer 1, 14.3). The value is what the receiver holds of
+   * each sending chain, by the sender's address, `#`, and the instance (or
+   * nothing after the `#` when the chain names none).
+   */
+  chain?(
+    vectorCase: ChainCase,
+    view: VerifierView,
+  ): NetworkAnswer<Readonly<Record<string, ChainReading>>>;
+  /** `hello` cases (Layer 1, 13.3). The value is the mind authenticated, or `null`. */
+  hello?(vectorCase: HelloCase, view: VerifierView): NetworkAnswer<string | null>;
+  /**
+   * `ack` cases (Layer 1, 13.2; core 9.4, item 4). The value is the digests
+   * of the proofs the `Ack` is evidence for, in order, or `null` if it does
+   * not acknowledge the packet.
+   */
+  ack?(vectorCase: AckCase, view: VerifierView): NetworkAnswer<readonly string[] | null>;
+  /**
+   * `location` cases (Layer 1, 15.2). The value is the content ID of the
+   * current location record of the record's author, or `null`.
+   */
+  location?(vectorCase: LocationCase, view: VerifierView): NetworkAnswer<string | null>;
+  /**
+   * `participant` cases (Layer 1, 16.4). The value is the content ID of the
+   * current profile of the record's author, or `null`.
+   */
+  participant?(vectorCase: ParticipantCase, view: VerifierView): NetworkAnswer<string | null>;
   /** The canonical form of a JSON value, as a string (core Section 2). */
   canonicalize?(value: unknown): string;
 
@@ -164,4 +257,12 @@ export const METHOD_FOR_KIND = {
   assurance: "assurance",
   record: "recordIsWellFormed",
   json: "jsonIsWithinProfile",
+  feed: "feed",
+  checkpoint: "checkpoint",
+  receive: "receive",
+  chain: "chain",
+  hello: "hello",
+  ack: "ack",
+  location: "location",
+  participant: "participant",
 } as const satisfies Record<string, keyof ConformanceAdapter>;

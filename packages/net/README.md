@@ -87,6 +87,7 @@ It is being built in milestone M4, one part at a time. What is here is finished 
 ## Locations and profiles
 
 - **The current location record is the one with the highest `seq` that still counts.** A record signed with a key the mind has since removed counts no longer, however high its `seq`: nobody who once held a key can lock the mind out (Layer 1, 15.2, 15.4).
+- **A record held in several copies is one record.** A location record or a profile is judged with the proofs of every copy you give, as an entry of a feed is (core 3.1): the members of a collective may each have sent the copy that carries their own proof. What arrives, a packet or a `Hello`, is judged by the proofs it came with.
 - **Staleness is the record's own claim.** `isStale` compares the time you give with the record's `created` plus its `ttl`. A stale record may still be used as a hint.
 - **Mailboxes come last.** `endpointsToTry` puts them after the other endpoints, whatever their priority, and returns only them while the mind is `paused`. Endpoints with a binding this revision gives no meaning to are left out.
 - **An `https` endpoint's `url` is a base.** `postUrl` adds `/inbox` and `webSocketUrl` adds `/ws` under the `wss` scheme, whether or not the base ends with a slash. A base with a query or a fragment is no base, and has no URL.

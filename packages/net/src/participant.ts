@@ -10,6 +10,7 @@ import { contentId, type Instant } from "@oip/core";
 import { type IdentityView, type JudgedRecord, latestState, ownSignedTime } from "@oip/identity";
 import type { Participant, Validation } from "@oip/schema";
 
+import { oneOfEach } from "./copies.ts";
 import type { VerifiedFeed } from "./feed.ts";
 import type { HeldLocation } from "./location.ts";
 import { finding, judging, no, ok } from "./result.ts";
@@ -99,11 +100,11 @@ function participantAmong(
   view: IdentityView,
   sources: ProfileSources,
 ): HeldParticipant | undefined {
-  const held = new Map<string, JudgedRecord>();
-  for (const judged of profiles) {
-    const { type, author } = judged.record as { type: string; author?: unknown };
-    if (type === "Participant" && author === mind) held.set(contentId(judged.record), judged);
-  }
+  // A profile held in several copies is one profile, with the proofs of them all (core 3.1).
+  const held = oneOfEach(profiles, (record) => {
+    const { type, author } = record as { type: string; author?: unknown };
+    return type === "Participant" && author === mind;
+  });
   /** The profile with this content ID, if it is held and counts. */
   const counted = (id: string | undefined): HeldParticipant | undefined => {
     const judged = id === undefined ? undefined : held.get(id);

@@ -46,6 +46,7 @@
     "@oip/core": "workspace:*",
     "@oip/delegation": "workspace:*",
     "@oip/identity": "workspace:*",
+    "@oip/net": "workspace:*",
     "@oip/schema": "workspace:*",
     "@oip/web": "workspace:*"
   },

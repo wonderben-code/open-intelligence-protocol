@@ -21,6 +21,7 @@ import {
 } from "@oip/identity";
 import type { Checkpoint, Entry, Issue, Validation } from "@oip/schema";
 
+import { withProofsOf } from "./copies.ts";
 import { checkpointRoot } from "./merkle.ts";
 import { finding, judging, no, ok } from "./result.ts";
 
@@ -127,10 +128,7 @@ function feedOf(
       continue;
     }
     // The same entry, perhaps with proofs not seen before: each is kept, once.
-    const digests = new Set(known.judged.proofs.map((proof) => proof.digest));
-    const more = judged.value.proofs.filter((proof) => !digests.has(proof.digest));
-    if (more.length > 0)
-      known.judged = { ...known.judged, proofs: [...known.judged.proofs, ...more] };
+    known.judged = withProofsOf(known.judged, judged.value);
   }
   // Each entry under the one it names, so that a long feed is walked once.
   const after = new Map<string | undefined, Candidate[]>();

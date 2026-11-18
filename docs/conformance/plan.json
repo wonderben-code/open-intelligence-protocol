@@ -72,6 +72,14 @@
     "sentFor": "M3",
     "status": "M3",
     "assurance": "M9",
-    "json": "M1"
+    "json": "M1",
+    "feed": "M4",
+    "checkpoint": "M4",
+    "receive": "M4",
+    "chain": "M4",
+    "hello": "M4",
+    "ack": "M4",
+    "location": "M4",
+    "participant": "M4"
   }
 }

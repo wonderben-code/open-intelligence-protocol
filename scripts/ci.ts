@@ -61,6 +61,14 @@ const STEPS: readonly Step[] = [
     name: "Differential tests: delegation chains, policies and status",
     command: "OIP_DIFFERENTIAL_DELEGATION=1500 pnpm test:differential:delegation",
   },
+  {
+    // BUILD.md, W1: differential testing covers each new verifier. This runs
+    // 1,000 feeds, 500 checkpoints, 1,500 arrivals of a packet, 1,000
+    // sessions, and 500 each of Hello records, acknowledgements, sets of
+    // location records and profiles.
+    name: "Differential tests: feeds, packets, sessions and the records around them",
+    command: "OIP_DIFFERENTIAL_NETWORK=500 pnpm test:differential:network",
+  },
   { name: "API reference builds", command: "pnpm run docs" },
   { name: "Benchmarks run", command: "pnpm bench" },
   { name: "Licensing (REUSE)", command: "reuse lint", optionalTool: "reuse" },

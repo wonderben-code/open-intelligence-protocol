@@ -52,7 +52,23 @@ const always = (answer: boolean, status = "open"): ConformanceAdapter => ({
   status: () => status,
   assurance: () => status,
   canonicalize: () => "",
+  ...network(() => ({ holds: answer, value: null })),
 });
+
+/** The eight methods of the Mind Network, each answering as `say` does. */
+function network(say: () => unknown) {
+  const method = say as () => never;
+  return {
+    feed: method,
+    checkpoint: method,
+    receive: method,
+    chain: method,
+    hello: method,
+    ack: method,
+    location: method,
+    participant: method,
+  } satisfies Partial<ConformanceAdapter>;
+}
 
 describe("what a case requires", () => {
   it("requires must-accept cases and controls to hold, and negative cases not to", () => {
@@ -140,6 +156,7 @@ describe("running a case", () => {
       sentFor: crash,
       status: crash,
       assurance: crash,
+      ...network(crash),
     };
     for (const section of ["valid", "negative", "controls"] as const) {
       for (const vectorCase of vectors[section]) {
@@ -164,6 +181,8 @@ describe("running a case", () => {
         sentFor: say,
         status: () => answer as string,
         assurance: () => answer as string,
+        // An answer that is none, and one whose `holds` is none.
+        ...network(() => (answer === "yes" ? { holds: answer } : answer)),
       };
       for (const section of ["valid", "negative", "controls"] as const) {
         for (const vectorCase of vectors[section]) {
@@ -269,8 +288,22 @@ describe("the positive checks", () => {
         name,
       ).toMatchObject({ outcome: "pass" });
     }
+    // M4: feeds, checkpoints, packets and sessions.
+    const m4 = [
+      "feed entries commit to proofs; checkpoint Merkle root",
+      "packet opens its session; Ack names the packet",
+    ];
+    expect(
+      POSITIVE_CHECKS.filter((check) => check.milestone === "M4").map((check) => check.name),
+    ).toEqual(m4);
+    for (const name of m4) {
+      expect(
+        results.find((result) => result.name === name),
+        name,
+      ).toMatchObject({ outcome: "pass" });
+    }
     expect(results.filter((result) => result.outcome === "pass")).toHaveLength(
-      1 + m1.length + m2.length + m3.length,
+      1 + m1.length + m2.length + m3.length + m4.length,
     );
   });
 

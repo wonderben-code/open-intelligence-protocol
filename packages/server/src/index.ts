@@ -10,6 +10,16 @@
 
 export { type Clock, type Randomness, systemClock, systemRandomness } from "./edges.ts";
 export {
+  DEFAULT_FETCH_LIMITS,
+  type Fetched,
+  type FetchLimits,
+  type FetchRefusal,
+  FetchRefused,
+  GuardedFetcher,
+  type GuardedFetcherOptions,
+  type Resolve,
+} from "./fetcher.ts";
+export {
   HttpFailure,
   problemResponse,
   readBody,

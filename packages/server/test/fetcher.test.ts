@@ -1,0 +1,365 @@
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+// SPDX-License-Identifier: Apache-2.0
+
+/**
+ * The guarded fetcher, against an HTTPS server on this machine.
+ *
+ * The server is at 127.0.0.1, which the fetcher refuses, as it must. The
+ * tests that need a response allow that one address, by the option an
+ * operator has for its own test network, and give the fetcher a resolver
+ * that knows the names used here.
+ */
+
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import type { IncomingHttpHeaders } from "node:http";
+import { createServer, type Server } from "node:https";
+import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
+import { type FetchRefusal, FetchRefused, GuardedFetcher, type Resolve } from "../src/index.ts";
+
+let server: Server;
+let port: number;
+let ca: string;
+/** The requests the server has had since the test began: their paths and headers. */
+let requests: { path: string; headers: IncomingHttpHeaders }[];
+
+beforeAll(async () => {
+  // A certificate for the names used here, made for this run and thrown away after it.
+  const directory = mkdtempSync(join(tmpdir(), "oip-fetcher-"));
+  try {
+    execFileSync(
+      "openssl",
+      [
+        ...["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes"],
+        ...["-keyout", join(directory, "key.pem"), "-out", join(directory, "cert.pem")],
+        ...["-days", "2", "-subj", "/CN=home.example"],
+        ...["-addext", "subjectAltName=DNS:home.example,DNS:other.example,IP:127.0.0.1"],
+      ],
+      { stdio: "ignore" },
+    );
+    ca = readFileSync(join(directory, "cert.pem"), "utf8");
+    server = createServer(
+      { key: readFileSync(join(directory, "key.pem")), cert: ca },
+      (request, response) => {
+        const path = request.url ?? "";
+        requests.push({ path, headers: request.headers });
+        const redirect = (location: string | undefined): void => {
+          response.writeHead(302, location === undefined ? {} : { location }).end();
+        };
+        if (path === "/ok") {
+          response.writeHead(200, { "content-type": "application/oip+json" }).end('{"ok":true}');
+        } else if (path === "/missing") {
+          response.writeHead(404, { "content-type": "application/problem+json" }).end("{}");
+        } else if (path === "/declared") {
+          response.writeHead(200, { "content-length": "5000" }).end(Buffer.alloc(5000, 0x61));
+        } else if (path === "/chunked") {
+          response.writeHead(200);
+          for (let piece = 0; piece < 50; piece++) response.write(Buffer.alloc(100, 0x61));
+          response.end();
+        } else if (path === "/declared-and-stalled") {
+          // The length is said, and the body never comes.
+          response.writeHead(200, { "content-length": "5000" }).flushHeaders();
+        } else if (path === "/stall") {
+          // No answer comes.
+        } else if (path === "/twice") {
+          response
+            .writeHead(200, [
+              ["x-note", "first"],
+              ["x-note", "second"],
+            ])
+            .end();
+        } else if (path === "/redirect/same") redirect("/ok");
+        else if (path === "/redirect/absolute") redirect(`https://home.example:${port}/ok`);
+        else if (path === "/redirect/loop") redirect("/redirect/loop");
+        else if (path === "/redirect/twice") redirect("/redirect/same");
+        else if (path === "/redirect/other") redirect(`https://other.example:${port}/ok`);
+        else if (path === "/redirect/http") redirect(`http://home.example:${port}/ok`);
+        else if (path === "/redirect/port") redirect("https://home.example:1/ok");
+        else if (path === "/redirect/inward") redirect("https://127.0.0.1/ok");
+        else if (path === "/redirect/nowhere") redirect("https://[");
+        else if (path === "/redirect/none") redirect(undefined);
+        else response.writeHead(500).end();
+      },
+    );
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    port = (server.address() as AddressInfo).port;
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+afterAll(async () => {
+  server.closeAllConnections();
+  await new Promise((resolve) => server.close(resolve));
+});
+
+beforeEach(() => {
+  requests = [];
+});
+
+/** A resolver that knows the names given, and says how often it was asked. */
+function resolverOf(
+  names: Readonly<Record<string, readonly string[]>>,
+): Resolve & { asked: string[] } {
+  const asked: string[] = [];
+  const resolve: Resolve = (hostname) => {
+    asked.push(hostname);
+    const found = names[hostname];
+    return found === undefined ? Promise.reject(new Error("ENOTFOUND")) : Promise.resolve(found);
+  };
+  return Object.assign(resolve, { asked });
+}
+
+const HERE = { "home.example": ["127.0.0.1"], "other.example": ["127.0.0.1"] } as const;
+
+/** A fetcher that may reach the server of these tests, and nothing else on this machine. */
+function fetcherFor(
+  resolve: Resolve = resolverOf(HERE),
+  limits: { maxBytes?: number; timeoutMs?: number; maxRedirects?: number } = {},
+): GuardedFetcher {
+  return new GuardedFetcher({ resolve, allow: ["127.0.0.1/32"], ca, limits });
+}
+
+const at = (path: string, host = "home.example"): string => `https://${host}:${port}${path}`;
+
+async function refusal(work: Promise<unknown>): Promise<FetchRefusal | "fetched"> {
+  try {
+    await work;
+  } catch (error) {
+    if (error instanceof FetchRefused) return error.reason;
+    throw error;
+  }
+  return "fetched";
+}
+
+describe("a fetch for a stranger", () => {
+  it("gets what an HTTPS URL on an allowed address serves", async () => {
+    const resolve = resolverOf(HERE);
+    const fetched = await fetcherFor(resolve).get(at("/ok"), "application/oip+json");
+    expect(fetched.status).toBe(200);
+    expect(fetched.url).toBe(at("/ok"));
+    expect(fetched.headers["content-type"]).toBe("application/oip+json");
+    expect(new TextDecoder().decode(fetched.body)).toBe('{"ok":true}');
+    expect(resolve.asked).toStrictEqual(["home.example"]);
+  });
+
+  it("sends nothing of the service with the request", async () => {
+    await fetcherFor().get(at("/ok"), "application/oip+json");
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.headers).toStrictEqual({
+      accept: "application/oip+json",
+      "accept-encoding": "identity",
+      "user-agent": "oip-server",
+      host: `home.example:${port}`,
+      connection: "close",
+    });
+  });
+
+  it("gives an answer that is no success as the answer it is", async () => {
+    const fetched = await fetcherFor().get(at("/missing"));
+    expect(fetched.status).toBe(404);
+    expect((await fetcherFor().get(at("/twice"))).headers["x-note"]).toBe("first, second");
+    // A redirect that says where to nothing is an answer too.
+    expect((await fetcherFor().get(at("/redirect/none"))).status).toBe(302);
+  });
+
+  it("is refused for what is not HTTPS, or carries credentials, before any name is resolved", async () => {
+    const resolve = resolverOf(HERE);
+    const fetcher = fetcherFor(resolve);
+    for (const url of [
+      `http://home.example:${port}/ok`,
+      "ftp://home.example/ok",
+      "file:///etc/passwd",
+      "data:text/plain,x",
+      "home.example/ok",
+      "",
+    ]) {
+      expect(await refusal(fetcher.get(url)), url).toBe("not-https");
+    }
+    for (const url of [
+      at("/ok").replace("https://", "https://user:secret@"),
+      at("/ok").replace("https://", "https://user@"),
+    ]) {
+      expect(await refusal(fetcher.get(url)), url).toBe("credentials");
+    }
+    expect(resolve.asked).toStrictEqual([]);
+    expect(requests).toStrictEqual([]);
+  });
+});
+
+describe("the address a fetch goes to", () => {
+  it("is not this machine or the network behind it, however the URL writes the address", async () => {
+    // Nothing is allowed here but the public internet.
+    const resolve = resolverOf({});
+    const fetcher = new GuardedFetcher({ resolve, ca });
+    for (const host of [
+      "127.0.0.1",
+      "127.1",
+      "0x7f.0.0.1",
+      "2130706433",
+      "017700000001",
+      "0.0.0.0",
+      "10.0.0.1",
+      "169.254.169.254",
+      "192.168.0.1",
+      "[::1]",
+      "[::]",
+      "[::ffff:127.0.0.1]",
+      "[::ffff:7f00:1]",
+      "[64:ff9b::7f00:1]",
+      "[fe80::1]",
+      "[fd00::1]",
+    ]) {
+      expect(await refusal(fetcher.get(`https://${host}:${port}/ok`)), host).toBe("address");
+    }
+    expect(resolve.asked).toStrictEqual([]);
+    expect(requests).toStrictEqual([]);
+  });
+
+  it("is not one of them by a name that resolves there", async () => {
+    const resolve = resolverOf({
+      "loopback.example": ["127.0.0.1"],
+      "metadata.example": ["169.254.169.254"],
+      "inside.example": ["10.1.2.3"],
+      "six.example": ["::1"],
+      "mapped.example": ["::ffff:127.0.0.1"],
+      // One address that is public does not carry the others.
+      "mixed.example": ["93.184.216.34", "127.0.0.1"],
+      "garbage.example": ["not an address"],
+    });
+    const fetcher = new GuardedFetcher({ resolve, ca });
+    for (const host of Object.keys({
+      "loopback.example": 0,
+      "metadata.example": 0,
+      "inside.example": 0,
+      "six.example": 0,
+      "mapped.example": 0,
+      "mixed.example": 0,
+      "garbage.example": 0,
+    })) {
+      expect(await refusal(fetcher.get(`https://${host}:${port}/ok`)), host).toBe("address");
+    }
+    expect(requests).toStrictEqual([]);
+  });
+
+  it("is allowed only as far as the operator's ranges say", async () => {
+    // The range allows 127.0.0.1 and not the rest of the loopback network.
+    const resolve = resolverOf({ "near.example": ["127.0.0.2"] });
+    expect(await refusal(fetcherFor(resolve).get(at("/ok", "near.example")))).toBe("address");
+    expect((await fetcherFor().get(at("/ok", "127.0.0.1"))).status).toBe(200);
+    expect(() => new GuardedFetcher({ allow: ["127.0.0.1"] })).toThrow(TypeError);
+    expect(() => new GuardedFetcher({ allow: ["localhost/8"] })).toThrow(TypeError);
+  });
+
+  it("is one that was checked: the name is resolved once, and not again for the connection", async () => {
+    // A name that answers with this machine once, and with somewhere else ever after.
+    let asked = 0;
+    const turning: Resolve = () => Promise.resolve([asked++ === 0 ? "127.0.0.1" : "93.184.216.34"]);
+    const fetched = await fetcherFor(turning).get(at("/ok"));
+    expect(fetched.status).toBe(200);
+    expect(asked).toBe(1);
+    expect(requests).toHaveLength(1);
+  });
+
+  it("is checked again for a redirect, which a name that turns does not get past", async () => {
+    let asked = 0;
+    const turning: Resolve = () => Promise.resolve([asked++ === 0 ? "127.0.0.1" : "10.0.0.1"]);
+    expect(await refusal(fetcherFor(turning).get(at("/redirect/same")))).toBe("address");
+    expect(asked).toBe(2);
+    expect(requests.map((request) => request.path)).toStrictEqual(["/redirect/same"]);
+  });
+
+  it("is refused where the name does not resolve, or the certificate is for another name", async () => {
+    expect(await refusal(fetcherFor().get(at("/ok", "unknown.example")))).toBe("network");
+    expect(
+      await refusal(
+        fetcherFor(resolverOf({ "empty.example": [] })).get(at("/ok", "empty.example")),
+      ),
+    ).toBe("network");
+    // The server's certificate names `home.example` and `other.example`.
+    const resolve = resolverOf({ "wrong.example": ["127.0.0.1"] });
+    expect(await refusal(fetcherFor(resolve).get(at("/ok", "wrong.example")))).toBe("network");
+    // And one that no authority the fetcher trusts has signed.
+    const untrusting = new GuardedFetcher({ resolve: resolverOf(HERE), allow: ["127.0.0.1/32"] });
+    expect(await refusal(untrusting.get(at("/ok")))).toBe("network");
+  });
+});
+
+describe("the limits of a fetch", () => {
+  it("reads a response up to its limit of bytes, and one byte more is too many", async () => {
+    expect(
+      (await fetcherFor(undefined, { maxBytes: 5000 }).get(at("/declared"))).body,
+    ).toHaveLength(5000);
+    expect((await fetcherFor(undefined, { maxBytes: 5000 }).get(at("/chunked"))).body).toHaveLength(
+      5000,
+    );
+    expect(await refusal(fetcherFor(undefined, { maxBytes: 4999 }).get(at("/declared")))).toBe(
+      "too-large",
+    );
+    expect(await refusal(fetcherFor(undefined, { maxBytes: 4999 }).get(at("/chunked")))).toBe(
+      "too-large",
+    );
+    expect(await refusal(fetcherFor(undefined, { maxBytes: 0 }).get(at("/ok")))).toBe("too-large");
+    // A response that says it is too long is refused on its word, before its body is waited for.
+    expect(
+      await refusal(
+        fetcherFor(undefined, { maxBytes: 4999, timeoutMs: 5000 }).get(at("/declared-and-stalled")),
+      ),
+    ).toBe("too-large");
+  });
+
+  it("gives up when the time runs out, with no answer or with a resolver that does not answer", async () => {
+    const started = Date.now();
+    expect(await refusal(fetcherFor(undefined, { timeoutMs: 300 }).get(at("/stall")))).toBe(
+      "timeout",
+    );
+    const never: Resolve = () => new Promise(() => undefined);
+    expect(await refusal(fetcherFor(never, { timeoutMs: 300 }).get(at("/ok")))).toBe("timeout");
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+
+  it("follows a redirect to the same origin, so many times and no more", async () => {
+    for (const path of ["/redirect/same", "/redirect/absolute", "/redirect/twice"]) {
+      const fetched = await fetcherFor().get(at(path));
+      expect(fetched.status, path).toBe(200);
+      expect(fetched.url).toBe(at("/ok"));
+    }
+    expect(await refusal(fetcherFor().get(at("/redirect/loop")))).toBe("redirect");
+    // Three are followed: the first request and three more.
+    expect(requests.filter((request) => request.path === "/redirect/loop")).toHaveLength(4);
+    expect(
+      await refusal(fetcherFor(undefined, { maxRedirects: 1 }).get(at("/redirect/twice"))),
+    ).toBe("redirect");
+    expect(
+      await refusal(fetcherFor(undefined, { maxRedirects: 0 }).get(at("/redirect/same"))),
+    ).toBe("redirect");
+  });
+
+  it("follows no redirect to another host, scheme or port, or to what is no URL", async () => {
+    for (const path of [
+      "/redirect/other",
+      "/redirect/http",
+      "/redirect/port",
+      "/redirect/inward",
+      "/redirect/nowhere",
+    ]) {
+      requests = [];
+      expect(await refusal(fetcherFor().get(at(path))), path).toBe("redirect");
+      // The one request, and none to where the redirect pointed.
+      expect(requests.map((request) => request.path)).toStrictEqual([path]);
+    }
+  });
+
+  it("takes limits that are whole numbers, not negative", () => {
+    for (const wrong of [-1, 1.5, Number.NaN]) {
+      for (const name of ["maxBytes", "timeoutMs", "maxRedirects"]) {
+        expect(() => new GuardedFetcher({ limits: { [name]: wrong } })).toThrow(TypeError);
+      }
+    }
+  });
+});

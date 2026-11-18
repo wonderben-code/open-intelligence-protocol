@@ -75,6 +75,7 @@ export {
   operationalProofs,
   operationalProofTime,
   ownSignedTime,
+  requestKeyTime,
 } from "./signing.ts";
 export {
   type AcknowledgedChild,

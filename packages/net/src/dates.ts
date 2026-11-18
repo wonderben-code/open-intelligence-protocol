@@ -104,3 +104,59 @@ export function packetDates(packet: Packet, clock: PacketClock): Validation<Inst
   }
   return ok(expires + CLOCK_SKEW);
 }
+
+/** The times of a signed HTTP request, as instants. */
+export interface RequestWindow {
+  /** When the signer says it signed. */
+  readonly created: Instant;
+  /** When the signature expires. */
+  readonly expires: Instant;
+}
+
+/**
+ * Layer 1, 13.3: whether a signature's own times are ones the profile
+ * allows: it expires after it is made, and at most 300 seconds after.
+ */
+export function withinWindow(window: RequestWindow): boolean {
+  return window.expires > window.created && window.expires - window.created <= CLOCK_SKEW;
+}
+
+/**
+ * Layer 1, 13.3: the times of a request's signature, as a server judges
+ * them at `now`. The signature is rejected if its `expires` is not within
+ * 300 seconds after its `created`, if its `created` is more than 300
+ * seconds ahead of the server's clock, or if it has expired. One made more
+ * than 300 seconds before the server's clock has expired.
+ *
+ * @param created - The `created` parameter, in seconds.
+ * @param expires - The `expires` parameter, in seconds.
+ * @param path - Where the signature's parameters are in the request.
+ */
+export function requestDates(
+  created: number,
+  expires: number,
+  now: Instant,
+  path: string,
+): Validation<RequestWindow> {
+  const window = {
+    created: BigInt(created) * NANOSECONDS_PER_SECOND,
+    expires: BigInt(expires) * NANOSECONDS_PER_SECOND,
+  };
+  if (!withinWindow(window)) {
+    return no(
+      "`expires` is after `created`, and at most 300 seconds after",
+      "L1 13.3",
+      `${path}/expires`,
+    );
+  }
+  if (window.created > now + CLOCK_SKEW) {
+    return no(
+      "`created` is more than 300 seconds ahead of this server's clock",
+      "L1 13.3",
+      `${path}/created`,
+    );
+  }
+  // A signature made more than 300 seconds ago has expired, since it is valid for no longer.
+  if (window.expires < now) return no("the signature has expired", "L1 13.3", `${path}/expires`);
+  return ok(window);
+}

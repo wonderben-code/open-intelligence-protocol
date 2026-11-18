@@ -15,8 +15,10 @@
 
 export type { ExtensionRecord, Issue, JsonValue, Limits, OipRecord, Validation } from "@oip/schema";
 export {
+  base64ToBytes,
   base64urlToBytes,
   bytesEqual,
+  bytesToBase64,
   bytesToBase64url,
   bytesToHex,
   concatBytes,

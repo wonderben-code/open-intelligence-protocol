@@ -15,7 +15,13 @@
  * makes it by spending the stack.
  */
 
-import { contentId, encodeX25519Multikey, proofDigest, x25519PublicKey } from "@oip/core";
+import {
+  contentId,
+  encodeX25519Multikey,
+  formatKeyRef,
+  proofDigest,
+  x25519PublicKey,
+} from "@oip/core";
 import { type IdentityView, type JudgedRecord, judgeRecord, LogBook } from "@oip/identity";
 import { type Entry, noteCutShort } from "@oip/schema";
 import { clause, type JsonObject } from "@oip/testkit";
@@ -35,15 +41,18 @@ import {
   receivePacket,
   receiveSealed,
   recordsCarried,
+  RequestNonces,
   sealPacket,
   sessionCarried,
   Sessions,
+  signRequest,
   verifyAck,
   verifyBranch,
   verifyCheckpoint,
   verifyFeed,
   verifyHello,
   verifyParticipant,
+  verifyRequest,
 } from "../src/index.ts";
 
 type Signed = JsonObject & { proof: JsonObject[] };
@@ -500,6 +509,35 @@ describe(`${clause("core 4.4")} a check that was cut short, for a fork's proposa
     expect(verifyBranch(got.value, held, view)).toMatchObject(SPENT);
     cut.now = false;
     expect(verifyBranch(got.value, held, view).ok).toBe(true);
+  });
+});
+
+describe(`${clause("core 4.4")} a check that was cut short, for an authenticated request`, () => {
+  it("authenticates nobody and remembers no nonce", async () => {
+    const { view, cut } = cutting();
+    const nonces = new RequestNonces();
+    const request = {
+      method: "GET",
+      url: "https://mailbox.example/oip/mbox/abc",
+      headers: [] as [string, string][],
+    };
+    const added = await signRequest(
+      request,
+      {
+        keyRef: formatKeyRef(ada.address, ada.versionId(), ada.operational().publicKey),
+        created: at(100),
+        nonce: "nonce-0001",
+      },
+      ada.operational(),
+    );
+    const signed = { ...request, headers: added };
+    const server = { now: at(110), view, nonces };
+    cut.now = true;
+    expect(verifyRequest(signed, server)).toMatchObject(SPENT);
+    expect(nonces.size).toBe(0);
+    cut.now = false;
+    expect(verifyRequest(signed, server).ok).toBe(true);
+    expect(nonces.size).toBe(1);
   });
 });
 

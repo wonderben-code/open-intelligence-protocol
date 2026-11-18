@@ -10,9 +10,33 @@ import {
   utf8ToBytes,
 } from "@noble/hashes/utils.js";
 import { noteCutShort } from "@oip/schema";
-import { base64urlnopad } from "@scure/base";
+import { base64, base64urlnopad } from "@scure/base";
 
 export { concatBytes };
+
+/**
+ * Bytes as base64 text with padding (RFC 4648, Section 4), as HTTP's
+ * structured fields write a byte sequence (RFC 8941).
+ *
+ * @throws TypeError if the value is not bytes.
+ */
+export function bytesToBase64(bytes: Uint8Array): string {
+  return base64.encode(bytes);
+}
+
+/**
+ * The bytes that base64 text with padding writes, or `undefined` if the
+ * value is no such text. It is read as strictly as `base64urlToBytes`
+ * reads: one text for each sequence of bytes.
+ */
+export function base64ToBytes(text: unknown): Uint8Array | undefined {
+  try {
+    return base64.decode(text as string);
+  } catch (error) {
+    noteCutShort(error);
+    return undefined;
+  }
+}
 
 /**
  * Bytes as base64url text without padding (RFC 4648, Section 5).

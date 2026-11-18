@@ -11,9 +11,11 @@ import {
   checkSize,
   CLOCK_SKEW,
   type Instant,
+  type KeyRef,
   parseTimestamp,
   type PlacedProof,
   unsupportedCritical,
+  type VerificationMethod,
   type VerifiedProof,
   verifyProofs,
 } from "@oip/core";
@@ -166,14 +168,62 @@ export function operationalProofEvaluation(
   proof: VerifiedProof,
   view: IdentityView,
 ): Validation<Evaluation> {
-  const method = proof.method;
+  return keyEvaluation(
+    proof.method,
+    proof.key,
+    proof.created,
+    view.evidence.proofSeen(proof.digest),
+    CURRENT_STATE_TYPES.includes(type) ? `a ${type}` : undefined,
+    view,
+  );
+}
+
+/**
+ * Layer 1, 13.3: whether the key an authenticated HTTP request names is a
+ * valid operational key of its mind under the current-state rule (6.1), and
+ * if so the evaluation time of the request's signature.
+ *
+ * The signature is on no record, so no evidence is held for it under a
+ * proof's digest: the evidence is the verifier's own, that it obtained the
+ * request at `seen`. That the signature verifies is the caller's to check.
+ *
+ * @param key - What the request's `keyid` names, from `parseKeyRef`.
+ * @param created - When the signer says it signed.
+ * @param seen - When the verifier obtained the request: its own clock.
+ */
+export function requestKeyTime(
+  key: KeyRef,
+  created: Instant,
+  seen: Instant,
+  view: IdentityView,
+): Validation<Instant> {
+  const evaluated = keyEvaluation(key, key.key, created, seen, "an authenticated request", view);
+  return evaluated.ok ? ok(evaluated.value.time) : evaluated;
+}
+
+/**
+ * Layer 1, 6.1, items 1 to 4 and 6, for a signature by `key` under
+ * `method`, made at `created` by its signer's word and shown to exist at
+ * `seen`.
+ *
+ * @param present - What the signature is on, if that describes the present
+ *   (item 6), for the message: `a Location`, for one.
+ */
+function keyEvaluation(
+  method: VerificationMethod,
+  key: string,
+  created: Instant,
+  seen: Instant | undefined,
+  present: string | undefined,
+  view: IdentityView,
+): Validation<Evaluation> {
   if (method.kind !== "key") {
     return no("a control key signs identity events and nothing else", "L1 3.11");
   }
   const held = view.log(method.mind);
   if (!held.ok) return held;
   const log = held.value;
-  const evaluated = proofTime(proof.created, view.evidence.proofSeen(proof.digest));
+  const evaluated = proofTime(created, seen);
   if (!evaluated.ok) return evaluated;
   const { evidenced, time } = evaluated.value;
   if (log.asOf < evidenced) {
@@ -194,25 +244,25 @@ export function operationalProofEvaluation(
   if (pinned.entry.state.retired) {
     return no("the proof is pinned to the version that retired the mind", "L1 3.10");
   }
-  if (!pinned.entry.state.keys.includes(proof.key)) {
+  if (!pinned.entry.state.keys.includes(key)) {
     return no("the key is not an operational key of the mind at the version named", "L1 6.1");
   }
-  const removed = removalTime(log, pinned.position, proof.key, "keys");
+  const removed = removalTime(log, pinned.position, key, "keys");
   if (removed !== undefined && time >= removed) {
     return no(
       "the key was removed, or the mind retired, at or before the proof's evaluation time",
       "L1 6.1",
     );
   }
-  const compromised = compromisedSince(log, proof.key);
+  const compromised = compromisedSince(log, key);
   if (compromised !== undefined && time >= compromised) {
     return no("the key is declared compromised from before the proof's evaluation time", "L1 6.1");
   }
-  if (CURRENT_STATE_TYPES.includes(type)) {
+  if (present !== undefined) {
     const latest = latestState(log);
-    if (log.duplicitous || latest.retired || !latest.keys.includes(proof.key)) {
+    if (log.duplicitous || latest.retired || !latest.keys.includes(key)) {
       return no(
-        `a ${type} describes the present, and the key is not in the latest state known of a mind in good standing`,
+        `${present} describes the present, and the key is not in the latest state known of a mind in good standing`,
         log.duplicitous ? "L1 7.3" : "L1 6.1",
       );
     }

@@ -39,6 +39,18 @@ export {
   verifyHello,
 } from "./hello.ts";
 export {
+  type AuthenticatedRequest,
+  contentDigest,
+  type HttpRequest,
+  RequestNonces,
+  type RequestSignature,
+  type RequestVerifier,
+  type SeenNonces,
+  signatureBase,
+  signRequest,
+  verifyRequest,
+} from "./http-signature.ts";
+export {
   type Binding,
   currentLocation,
   endpointsToTry,
@@ -62,6 +74,15 @@ export {
   type SealedReceiver,
   sealPacket,
 } from "./sealed.ts";
+export {
+  type Bare,
+  type InnerList,
+  type Item,
+  type Parameters,
+  parseDictionary,
+  writeInnerList,
+  writeItem,
+} from "./structured.ts";
 export {
   type ChainEquivocation,
   DEFAULT_SESSION_LIMITS,

@@ -199,16 +199,16 @@ it counts for: Amina, the firm, the agent
 
 ## What it exports
 
-| Export                                                                       | What it does                                                                                                                                                                                      |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `signedTime`, `countsFor`                                                    | Layer 2, 7.1: the earliest evaluation time at which a record counts for a mind, by any route, or whether it does at all                                                                           |
-| `actsFor`                                                                    | Layer 2, 5.2: whether a proof by one mind on a record counts for another through a delegation or a charter role                                                                                   |
-| `charterInForce`, `roleProofTime`, `roleTime`                                | Layer 2, 6.2 and 7.1 item 4: the charter of a collective in force at a time, and whether a member's proof counts for the collective through a role of it                                          |
-| `commitmentAccepted`                                                         | Layer 2, 7.3: whether a Commitment is accepted                                                                                                                                                    |
-| `status`, `intentStatus`, `offerStatus`, `commitmentStatus`, `charterStatus` | Layer 2, Section 8: the status of a record at a time                                                                                                                                              |
-| `IntentStatus`, `OfferStatus`, `CommitmentStatus`, `CharterStatus`, `Status` | The values a status takes                                                                                                                                                                         |
-| `WebRecordSet`, `WebRecords`, `WebContext`, `referenced`                     | The records a verifier holds, found by what they refer to: what supersedes a record, the Commitments that resolve it, the Receipts about it. `referenced` gives the content ID a record-ref names |
-| `evidenceMatches`, `evidenceIsChecked`                                       | Layer 2, Section 9: whether bytes a verifier fetched are the bytes an evidence item names by its digest                                                                                           |
+| Export                                                                           | What it does                                                                                                                                                                                      |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `signedTime`, `countsFor`                                                        | Layer 2, 7.1: the earliest evaluation time at which a record counts for a mind, by any route, or whether it does at all                                                                           |
+| `actsFor`                                                                        | Layer 2, 5.2: whether a proof by one mind on a record counts for another through a delegation or a charter role                                                                                   |
+| `charterInForce`, `roleProofTime`, `roleTime`                                    | Layer 2, 6.2 and 7.1 item 4: the charter of a collective in force at a time, and whether a member's proof counts for the collective through a role of it                                          |
+| `commitmentAccepted`                                                             | Layer 2, 7.3: whether a Commitment is accepted                                                                                                                                                    |
+| `status`, `intentStatus`, `offerStatus`, `commitmentStatus`, `charterStatus`     | Layer 2, Section 8: the status of a record at a time                                                                                                                                              |
+| `IntentStatus`, `OfferStatus`, `CommitmentStatus`, `CharterStatus`, `Status`     | The values a status takes                                                                                                                                                                         |
+| `WebRecordSet`, `WebRecords`, `WebContext`, `referenced`, `withCopy`, `withHeld` | The records a verifier holds, found by what they refer to: what supersedes a record, the Commitments that resolve it, the Receipts about it. `referenced` gives the content ID a record-ref names |
+| `evidenceMatches`, `evidenceIsChecked`                                           | Layer 2, Section 9: whether bytes a verifier fetched are the bytes an evidence item names by its digest                                                                                           |
 
 ## Signing for a party (Layer 2, Section 7)
 
@@ -224,6 +224,9 @@ Three rules hold by every route:
 - **A verdict is a time.** A proof counts from its evaluation time, which comes from evidence and never from the date the signer wrote (core 9.3).
 - **A proof evaluated more than 300 seconds after the record's `expires` does not count** (core 9.6).
 - **A proof counts for its signer and for at most one other mind**: the principal its `authority` leads back to.
+- **A charter is judged with the proofs of every copy held**, one given inline in a proof among them. It is completed when it is first signed for the collective, and a copy that leaves out the proofs that completed it early does not make it a later charter.
+- **A charter that another names in `supersedes` is ended for good**, from that other's completion on, whoever signs the old one afterwards. That is how a collective replaces a charter. Without it, a verifier that holds only some of an old charter's proofs may take a late signature on it for a later charter (Layer 2, 6.2).
+- **An author that is no party signs for one, or the Commitment is not accepted** (5.2). `actsFor` asks that of one signer and one principal, and holds a proof to the record's `expires` as every route does.
 
 ## Status (Layer 2, Section 8)
 
@@ -240,6 +243,9 @@ Things to know:
 - **`broken` is a claim.** It is what the authors of the `broken` Receipts say. Show who said it.
 - **Only parties are heard.** A Receipt counts towards a Commitment's status if its author is a party and it counts for its author. A Receipt whose `supersedes` names an earlier Receipt by the same author replaces it, and a `revoked` Receipt takes one back.
 - **The time of computation is yours.** `expired` and `overdue` compare it with `expires` and `terms.deadline` exactly, with no tolerance: a status is a display at a time, and the tolerance of core 9.1 is for judging signatures.
+- **A Commitment is judged with the proofs of every copy you hold.** Ask with any copy: if the view holds another copy with the proofs yours lacks, the answer is for the record, not for the copy (Section 2).
+- **What the view answers with is checked.** A status function asks the view what supersedes a record, what resolves it and which Receipts are about it, and checks each answer against the record's own `supersedes`, `resolves` or `about` before it is heard.
+- **A status does not say that the record counts for its author.** An unsigned Intent is `open`, and any charter of a collective that is not retired is `active`. Ask `countsFor` first. The specification does not yet say what the status of such a record is (OEP-0003, open questions).
 - **A status function asked about the wrong type of record throws `TypeError`**, as does a time that is none: those are mistakes in the calling program ([ADR-0007](../../docs/adr/0007-programming-errors.md)). `status` answers by the type of the record, and refuses a type that has no status.
 
 ## The records a verifier holds

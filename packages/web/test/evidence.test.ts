@@ -37,6 +37,11 @@ describe(`${clause("L2 9")} an evidence item`, () => {
     expect(evidenceMatches(loose, new Uint8Array())).toBe(false);
     expect(evidenceIsChecked(loose)).toBe(false);
     expect(evidenceIsChecked(item())).toBe(true);
+    // It is the digest that makes an item one that can be checked, not its kind.
+    expect(evidenceIsChecked({ ...loose, digest: sha256Digest(bytes) })).toBe(true);
+    const { digest: _, ...bare } = item();
+    expect(evidenceIsChecked(bare as Evidence)).toBe(false);
+    expect(evidenceIsChecked({ ...bare, kind: "hash" })).toBe(false);
   });
 
   it("is a mistake in the caller to give it what is not bytes", () => {

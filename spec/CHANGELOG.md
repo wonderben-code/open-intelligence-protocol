@@ -76,7 +76,18 @@ Two independent reviews of `@oip/identity` found the rest. In the first six, bot
 - **Which Receipts are superseded (Layer 2, 8.3).** One that another Receipt of the same author names in `supersedes`, if that Receipt is itself a party's and counts for its author. "Later" is not asked.
 - **`disputed` (Layer 2, 8.3, item 1).** Every mind's compromise declarations are disregarded for it, not the parties' alone.
 
-**Test vectors.** For the items above (OEP-0003 lists them): 17 negative cases, 16 controls and nine must-accept cases, among them the items of Layer 1, 11.4 broken one at a time on a two-step chain. The vectors now hold 31 must-accept cases, 126 negative cases and 75 controls.
+Two independent reviews of `@oip/delegation` and `@oip/web` found eight more (OEP-0003, items 17 to 24):
+
+- **The work of a policy is bounded (Layer 1, 11.3 and Section 19, new limit).** Each time a statement is tried on a value counts one, and a comparison by canonical form counts the bytes of the two forms besides. A policy that would count more than 262,144 for a record does not hold for it. The reference implementation stopped at 100,000 evaluations and the Python checker never did, so they disagreed; and neither counted what a comparison costs, so a verifier could be made to work for minutes on one proof.
+- **A delegator's log (core 9.4; Layer 1, 11.4).** A proof counts through a delegation chain only if the verifier holds the log of each delegation's author, and of each member of an author that is a collective, as served no earlier than the evidence for the proof. From an older copy it could not judge a revocation it held, and counted the chain.
+- **A retired or duplicitous delegator (Layer 1, 11.4, new item 8).** At the proof's time no author of the chain is retired, and none is duplicitous from its first conflicting event on. A mind that can sign nothing can revoke nothing.
+- **A revocation stands (Layer 1, 11.5).** Its signature is judged with compromise declarations disregarded, so a mind that declares a key compromised from before one of its own revocations does not give the delegation back.
+- **Commands are strings (Layer 1, 11.2).** No segment is normalised.
+- **A charter and what replaces it (Layer 2, 6.2; 7.1, item 4).** A charter is completed when first signed, judged with the proofs of every copy held, an inline copy among them; the earlier wording of this proposal judged an inline charter alone. A charter that another names in `supersedes` is in force at no time from that other's completion on. Before, one member could bring back a charter the threshold had replaced.
+- **Which Receipt supersedes (Layer 2, 8.3).** One about the same Commitment.
+- **No change of text, and a fault in both implementations:** a proof made more than 300 seconds after a record's `expires` does not let its author sign for a party (Layer 2, 5.2 and 7.1).
+
+**Test vectors.** For the items above (OEP-0003 lists them): 33 negative cases, 29 controls and thirteen must-accept cases, among them the items of Layer 1, 11.4 broken one at a time on a two-step chain, and the conditions of a charter role one at a time. The vectors now hold 35 must-accept cases, 142 negative cases and 88 controls. Every value that was there is byte for byte what it was.
 
 ## Revision 2026-11-17 (Draft)
 

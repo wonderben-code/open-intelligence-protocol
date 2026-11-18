@@ -26,6 +26,7 @@ import {
 } from "@oip/identity";
 import type { JsonValue, PolicyStatement, Validation } from "@oip/schema";
 
+import { referenced, withCopy } from "./records.ts";
 import { no, ok } from "./result.ts";
 
 /** A charter, as far as roles are read from it. */
@@ -46,6 +47,13 @@ interface Charter {
  * before that time, and of two completed together, the one with the lower
  * content ID.
  *
+ * A charter is completed when it is first signed for the collective, judged
+ * with the proofs of every copy held, a copy given with the question among
+ * them: a copy that leaves out the proofs that completed it early does not
+ * make it a later charter. And a charter that another names in `supersedes`
+ * is in force at no time from that other's completion on, so that a
+ * collective can end a charter for good, whoever signs it later.
+ *
  * @param also - A charter given with the question, such as one a proof
  *   carries whole, besides those the verifier holds.
  * @returns The charter's content ID, or `undefined` if none is in force.
@@ -59,15 +67,26 @@ export function charterInForce(
   const known = new Map<string, JudgedRecord>();
   for (const charter of [...context.records.chartersOf(mind), ...also]) {
     const record = charter.record as { readonly type: string; readonly author?: unknown };
-    if (record.type === "Collective" && record.author === mind) {
-      known.set(contentId(charter.record), charter);
-    }
+    if (record.type !== "Collective" || record.author !== mind) continue;
+    const id = contentId(charter.record);
+    const held = known.get(id);
+    known.set(id, held === undefined ? charter : withCopy(held, charter));
+  }
+  /** Each charter completed by `time`, with when. */
+  const completed = new Map<string, Instant>();
+  for (const [id, charter] of known) {
+    const signed = ownSignedTime(charter, mind, context.identity);
+    if (signed !== undefined && signed <= time) completed.set(id, signed);
+  }
+  const replaced = new Set<string>();
+  for (const id of completed.keys()) {
+    const earlier = referenced((known.get(id)?.record as { supersedes?: unknown }).supersedes);
+    if (earlier !== undefined) replaced.add(earlier);
   }
   let best: { readonly id: string; readonly signed: Instant } | undefined;
-  for (const id of [...known.keys()].sort()) {
-    const charter = known.get(id);
-    const signed = charter && ownSignedTime(charter, mind, context.identity);
-    if (signed === undefined || signed > time) continue;
+  for (const id of [...completed.keys()].sort()) {
+    const signed = completed.get(id);
+    if (signed === undefined || replaced.has(id)) continue;
     // Later wins. Of two completed together, the first met: the lower content ID.
     if (best === undefined || signed > best.signed) best = { id, signed };
   }

@@ -6,7 +6,7 @@ import { clause } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { evaluatePolicy, MAX_POLICY_STEPS, policyHolds, select } from "../src/index.ts";
+import { evaluatePolicy, MAX_POLICY_WORK, policyHolds, select } from "../src/index.ts";
 
 /** A commitment of the kind a policy is written for. */
 const record = {
@@ -331,21 +331,91 @@ describe(`${clause("L1 11.3", "L1 11.1")} a policy`, () => {
     expect(refusal(nested(10))).toMatchObject(ERROR);
   });
 
-  it("is evaluated for no more statements than a verifier allows", () => {
+  it(`${clause("L1 19")} counts one for each value a statement is tried on, up to the work allowed`, () => {
+    expect(MAX_POLICY_WORK).toBe(262_144);
+    // One `all`, and for each of 4,032 elements an `and` and its 64 comparisons: 262,081.
+    const within = { xs: Array.from({ length: 4032 }, () => 0) };
+    const sixtyFour = Array.from({ length: 64 }, () => ["==", ".", 0]);
+    const every = ["all", ".xs", ["and", sixtyFour]];
+    /** An `and` of `n` comparisons, tried on the record once: `n + 1`. */
+    const more = (n: number) => ["and", Array.from({ length: n }, () => ["==", ".xs[0]", 0])];
+    expect(1 + 4032 * 65).toBe(262_081);
+    expect(evaluatePolicy([every], within)).toStrictEqual({ ok: true, value: true });
+    // Sixty-three more make the work allowed, to the unit, and it holds.
+    expect(evaluatePolicy([every, more(62)], within)).toStrictEqual({ ok: true, value: true });
+    // One more does not, whichever statement is the one too many.
+    for (const over of [
+      [every, more(63)],
+      [more(63), every],
+      [every, more(62), ["==", ".xs[0]", 0]],
+    ]) {
+      const refused = evaluatePolicy(over, within);
+      expect(refused).toMatchObject({ ok: false, issues: [{ clause: "L1 11.3" }] });
+      expect(!refused.ok && refused.issues).toHaveLength(1);
+    }
+    // Negated, it is refused all the same: work that cannot be done is an error.
+    expect(policyHolds([["not", ["and", [every, more(63)]]]], within)).toBe(false);
     // A statement tried on every element of every element: two hundred by six hundred.
-    const grid = { rows: Array.from({ length: 200 }, () => Array.from({ length: 600 }, () => 1)) };
-    const every = [["all", ".rows", ["all", ".", ["==", ".", 1]]]];
-    expect(200 * 600).toBeGreaterThan(MAX_POLICY_STEPS);
-    expect(evaluatePolicy(every, grid)).toMatchObject({
+    const grid = { rows: Array.from({ length: 600 }, () => Array.from({ length: 600 }, () => 1)) };
+    const each = [["all", ".rows", ["all", ".", ["==", ".", 1]]]];
+    expect(policyHolds(each, grid)).toBe(false);
+    expect(policyHolds(each, { rows: grid.rows.slice(0, 400) })).toBe(true);
+  });
+
+  it(`${clause("L1 19")} counts the bytes of both canonical forms for a comparison by canonical form`, () => {
+    // One for the statement, and five bytes for each of `"abc"`: eleven.
+    const text = (length: number) => "a".repeat(length);
+    const blob = text(131_069);
+    // 1 + 2 × (131,069 + 2) for the first, and one for the second, a comparison of numbers.
+    const two = [
+      ["==", ".blob", blob],
+      ["==", ".n", 1],
+    ];
+    expect(1 + 2 * (blob.length + 2) + 1).toBe(MAX_POLICY_WORK);
+    expect(evaluatePolicy(two, { blob, n: 1 })).toStrictEqual({ ok: true, value: true });
+    expect(evaluatePolicy([...two, ["==", ".n", 1]], { blob, n: 1 })).toMatchObject({
       ok: false,
-      issues: [{ clause: "implementation limit" }],
+      issues: [{ clause: "L1 11.3" }],
     });
-    // Negated, it is refused all the same, and for one reason.
-    const negated = evaluatePolicy([["not", every[0]]], grid);
-    expect(negated).toMatchObject({ ok: false, issues: [{ clause: "implementation limit" }] });
-    expect(!negated.ok && negated.issues).toHaveLength(1);
-    const small = { rows: grid.rows.slice(0, 100) };
-    expect(evaluatePolicy(every, small)).toStrictEqual({ ok: true, value: true });
+    // Whether or not the two are equal, and whichever is the larger.
+    expect(policyHolds([["!=", ".blob", text(131_070)]], { blob, n: 1 })).toBe(true);
+    expect(policyHolds([["!=", ".blob", text(131_071)]], { blob, n: 1 })).toBe(false);
+    expect(policyHolds([["!=", ".blob", "a"]], { blob: text(262_138) })).toBe(true);
+    expect(policyHolds([["!=", ".blob", "a"]], { blob: text(262_139) })).toBe(false);
+    // The bytes of the form, not the characters of the value: a quote is written as two.
+    expect(policyHolds([["==", ".blob", '"'.repeat(65_534)]], { blob: '"'.repeat(65_534) })).toBe(
+      true,
+    );
+    expect(policyHolds([["==", ".blob", '"'.repeat(65_535)]], { blob: '"'.repeat(65_535) })).toBe(
+      false,
+    );
+    // A comparison of numbers counts no bytes, however they are written.
+    const numbers = Array.from({ length: 64 }, () => ["==", ".amount", "1".repeat(64)]);
+    expect(policyHolds(numbers, { amount: "1".repeat(64) })).toBe(true);
+  });
+
+  it("compares by canonical form whatever the order of an object's members", () => {
+    const priced = { terms: { price: { amount: "5", currency: "USD" }, tags: ["a", "b"] } };
+    const eq = (selector: string, value: unknown) => policyHolds([["==", selector, value]], priced);
+    expect(eq(".terms.price", { currency: "USD", amount: "5" })).toBe(true);
+    expect(eq(".terms", { tags: ["a", "b"], price: { currency: "USD", amount: "5" } })).toBe(true);
+    // An array's order is part of its form, and a member more or less is another value.
+    expect(eq(".terms.tags", ["b", "a"])).toBe(false);
+    expect(eq(".terms.price", { amount: "5" })).toBe(false);
+    expect(eq(".terms.price", { amount: "5", currency: "USD", unit: null })).toBe(false);
+    // Inside a value nothing is compared as a number: `5` and `"5"` are different forms.
+    expect(eq(".terms.price", { amount: 5, currency: "USD" })).toBe(false);
+    expect(eq(".terms.price.amount", 5)).toBe(true);
+    // Values of one size and different content.
+    expect(eq(".terms.price", { amount: "6", currency: "USD" })).toBe(false);
+    expect(policyHolds([["!=", ".terms.price", { amount: "6", currency: "USD" }]], priced)).toBe(
+      true,
+    );
+    expect(eq(".terms.tags", ["a", "c"])).toBe(false);
+    expect(eq(".terms.price", { amount: "5", currencY: "USD" })).toBe(false);
+    expect(eq(".terms.tags", "[a,b]")).toBe(false);
+    expect(eq(".terms.price.currency", null)).toBe(false);
+    expect(eq(".terms.price.currency", "USD")).toBe(true);
   });
 
   it("bounds the reasons it gives", () => {

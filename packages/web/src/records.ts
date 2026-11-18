@@ -7,6 +7,7 @@
  * about it.
  */
 
+import { contentId } from "@oip/core";
 import { type DelegationContext, RecordSet, type RecordView } from "@oip/delegation";
 import type { JudgedRecord, JudgeOptions } from "@oip/identity";
 import type { Validation } from "@oip/schema";
@@ -35,6 +36,26 @@ export interface WebContext extends DelegationContext {
  */
 export function referenced(ref: unknown): string | undefined {
   return typeof ref === "string" ? ref.slice(ref.lastIndexOf("/") + 1) : undefined;
+}
+
+/**
+ * Layer 2, Section 2: one record with the proofs of two copies of it. The
+ * same record with other proofs is the same record (core 3.1), and each
+ * proof stands on its own.
+ */
+export function withCopy(judged: JudgedRecord, copy: JudgedRecord): JudgedRecord {
+  const known = new Set(judged.proofs.map((proof) => proof.digest));
+  const more = copy.proofs.filter((proof) => !known.has(proof.digest));
+  return more.length === 0 ? judged : { ...judged, proofs: [...judged.proofs, ...more] };
+}
+
+/**
+ * Layer 2, Section 2: a record with the proofs of every copy the verifier
+ * holds of it, the copy given among them.
+ */
+export function withHeld(judged: JudgedRecord, records: RecordView): JudgedRecord {
+  const held = records.record(contentId(judged.record));
+  return held === undefined ? judged : withCopy(judged, held);
 }
 
 function index(found: Map<string, Set<string>>, by: string | undefined, id: string): void {

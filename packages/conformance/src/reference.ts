@@ -186,13 +186,14 @@ export const referenceAdapter: ConformanceAdapter = {
     const judged = judgeRecord(of);
     const time = parseTimestamp(at);
     if (!judged.ok || time === undefined) return "";
-    // As the vectors put the question: what a record refers to is looked up in what the
-    // verifier holds, and what refers to the record is looked for among the records given.
+    // As the vectors put the question: the records given are the copies the verifier
+    // holds of them, and what refers to the record asked about is looked for among them.
+    // What a record refers to besides is looked up in the rest of what the verifier holds.
     const held = recordsOf(view);
     const given = new WebRecordSet();
     for (const record of records) given.add(record);
     const known: WebRecords = {
-      record: (id) => held.record(id),
+      record: (id) => given.record(id) ?? held.record(id),
       revocationsOf: (id) => held.revocationsOf(id),
       chartersOf: (mind) => held.chartersOf(mind),
       supersedersOf: (id) => given.supersedersOf(id),

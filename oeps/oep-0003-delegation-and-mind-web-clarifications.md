@@ -18,6 +18,8 @@ revision: # the specification revision that adopted the change; empty until Fina
 
 Writing `@oip/delegation` and `@oip/web`, the packages of the reference implementation that judge delegation chains, charter roles and the status of Layer 2 records, showed sixteen places where Layer 1, Section 11, and Layer 2 (revision 2026-11-17, with OEP-0001 and OEP-0002) allow two readings, set no rule, or leave a rule without a test. This proposal settles each. Fourteen choose the reading both implementations already had, or make an informal term exact. Two close gaps that protect someone: a member that a collective has removed could go on signing for it through a charter role against a stale copy of the collective's log, and a member of a duplicitous collective could sign for it through a role although nobody can under its threshold.
 
+Two independent reviews of the two packages then found eight more, items 17 to 24. Four of them close ways to a wrong answer: a policy could cost a verifier minutes of work that nothing counted, and two verifiers could disagree about it (17); a stale copy of a delegator's log hid a revocation the verifier held (18); a retired or duplicitous mind's delegations went on counting, with nobody able to revoke them (19); and one member could bring back a charter that the collective's threshold had replaced (23). One settles the first open question of this proposal as it stood.
+
 No record format changes, except that an Offer's `quantity` is at least 1.
 
 ## Motivation
@@ -40,6 +42,14 @@ Whether a record counts for a mind decides who is bound by a Commitment. Two ver
 14. **Which Receipts are superseded?** 8.3 excludes "Receipts superseded by a later Receipt of the same author". "Later" by what: `created`, evidence, or nothing but the reference? And must the superseding Receipt itself be one that is heard?
 15. **Whose compromise declarations?** 8.3, item 1 calls a Commitment `disputed` "if it would be accepted were compromise declarations disregarded, because a party has withdrawn its signature by declaring its key compromised". A party's signature may also rest on another mind's key: its delegate's, or a member's of a collective that is a party.
 16. **Two negative cases had no control.** `delegation-outside-the-proof` and `role-without-charter` are rejected by an implementation with no delegation and no charters at all.
+17. **How much work may a policy ask for?** A quantifier tries its statement on every element of an array, and a comparison by canonical form reads both values whole. The reference implementation stopped after 100,000 evaluations of a statement, and the Python checker never stopped, so the two disagreed about a policy over an array of 60,000 elements. Neither counted the cost of a comparison: a delegation of 4 KB and a record of 440 KB, which any two minds can make, took one verifier eight seconds for one proof. The text set no bound.
+18. **The logs of a chain's delegators.** core 9.4 names the logs that must be held as served no earlier than the evidence for a proof: the signer's, and (item 7) the collective's for a threshold or a role. It did not name the logs of the authors of a delegation chain. A verifier with a fresh copy of the signer's log and an old copy of the principal's could not judge a revocation it held, signed after its copy was made, and took that for "not revoked".
+19. **A delegator that retires, or is duplicitous.** 3.10 says a retired mind's keys can sign nothing, and 7.3 that nothing is signed for a duplicitous collective from its first conflicting event on. Section 11 said nothing of either, so a delegation outlived its author, and nobody could revoke it.
+20. **A revocation, and a later declaration that its key was compromised.** A compromise declaration withdraws what the key signed from the time it names (6.2). Read plainly, that includes the mind's own revocations: declaring a key compromised from before a revocation gave the revoked delegation back, for proofs already refused.
+21. **Are commands normalised?** 11.2 gives the pattern of a command and the rule of covering. `.` and `..` match the pattern, and nothing said whether `/x402/pay/../admin` is under `/x402/pay`.
+22. **A proof for a party, made after the record expired.** 7.1 ends: "in every case, a proof whose evaluation time is more than 300 seconds after `r.expires` does not count". Both implementations applied that when asked whether a record counts for a mind, and not when asked whether its author signs for a party (5.2). The text was right; the case had no vector.
+23. **A charter that was replaced, and a charter's copies.** 6.2 makes the charter in force the one "completed most recently". This proposal's own item (7.1, item 4, as first amended) judged an inline charter "with the proofs it carries there". Together they let one member bring back a charter the threshold had replaced: add a late signature to the old charter, and cite a copy of it without the early proofs, which is then completed later than its replacement. The same charter named by reference gave the other answer. And a collective had no way to end a charter for good.
+24. **Which Receipt supersedes a Receipt?** 8.3 (item 14) excludes a Receipt that "another Receipt of the same author" names in `supersedes`. It did not say that the other Receipt is about the same Commitment, and both implementations assumed it.
 
 ## Specification
 
@@ -95,6 +105,42 @@ Item 1. Current: "were compromise declarations (Layer 1, Section 6.2) disregarde
 
 > were compromise declarations (Layer 1, Section 6.2) disregarded, every mind's and not the parties' alone, because a signature it rests on was withdrawn by a declaration that a key was compromised
 
+**Layer 1, 11.2**, add after the definition of covering (item 21):
+
+> Commands are compared as the strings they are: no segment is normalised, and `.` and `..` are names like any other.
+
+**Layer 1, 11.3**, add after "Errors fail the policy" (item 17), with a row in Section 19, "Work of one policy for one record: 262,144":
+
+> **Work is bounded.** Evaluating a policy for a record costs work, and every verifier counts it alike. Each time a statement is tried on a value counts one: a statement of the policy once, a statement inside a connective once for each time the connective is tried, and the statement of a quantifier once for each element of the array. A comparison that compares canonical forms counts, besides, the number of bytes of the two forms; a comparison of two integers or decimal strings counts no more than its one. A policy whose evaluation for a record would count more than 262,144 is an error for that record, and does not hold.
+
+**Layer 1, 11.4**, add an item, and a sentence after the list (items 18 and 19):
+
+> 8. At `t(p)` no `dᵢ.author` is retired, and none is duplicitous with `t(p)` at or after the evaluation time of its earliest conflicting event (Section 7.3). A mind that can sign nothing can revoke nothing, so what it delegated ends with it.
+>
+> Items 7 and 8 are read from the log of each `dᵢ.author`, which the verifier holds as core 9.4 requires for `p`: from a copy obtained before the evidence for `p`, it cannot tell that the delegation still stands, and the proof does not count.
+
+**core 9.4**, add to the logs that decide whether a proof counts (item 18):
+
+> the log of the author of each delegation of a chain through which it is counted (Layer 1, Section 11.4), and of each mind that was a member of such an author at or before `t(p)`, held as served no earlier than `τ(p)`, since a copy obtained earlier may lack the event that retired the author, or that removed the key a revocation was signed with
+
+**Layer 1, 11.5**, add after "came before it." (item 20):
+
+> A revocation takes authority away and grants none, so it stands whatever is later declared of the key that signed it: its signature is judged with compromise declarations (Section 6.2) disregarded, and a mind that declares a key compromised from before one of its own revocations does not, by that, give back what it took away.
+
+**Layer 2, 6.2**, add after the definition of the charter in force (item 23):
+
+> A charter is completed at the earliest time at which it is signed for the collective, judged with the proofs of every copy the verifier holds (Section 2): a copy that lacks the proofs which completed a charter early does not make it a later charter. A charter that another charter of the collective names in `supersedes` is in force at no time from that other charter's completion on, whichever of the two was completed first and whoever signs the superseded one afterwards. A collective that replaces a charter SHOULD name it in `supersedes`, which is how a charter is ended for good.
+
+**Layer 2, 7.1, item 4** (item 23). As first amended by this proposal: "the inline `Collective` record, which is judged with the proofs it carries there". Proposed:
+
+> the inline `Collective` record, which is the same charter as any copy the verifier holds and is judged with the proofs of them all, 6.2
+
+**Layer 2, 8.3** (item 24). As first amended: "Receipts superseded by another Receipt of the same author". Proposed:
+
+> Receipts superseded by another Receipt about the same Commitment, of the same author
+
+Item 22 changes no text.
+
 ## Rationale and alternatives
 
 **Items 1 and 2** write down what both implementations do. Reserving by letters would take a name from every extension that happens to start with them. Counting the outermost statement as depth 1 would allow eight levels where both implementations allow nine; nothing rests on the difference, so the text follows the code, and two vectors now stand at the boundary.
@@ -121,11 +167,31 @@ Item 1. Current: "were compromise declarations (Layer 1, Section 6.2) disregarde
 
 **Item 15.** `disputed` tells a counterparty that the Commitment was once complete and that a declaration undid it. It makes no difference to the counterparty whose key the declaration named. Both implementations disregard every declaration.
 
+**Item 17.** A bound must be one that every verifier applies, or a record counts for one and not for another; and it must count what the work is, or it bounds nothing. Counting statements alone let a comparison of two values of a megabyte each cost one. Counting bytes of canonical form makes the count a property of the policy and the record, whatever way an implementation compares. 262,144 lets one statement with two comparisons run over an array of some 87,000 numbers, and lets a policy compare a record of 100 KB with itself once; a verifier does that work in about a tenth of a second.
+
+- _Alternative: a bound on a whole record, over all its proofs._ It would bound a verifier's cost better. But a proof stands on its own (core 5.5), and whether one counts would then depend on which others were judged first.
+- _Alternative: leave it to implementations._ That is where the two implementations stood, and they disagreed.
+
+**Items 18 and 19.** The rule for a delegator's log is the rule of item 7 for a collective's, for the same reason. A delegation is a standing grant, and the only things that end it early are in its author's log or signed by its author's keys: a verifier that does not know that log up to the proof cannot say the grant stands. For item 19, a mind that cannot sign cannot revoke, so a delegation that outlived its author's retirement could be ended by nobody; and after duplicity nobody knows which keys are the mind's.
+
+- _Alternative for item 19: let a delegation survive its author's retirement, as a signed record does._ A record signed before a retirement is a fact about the past. A delegation is an authority exercised afterwards.
+
+**Item 20.** A revocation can only take authority away. Honouring one made with a stolen key costs the mind a delegation it can grant again. Not honouring one of the mind's own gives a delegate back an authority the mind had ended, and gives it for proofs made while the revocation stood. The first is the cheaper mistake.
+
+**Item 21** states what both implementations do. A command is a name, not a path in a file system, and a rule that folded `..` would be a second grammar for extensions to get wrong.
+
+**Item 23.** Two things were wrong, and each needs its own rule. That an inline copy with fewer proofs looked like a later charter is closed by judging a charter with the proofs of every copy held, which Section 2 already asks of every record. That leaves a verifier that never saw the early proofs: for it, the old charter does look later, and nothing in the charters can tell it otherwise. A reference in the new charter can: it is in the content, which the threshold signed. So a charter that names another in `supersedes` ends it, whatever is signed afterwards.
+
+- _Alternative: require `expires` on a charter that grants powers._ `expires` bounds when a charter can be signed, not how long it is in force, and the collective that forgets it has no remedy.
+
+**Item 24** writes down what both implementations do. A Receipt about one Commitment says nothing of another.
+
 ## Backwards compatibility
 
 A rule change, in the sense that a verifier of the unamended revision may count proofs that this proposal does not.
 
 - **Does any record that is valid today become invalid, or the reverse?** An Offer with a `quantity` below 1 becomes malformed. A proof through a charter role stops counting where the verifier's copy of the collective's log is older than the evidence for the proof, and where the collective is duplicitous and the proof is evaluated at or after its first conflicting event. Under one reading of today's text, a superseding record with a `status` that is not its type's stops superseding. Nothing else changes for an implementation that read the text as the two implementations here did.
+- **And for items 17 to 24?** A proof through a delegation chain stops counting where the verifier's copy of a delegator's log is older than the evidence for the proof, where a delegator is retired or duplicitous at the proof's time, and where a policy asks for more than 262,144 units of work. A revocation signed with a key later declared compromised goes on revoking. A charter that another names in `supersedes` is in force no longer. A verifier of the earlier text may count proofs that this proposal does not, and never the reverse, except that it may have refused a policy this one accepts.
 - **Does any golden value change?** No. `vectors.json` gains cases and loses none; every existing value is byte for byte what it was.
 - **What does an implementation of the earlier revision do with a record that uses the change?** There is nothing to use: the change removes readings and adds no member, type or name.
 - **What must existing minds, hosts, resolvers, indexers and gateways do, and by when?** Nothing. No Offer in the vectors, the papers or the examples has a quantity below 1.
@@ -136,46 +202,63 @@ A rule change, in the sense that a verifier of the unamended revision may count 
 - **Item 3 closes a way for an invalid policy to pass**, for any caller that evaluates a policy it has not validated. No such caller exists in the reference implementation; the rule protects the next one.
 - **Item 6 is not a loosening.** A proof with a broken chain never counted for the principal, and it always was a signature by the signer's key. Saying so prevents an implementation from discarding the signer's own commitment because of a mistake in `authority`.
 - **Item 13 cannot be used to bind anyone.** Status binds nobody; acceptance (7.3) does, and it is judged at evaluation times, with the tolerance.
+- **Item 17 bounds what a stranger can make a verifier do.** Any two minds can make a delegation and a record. Before, a verifier asked whether that record counted could be made to work for minutes on one proof.
+- **Items 18 to 20 close three ways for an ended delegation to go on counting**: against a verifier with an old copy of the delegator's log, after the delegator retired or split its log, and after the delegator declared the key of its own revocation compromised.
+- **Item 23 closes a way to bind a collective without its threshold.** One member, with a signature of its own and old signatures of others, could put back a charter the threshold had replaced.
 - **Privacy.** None of the items changes what is published or to whom.
 
 ## Test vectors
 
 Added to `vectors.json` by `oip_vectors.py`, and accepted or rejected by both implementations. Each negative case fails under the rule it names and its control passes with that one thing put right.
 
-| Case                                                   | Kind        | Section                            | Item |
-| ------------------------------------------------------ | ----------- | ---------------------------------- | ---- |
-| `command-whose-first-segment-begins-oip`               | `record`    | must-accept                        | 1    |
-| `delegation-with-a-reserved-command`                   | `record`    | negative                           | 1    |
-| `policy-nested-eight-deep`                             | `record`    | must-accept                        | 2    |
-| `policy-nested-nine-deep`                              | `record`    | negative                           | 2    |
-| `policy-orders-what-is-no-decimal`                     | `countsFor` | negative, with a control           | 4    |
-| `revocation-by-another-mind`                           | `countsFor` | must-accept                        | 5    |
-| `proof-with-a-broken-chain-counts-for-its-signer`      | `countsFor` | must-accept                        | 6    |
-| `delegation-named-and-not-held`                        | `countsFor` | negative, with a control           | 6    |
-| `duplicitous-collective-acts-through-a-role`           | `countsFor` | negative, with a control           | 8    |
-| `offer-superseded-with-a-status-that-is-not-an-offers` | `status`    | must-accept                        | 9    |
-| `offer-with-a-quantity-of-zero`                        | `record`    | negative, with a control           | 11   |
-| `intent-at-its-expiry-is-open`                         | `status`    | must-accept                        | 13   |
-| `commitment-at-its-deadline-is-not-overdue`            | `status`    | must-accept                        | 13   |
-| `receipt-superseded-by-its-author`                     | `status`    | must-accept                        | 14   |
-| `receipt-revoked-by-its-author`                        | `status`    | must-accept                        | 14   |
-| `receipt-superseded-by-another-party`                  | `status`    | negative                           | 14   |
-| `delegation-outside-the-proof`, `role-without-charter` | `countsFor` | controls for two earlier negatives | 16   |
+| Case                                                                   | Kind        | Section                            | Item |
+| ---------------------------------------------------------------------- | ----------- | ---------------------------------- | ---- |
+| `command-whose-first-segment-begins-oip`                               | `record`    | must-accept                        | 1    |
+| `delegation-with-a-reserved-command`                                   | `record`    | negative                           | 1    |
+| `policy-nested-eight-deep`                                             | `record`    | must-accept                        | 2    |
+| `policy-nested-nine-deep`                                              | `record`    | negative                           | 2    |
+| `policy-orders-what-is-no-decimal`                                     | `countsFor` | negative, with a control           | 4    |
+| `revocation-by-another-mind`                                           | `countsFor` | must-accept                        | 5    |
+| `proof-with-a-broken-chain-counts-for-its-signer`                      | `countsFor` | must-accept                        | 6    |
+| `delegation-named-and-not-held`                                        | `countsFor` | negative, with a control           | 6    |
+| `duplicitous-collective-acts-through-a-role`                           | `countsFor` | negative, with a control           | 8    |
+| `offer-superseded-with-a-status-that-is-not-an-offers`                 | `status`    | must-accept                        | 9    |
+| `offer-with-a-quantity-of-zero`                                        | `record`    | negative, with a control           | 11   |
+| `intent-at-its-expiry-is-open`                                         | `status`    | must-accept                        | 13   |
+| `commitment-at-its-deadline-is-not-overdue`                            | `status`    | must-accept                        | 13   |
+| `receipt-superseded-by-its-author`                                     | `status`    | must-accept                        | 14   |
+| `receipt-revoked-by-its-author`                                        | `status`    | must-accept                        | 14   |
+| `receipt-superseded-by-another-party`                                  | `status`    | negative                           | 14   |
+| `delegation-outside-the-proof`, `role-without-charter`                 | `countsFor` | controls for two earlier negatives | 16   |
+| `policy-work-at-the-limit`                                             | `countsFor` | must-accept                        | 17   |
+| `policy-work-over-the-limit`                                           | `countsFor` | negative, with a control           | 17   |
+| `delegation-of-a-retired-author`, `delegation-of-a-duplicitous-author` | `countsFor` | negative, each with a control      | 19   |
+| `revocation-by-a-key-later-declared-compromised`                       | `countsFor` | negative, with a control           | 20   |
+| `author-signs-for-a-party-after-the-record-expired`                    | `status`    | negative                           | 22   |
+| `author-signs-for-a-party-as-the-record-expires`                       | `status`    | must-accept                        | 22   |
+| `role-under-a-superseded-charter`                                      | `countsFor` | negative, with a control           | 23   |
+| `receipt-superseded-from-another-commitment`                           | `status`    | negative                           | 24   |
 
 Ten further negative cases, each with a control, pin the items of Layer 1, 11.4 one at a time on a two-step chain. They test rules the text already stated and that no vector held: `chain-without-its-first-delegation`, `chain-with-a-delegation-twice`, `delegation-for-another-subject`, `delegation-signed-in-its-authors-name`, `delegation-to-another-delegate`, `sub-delegation-drops-a-statement`, `sub-delegation-outlives-its-parent`, `delegation-not-yet-valid`, `delegation-made-after-the-proof` and `delegation-expired-beyond-the-tolerance`. Two of the controls stand exactly at a limit: a delegation that starts 300 seconds after the proof, and a proof 300 seconds past an expiry.
 
 Item 7 has no vector: the vectors take every log as known in full. Item 3 is tested by a unit test and by the differential campaign, since a record with a malformed policy is rejected before its policy is evaluated. Items 10, 12 and 15 change no answer in either implementation.
 
-The vectors now hold 31 must-accept cases, 126 negative cases and 75 controls.
+Nine further cases pin rules that the text stated and no vector held. For Layer 1, 11.4, item 1: `delegation-by-a-collectives-threshold` (must-accept) and `delegation-by-one-member-of-a-collective`. For a record held in two copies (core 3.1; Layer 2, Section 2): `revocation-held-with-a-copy-its-author-did-not-sign` and `commitment-held-in-two-copies` (must-accept). For a packet's sender (Layer 1, 11.2 and 12.1): `packet-without-a-sender` and `packet-without-a-sender-is-sent-for-nobody`. For the role route (Layer 2, 7.1, item 4), one condition at a time: `role-of-a-member-the-charter-does-not-assign`, `role-policy-that-does-not-hold`, `role-power-that-does-not-cover-the-record`, `role-under-a-charter-signed-by-one-member` and `role-of-a-member-removed-before-the-proof`. Each negative among them has a control.
+
+Item 18 has no vector, for the reason item 7 has none. Item 21 changes no answer in either implementation.
+
+The vectors now hold 35 must-accept cases, 142 negative cases and 88 controls.
 
 ## Reference implementation
 
-`@oip/delegation` and `@oip/web` (BUILD.md, M3) and the Python checker `spec/test-vectors/oip_vectors.py` implement every item, except that the checker takes every log as complete and so has nothing to do for item 7. Differential tests compare the two on generated policies, on generated delegation chains with a record signed under each, and on generated sets of Layer 2 records whose status is asked; and, made by hand with the answer each must give, on 63 policies and on every way a chain that counts is changed, one at a time.
+`@oip/delegation` and `@oip/web` (BUILD.md, M3) and the Python checker `spec/test-vectors/oip_vectors.py` implement every item, except that the checker takes every log as complete and so has nothing to do for items 7 and 18. Item 22 was a fault both shared: neither applied a record's `expires` when asking whether its author signs for a party. Two more were the checker's alone, found by comparing the two on cases a review made: it kept only the last copy of a record it was shown, and it took a packet without `from` as sent by anyone. Differential tests compare the two on generated policies, on generated delegation chains with a record signed under each, and on generated sets of Layer 2 records whose status is asked; and, made by hand with the answer each must give, on 63 policies and on every way a chain that counts is changed, one at a time.
 
 ## Open questions
 
-- **A bound on the work of a policy.** A quantifier tries its statement on every element of an array, and quantifiers nest, so a policy of a few statements can ask for work in proportion to the square, or a higher power, of a record of 1 MiB. The reference implementation stops at 100,000 evaluations of a statement and treats the policy as not holding; the Python checker has no bound. Two verifiers could therefore disagree about a record built to cost that much. A later revision should name the bound, or limit the arrays a quantifier may range over.
-- **Supersession of other Layer 2 records.** Section 2 lets any Layer 2 record carry `supersedes`. Section 8 says what that does to an Intent, an Offer and a Receipt, and nothing for a Commitment or a charter. Both implementations take it to do nothing there.
+- **The number in item 17.** 262,144 is this proposal's choice, and the maintainer's to confirm. It is easier to raise than to lower: raising it never makes a record that counted stop counting.
+- **Supersession of other Layer 2 records.** Section 2 lets any Layer 2 record carry `supersedes`. Section 8 says what that does to an Intent, an Offer and a Receipt, and item 23 what it does to a charter. For a Commitment it does nothing, and both implementations take it so.
+- **The status of a record that does not count for its author.** Section 2 requires every Layer 2 record to carry a proof that counts for its author. Section 8 does not say what the status of one that carries none is, and both implementations answer as if it did: an unsigned Intent is `open`, and any `Collective` record of a collective that is not retired is `active`, a superseded one among them.
+- **A rule of Section 8 that decides nothing.** Among superseding records of equal standing, Section 8 names which one decides. No status depends on the choice, and neither implementation makes it.
 - **The charter of a duplicitous collective.** 8.4 calls a charter `dissolved` if the collective's log is retired, and `active` otherwise. After duplicity nobody can sign for the collective, under its threshold or through a role, and its charter still reads `active`.
 - **The other "integers" of Layer 1** (`Location.seq`, `maxHops`, a query's `limit`), and the members of inline objects there (an endpoint's `priority`, `Resume.lastSent`, a result's `hints`), are left to the milestone that implements them.
 - **The clause each negative case breaks** (OEP-0002's last open question) is still open. Each new negative case here names its clause in its reason, in prose.

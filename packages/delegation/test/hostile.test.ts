@@ -19,7 +19,7 @@ import {
   type DelegationContext,
   evaluatePolicy,
   MAX_CHAIN,
-  MAX_POLICY_STEPS,
+  MAX_POLICY_WORK,
   policyHolds,
   RecordSet,
   type RecordView,
@@ -242,21 +242,61 @@ describe("a view that fails", () => {
 
 describe(`${clause("L1 11.3")} a policy built to cost work`, () => {
   it("stops at the work allowed, and does not hold", () => {
-    // A quantifier inside a quantifier, over 400 arrays of 400.
+    // A quantifier inside a quantifier, over 600 arrays of 600.
     const record = {
-      rows: Array.from({ length: 400 }, () => Array.from({ length: 400 }, () => 1)),
+      rows: Array.from({ length: 600 }, () => Array.from({ length: 600 }, () => 1)),
     };
     const policy = [["all", ".rows", ["all", ".", ["==", ".", 1]]]];
     const started = performance.now();
     expect(evaluatePolicy(policy, record)).toMatchObject({
       ok: false,
-      issues: [{ clause: "implementation limit" }],
+      issues: [{ clause: "L1 11.3" }],
     });
     expect(performance.now() - started).toBeLessThan(5000);
     // Within the work allowed, the same policy holds.
     const small = { rows: Array.from({ length: 100 }, () => Array.from({ length: 100 }, () => 1)) };
-    expect(100 * 100 + 101).toBeLessThan(MAX_POLICY_STEPS);
+    expect(100 * 100 + 101).toBeLessThan(MAX_POLICY_WORK);
     expect(policyHolds(policy, small)).toBe(true);
+  });
+
+  it("does no more work than it counts, where every statement compares the whole record", () => {
+    // A record of some 440 KB, and 256 statements that each compare all of it with a
+    // number. Written out for each, its canonical form took seconds for one proof.
+    const record = { blob: "x".repeat(440_000), n: 1 };
+    const policy = Array.from({ length: 64 }, () => [
+      "and",
+      Array.from({ length: 4 }, () => ["!=", ".", 0]),
+    ]);
+    const started = performance.now();
+    // The first comparison counts more than all the work there is.
+    expect(evaluatePolicy(policy, record)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "L1 11.3" }],
+    });
+    expect(performance.now() - started).toBeLessThan(500);
+    // A record of a fifth of the work allowed: four comparisons of it hold, a fifth does not.
+    const fifth = { blob: "x".repeat(52_000) };
+    const compare = (times: number) => Array.from({ length: times }, () => ["!=", ".", 0]);
+    expect(policyHolds(compare(4), fifth)).toBe(true);
+    expect(policyHolds(compare(5), fifth)).toBe(true);
+    expect(policyHolds(compare(6), fifth)).toBe(false);
+  });
+
+  it("reads a selector once, however many values its statement is tried on", () => {
+    // A selector of 180 KB that resolves on nothing, tried on 4,000 elements.
+    const selector = `.a${'["a"]'.repeat(30_000)}`;
+    const record = { xs: Array.from({ length: 4000 }, () => ({ a: 1 })) };
+    const started = performance.now();
+    const refused = evaluatePolicy([["all", ".xs", ["==", selector, 1]]], record);
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(refused.ok).toBe(false);
+    // What it says of the selector is no longer than a line.
+    const issues = refused.ok ? [] : refused.issues;
+    expect(issues.length).toBeGreaterThan(0);
+    for (const issue of issues) {
+      expect(issue.clause).toBe("L1 11.3");
+      expect(issue.message.length).toBeLessThan(200);
+    }
   });
 
   it("is read no further than the work allowed, where one statement stands in many places", () => {

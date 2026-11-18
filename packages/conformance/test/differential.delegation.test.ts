@@ -179,6 +179,74 @@ const policy: fc.Arbitrary<unknown> = fc.oneof(
 );
 
 /**
+ * Policies at the edge of the work allowed, each with the record it is asked
+ * of and whether it holds (Layer 1, 11.3 and Section 19). The two
+ * implementations count alike or they disagree about one of these.
+ */
+function workByHand(): [name: string, holds: boolean, policy: unknown, record: unknown][] {
+  const LIMIT_OF_WORK = 262_144;
+  /** A string whose canonical form has `bytes` bytes, made of one character. */
+  const written = (bytes: number, character: string, each: number): string =>
+    character.repeat((bytes - 2) / each);
+  /** One comparison of a member with a value of the same canonical size: `1 + 2 × bytes`. */
+  const same = (text: string): [unknown, unknown] => [[["==", ".blob", text]], { blob: text }];
+  const half = (LIMIT_OF_WORK - 2) / 2;
+  const cases: [name: string, holds: boolean, policy: unknown, record: unknown][] = [];
+  for (const [what, character, each] of [
+    ["letters", "a", 1],
+    // Two bytes for a letter with an accent, three for a Chinese character, and four
+    // for a character outside the first plane, which is two units of the string.
+    ["letters with an accent", "é", 2],
+    ["Chinese characters", "中", 3],
+    ["characters of four bytes", "😀", 4],
+    // A quotation mark and a line feed are each written as two bytes, and another
+    // control character as six.
+    ["quotation marks", '"', 2],
+    ["line feeds", "\n", 2],
+    ["control characters", "\u0001", 6],
+  ] as const) {
+    // The largest size of the kind that leaves the work within the limit, with a
+    // second statement for what is left over.
+    const bytes = half - ((half - 2) % each);
+    const [policy, record] = same(written(bytes, character, each));
+    const spare = LIMIT_OF_WORK - (1 + 2 * bytes);
+    /** Statements that count `extra` between them: a comparison, or an `and` and what it holds. */
+    const padded = (extra: number): unknown[] => {
+      if (extra === 0) return [];
+      if (extra === 1) return [["==", ".n", 1]];
+      return [["and", Array.from({ length: extra - 1 }, () => ["==", ".n", 1])]];
+    };
+    cases.push([
+      `work at the limit, comparing ${what}`,
+      true,
+      [...(policy as unknown[]), ...padded(spare)],
+      { ...(record as object), n: 1 },
+    ]);
+    cases.push([
+      `work one over the limit, comparing ${what}`,
+      false,
+      [...(policy as unknown[]), ...padded(spare + 1)],
+      { ...(record as object), n: 1 },
+    ]);
+  }
+  // Statements alone: one `all`, and for each of 4,032 elements an `and` of 64 comparisons.
+  const xs = { xs: Array.from({ length: 4032 }, () => 0) };
+  const every = ["all", ".xs", ["and", Array.from({ length: 64 }, () => ["==", ".", 0])]];
+  const more = (n: number) => ["and", Array.from({ length: n - 1 }, () => ["==", ".xs[0]", 0])];
+  cases.push(["work at the limit, by statements", true, [every, more(63)], xs]);
+  cases.push(["work one over the limit, by statements", false, [every, more(64)], xs]);
+  // A comparison of numbers counts one, however long they are written.
+  const long = "1".repeat(64);
+  cases.push([
+    "64 comparisons of numbers of 64 digits",
+    true,
+    Array.from({ length: 64 }, () => ["and", Array.from({ length: 64 }, () => ["==", ".n", long])]),
+    { n: long },
+  ]);
+  return cases;
+}
+
+/**
  * Policies made by hand, each with the record it is asked of and whether it
  * holds (Layer 1, 11.3). What a generator reaches only by chance is here on
  * purpose: decimals that are equal and spelt otherwise, the limits, every
@@ -400,6 +468,9 @@ function policiesByHand(): [name: string, holds: boolean, policy: unknown, recor
     ["nor under a negation", false, [["not", ["any", ".tags", ["like", ".", "a*"]]]], deal],
     ["a policy that is no list", false, { "0": ["==", amount, 500] }, deal],
     ["a record that is no object", true, [["==", ".", 5]], "5.0"],
+    // The work a policy may ask for one record: 262,144, counting one for each value a
+    // statement is tried on and, for a comparison by canonical form, the bytes of both forms.
+    ...workByHand(),
   ];
 }
 
@@ -462,7 +533,9 @@ const TWISTS = [
   "revoked just then",
   "revoked after",
   "revoked by another",
+  "revoked before, in two copies",
   "not held",
+  "held twice",
   "no policy",
   "a policy that is none",
 ] as const;
@@ -580,6 +653,7 @@ function chainCase(plan: ChainPlan): VectorCase {
         "revoked just then",
         "revoked after",
         "revoked by another",
+        "revoked before, in two copies",
       ] as const) {
         if (!does(twist, i, 1)) continue;
         const author = i === 0 ? pia : agents[i - 1]!;
@@ -598,6 +672,11 @@ function chainCase(plan: ChainPlan): VectorCase {
           (twist === "revoked after" ? 1 : twist === "revoked just then" ? 0 : -1);
         for (const proof of revocation.proof) seen[proofDigest(proof)] = formatTimestamp(at(when));
         extraRecords.push(revocation);
+        if (twist === "revoked before, in two copies") {
+          // Held again in a copy that only a stranger signed: no copy takes a proof away.
+          const { proof: _proof, ...content } = revocation;
+          extraRecords.push(signRaw(sly, content));
+        }
       }
     }
     let authority: unknown[] = links.map((link, i) => {
@@ -605,6 +684,12 @@ function chainCase(plan: ChainPlan): VectorCase {
       if (!does("not held", i)) extraRecords.push(link);
       return formatRecordRef(String(link["author"]), contentId(link));
     });
+    for (const [i, link] of links.entries()) {
+      if (!does("held twice", i)) continue;
+      // The delegation as it was signed, and then a copy that only a stranger signed.
+      const { proof: _proof, ...content } = link;
+      extraRecords.push(link, signRaw(sly, content));
+    }
     if (plan.twists.includes("swap") && length > 1) {
       const [a, b] = [pick(0), pick(2) === pick(0) ? (pick(0) + 1) % length : pick(2)];
       const turned = [...authority];
@@ -688,7 +773,81 @@ const HARMLESS: readonly Twist[] = [
   // A revocation takes effect from its own evaluation time, and is its author's to make.
   "revoked after",
   "revoked by another",
+  // The same record with other proofs is the same record, and keeps the proofs it had.
+  "held twice",
 ];
+
+// ---------------------------------------------------------------- packets
+
+/**
+ * Packets made by hand, each with the records held beside it and whether it
+ * was sent on Pia's behalf (Layer 1, 11.2): it names her in
+ * `provenance.onBehalfOf`, and a proof by its own sender lists a chain from
+ * her that covers `/oip/send`.
+ */
+function packetsByHand(): [name: string, sent: boolean, packet: Signed, held: JsonObject[]][] {
+  const agent = agents[0]!;
+  const grant = (command: string, nonce: string): Signed =>
+    signRaw(pia, {
+      oip: "1",
+      type: "Delegation",
+      author: pia.address,
+      delegate: agent.address,
+      subject: pia.address,
+      command,
+      expires: T(100_000),
+      nonce,
+      created: T(10),
+    });
+  const [maySend, maySign] = [
+    grant("/oip/send", "packets-0001"),
+    grant("/oip/sign/Intent", "packets-0002"),
+  ];
+  const named = formatRecordRef(pia.address, contentId(maySend));
+  const packet = (
+    more: JsonObject = {},
+    options: { by?: Mind; authority?: readonly unknown[]; without?: readonly string[] } = {},
+  ): Signed => {
+    const content: Record<string, unknown> = {
+      oip: "1",
+      type: "Packet",
+      from: agent.address,
+      to: [sly.address],
+      created: T(SIGNED),
+      expires: T(SIGNED + 1000),
+      nonce: "c4e2a9f7d1b8306e",
+      purpose: { verb: "request" },
+      content: { mediaType: "text/plain", body: "Could it be ready early?" },
+      provenance: { onBehalfOf: pia.address },
+      ...more,
+    };
+    for (const member of options.without ?? []) delete content[member];
+    return signRaw(options.by ?? agent, content, options.authority ?? [maySend]);
+  };
+  return [
+    ["sent by her agent, with the chain given whole", true, packet(), []],
+    ["with the chain named and held", true, packet({}, { authority: [named] }), [maySend]],
+    ["with the chain named and not held", false, packet({}, { authority: [named] }), []],
+    ["without a sender", false, packet({}, { without: ["from"] }), []],
+    ["from another mind than the one that signed it", false, packet({ from: sly.address }), []],
+    ["signed by another mind than its sender", false, packet({}, { by: sly }), []],
+    ["on another mind's behalf", false, packet({ provenance: { onBehalfOf: sly.address } }), []],
+    ["that names nobody it is sent for", false, packet({}, { without: ["provenance"] }), []],
+    [
+      "by a chain that grants signing and not sending",
+      false,
+      packet({}, { authority: [maySign] }),
+      [],
+    ],
+    [
+      "by her own key, with a chain all the same",
+      false,
+      packet({ from: pia.address }, { by: pia }),
+      [],
+    ],
+    ["with no chain at all", false, signRaw(agent, { ...packet(), proof: undefined }), []],
+  ];
+}
 
 // ---------------------------------------------------------------- status
 
@@ -1001,6 +1160,31 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
       }
       count("policies made by hand", `compared ${made.length}`);
       expect(made.length).toBeGreaterThan(55);
+    });
+
+    it("agrees with it, and with the rule, on packets made by hand", async () => {
+      const made = packetsByHand();
+      for (const [name, sent, packet, held] of made) {
+        const question: VectorCase = {
+          kind: "sentFor",
+          name,
+          record: packet,
+          mind: pia.address,
+          extraLogs: LOGS,
+          extraRecords: held,
+        };
+        const theirs = await judge.judge(question);
+        expect(
+          {
+            implementation: claimHolds(referenceAdapter, vectors, question),
+            judge: theirs.holds,
+            judgeError: theirs.error,
+          },
+          name,
+        ).toStrictEqual({ implementation: sent, judge: sent, judgeError: undefined });
+      }
+      count("packets made by hand", `compared ${made.length}`);
+      expect(made.length).toBeGreaterThan(10);
     });
 
     it("generates chains that count and chains that do not, for each thing done to them", () => {

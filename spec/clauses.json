@@ -431,7 +431,7 @@
       "keywords": {
         "MUST": 2
       },
-      "digest": "b5c5f54123117a4a03f747d494ba71b49fc8a28ed844016fd35538bca29ce7e7"
+      "digest": "3fd3bf74b30898398c09b00727ac7c74f06ba2778cacb957b7c8486eb8f47568"
     },
     {
       "id": "core 9.5",
@@ -1265,7 +1265,7 @@
       "keywords": {
         "MUST NOT": 1
       },
-      "digest": "e15f8d24ea9d493c773436cd044e39f0abcfdb7d9cd381445d2bc225a40fa4e8"
+      "digest": "d603456f676423e1d9421c61220a6c8855e5ff00725319598f8c1eaa323b9fc3"
     },
     {
       "id": "L1 11.3",
@@ -1276,7 +1276,7 @@
       "keywords": {
         "SHOULD": 2
       },
-      "digest": "d372a1cd5f83da18512eb2ce26b4a9388a22888ec76aeb25447086e0f83c749f"
+      "digest": "7257765f33f04bca5cc57c9a4edac7413522fb437319a67d57c6f9f6e0c302c2"
     },
     {
       "id": "L1 11.4",
@@ -1285,7 +1285,7 @@
       "summary": "Validity of a delegation chain for a record `r` carrying a proof `p` by a valid operational key…",
       "level": "none",
       "keywords": {},
-      "digest": "e862a1b7809172129654b74ebb88f1dcc90337e42cb5fa82905e3421fc50a65a"
+      "digest": "eb5ea9c98bd6ddf44868925562306bcda5b03eac9682167cd20115484db730df"
     },
     {
       "id": "L1 11.5",
@@ -1296,7 +1296,7 @@
       "keywords": {
         "SHOULD": 3
       },
-      "digest": "879a4a79254f69b1bf84634d72e34f83596a7cf90e06bc50de71e51743ae152f"
+      "digest": "174f820324c8f1ee201b3eb77d17967fe3e84b1b92f6c6a7a1218a559637ae72"
     },
     {
       "id": "L1 11.6",
@@ -1678,7 +1678,7 @@
       "summary": "Limits (table)",
       "level": "none",
       "keywords": {},
-      "digest": "d241da6526e1807a0e3818dd5c05fe63bda9c60f828d2ad14975b159ea9a77bf"
+      "digest": "dd85667affc6e69b147a72b8ec394a0cf7c031d0f93b56d668b0215aa88c22a0"
     },
     {
       "id": "L2 1.1",
@@ -1829,10 +1829,10 @@
         "REQUIRED": 2,
         "MUST NOT": 1,
         "MUST": 1,
-        "SHOULD": 2,
+        "SHOULD": 3,
         "MAY": 1
       },
-      "digest": "a820830e2456a2f45dd767233a41308c0a65b57bab80c1fe2218659079ec6fab"
+      "digest": "afe5f158001c91f1b9371a19e60df9228e9f9dcf45c3fbfcb382753015b13409"
     },
     {
       "id": "L2 7.1",
@@ -1843,7 +1843,7 @@
       "keywords": {
         "SHOULD": 1
       },
-      "digest": "085e75510c7412d06517fdbcd17484c854c9c0ecf64251c0160cee10d345ce14"
+      "digest": "73bb76b458f1d108e2ebfd149f0172a487e627635f175e226e0c71d4cc71c822"
     },
     {
       "id": "L2 7.2",
@@ -1901,7 +1901,7 @@
       "keywords": {
         "SHOULD": 1
       },
-      "digest": "3efdd35d7549523e9e74ebcfa106a2eb0700f14fcf025afaff57ddbbaaa86d1a"
+      "digest": "9f5d4117731bd804418eb0c4255b225df5ea6d11521be1fc6311dee58ac75dec"
     },
     {
       "id": "L2 8.4",

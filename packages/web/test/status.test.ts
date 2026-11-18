@@ -8,13 +8,16 @@ import { at, Collective, intentBy, KeyMind, LATER, type Mind, T } from "@oip/tes
 import { describe, expect, it } from "vitest";
 
 import {
+  actsFor,
   charterStatus,
   commitmentAccepted,
   commitmentStatus,
+  countsFor,
   intentStatus,
   offerStatus,
   status,
   type WebContext,
+  type WebRecords,
   WebRecordSet,
 } from "../src/index.ts";
 
@@ -612,5 +615,165 @@ describe("the records a verifier holds, by what they refer to", () => {
     set.add(rules);
     expect(ids(set.chartersOf(club.address))).toStrictEqual([contentId(rules)]);
     expect(set.revocationsOf(contentId(rules))).toStrictEqual([]);
+  });
+});
+
+describe(`${clause("L2 5.2", "L2 7.1")} an author that signs for a party`, () => {
+  /** A delegation that lets one mind sign Commitments for another. */
+  const grant = (principal: Mind, delegate: Mind, nonce: string) =>
+    signedBy(
+      {
+        oip: "1",
+        type: "Delegation",
+        author: principal.address,
+        delegate: delegate.address,
+        subject: principal.address,
+        command: "/oip/sign/Commitment",
+        expires: T(100_000),
+        nonce,
+        created: T(1),
+      },
+      principal,
+    );
+
+  it(`${clause("core 9.6")} does not, by a proof made more than 300 seconds after the record expires`, () => {
+    // Dee is no party. Cy, a witness who need not sign, lets Dee sign for him. The
+    // Commitment expires at 50, and Ann, Bo and Dee sign it at 10.
+    const forCy = grant(cy, dee, "author-rule-0001");
+    const content = commitment(10, {
+      author: dee.address,
+      expires: T(50),
+      parties: [...commitment(10).parties, { mind: cy.address, role: "witness" }],
+    });
+    const base = signedBy(content, bo, ann, dee);
+    /** With Dee's proof for Cy, made at `seconds`. */
+    const withProofAt = (seconds: number) =>
+      dee.sign(base, {
+        position: 0,
+        created: T(seconds),
+        more: { authority: [ref(forCy)] },
+      }) as Signed;
+    const told = (record: Signed) => {
+      const context = holding([forCy, record]);
+      const value = judged(record);
+      return {
+        actsForCy: actsFor(value, dee.address, cy.address, context),
+        countsForCy: countsFor(value, cy.address, context),
+        accepted: commitmentAccepted(value, context),
+        status: commitmentStatus(value, at(20), context),
+      };
+    };
+    const yes = { actsForCy: true, countsForCy: true, accepted: true, status: "accepted" };
+    const no = { actsForCy: false, countsForCy: false, accepted: false, status: "proposed" };
+    expect(told(withProofAt(11))).toStrictEqual(yes);
+    // To the last moment: 300 seconds after `expires`.
+    expect(told(withProofAt(350))).toStrictEqual(yes);
+    expect(told(withProofAt(350.000000001))).toStrictEqual(no);
+    expect(told(withProofAt(1000))).toStrictEqual(no);
+    // Without any proof for a party, its author signs for none.
+    expect(told(base)).toStrictEqual(no);
+  });
+
+  it("does not, by another mind's proof for that party", () => {
+    // Ann lets Cy sign for her. Dee, who is no party, is the author. Cy's proof binds
+    // Ann, and it is Cy's: Dee signs for nobody by it.
+    const forAnn = grant(ann, cy, "author-rule-0002");
+    const parties = [
+      { mind: ann.address, role: "debtor", required: true },
+      { mind: bo.address, role: "creditor", required: true },
+    ];
+    const content = commitment(10, { author: dee.address, parties });
+    const byCy = cy.sign(content, { position: 0, more: { authority: [ref(forAnn)] } });
+    const record = signedBy(byCy, bo, dee);
+    const context = holding([forAnn, record]);
+    const value = judged(record);
+    expect(actsFor(value, cy.address, ann.address, context)).toBe(true);
+    expect(countsFor(value, ann.address, context)).toBe(true);
+    expect(actsFor(value, dee.address, ann.address, context)).toBe(false);
+    expect(commitmentAccepted(value, context)).toBe(false);
+    // With Cy as its author, it is accepted.
+    const byItsSigner = commitment(10, { author: cy.address, parties });
+    const signed = signedBy(
+      cy.sign(byItsSigner, { position: 0, more: { authority: [ref(forAnn)] } }),
+      bo,
+      cy,
+    );
+    expect(commitmentAccepted(judged(signed), holding([forAnn, signed]))).toBe(true);
+  });
+});
+
+describe(`${clause("L2 7.1")} a role, once the collective is retired`, () => {
+  it("signs for it before the retirement, and not from it on", () => {
+    // The guild retires at 400. Its charter makes Ann a clerk.
+    const rules = guild.sign(
+      {
+        oip: "1",
+        type: "Collective",
+        author: guild.address,
+        name: "The guild",
+        purpose: "To translate leases.",
+        roles: { clerk: { powers: [{ command: "/oip/sign/Intent" }] } },
+        assignments: [{ mind: ann.address, role: "clerk" }],
+        created: T(10),
+      },
+      { position: 0 },
+    ) as Signed;
+    const signedAt = (seconds: number) =>
+      ann.sign(intentBy(guild, seconds), { position: 0, more: { authority: [ref(rules)] } });
+    const counts = (seconds: number) => {
+      const record = signedAt(seconds);
+      return countsFor(judged(record), guild.address, holding([rules, record]));
+    };
+    expect(counts(100)).toBe(true);
+    expect(counts(399)).toBe(true);
+    expect(counts(400)).toBe(false);
+    expect(counts(5000)).toBe(false);
+  });
+});
+
+describe(`${clause("L2 2")} the copies of a record, and a view that answers wrongly`, () => {
+  const draft = commitment(10);
+  const [byBo, byAnn] = [signedBy(draft, bo), signedBy(draft, ann)];
+
+  it("judges the record asked about with the proofs of every copy held", () => {
+    // Each party signed its own copy. A verifier that holds both is asked with either.
+    const context = holding([byBo, byAnn]);
+    for (const copy of [byBo, byAnn]) {
+      expect(commitmentAccepted(judged(copy), context)).toBe(true);
+      expect(commitmentStatus(judged(copy), at(20), context)).toBe("accepted");
+      expect(status(judged(copy), at(20), context)).toStrictEqual({ ok: true, value: "accepted" });
+    }
+    // One that holds a single copy has a single signature.
+    expect(commitmentStatus(judged(byBo), at(20), holding([byBo]))).toBe("proposed");
+  });
+
+  it("checks what a view answers with against the record itself", () => {
+    const agreed = signedBy(draft, bo, ann);
+    const other = signedBy(commitment(11), bo, ann);
+    // A Receipt about another Commitment, which the view hands over as one about this.
+    const elsewhere = signedBy(receipt(ann, 60, other, "broken"), ann);
+    const wanted = signedBy(intent(10), ann);
+    // An Intent of Ann's that supersedes another record, handed over as superseding this one.
+    const edit = signedBy(intent(20, { supersedes: ref(signedBy(intent(11), ann)) }), ann);
+    // A Commitment that resolves another Intent, handed over as resolving this one.
+    const stray = signedBy(
+      commitment(30, { resolves: [ref(signedBy(intent(12), ann))], closesIntent: true }),
+      bo,
+      ann,
+    );
+    const context = holding([agreed, other, elsewhere, wanted, edit, stray]);
+    const lying: WebRecords = {
+      record: (id) => context.records.record(id),
+      revocationsOf: (id) => context.records.revocationsOf(id),
+      chartersOf: (mind) => context.records.chartersOf(mind),
+      supersedersOf: () => [judged(edit)],
+      resolversOf: () => [judged(stray)],
+      receiptsAbout: () => [judged(elsewhere)],
+    };
+    const misled = { ...context, records: lying };
+    expect(commitmentStatus(judged(agreed), at(80), misled)).toBe("accepted");
+    expect(intentStatus(judged(wanted), at(50), misled)).toBe("open");
+    // The same answers, where the view says what is so.
+    expect(commitmentStatus(judged(other), at(80), context)).toBe("broken");
   });
 });

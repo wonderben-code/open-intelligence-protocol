@@ -25,8 +25,9 @@ import {
   type JudgedRecord,
   type JudgeOptions,
   judgeRecord,
-  operationalProofTime,
+  operationalProofEvaluation,
   ownSignedTime,
+  stateAt,
 } from "@oip/identity";
 import type { Delegation, JsonValue, Validation } from "@oip/schema";
 
@@ -111,15 +112,91 @@ function instant(text: string): Instant {
 }
 
 /**
- * Layer 1, 11.4, items 1 to 7, for the delegations exactly as listed.
+ * Layer 1, 11.4, item 8, and core 9.4: whether the author of a delegation
+ * can still stand behind it at the proof's time, as far as the verifier can
+ * tell.
+ *
+ * The author's log is known up to the evidence for the proof, and so is
+ * the log of each member of an author that is a collective. A copy older
+ * than that may lack the event that retired the author, or that removed
+ * the key a revocation was signed with, and the verifier would count a
+ * chain that its author had ended. The author is not retired at the
+ * proof's time, and not duplicitous from its first conflicting event on: a
+ * mind that can sign nothing can revoke nothing.
+ *
+ * @param time - `t(p)`.
+ * @param evidenced - `τ(p)`: the time the logs must be known up to.
+ */
+function authorStands(
+  author: string,
+  time: Instant,
+  evidenced: Instant,
+  identity: IdentityView,
+  path: string,
+): Rejection | undefined {
+  const held = identity.log(author);
+  if (!held.ok) {
+    const [first] = held.issues;
+    return no(
+      `the log of the delegation's author does not verify: ${first.message}`,
+      first.clause,
+      path,
+    );
+  }
+  const log = held.value;
+  const stale = (asOf: Instant) => asOf < evidenced;
+  if (stale(log.asOf)) {
+    return no(
+      "the log of the delegation's author was obtained before the evidence for this proof: it may lack a later event",
+      "core 9.4",
+      path,
+    );
+  }
+  // Every mind that has been a member by then may have signed a revocation.
+  const members = new Set<string>();
+  for (const entry of log.entries) {
+    if (entry.time > time) break;
+    if (entry.state.controller.kind === "member") {
+      for (const member of entry.state.controller.members) members.add(member);
+    }
+  }
+  for (const member of members) {
+    const theirs = identity.log(member);
+    if (!theirs.ok || stale(theirs.value.asOf)) {
+      return no(
+        "the log of a member of the delegation's author is not held as known up to the evidence for this proof",
+        "core 9.4",
+        path,
+      );
+    }
+  }
+  if (stateAt(log, time)?.retired !== false) {
+    return no("the delegation's author is retired at the proof's time", "L1 11.4", path);
+  }
+  for (const tail of log.branchTails) {
+    if (time >= tail.time) {
+      return no(
+        "the delegation's author is duplicitous, and the proof is evaluated at or after its first conflicting event",
+        "L1 7.3",
+        path,
+      );
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Layer 1, 11.4, items 1 to 8, for the delegations exactly as listed.
  *
  * @param time - `t(p)`, the evaluation time of the proof that relies on the chain.
+ * @param evidenced - `τ(p)`, the evidence that time rests on (core 9.4).
  */
 function chainHolds(
   chain: readonly Link[],
   judged: JudgedRecord,
   need: string,
   time: Instant,
+  evidenced: Instant,
   principal: string,
   signer: string,
   context: DelegationContext,
@@ -184,6 +261,9 @@ function chainHolds(
         at(index),
       );
     }
+    // Item 8, and core 9.4: its author stands behind it still, as far as can be told.
+    const fallen = authorStands(delegation.author, time, evidenced, context.identity, at(index));
+    if (fallen !== undefined) return fallen;
     // Item 7: not revoked by the time the proof is evaluated.
     const revokedAt = revokedTime(id, delegation.author, context.records, context.identity);
     if (revokedAt !== undefined && revokedAt <= time) {
@@ -277,10 +357,20 @@ export function delegatedProofTime(
   }
   const chain = links(proof, context);
   if (!chain.ok) return chain;
-  const time = operationalProofTime(type, proof, context.identity);
-  if (!time.ok) return time;
-  const broken = chainHolds(chain.value, judged, need, time.value, principal, method.mind, context);
-  return broken ?? ok(time.value);
+  const evaluated = operationalProofEvaluation(type, proof, context.identity);
+  if (!evaluated.ok) return evaluated;
+  const { time, evidenced } = evaluated.value;
+  const broken = chainHolds(
+    chain.value,
+    judged,
+    need,
+    time,
+    evidenced,
+    principal,
+    method.mind,
+    context,
+  );
+  return broken ?? ok(time);
 }
 
 /**

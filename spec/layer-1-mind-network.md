@@ -254,7 +254,7 @@ The semantics follow UCAN 1.0 (a release candidate at the time of writing). As i
 
 `notBefore` bounds when a delegated proof counts, not when it can be made: because a proof's evaluation time comes from the earliest evidence of it (core 9.3), a proof made before `notBefore` counts for any verifier that first sees it afterwards.
 
-11.2. **Commands** match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` **covers** a command `c` when `c` equals `g` or `c` begins with `g` followed by `/`. The commands under `/oip` are exactly:
+11.2. **Commands** match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` **covers** a command `c` when `c` equals `g` or `c` begins with `g` followed by `/`. Commands are compared as the strings they are: no segment is normalised, and `.` and `..` are names like any other. The commands under `/oip` are exactly:
 
 | Command | Grants |
 |---|---|
@@ -272,6 +272,8 @@ Statements nest at most 8 deep: a statement of the policy is at depth 0, a state
 
 **Errors fail the policy.** A comparison whose selector does not resolve to a value, an ordering comparison whose operands are not both integers or decimal strings, and a quantifier whose selector does not resolve to an array are **errors**. Every statement is evaluated in full, and if any statement anywhere in a policy is an error, the policy does not hold. So `not` and `or` can never turn a missing or malformed value into a pass, and a policy that constrains a member that may be absent must require it.
 
+**Work is bounded.** Evaluating a policy for a record costs work, and every verifier counts it alike. Each time a statement is tried on a value counts one: a statement of the policy once, a statement inside a connective once for each time the connective is tried, and the statement of a quantifier once for each element of the array. A comparison that compares canonical forms counts, besides, the number of bytes of the two forms; a comparison of two integers or decimal strings counts no more than its one. A policy whose evaluation for a record would count more than 262,144 is an error for that record, and does not hold. A quantifier lets a few statements ask for work in proportion to the record, and many for the product of the two, so without a bound that all verifiers share, one would refuse what another accepts.
+
 `like` is reserved. A policy constrains only what it selects, so delegators SHOULD constrain every term that matters: for a price, its `amount`, its `currency` and who pays it (`payer` or `payee`, Layer 2, Section 5.1); for a deal, its counterparties, as in `["all", ".parties", ["or", [["==", ".mind", <principal>], ["==", ".mind", <counterparty>]]]]`. Delegators SHOULD also exclude the delegate itself as a party, as in `["all", ".parties", ["!=", ".mind", <delegate>]]`, unless the delegate is meant to deal with its own principal. A policy bounds each record separately: a price limit is a limit per record, not a total, and cumulative limits need an extension.
 
 11.4. **Validity of a delegation chain** for a record `r` carrying a proof `p` by a valid operational key of mind `D`, on behalf of mind `P`, where `p.authority` lists exactly the delegations `d₁ … dₙ` (`n` ≤ 8), in that order, root first, the last being the one that names `D`:
@@ -282,10 +284,11 @@ Statements nest at most 8 deep: a statement of the policy is at depth 0, a state
 5. `t(p)` is not more than 300 seconds before any `notBefore` and not more than 300 seconds after any `expires` (core 9.1).
 6. `r`'s type is delegable, `dₙ.command` covers `/oip/sign/<r.type>`, and every statement of every `dᵢ.policy` holds for `r`.
 7. No `dᵢ` has been revoked (11.5) by a revocation whose evaluation time is at or before `t(p)`.
+8. At `t(p)` no `dᵢ.author` is retired, and none is duplicitous with `t(p)` at or after the evaluation time of its earliest conflicting event (Section 7.3). A mind that can sign nothing can revoke nothing, so what it delegated ends with it.
 
-Because time rules use `t(p)` (core 9.3), a delegate cannot use an expired or revoked delegation by writing an earlier `created`.
+Because time rules use `t(p)` (core 9.3), a delegate cannot use an expired or revoked delegation by writing an earlier `created`. Items 7 and 8 are read from the log of each `dᵢ.author`, which the verifier holds as core 9.4 requires for `p`: from a copy obtained before the evidence for `p`, it cannot tell that the delegation still stands, and the proof does not count.
 
-11.5. A **`Revocation`** record has `author` (the author of the revoked delegation), `revokes` (its `record-ref`), `created` and `proof`, and is signed by the author's own authority. A revocation by any other mind revokes nothing. It takes effect from its own evaluation time, so a backdated revocation cannot void records that evidence shows came before it. Authors SHOULD publish revocations in their feeds. Verifiers SHOULD check the issuer's feed for revocations when the value at stake warrants it. Expiry bounds how long a delegation can be used even when a revocation is missed, so delegations SHOULD be no longer than their purpose needs.
+11.5. A **`Revocation`** record has `author` (the author of the revoked delegation), `revokes` (its `record-ref`), `created` and `proof`, and is signed by the author's own authority. A revocation by any other mind revokes nothing. It takes effect from its own evaluation time, so a backdated revocation cannot void records that evidence shows came before it. A revocation takes authority away and grants none, so it stands whatever is later declared of the key that signed it: its signature is judged with compromise declarations (Section 6.2) disregarded, and a mind that declares a key compromised from before one of its own revocations does not, by that, give back what it took away. Authors SHOULD publish revocations in their feeds. Verifiers SHOULD check the issuer's feed for revocations when the value at stake warrants it. Expiry bounds how long a delegation can be used even when a revocation is missed, so delegations SHOULD be no longer than their purpose needs.
 
 11.6. **Use.** A proof that relies on delegation lists, in its own `authority` member (core 5.2), exactly the delegations of one chain, `d₁` first and `dₙ` last, as `record-ref`s or inline records. A proof by `D` counts for `P` when that list, in the order given, is a valid chain from `P` to `D` (11.4). Verifiers check the list as given and MUST NOT search for another order or subset. A delegation given inline is judged with the proofs it carries there; one given by reference is the record the verifier holds, and a proof that names a delegation the verifier does not hold does not count for `P`. A proof whose list is not a valid chain counts for no mind through it, and is its signer's own proof all the same (Layer 2, Section 7.1, item 1): what a proof says of acting for another takes nothing from what it is for its signer. A proof by `P` itself counts for `P` by its own key, and never through a chain. A proof therefore acts, through its `authority`, for at most one mind besides its signer, and because the proof's signature covers its `authority`, a delegate's choice to act for a principal is itself signed. Because each delegated proof carries its own chain, and proofs do not change a record's content ID, parties signing through different delegates can sign the same record in any order. Packets SHOULD carry delegations inline.
 
@@ -471,6 +474,7 @@ Hosts MAY serve A2A Agent Cards (Layer 0, Section 3.2) and domain aliases at `/.
 | Delegation chain length | 8 |
 | Entries in a proof's `authority` | 8: exactly one chain, or one charter (Section 11.6) |
 | Policy statements, and nesting depth | 64, and 8 |
+| Work of one policy for one record | 262,144 (Section 11.3) |
 | Packet recipients | 64 |
 | Packet lifetime (`expires` − `created`) | 7 days |
 | Brokered fan-out | 50 |

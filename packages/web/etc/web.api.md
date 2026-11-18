@@ -27,7 +27,7 @@ export type CharterStatus = "active" | "dissolved";
 export function charterStatus(collective: string, context: WebContext): Validation<CharterStatus>;
 
 // @public
-export function commitmentAccepted(judged: JudgedRecord, context: WebContext): boolean;
+export function commitmentAccepted(given: JudgedRecord, context: WebContext): boolean;
 
 // @public
 export type CommitmentStatus = "proposed" | "disputed" | "accepted" | "cancelled" | "fulfilled" | "claimed-fulfilled" | "broken" | "overdue";
@@ -104,5 +104,11 @@ export class WebRecordSet implements WebRecords {
     // (undocumented)
     supersedersOf(id: string): readonly JudgedRecord[];
 }
+
+// @public
+export function withCopy(judged: JudgedRecord, copy: JudgedRecord): JudgedRecord;
+
+// @public
+export function withHeld(judged: JudgedRecord, records: RecordView): JudgedRecord;
 
 ```

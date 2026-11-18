@@ -8,6 +8,7 @@
  * @packageDocumentation
  */
 
+export { authenticate, type Authentication, NONCES_SQL, StoredNonces } from "./auth.ts";
 export {
   ConfigError,
   type ConfigOf,

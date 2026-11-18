@@ -18,6 +18,8 @@ const LAYERS = [
   ["net"],
   ["keystore"],
   ["client"],
+  // What the three services share (ADR-0013). They do not import each other.
+  ["server"],
   ["host", "resolver", "indexer"],
   ["cli", "mcp-server", "bridge-a2a", "did-resolver", "conformance"],
 ];

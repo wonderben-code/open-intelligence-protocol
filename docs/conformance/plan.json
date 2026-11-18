@@ -10,6 +10,7 @@
     "delegation": "M3",
     "web": "M3",
     "net": "M4",
+    "server": "M5",
     "host": "M5",
     "resolver": "M5",
     "indexer": "M5",

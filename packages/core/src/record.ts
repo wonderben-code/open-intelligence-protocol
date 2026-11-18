@@ -17,6 +17,7 @@ import {
   type Validation,
   validateParsedExtensionRecord,
   validateParsedRecord,
+  judging,
   noteCutShort,
 } from "@oip/schema";
 
@@ -105,6 +106,11 @@ export function parseRecord(
   input: string | Uint8Array,
   options?: ParseOptions,
 ): Validation<OipRecord> {
+  return judging(() => recordOf(input, options));
+}
+
+/** The record, as `parseRecord` answers when no check is cut short. */
+function recordOf(input: string | Uint8Array, options?: ParseOptions): Validation<OipRecord> {
   const parsed = parseForRecord(input, options);
   // What the parser has just built is validated as it is: nothing else holds it.
   return parsed.ok
@@ -124,6 +130,14 @@ export function parseRecord(
  * throws.
  */
 export function parseExtensionRecord(
+  input: string | Uint8Array,
+  options?: ParseOptions,
+): Validation<ExtensionRecord> {
+  return judging(() => extensionRecordOf(input, options));
+}
+
+/** The record, as `parseExtensionRecord` answers when no check is cut short. */
+function extensionRecordOf(
   input: string | Uint8Array,
   options?: ParseOptions,
 ): Validation<ExtensionRecord> {

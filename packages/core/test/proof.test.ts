@@ -3,7 +3,7 @@
 
 import { createHash } from "node:crypto";
 
-import { type Proof, UNSIGNED_RECORD_TYPES } from "@oip/schema";
+import { CUT_SHORT, type Proof, UNSIGNED_RECORD_TYPES } from "@oip/schema";
 import { clause, copy, type JsonObject } from "@oip/testkit";
 import { base58 } from "@scure/base";
 import fc from "fast-check";
@@ -1271,9 +1271,10 @@ describe("a container has no proofs of its own", () => {
 describe("judging while nothing can be serialised", () => {
   it("answers and does not throw, and is right again afterwards", () => {
     // Other code in the process has put a toJSON on a prototype. No canonical
-    // form can be trusted then, so no proof is accepted; but a judge still answers.
+    // form can be trusted then, so no proof is accepted; but a judge still answers. What it
+    // answers says so, and says nothing of the record: nothing was judged (ADR-0010).
     const reference = `${intent["author"] as string}/${contentId(intent)}`;
-    const unread = (message: string) => [{ path: "", message, clause: "core 1.2" }];
+    const unjudged = [{ path: "", message: CUT_SHORT, clause: "implementation limit" }];
     for (const prototype of [Object.prototype, Array.prototype] as object[]) {
       Object.defineProperty(prototype, "toJSON", {
         value: () => "all the same",
@@ -1288,15 +1289,8 @@ describe("judging while nothing can be serialised", () => {
       } finally {
         delete (prototype as { toJSON?: unknown }).toJSON;
       }
-      expect(one).toEqual({
-        ok: false,
-        issues: unread("the record or the proof could not be read as plain JSON data"),
-      });
-      expect(all).toEqual({
-        verified: [],
-        rejected: [],
-        issues: unread("the record could not be read as plain JSON data"),
-      });
+      expect(one).toEqual({ ok: false, issues: unjudged });
+      expect(all).toEqual({ verified: [], rejected: [], issues: unjudged });
       expect(matches).toBe(false);
     }
     expect(verifyProof(intent, intentProof).ok).toBe(true);

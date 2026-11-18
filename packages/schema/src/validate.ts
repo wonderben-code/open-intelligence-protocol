@@ -9,7 +9,7 @@
 
 import { type ValidatorError, validators } from "./generated/validators.ts";
 import { containerParts, depthOf } from "./containers.ts";
-import { noteCutShort } from "./cut-short.ts";
+import { cutShort, cutShortCount, noteCutShort } from "./cut-short.ts";
 import { type Issue, pointerDepth, quote, shown, type Validation } from "./issue.ts";
 import { patterns } from "./primitives.ts";
 import type { Proof } from "./proof.ts";
@@ -375,12 +375,17 @@ const UNREADABLE: Issue = {
  * when read), the caller gets a rejection, never an exception.
  */
 function answering<T>(run: () => Validation<T>): Validation<T> {
+  const before = cutShortCount();
+  let answer: Validation<T>;
   try {
-    return run();
+    answer = run();
   } catch (error) {
     noteCutShort(error);
-    return fail(UNREADABLE);
+    answer = fail(UNREADABLE);
   }
+  // A check that was cut short says nothing of the value: it is no reason to call the value
+  // unreadable, or malformed (ADR-0010).
+  return cutShortCount() === before ? answer : cutShort();
 }
 
 /** Validates a plain copy against a schema and its rules. */

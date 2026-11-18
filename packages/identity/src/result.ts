@@ -4,7 +4,7 @@
 /** Results of judging input: a value, or the reasons there is none (ADR-0004). */
 
 import type { Issue, JsonValue, Validation } from "@oip/schema";
-import { CUT_SHORT, IMPLEMENTATION_LIMIT, noteCutShort } from "@oip/schema";
+import { noteCutShort } from "@oip/schema";
 
 /** Whether a JSON value is an object, and not an array or null. */
 export function isJsonObject(value: JsonValue): value is Readonly<Record<string, JsonValue>> {
@@ -41,16 +41,6 @@ export function own(options: unknown, name: string): unknown {
     // An object that cannot be read gives nothing.
     return undefined;
   }
-}
-
-/**
- * The refusal given in place of an answer that a cut-short check went into:
- * a failure for want of room on the call stack, turned into a refusal
- * somewhere on the way. Such an answer is true of the moment and not of
- * what was judged, so it is neither given as a verdict nor kept.
- */
-export function cutShort(): Validation<never> {
-  return { ok: false, issues: [{ path: "", message: CUT_SHORT, clause: IMPLEMENTATION_LIMIT }] };
 }
 
 /** A success. */

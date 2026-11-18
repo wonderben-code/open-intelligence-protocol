@@ -332,6 +332,11 @@ export type Controller = Static<typeof Controller>;
 // @public
 export const CUT_SHORT = "this could not be judged: the call stack was too nearly spent, or the process is in no state to serialise anything. Ask again";
 
+// Warning: (ae-forgotten-export) The symbol "Refusal" needs to be exported by the entry point index.d.ts
+//
+// @public
+export function cutShort(): Refusal;
+
 // @public
 export function cutShortCount(): number;
 
@@ -458,6 +463,9 @@ export const FeedPage: Type.TObject<{
 
 // @public (undocumented)
 export type FeedPage = Static<typeof FeedPage>;
+
+// @public
+export function finding<T>(work: () => T | undefined): T | undefined;
 
 // @public (undocumented)
 export const Fork: Type.TObject<{
@@ -721,6 +729,9 @@ export const jsonSchemas: Readonly<Record<string, JsonSchema>>;
 export type JsonValue = null | boolean | number | string | readonly JsonValue[] | {
     readonly [name: string]: JsonValue;
 };
+
+// @public
+export function judging<T>(work: () => Validation<T>): Validation<T>;
 
 // @public
 export const KeyController: Type.TUnsafe<{

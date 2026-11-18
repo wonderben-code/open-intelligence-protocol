@@ -9,10 +9,11 @@
  */
 
 import { ed25519 } from "@noble/curves/ed25519.js";
+import { bytesToNumberLE } from "@noble/curves/utils.js";
+import { noteCutShort } from "@oip/schema";
 
 import { bytesToHex } from "./bytes.ts";
 import { BoundedCache } from "./cache.ts";
-import { noteCutShort } from "@oip/schema";
 
 /** The length of an Ed25519 public key, and of an X25519 one: 32 bytes. */
 export const PUBLIC_KEY_LENGTH = 32;
@@ -123,10 +124,44 @@ export function verifyEd25519(
     if (sig === undefined || text === undefined || key === undefined) return false;
     if (!hasOrderL(key)) return false;
     if (!encodesPointOfOrderL(sig.subarray(0, PUBLIC_KEY_LENGTH))) return false;
-    return ed25519.verify(sig, text, key, { zip215: false });
+    const valid = ed25519.verify(sig, text, key, { zip215: false });
+    // A `false` may be the library's answer to a failure of its own: see `retraced`.
+    if (!valid) retraced(sig, key, 3);
+    return valid;
   } catch (error) {
     noteCutShort(error);
     return false;
+  }
+}
+
+/**
+ * Takes again, and deeper, the steps the library takes inside a `catch` of
+ * its own, so that a failure there for want of room is noted (ADR-0010).
+ *
+ * The library decodes the key and `R` and multiplies the base point by `S`
+ * in a `try` that answers `false` for whatever is thrown. That is right for
+ * a point that is none and for an `S` that is not below L, which is how it
+ * applies those rules. It is also what it answers when the call stack is
+ * spent at that moment, and then the `false` says nothing of the signature.
+ * After a `false`, the same three steps are taken here from a few frames
+ * further down, where a spent stack is not caught unseen. Their results are
+ * not used: no part of the verification is done here.
+ *
+ * @param deeper - How many frames further down the steps are taken.
+ */
+function retraced(signature: Uint8Array, publicKey: Uint8Array, deeper: number): void {
+  if (deeper > 0) {
+    retraced(signature, publicKey, deeper - 1);
+    return;
+  }
+  try {
+    ed25519.Point.fromBytes(publicKey, false);
+    ed25519.Point.fromBytes(signature.subarray(0, PUBLIC_KEY_LENGTH), false);
+    ed25519.Point.BASE.multiplyUnsafe(bytesToNumberLE(signature.subarray(PUBLIC_KEY_LENGTH)));
+  } catch (error) {
+    // A point that is none, an `S` out of range: the library's reasons, and not noted. A
+    // spent stack: noted.
+    noteCutShort(error);
   }
 }
 

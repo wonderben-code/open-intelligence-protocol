@@ -21,6 +21,7 @@ import {
   quote,
   textFault,
   type Validation,
+  judging,
   noteCutShort,
 } from "@oip/schema";
 
@@ -472,6 +473,11 @@ function valueOf(parsed: Validation<Parsed>): Validation<JsonValue> {
  * `__proto__` is an ordinary member. It never throws.
  */
 export function parseJson(text: string, options?: ParseOptions): Validation<JsonValue> {
+  return judging(() => jsonOfText(text, options));
+}
+
+/** The value, as `parseJson` answers when no check is cut short. */
+function jsonOfText(text: string, options?: ParseOptions): Validation<JsonValue> {
   try {
     if (typeof text === "string") {
       return valueOf(parseText(text, lengthLimit(options), MAX_DEPTH));
@@ -488,6 +494,11 @@ export function parseJson(text: string, options?: ParseOptions): Validation<Json
  * Bytes that are not valid UTF-8 are rejected (core 1.1). It never throws.
  */
 export function parseJsonBytes(bytes: Uint8Array, options?: ParseOptions): Validation<JsonValue> {
+  return judging(() => jsonOfBytes(bytes, options));
+}
+
+/** The value, as `parseJsonBytes` answers when no check is cut short. */
+function jsonOfBytes(bytes: Uint8Array, options?: ParseOptions): Validation<JsonValue> {
   try {
     if (bytes instanceof Uint8Array) {
       return valueOf(parseBytes(bytes, lengthLimit(options), MAX_DEPTH));

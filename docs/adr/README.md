@@ -13,6 +13,7 @@ An ADR records a decision that is hard to reverse: what was decided, why, and wh
 | [0007](0007-programming-errors.md)                | A wrong argument is a `TypeError`                                     |
 | [0008](0008-holding-logs.md)                      | The log book, and the time a log is known up to                       |
 | [0009](0009-signing-for-a-party.md)               | Signing for a party: two packages, one view of records, and no search |
+| [0010](0010-checks-cut-short.md)                  | A check that could not be made is refused, and never kept             |
 
 ## Writing one
 

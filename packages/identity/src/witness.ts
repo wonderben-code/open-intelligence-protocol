@@ -14,6 +14,7 @@
  */
 
 import type { Instant } from "@oip/core";
+import { cutShort, cutShortCount } from "@oip/schema";
 
 import { earliestEvidence, type EvidenceView, type FirstSeen } from "./evidence.ts";
 import { type LogContext, type Replayed, verifyLogPrefix } from "./log.ts";
@@ -68,6 +69,7 @@ export function witnessLog(
   seen: FirstSeen,
   options?: WitnessOptions,
 ): Replayed {
+  const before = cutShortCount();
   const given = <K extends keyof WitnessOptions>(name: K): WitnessOptions[K] | undefined =>
     own(options, name) as WitnessOptions[K] | undefined;
   const others = given("evidence");
@@ -87,6 +89,11 @@ export function witnessLog(
     ...(understood === undefined ? {} : { understood }),
   };
   const replayed = verifyLogPrefix(events, context);
+  // A look that was cut short, here or below, is no look: nothing is recorded, and the
+  // answer says so (ADR-0010). The caller looks again, at the same reading.
+  if (cutShortCount() !== before) {
+    return Object.freeze({ log: undefined, failure: cutShort(), undecided: true });
+  }
   for (const entry of replayed.log?.entries ?? []) seen.sawEvent(entry.state.head, now);
   return Object.freeze(replayed);
 }

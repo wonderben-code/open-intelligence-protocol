@@ -70,6 +70,7 @@ export interface ConformanceAdapter {
     jsonIsWithinProfile?(text: string): boolean;
     keyHash?(multikey: string): string;
     lineage?(child: string, view: VerifierView): Readonly<Record<string, LineageStatus>>;
+    logIntake?(log: unknown, view: VerifierView): LogIntake;
     logVerifies?(log: Log, view: VerifierView): boolean;
     readonly name: string;
     proofVerifies?(record: JsonObject, proof: unknown): boolean;
@@ -147,6 +148,12 @@ export interface LogCase extends CaseBase {
     readonly kind: "log";
     // (undocumented)
     readonly log: Log;
+}
+
+// @public
+export interface LogIntake {
+    readonly undecided: boolean | null;
+    readonly verified: number;
 }
 
 // @public

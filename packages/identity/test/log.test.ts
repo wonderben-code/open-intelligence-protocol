@@ -911,9 +911,10 @@ describe(`${clause("L1 4.7")} nesting and work`, () => {
       );
       expect(limit(long(MAX_LOG_EVENTS), notCount as number).clause).toBe("L1 4.6");
     }
+    // A book reads a copy as far as it goes: this one fails at its second event, before its length.
     const book = new LogBook(witness([ada.events]), { maxEvents: 1000 });
     book.hold(long(1001), LATER);
-    expect(refusal(book.log(ada.address)).clause).toBe("implementation limit");
+    expect(refusal(book.log(ada.address)).clause).toBe("L1 4.6");
   });
 });
 
@@ -960,9 +961,14 @@ describe(`${clause("L1 6.4", "L1 9.2", "L1 9.3")} the members' proofs on a colle
       return bookOf([tried, a, b, c]).log(tried.address);
     };
     // Two proofs of a's that do not count: the first is the one reported.
-    expect(refusal(event([operational, stranger]))).toMatchObject({
+    expect(refusal(event([operational, stranger, b.asMember()]))).toMatchObject({
       clause: "L1 6.4",
       path: "/1/proof/0",
+    });
+    // With a's proofs alone, one member has signed where two must: the event shows that much itself.
+    expect(refusal(event([operational, stranger]))).toMatchObject({
+      clause: "L1 4.4",
+      path: "/1/proof",
     });
     // A bad proof beside a good one by the same member does no harm, in either order.
     expect(event([operational, a.asMember(), b.asMember()]).ok).toBe(true);

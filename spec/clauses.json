@@ -440,7 +440,7 @@
       "summary": "Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where…",
       "level": "none",
       "keywords": {},
-      "digest": "0988a0e2a8ef2bcdf50e688c7031bdf8822d9dad0a45334494665329f09169c0"
+      "digest": "ea8f84a82ae62066e7cfbdbac2b82478f11442d38e60ac0113512a29995c3ae0"
     },
     {
       "id": "core 9.6",
@@ -965,7 +965,7 @@
         "MAY": 1,
         "MUST NOT": 1
       },
-      "digest": "96fd8eb9b527fe015d6a3c848addc54f1f11601bcd4222f0dedba8737bcea8b2"
+      "digest": "fadb9631cc712032d6906285c37ce73e56272836bb43a9ea42f22e02b9ebe3b6"
     },
     {
       "id": "L1 5.1",
@@ -1065,7 +1065,7 @@
       "keywords": {
         "MUST NOT": 2
       },
-      "digest": "b88e2c290351bf0060a4a2ac8acb3985d35b51e841c65ca623ea12b9622ea214"
+      "digest": "5cf17d3e7b79bc288066c3f28b21de052e5944b6722bc5b3ab9da207bedb4e73"
     },
     {
       "id": "L1 7.4",

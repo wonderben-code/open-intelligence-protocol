@@ -85,16 +85,23 @@ export function example(
    */
   const verdict = (obtained: string): string => {
     const seen = new FirstSeen();
-    // It obtained each event a second after it was made. An event is
-    // recorded as seen only once it has verified, never on sight of its content.
-    witnessLog([genesis], at("2026-11-17T09:00:01Z"), seen);
-    witnessLog([genesis, update], at("2026-11-17T11:00:01Z"), seen);
+    const book = new LogBook(seen);
+    // It obtained the log a second after each event was made, and again at
+    // 13:00. Each time, an event is recorded as seen only once it has
+    // verified, never on sight of its content, and the book holds what
+    // `witnessLog` says to hold, as known up to that time.
+    const served: [unknown[], string][] = [
+      [[genesis], "2026-11-17T09:00:01Z"],
+      [[genesis, update], "2026-11-17T11:00:01Z"],
+      [[genesis, update], "2026-11-17T13:00:00Z"],
+    ];
+    for (const [log, when] of served) {
+      book.hold(witnessLog(log, at(when), seen).toHold, at(when));
+    }
     const record = judgeRecord(intent);
     if (!record.ok) return "is not well formed";
     // Likewise the proofs on the record: those that verify, when it was obtained.
     witnessRecord(record.value, at(obtained), seen);
-    const book = new LogBook(seen);
-    book.hold([genesis, update], at("2026-11-17T13:00:00Z"));
     const time = ownSignedTime(record.value, mind, book);
     return time === undefined ? "does not count" : `counts from ${formatTimestamp(time)}`;
   };

@@ -37,7 +37,7 @@ export function report(recordIsWellFormed: (record: unknown) => boolean): string
 This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the 13 malformed records it should have rejected:
 
 ```
-my implementation: 20 passed, 13 failed, 159 pending
+my implementation: 20 passed, 13 failed, 161 pending
 FAIL negative packet-short-nonce: must be rejected. A packet nonce has 8 to 64 characters.
 FAIL negative delegation-to-self: must be rejected. A delegation's delegate must differ from its author.
 FAIL negative proof-entry-not-an-object: must be rejected. Every entry of `proof` is an object (core 5.1). A proof that does not verify never counts and does not make the record malformed (core 5.5); an entry that is not an object at all does.
@@ -110,7 +110,7 @@ At M0 the generated cases are mutated records, compared under the rule "no laxer
 - records signed by a mind's own keys, records pinned to one of two or three branches of a log, and records signed under a collective's threshold while its members change;
 - lineages, acknowledged by a `Fork` event, by a `Lineage` record, or not at all.
 
-For one case in four the two implementations also resolve the DID document of the mind the case is about, and the documents must be equal, so a state replayed wrongly shows even where both accept the log.
+For one case in four the two implementations also resolve the DID document of the mind the case is about, and the documents must be equal, so a state replayed wrongly shows even where both accept the log. For every log, both say how far it verifies and whether the event after that is invalid or undecided (Layer 1, 4.9), and the answers must be equal: the checker classes an event from the text of 4.9, apart from its own verification.
 
 `pnpm run ci` runs the identity campaign at 6,700: 10,888 logs, 5,025 records and 838 lineages. The nightly workflow runs a million logs. The name of each test gives the number of cases it ran, and the test fails if another number ran.
 

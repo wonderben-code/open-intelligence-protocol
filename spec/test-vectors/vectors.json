@@ -297,6 +297,10 @@
     "amina-control-3b": {
       "seed_hex": "bef8ecbf72a59175b03a83c27bc42863c8358ace59d050ac9a6d0acf0aafa228",
       "multikey": "z6Mkngd6SXAH3scS2g8bFkw83TTAEypss8r3TNJy1R9hhXBe"
+    },
+    "amina-control-3c": {
+      "seed_hex": "65629591dd04a6326f11c5660a2ad6ba35b119cafac2599c1f681ba3edb13997",
+      "multikey": "z6Mkh1GQG9x4s7Fe4DZrEwLsTff3U4tzaFAGG1fCgz3GBznt"
     }
   },
   "cases": {
@@ -12171,6 +12175,285 @@
           }
         ]
       ]
+    },
+    {
+      "name": "rival-to-an-event-that-cannot-be-judged",
+      "reason": "Position 2 of Amina's log holds two events, both signed by the control key she committed to. One is dated 12:00 and lists in `critical` an extension this verifier does not implement; the other is dated 11:00, and this record is pinned to it. The verifier cannot judge the first, which may be Amina's own event, seen earlier by others, and may remove the key. So the second does not take the position for want of a judgement: the copy with the first is still in the contest there, and the log does not verify for this verifier (Layer 1, 4.9 and 7.3).",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-10-30T11:30:00Z",
+        "expires": "2026-10-31T10:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=2-bciqbg2uflfanavqsy25gva7qp43zwemcotpcmjub456u46iuk5otnny#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T11:30:00Z",
+            "proofValue": "zjNBYE9iiarcrXinvZ3FuwXGz4vQ9v5TTtnhco3aBiDA1qrA8ZuSkBRLvvTRdBry3t9b1XMTxeMDitKuhXpETobX"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 2,
+            "prev": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
+            "created": "2026-10-30T12:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+              ],
+              "next": [
+                "bciqe53eejyaqsfsuwsk35hscxkj5scdz6po3nfeptvh5siixtfgfofy"
+              ],
+              "nextThreshold": 1
+            },
+            "ext": {
+              "com.example.recovery": {
+                "v": "1"
+              }
+            },
+            "critical": [
+              "com.example.recovery"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T12:00:00Z",
+                "proofValue": "zqB5A95e8xkz22RQybznnNR7UbdWUvyRtpPPFwWQdWS91rDXEpsZya1doZKjp298tKmvsqgkU1nWEHsxVC74NgVy"
+              }
+            ]
+          }
+        ]
+      ],
+      "branches": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 2,
+            "prev": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
+            "created": "2026-10-30T11:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+              ],
+              "next": [
+                "bciqofjtprdlkveezdbp3arrhwdwcjewo3y5xue4vmrxnue6m65ks4iy"
+              ],
+              "nextThreshold": 1
+            },
+            "homes": [
+              "https://amina-two.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T11:00:00Z",
+                "proofValue": "z3Pz4zvjiWDygbhq2z4CNGUfNJDwLxZhjWS4hjo8fZSyJCgoV9BuxoSdL5jo6jWhgMCdxvJKPgaSRheui6kS4VJ6N"
+              }
+            ]
+          }
+        ]
+      ]
     }
   ],
   "controls": [
@@ -17273,6 +17556,281 @@
                 "proofPurpose": "capabilityInvocation",
                 "created": "2026-10-30T22:00:00Z",
                 "proofValue": "z47Hq5epVXVbydoqVfYSMbj9pUh3AyxXQMszF6YmsibZoycMRT3eFck6s3g3raGFX8fGtdJTZ9voEQ96ohF4N7diL"
+              }
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "name": "rival-to-an-event-that-cannot-be-judged",
+      "kind": "countsFor",
+      "record": {
+        "oip": "1",
+        "type": "Intent",
+        "author": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+        "created": "2026-10-30T11:30:00Z",
+        "expires": "2026-10-31T10:00:00Z",
+        "want": "Translate a 12-page Swahili commercial lease into English, legally accurate.",
+        "constraints": {
+          "deadline": "2026-11-02T17:00:00Z",
+          "budget": {
+            "max": "150",
+            "currency": "USD"
+          }
+        },
+        "audience": {
+          "query": {
+            "tags": [
+              "lang:sw",
+              "lang:en",
+              "domain:legal/*"
+            ]
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna?versionId=2-bciqbg2uflfanavqsy25gva7qp43zwemcotpcmjub456u46iuk5otnny#z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T11:30:00Z",
+            "proofValue": "zjNBYE9iiarcrXinvZ3FuwXGz4vQ9v5TTtnhco3aBiDA1qrA8ZuSkBRLvvTRdBry3t9b1XMTxeMDitKuhXpETobX"
+          }
+        ]
+      },
+      "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 2,
+            "prev": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
+            "created": "2026-10-30T12:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+              ],
+              "next": [
+                "bciqe53eejyaqsfsuwsk35hscxkj5scdz6po3nfeptvh5siixtfgfofy"
+              ],
+              "nextThreshold": 1
+            },
+            "ext": {
+              "com.example.recovery": {
+                "v": "1"
+              }
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T12:00:00Z",
+                "proofValue": "z2U73rSNK7P9Wsqpqcorxkeu3C8n2gAcTDRARLwSJS28aAwwyhcQ8LYR1pfLfJSbgyaSoZZGyT6RAcHPH5KCDrbLk"
+              }
+            ]
+          }
+        ]
+      ],
+      "branches": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "human",
+            "created": "2026-10-30T09:00:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj"
+              ],
+              "next": [
+                "bciql2w5qzxzapmnxorm7uwqusj4qu4njwwze34ii4e4hz3vc4hu6eda"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              }
+            ],
+            "agreement": [
+              {
+                "key": "z6LSjppgRXVWAtPcdxjNBvYC64TQB2KZkRCKZxiHkvVCVmT3",
+                "label": "main"
+              }
+            ],
+            "homes": [
+              "https://amina.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj#z6Mkvxzz714cRFeZC4FK6JB7wJfspqGN9miwpjYbrHsZwYWj",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:00:00Z",
+                "proofValue": "z2FttSyUZWnFbaZTgMUgDvGe1qJRBqNm7kBQsiojqX64i9XVzN1XhCzrD6cZZQ2voqNYHERToi2K1FM7ucA3QokQi"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 1,
+            "prev": "bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "created": "2026-10-30T09:05:00Z",
+            "controller": {
+              "keys": [
+                "z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe"
+              ],
+              "next": [
+                "bciqgolanaj6ttx24z7re2myh5esukytfw77wpjbkght6bhvn4l6lv2q"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkmokLxc16RJMiTUQKhefcXr7DYqCFFDNecG6ww1vDopBx",
+                "label": "amina-phone"
+              },
+              {
+                "key": "z6Mkhb5CoYw9H4ZpSEEs7nyvdYWkitcS8kwaGSzhwbb2jfgU",
+                "label": "amina-laptop"
+              }
+            ],
+            "invocation": [
+              {
+                "key": "z6Mkppxp2Jp7a6MyFT4hjw368hGQ2gkp53xA2s8ocu6ideyA",
+                "label": "amina-invocation"
+              }
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe#z6Mkt3onRPgHGkbK9FxaxMJbdzo8yXms9Xafc12dfK8Zipoe",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T09:05:00Z",
+                "proofValue": "z2M1p8dAjmaCZkoT58Su3WDfWfTkdoDBrQpbojsyuLFFcaidaLv5gcia4jmUMb1mNTpYSKVc5NTsA1KnGmNZWA6Hy"
+              }
+            ]
+          },
+          {
+            "oip": "1",
+            "type": "Update",
+            "mind": "did:oip:bciqmwrzo6zt2xnoga2rkp77b7p2yicceqwiljl2d7dxoa4xpiugbgna",
+            "seq": 2,
+            "prev": "bciqhzdmvqz4nu2oiwedlpwpt2zwl62utjymq6vr3a364eo3zgv5mnmq",
+            "created": "2026-10-30T11:00:00Z",
+            "controller": {
+              "keys": [
+                "z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1"
+              ],
+              "next": [
+                "bciqofjtprdlkveezdbp3arrhwdwcjewo3y5xue4vmrxnue6m65ks4iy"
+              ],
+              "nextThreshold": 1
+            },
+            "homes": [
+              "https://amina-two.example"
+            ],
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1#z6MkvHK2CwfbdWB8ze9q1cq6VUXnX8UQtQtfeQkJ3Fo3Cpz1",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T11:00:00Z",
+                "proofValue": "z3Pz4zvjiWDygbhq2z4CNGUfNJDwLxZhjWS4hjo8fZSyJCgoV9BuxoSdL5jo6jWhgMCdxvJKPgaSRheui6kS4VJ6N"
               }
             ]
           }

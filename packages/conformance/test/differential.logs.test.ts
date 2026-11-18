@@ -44,6 +44,7 @@ import {
   PythonJudge,
   pythonJudgeUnavailable,
   referenceAdapter,
+  type LogCase,
   type VectorCase,
   viewFor,
 } from "../src/index.ts";
@@ -982,7 +983,10 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
   () => {
     let judge: PythonJudge;
     /** What was compared, by generator: how many cases, and how many both implementations accepted. */
-    const tally = new Map<string, { cases: number; accepted: number; documents: number }>();
+    const tally = new Map<
+      string,
+      { cases: number; accepted: number; documents: number; intakes: number }
+    >();
 
     beforeAll(() => {
       if (unavailable !== undefined) throw new Error(unavailable);
@@ -991,10 +995,10 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
 
     afterAll(async () => {
       await judge.close();
-      for (const [generator, { cases, accepted, documents }] of tally) {
+      for (const [generator, { cases, accepted, documents, intakes }] of tally) {
         // For the log of the run: the numbers that ran, whatever was asked for.
         process.stdout.write(
-          `differential, ${generator}: ${cases} cases compared, ${accepted} accepted by both; ${documents} DID documents resolved by both and equal\n`,
+          `differential, ${generator}: ${cases} cases compared, ${accepted} accepted by both; ${documents} DID documents resolved by both and equal; ${intakes} copies classed alike where an event failed\n`,
         );
       }
     });
@@ -1041,6 +1045,24 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
     }
 
     /**
+     * Layer 1, 4.9: how far the log of a case verifies, and whether the
+     * event after that is invalid or undecided, must be the same for both.
+     * The checker answers from the text of 4.9, apart from its own
+     * verification of the log.
+     *
+     * @returns Whether an event failed, so that there was a class to compare.
+     */
+    async function sameIntake(vectorCase: LogCase): Promise<boolean> {
+      const ours = referenceAdapter.logIntake?.(vectorCase.log, viewFor(vectors, vectorCase));
+      const theirs = await judge.judge({ ...vectorCase, kind: "intake" });
+      expect(
+        ours,
+        `how far it verifies, and the class of the next event: ${shown(vectorCase)}`,
+      ).toStrictEqual(theirs.error === undefined ? theirs.value : null);
+      return ours?.undecided !== null;
+    }
+
+    /**
      * @param document - Which DID document to compare as well: 0 the current
      *   one, 1 the one at a version chosen by `pick`, anything else none. A
      *   document costs as much as the verdict, so one case in four has one.
@@ -1059,10 +1081,11 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
         { implementation: ours, judge: theirs.holds, judgeError: theirs.error },
         shown(vectorCase),
       ).toMatchObject({ implementation: theirs.holds });
-      const counted = tally.get(generator) ?? { cases: 0, accepted: 0, documents: 0 };
+      const counted = tally.get(generator) ?? { cases: 0, accepted: 0, documents: 0, intakes: 0 };
       tally.set(generator, counted);
       counted.cases++;
       if (ours === true) counted.accepted++;
+      if (vectorCase.kind === "log" && (await sameIntake(vectorCase))) counted.intakes++;
       if (document > 1) return;
       if (await sameDocument(vectorCase, document === 0 ? undefined : pick)) counted.documents++;
     }

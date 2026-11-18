@@ -945,6 +945,152 @@ def _control_signed(event, mk, tau) -> bool:
     return False
 
 
+EVENT_TYPES = ("Genesis", "Update", "Fork", "Retire")
+
+
+def unread_event(ev) -> bool:
+    """Layer 1, 4.9: whether this verifier cannot read an event. It is of
+    another version of the protocol, or of a type this revision does not
+    define (`Merge` among them), or has the reserved member, or lists in
+    `critical` an extension the verifier does not implement, and this one
+    implements none. Such an event may depend on rules the verifier does
+    not have, for its form, its place and its signatures alike."""
+    if not isinstance(ev, dict):
+        return False
+    oip, etype = ev.get("oip"), ev.get("type")
+    if isinstance(oip, str) and oip != OIP_VERSION:
+        return True
+    if isinstance(etype, str) and etype not in EVENT_TYPES:
+        return True
+    if "recovery" in ev:
+        return True
+    critical = ev.get("critical", [])
+    return not isinstance(critical, list) or len(critical) > 0
+
+
+def _signed_at_all(event, mk) -> bool:
+    """True if control key mk has a valid capabilityInvocation proof on the
+    event, whatever its date."""
+    return any(isinstance(p, dict) and
+               p.get("verificationMethod") == did_key_vm(mk) and
+               p.get("proofPurpose") == "capabilityInvocation" and
+               verify_proof(event, p, mk)
+               for p in event.get("proof", []))
+
+
+def _members_named(event) -> set:
+    """The minds with a proof on an identity event that verifies under a
+    key reference of their own and names no authority. Whether such a
+    proof counts is for the member's log and the evidence to say (Layer 1,
+    6.4); that it is there at all is a fact about the event."""
+    named = set()
+    for p in event.get("proof", []):
+        ref = parse_key_ref(p.get("verificationMethod")) \
+            if isinstance(p, dict) else None
+        if ref and "authority" not in p and \
+           p.get("proofPurpose") == "capabilityInvocation" and \
+           verify_proof(event, p, ref[2]):
+            named.add(ref[0])
+    return named
+
+
+def invalid_event(ev, before) -> bool:
+    """Layer 1, 4.9: whether an event that does not verify is invalid: one
+    this verifier can read, and that is wrong whoever judges it and
+    whenever. `before` is the state after the events before it, or None
+    for a first event. Every other event that fails is undecided.
+
+    This is written from the text of 4.9, apart from verify_log: nothing
+    here reads evidence, another mind's log, or the order in which
+    verify_log happens to make its checks."""
+    if unread_event(ev):
+        return False
+    try:
+        return _wrong_for_everyone(ev, before)
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return True         # too malformed to say more: not well formed
+
+
+def _wrong_for_everyone(ev, before) -> bool:
+    # Not well formed (4.8).
+    if not isinstance(ev, dict) or not values_ok(ev) or not record_ok(ev):
+        return True
+    proofs = ev.get("proof")
+    if not isinstance(proofs, list) or not proofs or \
+       len(proofs) > MAX_PROOFS or \
+       not all(isinstance(p, dict) for p in proofs):
+        return True
+    etype, ctl = ev["type"], ev.get("controller")
+    # Not in its place (4.1, 4.2, 4.6).
+    if before is None:
+        if etype != "Genesis":
+            return True
+        mind, keys, invocation, revoked = did(content_id(ev)), [], [], set()
+    else:
+        if etype == "Genesis" or before.retired or \
+           ev.get("mind") != before.mind or \
+           ev.get("seq") != before.seq + 1 or \
+           ev.get("prev") != before.head or \
+           ts(ev["created"]) < before.created:
+            return True
+        mind, keys, invocation, revoked = before.mind, before.keys, \
+            before.invocation, before.revoked_keys
+    # It sets keys that the state before it does not allow (3.5, 4.5).
+    if "keys" in ev:
+        keys = _key_entries(ev["keys"], 64, ed25519_pub_from_multikey)
+    if "invocation" in ev:
+        invocation = _key_entries(ev["invocation"], 16,
+                                  ed25519_pub_from_multikey)
+    if "agreement" in ev:
+        _key_entries(ev["agreement"], 16, check_x25519_multikey)
+    if set(keys) & set(invocation) or set(keys + invocation) & revoked:
+        return True
+    if before is not None:
+        for r in ev.get("revoked", []):
+            if ("keys" in ev and r["key"] in keys) or \
+               ("invocation" in ev and r["key"] in invocation):
+                return True
+    # The proofs on it could not authorise it under any evidence.
+    by_members = before.controller == "member" if before is not None \
+        else isinstance(ctl, dict) and "members" in ctl
+    if by_members:
+        if ctl is not None:
+            _check_member_controller(ctl, mind)
+        named = _members_named(ev)
+        if before is None:
+            return any(m not in named for m in ctl["members"])
+        if len([m for m in before.members if m in named]) < before.threshold:
+            return True
+        return ctl is not None and any(
+            m not in named for m in ctl["members"]
+            if m not in before.members)
+    _check_key_controller(ctl)
+    if before is not None:
+        if not before.next or len(ctl["keys"]) < before.next_threshold or \
+           any(key_hash(mk) not in before.next for mk in ctl["keys"]) or \
+           etype == "Retire" and ctl["next"]:
+            return True
+    return not all(_signed_at_all(ev, mk) for mk in ctl["keys"])
+
+
+def log_intake(events, verifier) -> dict:
+    """Layer 1, 4.9, for a copy of a log: how many of its events verify,
+    from the first, and whether the next is undecided (True), invalid
+    (False), or there is none (None)."""
+    if not isinstance(events, list) or not events:
+        return {"verified": 0, "undecided": False}      # no log at all
+    try:
+        log = verify_log(events, verifier, prefix=True)
+    except ValueError:
+        return {"verified": 0,
+                "undecided": not invalid_event(events[0], None)}
+    if log.failed is None:
+        return {"verified": len(log.events), "undecided": None}
+    return {"verified": len(log.events),
+            "undecided": not invalid_event(events[len(log.events)],
+                                           log.states[-1])}
+
+
 def verify_log(events, verifier, depth=0, prefix=False) -> Log:
     """Verify an identity log (Layer 1, Section 4). Raises ValueError.
     Each event's evaluation time is fixed first (core 9.5); members' proofs
@@ -1497,34 +1643,42 @@ class Verifier:
         event with strictly the earliest evidence wins (7.3). If evidence
         cannot separate them, the mind is duplicitous: only the events
         before the divergence stand, and every branch's later removals and
-        compromise declarations apply."""
-        cands = []
-        for events in branches:
-            try:
-                cands.append(verify_log(events, self, depth, prefix=True))
-            except ValueError:
-                pass                # a branch with no valid genesis is none
-        if not cands:
-            raise ValueError("no branch of the log verifies")
+        compromise declarations apply. A copy takes part with the events it
+        has that verify; one that is still in the contest at a position and
+        holds an event there that does not verify stops the log there."""
+        # A copy whose first event does not verify raises here: it is in
+        # the contest, and holds an event at the first position that does
+        # not verify.
+        cands = [verify_log(events, self, depth, prefix=True)
+                 for events in branches]
 
         def settled(left, log):
-            """The branches that are left when evidence has decided must
-            each have verified to its end. One that did not may hold a
-            later event this verifier could not judge, a removal among
-            them, so what is left is not known to be the whole log."""
+            """Where evidence cannot separate the events at a position, the
+            later events of every copy that is left apply, so each must
+            have verified to its end."""
             for lg in left:
                 if lg.failed is not None:
-                    raise ValueError("a branch that is left does not verify "
+                    raise ValueError("a copy that is left does not verify "
                                      f"to its end: {lg.failed}")
             return log
         k = 0
         while True:
+            # The verifier knows the log only as far as the copies it relies
+            # on verify. A copy still in the contest that holds an event
+            # here that did not verify may hold the mind's own event, which
+            # this verifier cannot judge (Layer 1, 4.9): the log does not
+            # verify, whatever another copy holds at this position.
+            for lg in cands:
+                if lg.failed is not None and len(lg.events) == k:
+                    raise ValueError("a copy that is left holds an event at "
+                                     f"position {k} that does not verify: "
+                                     f"{lg.failed}")
             heads = {}
             for lg in cands:
                 if k < len(lg.events):
                     heads.setdefault(content_id(lg.events[k]), []).append(lg)
             if not heads:
-                return settled(cands, cands[0])
+                return cands[0]
             if len(heads) == 1:
                 cands = next(iter(heads.values()))    # prefixes are not forks
                 k += 1
@@ -3996,6 +4150,27 @@ def build():
             "agree on.", signed_by_two("2026-10-30T23:00:00Z"), collective,
             extra_logs=[[coll, c_homed]], branches=[[coll, c_without_agent]])
 
+    # Layer 1, 4.9 and 7.3: an event this verifier cannot judge, at a
+    # position another copy fills.
+    a_rival = control_event("Update", amina, a_upd, "2026-10-30T11:00:00Z",
+                            [a_c2], [k("amina-control-3c")],
+                            fields={"homes": ["https://amina-two.example"]})
+    rival_intent = signed(variant(intent, created="2026-10-30T11:30:00Z"),
+                          a_op1, op_vm(amina, a_rival, a_op1.mk))
+    bad_sig("rival-to-an-event-that-cannot-be-judged",
+            "Position 2 of Amina's log holds two events, both signed by the "
+            "control key she committed to. One is dated 12:00 and lists in "
+            "`critical` an extension this verifier does not implement; the "
+            "other is dated 11:00, and this record is pinned to it. The "
+            "verifier cannot judge the first, which may be Amina's own "
+            "event, seen earlier by others, and may remove the key. So the "
+            "second does not take the position for want of a judgement: "
+            "the copy with the first is still in the contest there, and "
+            "the log does not verify for this verifier (Layer 1, 4.9 and "
+            "7.3).", rival_intent, amina,
+            extra_logs=[[a_gen, a_upd, amina_extended(True)]],
+            branches=[[a_gen, a_upd, a_rival]])
+
     V["valid"].append({
         "name": "home-that-is-no-host",
         "reason": "The grammar of an HTTPS origin bounds its characters "
@@ -4124,6 +4299,11 @@ def build():
     # With one of the two events alone, the record counts.
     control("duplicitous-collective-whose-branches-keep-the-signers",
             branches=None)
+    # The same event without `critical` can be judged. The two are then
+    # separated by evidence, the event of 11:00 has the position, and the
+    # record pinned to it counts.
+    control("rival-to-an-event-that-cannot-be-judged",
+            extraLogs=[[a_gen, a_upd, amina_extended(False)]])
     return V
 
 
@@ -4380,10 +4560,11 @@ def judge(c, case) -> dict:
     testing against another implementation. `holds` says whether the case's
     claim holds, as _holds() does. For `status` and `assurance` cases,
     `value` is the result computed, whatever `expect` says (and `expect`
-    may be absent). Two further kinds are questions, not cases:
+    may be absent). Three further kinds are questions, not cases:
     `didDocument` gives the resolution of `mind` (at `versionId`, if
-    given) and `lineage` the lineage of `mind`, for the verifier the case
-    describes. An input this checker cannot process at all is
+    given), `lineage` the lineage of `mind`, and `intake` how far the copy
+    in `log` verifies and whether the event after that is invalid or
+    undecided (Layer 1, 4.9), for the verifier the case describes. An input this checker cannot process at all is
     reported as `error`, with `holds` false: an error is never an
     acceptance."""
     out = {"name": case.get("name"), "kind": case.get("kind")} \
@@ -4409,6 +4590,9 @@ def judge(c, case) -> dict:
             out["holds"] = True
         elif kind == "lineage":
             out["value"] = _case_verifier(c, case).lineage(case["mind"])
+            out["holds"] = True
+        elif kind == "intake":
+            out["value"] = log_intake(case["log"], _case_verifier(c, case))
             out["holds"] = True
         else:
             out["holds"] = bool(_holds(c, case))

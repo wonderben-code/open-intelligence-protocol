@@ -21,10 +21,12 @@ import {
 import {
   didDocument,
   type EvidenceView,
+  FirstSeen,
   judgeRecord,
   lineage,
   LogBook,
   ownSignedTime,
+  witnessLog,
 } from "@oip/identity";
 import {
   isRecordType,
@@ -149,6 +151,18 @@ export const referenceAdapter: ConformanceAdapter = {
     // The log asked about takes the place of any log the view holds for the same mind.
     const mind = replace(book, log);
     return mind.ok && book.log(mind.value).ok;
+  },
+  logIntake: (log, view) => {
+    const book = bookFor(view, log);
+    // Nothing is recorded that matters: the view's evidence already has a time for every event.
+    const witnessed = witnessLog(log, ALWAYS, new FirstSeen(), {
+      evidence: book.evidence,
+      memberLog: (mind) => book.log(mind),
+    });
+    return {
+      verified: witnessed.log?.entries.length ?? 0,
+      undecided: witnessed.failure === undefined ? null : witnessed.undecided,
+    };
   },
   countsFor: (record, mind, view) => {
     // Signing through a delegation or a charter role is judged from M3 on.

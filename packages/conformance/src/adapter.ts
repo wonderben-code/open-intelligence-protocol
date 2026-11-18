@@ -45,6 +45,18 @@ export type Answer = boolean | typeof NOT_JUDGED;
 /** Whether a parent acknowledges a child that names it (Layer 1, 8.2). */
 export type LineageStatus = "acknowledged" | "claimed";
 
+/** How far a copy of a log verifies, for a verifier (Layer 1, 4.9). */
+export interface LogIntake {
+  /** The number of its events that verify, from the first. */
+  readonly verified: number;
+  /**
+   * Of the event after them: `true` if the verifier cannot judge it, `false`
+   * if it is invalid, and `null` if there is none because every event
+   * verified.
+   */
+  readonly undecided: boolean | null;
+}
+
 /**
  * An implementation under test. Every member is optional: a case whose kind
  * the adapter does not implement is reported as `pending`, never as passed.
@@ -88,6 +100,14 @@ export interface ConformanceAdapter {
    * (Layer 1, 2.4).
    */
   didDocument?(mind: string, versionId: string | undefined, view: VerifierView): unknown;
+
+  /**
+   * How far a copy of a log verifies, and what the event after that is
+   * (Layer 1, 4.9). Not a kind of case in the vectors: a question the
+   * differential tests ask, so that two implementations are compared on
+   * what a verifier may keep of a log, and not only on whether it verifies.
+   */
+  logIntake?(log: unknown, view: VerifierView): LogIntake;
 
   /** `sentFor` cases: whether the packet counts as sent on the mind's behalf (Layer 1, 11.2). */
   sentFor?(packet: JsonObject, mind: string, view: VerifierView): boolean;

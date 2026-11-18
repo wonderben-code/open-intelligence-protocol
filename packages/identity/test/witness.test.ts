@@ -236,7 +236,10 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
       ["a type no revision has defined yet", () => next({ type: "Rename" }), "L1 4.6"],
       ["the reserved member", () => next({ recovery: {} }), "L1 3.12"],
       ["another version of the protocol", () => next({ oip: "2" }), "core 7"],
-      ["another version, whatever else it holds", () => ({ oip: "2", type: 7 }), "L1 4.6"],
+      ["another version, whatever else it holds", () => ({ oip: "2", type: 7 }), "core 7"],
+      // Asked before anything else is, of whatever was given: even a number that is no integer.
+      ["another version, outside the JSON of this one", () => ({ oip: "2", n: 0.5 }), "core 7"],
+      ["a Merge outside the JSON of this revision", () => ({ type: "Merge", n: 0.5 }), "L1 3.9"],
       // An extension listed in `critical` may change what makes an event valid: its form, its
       // place and its signatures. Without the extension, nothing else about the event is a finding.
       [
@@ -326,14 +329,77 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
       clause: "L1 6.4",
       undecided: true,
     });
-    // Signed by nobody the collective knows, or by a key that was never a member's: junk.
+    // Signed by nobody the collective knows: no member has a proof on it at all, and that is a
+    // fact about the event.
     const stranger = rawSign(draftUpdate(club().head, T(20)), [{ control: signer("thief") }]);
+    expect(witnessedBy([a, b], [...club().events, stranger])).toStrictEqual({
+      clause: "L1 4.4",
+      undecided: false,
+    });
+    const alone = rawSign(draftUpdate(club().head, T(20)), [a.asMember()]);
+    expect(witnessedBy([a, b], [...club().events, alone]).undecided).toBe(false);
+    // Signed under the members' names by keys that are not theirs. What a key is worth is read
+    // from the member's log, and a verifier's copy of a log is not a fact about the event.
     const impostor = rawSign(draftUpdate(club().head, T(20)), [
       { member: a.address, versionId: a.versionId(), invocation: signer("thief") },
       { member: b.address, versionId: b.versionId(), invocation: signer("thief") },
     ]);
-    for (const junk of [stranger, impostor]) {
-      expect(witnessedBy([a, b], [...club().events, junk]).undecided).toBe(false);
+    expect(witnessedBy([a, b], [...club().events, impostor])).toStrictEqual({
+      clause: "L1 6.4",
+      undecided: true,
+    });
+    // A member's own proof, made for another, is no proof of the member's (Layer 1, 6.4).
+    const delegated = rawSign(draftUpdate(club().head, T(20)), [a.asMember()], {
+      authority: [`${a.address}/${contentId(a.events[0])}`],
+    });
+    const both = { ...delegated, proof: [...delegated.proof, ...alone.proof] };
+    expect(witnessedBy([a, b], [...club().events, both]).undecided).toBe(false);
+    // An outsider's event that is also dated ahead of the evidence is junk first.
+    const early = rawSign(draftUpdate(club().head, T(900)), [{ control: signer("thief") }]);
+    expect(witnessedBy([a, b], [...club().events, early])).toStrictEqual({
+      clause: "L1 4.4",
+      undecided: false,
+    });
+  });
+
+  it("calls invalid an event that brings back a key the log revoked, evidence or none", () => {
+    const ada = new KeyMind("ada");
+    const key = ada.operational().publicKey;
+    const revoking = () =>
+      new KeyMind("ada").update(10, {
+        keys: [{ key: ada.operational(1).publicKey }],
+        revoked: [{ key }],
+      });
+    for (const seconds of [20, 5000]) {
+      // Dated 5000, the event is also far ahead of the evidence. It is junk first.
+      const log = revoking().raw(seconds, "Update", { keys: [{ key }] }).events;
+      const witnessed = witnessLog(log, at(50), new FirstSeen());
+      expect(witnessed.log?.entries).toHaveLength(2);
+      expect(witnessed.failure).toMatchObject({ issues: [{ clause: "L1 4.5", path: "/2" }] });
+      expect(witnessed.undecided).toBe(false);
+    }
+    // And one that makes a key both operational and for other minds' events.
+    const both = new KeyMind("ada").raw(20, "Update", { invocation: [{ key }] }).events;
+    expect(witnessLog(both, at(50), new FirstSeen())).toMatchObject({
+      undecided: false,
+      failure: { issues: [{ clause: "L1 3.5" }] },
+    });
+  });
+
+  it("calls undecided a log that cannot be read at all, and a time that is no time", () => {
+    const ada = new KeyMind("ada");
+    const throwing = new Proxy(ada.events, {
+      get() {
+        throw new Error("boom");
+      },
+    });
+    for (const witnessed of [
+      witnessLog(throwing, at(50), new FirstSeen()),
+      witnessLog(ada.events, "now" as never, new FirstSeen()),
+    ]) {
+      expect(witnessed.failure).toBeDefined();
+      expect(witnessed.undecided).toBe(true);
+      expect(witnessed.log).toBeUndefined();
     }
   });
 

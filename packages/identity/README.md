@@ -99,16 +99,23 @@ export function example(
    */
   const verdict = (obtained: string): string => {
     const seen = new FirstSeen();
-    // It obtained each event a second after it was made. An event is
-    // recorded as seen only once it has verified, never on sight of its content.
-    witnessLog([genesis], at("2026-11-17T09:00:01Z"), seen);
-    witnessLog([genesis, update], at("2026-11-17T11:00:01Z"), seen);
+    const book = new LogBook(seen);
+    // It obtained the log a second after each event was made, and again at
+    // 13:00. Each time, an event is recorded as seen only once it has
+    // verified, never on sight of its content, and the book holds what
+    // `witnessLog` says to hold, as known up to that time.
+    const served: [unknown[], string][] = [
+      [[genesis], "2026-11-17T09:00:01Z"],
+      [[genesis, update], "2026-11-17T11:00:01Z"],
+      [[genesis, update], "2026-11-17T13:00:00Z"],
+    ];
+    for (const [log, when] of served) {
+      book.hold(witnessLog(log, at(when), seen).toHold, at(when));
+    }
     const record = judgeRecord(intent);
     if (!record.ok) return "is not well formed";
     // Likewise the proofs on the record: those that verify, when it was obtained.
     witnessRecord(record.value, at(obtained), seen);
-    const book = new LogBook(seen);
-    book.hold([genesis, update], at("2026-11-17T13:00:00Z"));
     const time = ownSignedTime(record.value, mind, book);
     return time === undefined ? "does not count" : `counts from ${formatTimestamp(time)}`;
   };
@@ -167,14 +174,22 @@ Every function that judges takes an `EvidenceView`: for a proof, by its digest, 
 ## What a book holds
 
 - **Its own copy.** `hold` and `holdBranch` copy the events they are given. Changing the array afterwards changes nothing in the book.
-- **Whatever it is given, judged when asked.** A log that does not verify stays held, and `log(mind)` answers with its rejection, until another is held in its place or it is dropped with `drop(mind)`. A book does not shorten a log for you.
+- **Copies from a source you trust to serve the whole log**: a resolver you have chosen, or the mind itself. `asOf` says the log lacked nothing at that time, and no check can show that.
+- **Whatever it is given, judged as it is.** A copy with an event that does not verify is a log that does not verify, and `log(mind)` answers with that rejection. A book does not shorten a log for you.
 - **What to hold of a log that arrives is `witnessLog(…).toHold`** (Layer 1, 4.9). An event can fail in two ways, and `undecided` says which:
-  - an **invalid** event is one the verifier can read, and that is wrong for every verifier: malformed, out of place, or signed in a way no evidence could make good. It is no event, so `toHold` is the events before it, and plain junk appended to a log in transit costs nothing;
-  - an **undecided** event is every other that fails, because this verifier cannot judge it: it names a critical extension the verifier does not implement, or a type or a version of a later revision; or the verifier has no evidence for it, or lacks a member's log the event needs. It may be the event that removes a key. So `toHold` is the log as it came, which the book refuses until the event can be judged. Never hold the events before an undecided event as the log: that is a state the mind may have left.
-- **`hold` is for a log from a source you trust to serve the whole of it**: a resolver you have chosen, or the mind itself. Its `asOf` says the log lacked nothing at that time, and no check can show that.
-- **Never an earlier state of a log it holds.** `hold` refuses a copy that is the beginning of the log held and verifies no further than it does (Layer 1, 4.9): a source that lags, or lies, must not undo a removal the verifier knows of. A copy held that ends in an invalid event, or that lost its proofs on the way, does give way to a clean one. `drop` first to go back.
-- **Branches, weighed by evidence.** `holdBranch` keeps a log that conflicts with the one held beside it, and `log(mind)` resolves them (Layer 1, 7.3). `hold` replaces a conflicting log without weighing it, so a verifier that takes logs from more than one source uses `holdBranch`.
+  - an **invalid** event is one the verifier can read, and whose fault can be seen in the log alone: it is malformed, out of place, or carries proofs that no evidence and no other log could make good. It is no event, so `toHold` is the events before it, and a copy damaged on the way costs nothing;
+  - an **undecided** event is every other that fails, because this verifier cannot judge it: it names a critical extension the verifier does not implement, or a type or a version of a later revision; or the verifier has no evidence for it; or a member's proof on it does not count by the member's log as the verifier holds it. It may be the event that removes a key. So `toHold` is the log as it came, which the book refuses until the event can be judged. Never hold the events before an undecided event as the log: that is a state the mind may have left.
+- **What it has been shown, it keeps.** A copy takes the place of another only if it shows everything the other does: every event that verifies, and the event that could not be judged, if the other has one. So:
+  - an earlier state of the log held is refused, and so is the same log without an event the verifier could not judge: a source that lags, or lies, does not undo a removal;
+  - a copy that conflicts with the one held is held beside it, and `log(mind)` resolves the two by evidence (Layer 1, 7.3), never by which came later;
+  - a copy with another event where a copy held has one that could not be judged is held beside it too, and the mind is refused: that event may be the mind's own;
+  - a copy that ends in an invalid event gives way to the same log without it, whichever came first.
+
+  `hold` says why it did not hold a copy. `holdBranch` is the same operation and answers with the address either way. `drop(mind)` is how you say that a copy was wrong, or that you mean to go back.
+
+- **One event nobody can read stops a mind, on purpose.** Anybody can write an event of the type `Merge`. Served by a source you trust for the whole log, it cannot be told from the mind's own event, and the mind is refused until the event can be judged or you drop the copy. The alternative is to go on counting a key that an event you could not read removed.
 - **Verdicts, until a log they rest on changes.** Holding or dropping a log forgets the verdict on it and on every log that asked for it as a member's. The book cannot see its evidence change: call `forget()` when a time it has given may have moved, for example after taking in a witness's earlier first-seen times.
+- **A bounded amount of work for one question.** A sound set of logs is verified once each. A set that nests too deep or in a ring, in copies that conflict, would be verified again along every path, so a question that asks for more than twice the logs held, and sixteen, is refused. At most eight copies of one mind's log are held.
 - **Extensions.** A log with an event that lists an extension in `critical` verifies only for a verifier that implements it (core 8.3). Name what you implement in `understood`, for a book, for `verifyLog` and for `judgeRecord`. By default nothing is.
 
 ## Results and errors
@@ -184,7 +199,7 @@ Every function that judges takes an `EvidenceView`: for a proof, by its digest, 
 - **`ownSignedTime` answers with a time or `undefined`.** Ask `operationalProofTime` about one proof to learn why it does not count.
 - **A function that writes throws**: `signEvent` and `signEventSync` throw `OipError` for an event that is not well formed, before any signer is asked, and `TypeError` when there is no signer.
 - **What is judged is a plain copy**, as in `@oip/core`. A verified log holds copies of its events, not the objects it was given.
-- **What is handed out is frozen.** A verified log, a judged record and every answer of a book, a rejection included, are also what the book keeps, so none can be changed by whoever reads it. Copy before changing.
+- **What a book keeps is frozen.** A verified log, a judged record and every answer a book remembers, a rejection among them, are handed out as the book holds them, so none can be changed by whoever reads it. Copy before changing.
 - **A clause names the rule broken, or the record that is malformed.** A refusal that comes from an event's schema cites the clause that defines the event (`L1 3.6` for a `Genesis`), with the path to the member at fault; a refusal that comes from a rule of verification cites that rule.
 
 ## What a verified log does not tell you

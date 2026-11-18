@@ -24,7 +24,6 @@ import {
 import {
   type Controller,
   type IdentityEvent,
-  IMPLEMENTATION_LIMIT,
   type Issue,
   type Validation,
   validateJson,
@@ -116,12 +115,6 @@ interface Replay {
    * one answer for each member, and each member is asked for once.
    */
   readonly members: Map<string, Validation<VerifiedLog>>;
-  /**
-   * Set while one event is judged, if the verifier lacked something the
-   * judgement needs: a member's log that verifies, or one known far enough.
-   * A failure of that event is then the verifier's, and not the event's.
-   */
-  lacking: boolean;
 }
 
 function memberLog(mind: string, replay: Replay): Validation<VerifiedLog> {
@@ -146,6 +139,18 @@ interface MemberSigners {
   readonly refused: Map<string, Issue>;
 }
 
+const DELEGATED: Rejection = deepFreeze({
+  ok: false,
+  issues: [
+    {
+      path: "",
+      message:
+        "a proof that names an authority is made for that principal, not by the member for itself",
+      clause: "L1 6.4",
+    },
+  ],
+});
+
 /**
  * Layer 1, 6.4: whether a proof on an identity event, by a key of a member,
  * counts: the key is an invocation key of the member at the version the
@@ -160,18 +165,11 @@ function memberProof(
   log: VerifiedLog,
   versionId: string,
   { evidenced, time: when }: Evaluation,
-  replay: Replay,
 ): Validation<number> {
-  if (proof.proof.authority !== undefined) {
-    return no(
-      "a proof that names an authority is made for that principal, not by the member for itself",
-      "L1 6.4",
-    );
-  }
+  if (proof.proof.authority !== undefined) return DELEGATED;
   // The event takes effect no earlier than the event before it, so the
   // member's log must be known as far as the evidence for either goes.
   if (log.asOf < evidenced) {
-    replay.lacking = true;
     return no(
       "the member's log was obtained before the evidence for this event: it may lack a later event",
       "core 9.4",
@@ -179,10 +177,6 @@ function memberProof(
   }
   const pinned = entryAt(log, versionId);
   if (pinned === undefined) {
-    // The member may publish that version yet, a fuller copy of its log may
-    // hold it, and of a duplicitous member evidence may yet give it the
-    // position. None of that is a fact about the event.
-    replay.lacking = true;
     return no("the proof is pinned to a version that is not in the member's log", "L1 6.4");
   }
   if (pinned.entry.state.retired) {
@@ -193,8 +187,6 @@ function memberProof(
   }
   const removed = removalTime(log, pinned.position, proof.key, "invocation");
   if (removed !== undefined && when >= removed) {
-    // Which came first is a matter of evidence, and another verifier may hold earlier.
-    replay.lacking = true;
     return no(
       "the member removed the key, or retired, at or before the event's evaluation time",
       "L1 6.4",
@@ -239,12 +231,9 @@ function memberSigners(
     }
     const held = memberLog(method.mind, replay);
     if (!held.ok) {
-      // The copy held of the member's log is at fault, or there is none. A
-      // verifier with the member's log might count this proof.
-      replay.lacking = true;
       return under(path, { issues: [refusal(proof, method.mind, held)] });
     }
-    const counted = memberProof(proof, held.value, method.versionId, when, replay);
+    const counted = memberProof(proof, held.value, method.versionId, when);
     if (counted.ok) {
       signers.set(method.mind, counted.value);
       refused.delete(method.mind);
@@ -295,21 +284,29 @@ function badKey(event: IdentityEvent, path: string): Validation<never> | undefin
   return undefined;
 }
 
+/** The operational and invocation keys of a state. */
+type KeySets = Pick<IdentityState, "keys" | "invocation">;
+
+const NO_KEYS: KeySets = { keys: [], invocation: [] };
+
 /**
- * The state as an event's own members change it (Layer 1, 4.5).
+ * Layer 1, 3.5 and 4.5: the operational and invocation keys after an event,
+ * or why the event may not set the keys it does. It reads the event and the
+ * events before it and nothing else.
  *
+ * @param before - The keys of the state before the event; none before a genesis.
  * @param revoked - Every key the log has revoked before this event.
  */
-function applyFields(
-  state: IdentityState,
+function keysAfter(
+  before: KeySets,
   event: IdentityEvent,
   revoked: ReadonlySet<string>,
   path: string,
-): Validation<IdentityState> {
+): Validation<KeySets> {
   const bad = badKey(event, path);
   if (bad !== undefined) return bad;
-  const keys = event.keys === undefined ? state.keys : keysOf(event.keys);
-  const invocation = event.invocation === undefined ? state.invocation : keysOf(event.invocation);
+  const keys = event.keys === undefined ? before.keys : keysOf(event.keys);
+  const invocation = event.invocation === undefined ? before.invocation : keysOf(event.invocation);
   const both = keys.find((key) => invocation.includes(key));
   if (both !== undefined) {
     return no(`key ${both} would be both an operational and an invocation key`, "L1 3.5", path);
@@ -321,13 +318,20 @@ function applyFields(
   // A key the event both revokes and keeps was refused with the event (Layer 1, 4.5).
   const gone = new Set(revocationsOf(event, 0).map((revocation) => revocation.key));
   return ok({
-    ...state,
     keys: gone.size === 0 ? keys : keys.filter((key) => !gone.has(key)),
     invocation: gone.size === 0 ? invocation : invocation.filter((key) => !gone.has(key)),
+  });
+}
+
+/** The state as an event's own members change it (Layer 1, 4.5), with the keys it is left with. */
+function applyFields(state: IdentityState, event: IdentityEvent, keys: KeySets): IdentityState {
+  return {
+    ...state,
+    ...keys,
     agreement: event.agreement === undefined ? state.agreement : keysOf(event.agreement),
     homes: event.homes ?? state.homes,
     alsoKnownAs: event.alsoKnownAs ?? state.alsoKnownAs,
-  });
+  };
 }
 
 /** What an event revokes. A genesis revokes nothing: there is nothing yet to revoke. */
@@ -570,21 +574,139 @@ function extend(
   });
 }
 
+/**
+ * Layer 1, 4.9: why the proofs on an event of a member-controlled mind could
+ * not authorise it, whatever logs and whatever evidence a verifier holds.
+ *
+ * A member is taken to have signed if a proof on the event verifies under a
+ * key reference of that member's and names no authority. Whether such a
+ * proof counts is for the member's log and the evidence to say (Layer 1,
+ * 6.4), and they differ from one verifier to the next; that such a proof is
+ * there at all is a fact about the event.
+ *
+ * @param before - The state before the event, or `undefined` for a genesis.
+ * @param proofs - Every proof on the event that verifies.
+ */
+function unsignedByMembers(
+  event: IdentityEvent,
+  before: IdentityState | undefined,
+  proofs: readonly PlacedProof[],
+  path: string,
+): Rejection | undefined {
+  const named = new Set<string>();
+  /** A member's proof that is made for another, which says more than its absence does. */
+  const forAnother = new Map<string, Issue>();
+  for (const proof of proofs) {
+    if (proof.method.kind !== "key") continue;
+    const mind = proof.method.mind;
+    if (proof.proof.authority === undefined) named.add(mind);
+    else if (!forAnother.has(mind)) forAnother.set(mind, refusal(proof, mind, DELEGATED));
+  }
+  const lacks = (member: string): boolean => !named.has(member);
+  const absent = (members: readonly string[], clause: string): Rejection | undefined => {
+    const missing = members.find(lacks);
+    if (missing === undefined) return undefined;
+    const issue = forAnother.get(missing);
+    if (issue !== undefined) return { ok: false, issues: [{ ...issue, path: path + issue.path }] };
+    return no(
+      `member ${missing} has no proof on this event under a key reference of its own`,
+      clause,
+      `${path}/proof`,
+    );
+  };
+  const given = event.controller;
+  if (before === undefined) {
+    return given !== undefined && "members" in given ? absent(given.members, "L1 4.1") : undefined;
+  }
+  if (before.controller.kind !== "member") return undefined;
+  if (given !== undefined && !("members" in given)) {
+    return no("a member-controlled mind stays member-controlled", "L1 3.4", `${path}/controller`);
+  }
+  const current = before.controller.members;
+  const signed = current.filter((member) => named.has(member)).length;
+  if (signed < before.controller.threshold) {
+    const made = current.filter(lacks).flatMap((member) => forAnother.get(member) ?? []);
+    if (made[0] !== undefined) {
+      return { ok: false, issues: [{ ...made[0], path: path + made[0].path }] };
+    }
+    return no(
+      `${signed} of the current members have a proof on this event, and the threshold is ${before.controller.threshold}`,
+      "L1 4.4",
+      `${path}/proof`,
+    );
+  }
+  return given === undefined
+    ? undefined
+    : absent(
+        given.members.filter((member) => !current.includes(member)),
+        "L1 4.4",
+      );
+}
+
 /** An event as read, or why it is none, and whether this verifier could read it at all. */
 type Read =
   | { readonly event: IdentityEvent }
   | {
       readonly refusal: Rejection;
       /**
-       * Whether the verifier cannot read the event (Layer 1, 4.9): it is of
-       * another version of the protocol, or of a type this revision does not
-       * define, or has the reserved member `recovery`, or lists in `critical`
-       * an extension the verifier does not implement. Such an event may
-       * depend on rules the verifier does not have, so nothing else that is
-       * wrong with it is a finding.
+       * Whether the verifier cannot read the event (Layer 1, 4.9). Such an
+       * event may depend on rules the verifier does not have, so nothing
+       * else that is wrong with it is a finding.
        */
       readonly unread: boolean;
     };
+
+/**
+ * Layer 1, 4.9: why this verifier cannot read an event, if it cannot. The
+ * event is of another version of the protocol (core 7); or of a type this
+ * revision does not define, `Merge` among them (Layer 1, 3.9, 4.6); or has
+ * the reserved member (3.12); or lists in `critical` an extension the
+ * verifier does not implement (core 8.3).
+ *
+ * It is asked before anything else is, of whatever was given. An extension
+ * listed in `critical`, like a later revision, may change what makes an
+ * event well formed, in its place or signed: that is what `critical` is
+ * for. A verifier without it can say nothing about the event, however the
+ * event looks.
+ *
+ * Only members the value holds as data of its own are read.
+ */
+function cannotRead(
+  value: unknown,
+  understood: ReadonlySet<string>,
+  path: string,
+): Rejection | undefined {
+  try {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+    const held = (name: string) => Object.getOwnPropertyDescriptor(value, name);
+    const version: unknown = held("oip")?.value;
+    if (typeof version === "string" && version !== "1") {
+      return no("the event is of another version of the protocol", "core 7", `${path}/oip`);
+    }
+    const type: unknown = held("type")?.value;
+    if (type === "Merge") return no("Merge is reserved in this revision", "L1 3.9", `${path}/type`);
+    if (typeof type === "string" && !EVENT_TYPES.includes(type)) {
+      // A type that is a string may be one a later revision defines.
+      return no(NOT_AN_EVENT, "L1 4.6", `${path}/type`);
+    }
+    if (held("recovery") !== undefined) {
+      return no("recovery is reserved in this revision", "L1 3.12", `${path}/recovery`);
+    }
+    const [unsupported] = unsupportedCritical({ critical: held("critical")?.value }, understood);
+    return unsupported === undefined
+      ? undefined
+      : no(
+          `the event depends on an extension this verifier does not implement: ${unsupported}`,
+          "core 8.3",
+          `${path}/critical`,
+        );
+  } catch {
+    // What cannot be read at all says nothing of itself.
+    return undefined;
+  }
+}
+
+const NOT_AN_EVENT = "an event is a Genesis, an Update, a Fork or a Retire";
 
 /**
  * One event as a well-formed record of an identity log (Layer 1, 4.6 and
@@ -593,54 +715,20 @@ type Read =
  * @param understood - core 8.3: the extension namespaces the verifier implements.
  */
 function readEvent(raw: unknown, path: string, understood: ReadonlySet<string>): Read {
+  const unread = cannotRead(raw, understood, path);
+  if (unread !== undefined) return { refusal: unread, unread: true };
+  const invalid = (refusal: Rejection): Read => ({ refusal, unread: false });
   const plain = validateJson(raw);
-  if (!plain.ok) return { refusal: under(path, plain), unread: false };
+  if (!plain.ok) return invalid(under(path, plain));
   const value = plain.value;
-  if (!isJsonObject(value)) {
-    return { refusal: no("an event is a JSON object", "L1 3.1", path), unread: false };
-  }
-  const type = value["type"];
-  const version = value["oip"];
-  // A record of another version is another protocol's to judge (core 7).
-  const another = typeof version === "string" && version !== "1";
-  if (type === "Merge") {
-    const refusal = no("Merge is reserved in this revision", "L1 3.9", `${path}/type`);
-    return { refusal, unread: true };
-  }
-  if (!EVENT_TYPES.includes(type)) {
-    const refusal = no(
-      "an event is a Genesis, an Update, a Fork or a Retire",
-      "L1 4.6",
-      `${path}/type`,
-    );
-    // A type that is a string may be one a later revision defines.
-    return { refusal, unread: another || typeof type === "string" };
-  }
-  if (Object.hasOwn(value, "recovery")) {
-    const refusal = no("recovery is reserved in this revision", "L1 3.12", `${path}/recovery`);
-    return { refusal, unread: true };
-  }
-  // Asked before anything else is: an extension listed in `critical` may
-  // change what makes the event well formed, in its place or signed, and
-  // that is what `critical` is for. A verifier without the extension can
-  // say nothing about the event, however it looks (core 8.3).
-  const [unsupported] = unsupportedCritical(value, understood);
-  if (unsupported !== undefined) {
-    const refusal = no(
-      `the event depends on an extension this verifier does not implement: ${unsupported}`,
-      "core 8.3",
-      `${path}/critical`,
-    );
-    return { refusal, unread: true };
+  if (!isJsonObject(value)) return invalid(no("an event is a JSON object", "L1 3.1", path));
+  if (!EVENT_TYPES.includes(value["type"])) {
+    return invalid(no(NOT_AN_EVENT, "L1 4.6", `${path}/type`));
   }
   const record = validateRecord(value);
-  if (!record.ok) return { refusal: under(path, record), unread: another };
+  if (!record.ok) return invalid(under(path, record));
   const [tooLarge] = checkSize(record.value);
-  if (tooLarge !== undefined) {
-    // A size that could not be measured is this implementation's limit, not the event's fault.
-    const refusal = under(path, { issues: [tooLarge] });
-    return { refusal, unread: tooLarge.clause === IMPLEMENTATION_LIMIT };
-  }
+  if (tooLarge !== undefined) return invalid(under(path, { issues: [tooLarge] }));
   return { event: record.value as IdentityEvent };
 }
 
@@ -654,12 +742,14 @@ export interface Replayed {
    */
   readonly failure: Rejection | undefined;
   /**
-   * Whether the failure is the verifier's and not the event's (Layer 1,
-   * 4.9): it cannot read the event (another version, a type this revision
-   * does not define, the reserved member, a critical extension it does not
-   * implement); or it holds no evidence for the event, or not a member's
-   * log that the event needs, known far enough; or it stopped at the length
-   * it reads. It is `false` only for an event shown to be invalid.
+   * Whether the failure is the verifier's and not shown to be the event's
+   * (Layer 1, 4.9): it cannot read the event (another version, a type this
+   * revision does not define, the reserved member, a critical extension it
+   * does not implement); or it holds no evidence for the event, or evidence
+   * under which the event or a proof on it is dated too late or has
+   * expired; or a member's proof on it does not count by the member's log
+   * as this verifier holds it; or it stopped at the length it reads. It is
+   * `false` only for an event shown to be invalid.
    *
    * An event that is invalid is no event, and the log ends before it. One
    * the verifier could not judge may be an event of the log, a removal among
@@ -689,7 +779,6 @@ function replay(events: readonly unknown[], context: LogContext): Replayed {
     context,
     understood: understoodOf(context.understood),
     members: new Map(),
-    lacking: false,
   };
   const entries: LogEntry[] = [];
   const children: AcknowledgedChild[] = [];
@@ -698,9 +787,7 @@ function replay(events: readonly unknown[], context: LogContext): Replayed {
   let step: Step | undefined;
   let before: Evaluation | undefined;
   let undecided = false;
-  // Read through a function: the checks on members' proofs set the flag, where the compiler does not look.
-  const wanting = (): boolean => run.lacking;
-  /** A failure for want of something the verifier lacks. */
+  /** A failure that is the verifier's judgement, and not shown to be a fact about the event. */
   const lacking = (rejection: Rejection): Rejection => {
     undecided = true;
     return rejection;
@@ -719,8 +806,12 @@ function replay(events: readonly unknown[], context: LogContext): Replayed {
         : extend(step, event, i, id, created, proofs, when, run);
 
     // First, what the event shows by itself, whoever looks and whenever: its
-    // place in the chain, and for a key-controlled mind the keys that signed
-    // it. An event that fails here is invalid for every verifier.
+    // place in the chain, and whether the proofs on it could authorise it at
+    // all. For a key-controlled mind that is the whole rule, asked with every
+    // proof that verifies and no evidence. For a member-controlled mind it
+    // is whether enough members have a proof here; what each proof is worth
+    // is asked later, of the member's log. An event that fails here is
+    // invalid for every verifier.
     if (step === undefined) {
       if (event.type !== "Genesis") return FIRST;
     } else {
@@ -734,6 +825,10 @@ function replay(events: readonly unknown[], context: LogContext): Replayed {
         : step.state.controller.kind === "key";
     const pure = byKeys ? authorised(all, UNTIMED) : undefined;
     if (pure?.ok === false) return pure;
+    const unsigned = byKeys ? undefined : unsignedByMembers(event, step?.state, all, path);
+    if (unsigned !== undefined) return unsigned;
+    const keys = keysAfter(step?.state ?? NO_KEYS, event, revoked, path);
+    if (!keys.ok) return keys;
 
     // Then, what depends on the evidence this verifier holds. Another
     // verifier may hold other evidence, so a failure from here on is this
@@ -757,13 +852,16 @@ function replay(events: readonly unknown[], context: LogContext): Replayed {
     // 9.4), so a proof dated more than 300 seconds after it counts for
     // nothing (core 9.3).
     const proofs = all.filter((proof) => proofTime(proof.created, when.seen).ok);
-    const dated = proofs.length === all.length;
-    run.lacking = false;
-    const next = pure !== undefined && dated ? pure : authorised(proofs, when);
-    if (!next.ok) return wanting() || !dated ? lacking(next) : next;
-    const applied = applyFields(next.value.state, event, revoked, path);
-    if (!applied.ok) return applied;
-    step = { state: applied.value, height: next.value.height };
+    // The proofs could authorise the event, by what it shows. If they do not
+    // here, it is for a date, a member's log or a member's key as this
+    // verifier knows them.
+    const next =
+      pure !== undefined && proofs.length === all.length ? pure : authorised(proofs, when);
+    if (!next.ok) return lacking(next);
+    step = {
+      state: applyFields(next.value.state, event, keys.value),
+      height: next.value.height,
+    };
     if (event.type === "Fork") children.push({ position: i, child: event.child });
     for (const revocation of revocationsOf(event, i)) {
       revocations.push(revocation);
@@ -860,6 +958,14 @@ export function verifyLog(events: unknown, context: LogContext): Validation<Veri
   } catch {
     return unreadable;
   }
+}
+
+/**
+ * A replayed log as one answer: the log if every event verified, and
+ * otherwise why the first that did not, did not.
+ */
+export function whole(replayed: Replayed): Validation<VerifiedLog> {
+  return replayed.failure ?? (replayed.log === undefined ? EMPTY : ok(replayed.log));
 }
 
 /**

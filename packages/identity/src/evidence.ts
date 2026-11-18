@@ -75,7 +75,8 @@ export function proofTime(created: Instant, seen: Instant | undefined): Validati
 /**
  * core 9.5: the evaluation time of an identity event,
  * `max(e.created, τ(e), eventTime(previous))`. An event with no evidence, or
- * dated more than 300 seconds after its evidence, is invalid.
+ * dated more than 300 seconds after its evidence, does not verify for this
+ * verifier: with other evidence it might (Layer 1, 4.9).
  *
  * @param created - The event's own `created`.
  * @param seen - `τ(e)`: the earliest evidence that the event existed.

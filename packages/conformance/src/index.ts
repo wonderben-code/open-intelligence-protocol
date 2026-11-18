@@ -13,6 +13,7 @@ export {
   type Answer,
   type ConformanceAdapter,
   type LineageStatus,
+  type LogIntake,
   METHOD_FOR_KIND,
   NOT_JUDGED,
   type ProofRequest,

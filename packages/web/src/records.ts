@@ -54,7 +54,15 @@ export function withCopy(judged: JudgedRecord, copy: JudgedRecord): JudgedRecord
  * holds of it, the copy given among them.
  */
 export function withHeld(judged: JudgedRecord, records: RecordView): JudgedRecord {
-  const held = records.record(contentId(judged.record));
+  return withHeldAs(judged, contentId(judged.record), records);
+}
+
+/**
+ * As `withHeld`, for a caller that has worked out the record's content ID
+ * already: working it out is most of what a status costs.
+ */
+export function withHeldAs(judged: JudgedRecord, id: string, records: RecordView): JudgedRecord {
+  const held = records.record(id);
   return held === undefined ? judged : withCopy(judged, held);
 }
 

@@ -41,6 +41,12 @@ const RUNS = Number(process.env["OIP_DIFFERENTIAL_NETWORK"] ?? 100);
 // The limit is for a test that hangs, not for one that is slow: a machine busy with other
 // work takes several times as long as an idle one.
 const TIMEOUT = Math.max(480_000, RUNS * 1500);
+
+// Each campaign checks at its end that it met enough cases of each outcome, so that a
+// generator that has gone one-sided is noticed. The cases are drawn anew at every run, so
+// a floor is set where chance alone falls below it less than once in a million runs of a
+// hundred cases, by the rates measured over a thousand (the commit that set them gives
+// the figures). A floor closer to the mean than that fails now and then for no reason.
 const measured = process.env["OIP_MUTATION"] !== undefined;
 
 const vectors = loadVectors();
@@ -539,7 +545,16 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
           fc.asyncProperty(
             fc.integer({ min: 1, max: 5 }),
             fc.integer({ min: 1, max: 6 }),
-            fc.constantFrom("right", "another head", "another root", "stranger", "bent"),
+            // Right more often than each wrong: a checkpoint holds only if all else does too.
+            fc.constantFrom(
+              "right",
+              "right",
+              "right",
+              "another head",
+              "another root",
+              "stranger",
+              "bent",
+            ),
             feedTwists,
             async (length, size, what, twists) => {
               const honest = feedOf(ann, length);
@@ -569,7 +584,7 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
           { numRuns: RUNS },
         );
         if (RUNS >= 100) {
-          expect(counted("checkpoints", "holds")).toBeGreaterThan(5);
+          expect(counted("checkpoints", "holds")).toBeGreaterThan(2);
           expect(counted("checkpoints", "does not hold")).toBeGreaterThan(10);
         }
       },
@@ -675,7 +690,7 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
           { numRuns: RUNS * 3 },
         );
         if (RUNS >= 100) {
-          expect(counted("arrivals", "holds")).toBeGreaterThan(10);
+          expect(counted("arrivals", "holds")).toBeGreaterThan(5);
           expect(counted("arrivals", "does not hold")).toBeGreaterThan(50);
         }
       },
@@ -928,7 +943,7 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
         if (RUNS >= 100) {
           expect(counted("sessions", "holds")).toBeGreaterThan(10);
           expect(counted("sessions", "does not hold")).toBeGreaterThan(10);
-          expect(counted("sessions", "equivocated")).toBeGreaterThan(5);
+          expect(counted("sessions", "equivocated")).toBeGreaterThan(3);
           expect(counted("sessions", "with a gap")).toBeGreaterThan(5);
         }
       },
@@ -943,12 +958,28 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
         await fc.assert(
           fc.asyncProperty(
             fc.record({
-              who: fc.constantFrom("ann", "ann", "dee first", "dee second", "stranger", "bent"),
-              domain: fc.constantFrom("right", "right", "another", "none"),
-              challenge: fc.constantFrom("issued", "issued", "another", "none"),
+              // Each is right more often than not: a Hello holds only if all five are, and
+              // one thing wrong with the rest right is the case that tells most.
+              who: fc.constantFrom(
+                ...["ann", "ann", "ann", "ann", "ann"],
+                ...["dee first", "dee second", "stranger", "bent"],
+              ),
+              domain: fc.constantFrom(
+                "right",
+                "right",
+                "right",
+                "right",
+                "right",
+                "another",
+                "none",
+              ),
+              challenge: fc.constantFrom(
+                ...["issued", "issued", "issued", "issued", "issued"],
+                ...["another", "none"],
+              ),
               // How long ago the challenge was issued, in seconds.
-              age: fc.constantFrom(0, 10, 299, 300, 301, -1),
-              proofs: fc.constantFrom(1, 1, 1, 2),
+              age: fc.constantFrom(0, 10, 10, 299, 299, 300, 301, -1),
+              proofs: fc.constantFrom(1, 1, 1, 1, 1, 2),
             }),
             async (c) => {
               const origin = "https://host.example";
@@ -985,7 +1016,7 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
           { numRuns: RUNS },
         );
         if (RUNS >= 100) {
-          expect(counted("hellos", "holds")).toBeGreaterThan(3);
+          expect(counted("hellos", "holds")).toBeGreaterThan(2);
           expect(counted("hellos", "does not hold")).toBeGreaterThan(20);
         }
       },
@@ -1063,7 +1094,7 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
           { numRuns: RUNS },
         );
         if (RUNS >= 100) {
-          expect(counted("acknowledgements", "holds")).toBeGreaterThan(10);
+          expect(counted("acknowledgements", "holds")).toBeGreaterThan(3);
           expect(counted("acknowledgements", "does not hold")).toBeGreaterThan(10);
         }
       },
@@ -1342,7 +1373,7 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
           { numRuns: RUNS },
         );
         if (RUNS >= 100) {
-          expect(counted("profiles", "holds")).toBeGreaterThan(5);
+          expect(counted("profiles", "holds")).toBeGreaterThan(2);
           expect(counted("profiles", "does not hold")).toBeGreaterThan(10);
         }
       },

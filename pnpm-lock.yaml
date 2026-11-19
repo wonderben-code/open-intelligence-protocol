@@ -328,6 +328,28 @@ importers:
         specifier: workspace:*
         version: link:../testkit
 
+  packages/resolver:
+    dependencies:
+      '@oip/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oip/identity':
+        specifier: workspace:*
+        version: link:../identity
+      '@oip/net':
+        specifier: workspace:*
+        version: link:../net
+      '@oip/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@oip/server':
+        specifier: workspace:*
+        version: link:../server
+    devDependencies:
+      '@oip/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+
   packages/schema:
     dependencies:
       typebox:

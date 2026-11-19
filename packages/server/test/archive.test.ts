@@ -13,8 +13,8 @@ import {
   parseTimestamp,
   proofDigest,
 } from "@oip/core";
-import { FirstSeen, verifyLog } from "@oip/identity";
-import type { Bundle, Proof } from "@oip/schema";
+import { FirstSeen, LogBook, verifyLog } from "@oip/identity";
+import { type Bundle, noteCutShort, type Proof } from "@oip/schema";
 import { clause } from "@oip/testkit";
 import {
   at,
@@ -26,9 +26,16 @@ import {
   rawSign,
   T,
 } from "@oip/testkit/minds";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ARCHIVE_SQL, Database, LogArchive } from "../src/index.ts";
+import {
+  ARCHIVE_SQL,
+  Database,
+  LogArchive,
+  publicationProblem,
+  type Published,
+  Unavailable,
+} from "../src/index.ts";
 
 const MIGRATIONS = [{ version: 1, name: "archive", sql: ARCHIVE_SQL }];
 
@@ -46,6 +53,7 @@ beforeEach(() => {
   db = open();
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   db.close();
   rmSync(directory, { recursive: true, force: true });
 });
@@ -435,5 +443,197 @@ describe("a resolver whose database fails", () => {
     expect(resolver.resolve(idOf(ada))).toBeUndefined();
     expect(db.prepare("SELECT COUNT(*) AS n FROM events").get()).toEqual({ n: 0 });
     expect(db.prepare("SELECT COUNT(*) AS n FROM seen_events").get()).toEqual({ n: 0 });
+  });
+});
+
+describe("a judgement the archive could not make (ADR-0010)", () => {
+  /** Makes the next thing asked of a log book note a check cut short, and then answer. */
+  function cutShortAt(method: "log" | "witness"): void {
+    const real = Reflect.get(LogBook.prototype, method) as (...given: unknown[]) => unknown;
+    vi.spyOn(LogBook.prototype, method).mockImplementationOnce(function (
+      this: LogBook,
+      ...given: unknown[]
+    ) {
+      noteCutShort(new RangeError("Maximum call stack size exceeded"));
+      return real.apply(this, given) as never;
+    });
+  }
+
+  it("refuses nothing and stores nothing: what is asked again is judged", () => {
+    const ada = new KeyMind("ada").update(10);
+    const resolver = new LogArchive({ db, clock });
+    const rows = (): unknown => db.prepare("SELECT COUNT(*) AS n FROM seen_events").get();
+    // While the published log is judged.
+    cutShortAt("log");
+    expect(() => resolver.publish(idOf(ada), bundleOf(ada))).toThrow(Unavailable);
+    expect(rows()).toEqual({ n: 0 });
+    // While it is taken into the book: what the book took is undone.
+    cutShortAt("witness");
+    expect(() => resolver.publish(idOf(ada), bundleOf(ada))).toThrow(Unavailable);
+    expect(rows()).toEqual({ n: 0 });
+    expect(resolver.resolve(idOf(ada))).toBeUndefined();
+    expect(resolver.publish(idOf(ada), bundleOf(ada))).toStrictEqual({
+      outcome: "merged",
+      added: 2,
+    });
+    // While the log is read to be served: it is not said to be unknown.
+    cutShortAt("log");
+    expect(() => resolver.resolve(idOf(ada))).toThrow(Unavailable);
+    expect(resolver.resolve(idOf(ada))?.log).toHaveLength(2);
+  });
+
+  it("does not call a location record another's because it could not be judged", () => {
+    const ada = new KeyMind("ada");
+    const resolver = new LogArchive({ db, clock });
+    resolver.publish(idOf(ada), bundleOf(ada));
+    const location = ada.sign(locationBy(ada, 90));
+    const bundle = { ...bundleOf(ada), location } as unknown as Bundle;
+    // The last log the archive reads in a publication is the one the record is judged by.
+    const real = Reflect.get(LogBook.prototype, "log");
+    let asked = 0;
+    let cutAt = 0;
+    vi.spyOn(LogBook.prototype, "log").mockImplementation(function (this: LogBook, mind: string) {
+      if (++asked === cutAt) noteCutShort(new RangeError("Maximum call stack size exceeded"));
+      return real.call(this, mind);
+    });
+    expect(resolver.publish(idOf(ada), bundle).outcome).toBe("merged");
+    cutAt = asked * 2;
+    const next = ada.sign({ ...locationBy(ada, 95), seq: 2 });
+    let outcome: unknown;
+    try {
+      outcome = resolver.publish(idOf(ada), {
+        ...bundleOf(ada),
+        location: next,
+      } as unknown as Bundle).outcome;
+    } catch (error) {
+      outcome = error;
+    }
+    vi.restoreAllMocks();
+    // Wherever in the judging it fell, the answer is to ask again, and never a verdict.
+    expect(outcome).toBeInstanceOf(Unavailable);
+    expect(resolver.resolve(idOf(ada))?.location).toStrictEqual(location);
+    expect(
+      resolver.publish(idOf(ada), { ...bundleOf(ada), location: next } as unknown as Bundle)
+        .outcome,
+    ).toBe("merged");
+    expect(resolver.resolve(idOf(ada))?.location).toStrictEqual(next);
+  });
+});
+
+describe("a log the book does not hold as it was judged", () => {
+  it("is not stored: an event is kept with its first sight or not at all", () => {
+    const ada = new KeyMind("ada").update(10);
+    const resolver = new LogArchive({ db, clock });
+    // The book answers that it took the log, and has recorded no sight of it.
+    vi.spyOn(LogBook.prototype, "witness").mockReturnValueOnce({ ok: true, value: {} } as never);
+    expect(() => resolver.publish(idOf(ada), bundleOf(ada))).toThrow(Unavailable);
+    vi.spyOn(LogBook.prototype, "witness").mockReturnValueOnce({
+      ok: false,
+      issues: [{ path: "", message: "no", clause: "L1 4.9" }],
+    } as never);
+    expect(() => resolver.publish(idOf(ada), bundleOf(ada))).toThrow(Unavailable);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM events").get()).toEqual({ n: 0 });
+    expect(resolver.publish(idOf(ada), bundleOf(ada)).outcome).toBe("merged");
+  });
+});
+
+describe(`${clause("core 9.4")} what an archive records of first sight`, () => {
+  it("is each thing once, at the reading it was first seen at, and readings only go up", () => {
+    const archive = new LogArchive({ db, clock });
+    const event = contentId({ oip: "1", type: "Thing" });
+    const first = archive.witnessing((seen, now) => {
+      expect(seen.sawProof("sha256:one", now)).toBe(now);
+      // Seen again, later: the first time stands, and is not recorded twice.
+      expect(seen.sawProof("sha256:one", now + 5n)).toBe(now);
+      expect(seen.sawEvent(event, now)).toBe(now);
+      expect(seen.sawEvent(event, now + 5n)).toBe(now);
+      return now;
+    });
+    expect(first).toBe(at(100));
+    const second = archive.witnessing((seen, now) => seen.sawProof("sha256:two", now));
+    expect(second).toBeGreaterThan(first);
+    // A reading nothing was recorded at is still a reading: the next is later.
+    const third = archive.witnessing((_seen, now) => now);
+    const fourth = archive.witnessing((_seen, now) => now);
+    expect([third > second, fourth > third]).toStrictEqual([true, true]);
+    expect(db.prepareWithTimes("SELECT digest, at FROM seen_proofs ORDER BY at").all()).toEqual([
+      { digest: "sha256:one", at: first },
+      { digest: "sha256:two", at: second },
+    ]);
+    expect(db.prepareWithTimes("SELECT id, at FROM seen_events").all()).toEqual([
+      { id: event, at: first },
+    ]);
+    // After a restart the readings go on from the last that was recorded.
+    const again = new LogArchive({ db, clock });
+    expect(again.witnessing((_seen, now) => now)).toBeGreaterThan(second);
+  });
+
+  it("is undone, in memory too, where the work that recorded it fails", () => {
+    const archive = new LogArchive({ db, clock });
+    expect(() =>
+      archive.witnessing((seen, now) => {
+        seen.sawProof("sha256:one", now);
+        throw new OipError("forbidden", "no");
+      }),
+    ).toThrow(OipError);
+    expect(archive.view(clock.now()).evidence.proofSeen("sha256:one")).toBeUndefined();
+    expect(db.prepare("SELECT COUNT(*) AS n FROM seen_proofs").get()).toEqual({ n: 0 });
+  });
+});
+
+describe("a record the archive can no longer judge", () => {
+  it("is not held after a restart without the extension it needs, and is again with it", () => {
+    const ada = new KeyMind("ada");
+    const location = ada.sign({
+      ...locationBy(ada, 90),
+      critical: ["example.org"],
+      ext: { "example.org": { colour: "green" } },
+    });
+    const bundle = { ...bundleOf(ada), location } as unknown as Bundle;
+    const knowing = new LogArchive({ db, clock, understood: ["example.org"] });
+    expect(knowing.publish(idOf(ada), bundle).outcome).toBe("merged");
+    expect(knowing.resolve(idOf(ada))?.location).toStrictEqual(location);
+    const unknowing = new LogArchive({ db, clock });
+    expect(unknowing.resolve(idOf(ada))).toMatchObject({ log: ada.events });
+    expect(unknowing.resolve(idOf(ada))?.location).toBeUndefined();
+    expect(
+      new LogArchive({ db, clock, understood: ["example.org"] }).resolve(idOf(ada))?.location,
+    ).toStrictEqual(location);
+  });
+});
+
+describe(`${clause("core 10.2")} the problem of a publication that was not wholly taken`, () => {
+  it("is none where everything was, and says which rule where something was not", () => {
+    expect(publicationProblem({ outcome: "merged", added: 2 })).toBeUndefined();
+    const problem = (published: Published) => {
+      const error = publicationProblem(published);
+      return [error?.code, error?.clause];
+    };
+    expect(problem({ outcome: "duplicity", added: 0, position: 1 })).toStrictEqual([
+      "duplicity",
+      "L1 7.1",
+    ]);
+    expect(problem({ outcome: "not-counted", added: 1, record: "location" })).toStrictEqual([
+      "invalid-proof",
+      "L1 15.1",
+    ]);
+    expect(problem({ outcome: "not-counted", added: 1, record: "participant" })).toStrictEqual([
+      "invalid-proof",
+      "L1 16.1",
+    ]);
+    const refused = (clauseOf: string, undecided: boolean): Published => ({
+      outcome: "refused",
+      added: 0,
+      refused: {
+        position: 1,
+        undecided,
+        issues: [{ path: "/proof", message: "no", clause: clauseOf }],
+      },
+    });
+    expect(problem(refused("L1 4.9", false))).toStrictEqual(["invalid-proof", "L1 4.9"]);
+    expect(problem(refused("L1 4.9", true))).toStrictEqual(["stale-version", "L1 4.9"]);
+    // An extension that is not implemented is said as that, undecided or not.
+    expect(problem(refused("core 8.3", true))).toStrictEqual(["unsupported-critical", "core 8.3"]);
+    expect(publicationProblem(refused("L1 4.9", false))?.message).toBe("event 1 of the log: no");
   });
 });

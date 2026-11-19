@@ -3,14 +3,13 @@
 
 import { contentId } from "@oip/core";
 import { cutShortCount, noteCutShort } from "@oip/schema";
-import { Unavailable } from "@oip/server";
 import { clause } from "@oip/testkit";
 import { bookOf, KeyMind } from "@oip/testkit/minds";
 import { describe, expect, it } from "vitest";
 
-import { overlaid, standing } from "../src/judging.ts";
+import { overlaid, seenAt, standing, Unavailable } from "../src/index.ts";
 
-describe("a judgement the host acts on (ADR-0010)", () => {
+describe("a judgement a service acts on (ADR-0010)", () => {
   it("is the one that was made, where every check in it was made", () => {
     expect(standing(() => 7)).toBe(7);
     expect(standing(() => undefined)).toBeUndefined();
@@ -54,5 +53,12 @@ describe(`${clause("core 9.4")} evidence laid over what is held`, () => {
     const seen = { ...held.evidence, proofSeen: () => 100n };
     const firm = overlaid({ log: held.log.bind(held), evidence: seen }, () => 900n);
     expect(firm.evidence.proofSeen("sha256:any")).toBe(100n);
+  });
+
+  it("may be that some proofs were first seen now, and says nothing of any other", () => {
+    const seen = seenAt(new Set(["sha256:one", "sha256:two"]), 700n);
+    expect(seen("sha256:one")).toBe(700n);
+    expect(seen("sha256:two")).toBe(700n);
+    expect(seen("sha256:three")).toBeUndefined();
   });
 });

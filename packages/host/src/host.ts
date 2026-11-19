@@ -54,9 +54,15 @@ import {
   validateRecord,
   validateRecordOfType,
 } from "@oip/schema";
-import { type Database, HttpFailure, type LogArchive } from "@oip/server";
-
-import { overlaid, standing } from "./judging.ts";
+import {
+  type Database,
+  HttpFailure,
+  kept,
+  type LogArchive,
+  overlaid,
+  seenAt,
+  standing,
+} from "@oip/server";
 
 import { HostStore, type MailboxItem } from "./store.ts";
 
@@ -138,12 +144,6 @@ function refusalOf(
   }
   return new OipError("invalid-record", first.message, options);
 }
-
-/** The evidence that some proofs were first seen at `now`. */
-const seenAt =
-  (digests: ReadonlySet<string>, now: Instant) =>
-  (digest: string): Instant | undefined =>
-    digests.has(digest) ? now : undefined;
 
 /** The problem for a value that is no record of the form asked for. */
 function malformed(
@@ -295,7 +295,8 @@ export class Host {
         throw refusalOf(received.issues, typeof from === "string" && view.log(from).ok);
       }
       const { id, duplicate, forgetAfter, judged } = received.value;
-      if (duplicate) return this.#store.answered(mind, id) ?? STORED;
+      // It is a duplicate because an answer is held for it.
+      if (duplicate) return kept(this.#store.answered(mind, id), "the answer to a packet");
       this.#room(mind, record as unknown as JsonObject);
       witnessRecord(judged, now, seen);
       const answer = this.#acknowledged(mind, received.value, now) ?? STORED;

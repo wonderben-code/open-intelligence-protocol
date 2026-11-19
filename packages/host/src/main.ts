@@ -23,6 +23,7 @@ import {
   ConfigError,
   Database,
   describeConfig,
+  every,
   flag,
   GuardedFetcher,
   integer,
@@ -185,21 +186,9 @@ export interface Edges {
   readonly sink?: (line: string) => void;
   /** How a resolver is asked. By default a `GuardedFetcher` of `@oip/server`. */
   readonly get?: LookupOptions["get"];
-  /**
-   * Does something again and again, and gives how to stop. By default a
-   * timer that does not keep the process alive.
-   */
+  /** Does something again and again, and gives how to stop. By default `every` of `@oip/server`. */
   readonly every?: (work: () => void, ms: number) => () => void;
 }
-
-const everySoOften = (work: () => void, ms: number): (() => void) => {
-  const timer = setInterval(work, ms);
-  // A timer does not keep a process alive that has nothing else to do.
-  timer.unref();
-  return () => {
-    clearInterval(timer);
-  };
-};
 
 /**
  * Starts a host.
@@ -262,7 +251,7 @@ export async function start(
   });
   // What is kept only for a time is let go of every minute: nonces, old mail, packets
   // that can no longer be accepted.
-  const stopTidying = (edges.every ?? everySoOften)(() => {
+  const stopTidying = (edges.every ?? every)(() => {
     try {
       nonces.forget(clock.now());
       host.prune(clock.now());

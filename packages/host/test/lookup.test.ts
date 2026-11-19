@@ -185,6 +185,12 @@ describe(`${clause("L1 17.1", "L1 12.4")} the log of a mind the host has not met
       ["lookup failed", FIRST, "OipError"],
     ]);
     expect(JSON.stringify(lines)).not.toContain("10.0.0.1");
+    // What is thrown that is no error is logged as that.
+    clock.at += 61_000_000_000n;
+    const noError = { name: "something else" } as unknown as Error;
+    served.set(urlOf(FIRST, zed), () => Promise.reject(noError));
+    expect(await lookup({ resolvers: [FIRST] }).learn(zed.address)).toBe(false);
+    expect(lines.at(-1)).toMatchObject({ event: "lookup failed", reason: "unknown" });
     // A log that verifies as far as it goes is kept that far.
     served.set(
       urlOf(FIRST, zed),
@@ -267,6 +273,18 @@ describe(`${clause("L1 13.2")} a packet whose sender the host cannot judge`, () 
       "forbidden",
     );
     expect(asked).toHaveLength(before);
+  });
+
+  it("is refused as it was, with nobody asked, where its sender's log is not what is wanting", () => {
+    const full = new Host({ db, archive, limits: { mailboxItems: 0 } });
+    let thrown: unknown;
+    try {
+      void deliverLearning(full, lookup(), bob.address, packet(ada, [bob]));
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toMatchObject({ status: 507 });
+    expect(asked).toStrictEqual([]);
   });
 
   it("is taken from a sender whose log has grown since the host saw it", async () => {
@@ -417,6 +435,31 @@ describe(`${clause("L1 13.4")} a socket opened by a mind the host has not met`, 
     // What waited on a connection that closed is not taken.
     expect(host.drain(bob.address, 0, 10).items).toHaveLength(0);
     expect(sent).toHaveLength(1);
+  });
+
+  it("asks nobody about a Hello that names no mind, and says nothing to a socket that has gone", async () => {
+    served.set(urlOf(FIRST, zed), ok(bundleOf(zed)));
+    for (const said of ["7", "null", '{"author":7}']) {
+      const { connection, state } = open();
+      connection.message(said);
+      expect(state.closed?.[0], said).toBe(4401);
+    }
+    expect(asked).toStrictEqual([]);
+    // The socket closes while its mind is asked after: the answer finds nobody.
+    const gone = open();
+    gone.connection.message(hello(zed, nonce(gone.sent)));
+    gone.connection.closed();
+    await settled();
+    expect(gone.sent).toHaveLength(1);
+    expect(gone.state.closed).toBeUndefined();
+    // And while a packet's sender is asked after: its refusal closes nothing twice.
+    const { connection, sent, state } = open();
+    connection.message(hello(ada, nonce(sent)));
+    connection.message(JSON.stringify(packet(new KeyMind("yan"), [bob])));
+    connection.closed();
+    await settled();
+    expect(state.closed).toBeUndefined();
+    expect(sent).toHaveLength(2);
   });
 
   it("takes a packet from a sender it has not met, on a socket of a mind it has", async () => {

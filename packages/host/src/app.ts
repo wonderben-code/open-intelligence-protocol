@@ -178,41 +178,41 @@ export function hostApp(options: HostAppOptions): Hono<{ Bindings: Arrival }> {
 
   const app = new Hono<{ Bindings: Arrival }>();
 
+  /** The bundle of a mind the host serves, as its archive has it. */
+  const bundleOf = (id: string) => {
+    served(id);
+    const bundle = archive.resolve(id);
+    if (bundle === undefined) throw new OipError("not-found", NOT_SERVED);
+    return bundle;
+  };
+
   app.get(
     "/.well-known/oip/mind/:id",
-    gated("bundle", limits.read, (_request, param) => {
-      const id = param("id");
-      served(id);
-      const bundle = archive.resolve(id);
-      if (bundle === undefined) throw new OipError("not-found", NOT_SERVED);
-      return recordResponse(bundle, 200, { "cache-control": "no-cache" });
-    }),
+    gated("bundle", limits.read, (_request, param) =>
+      recordResponse(bundleOf(param("id")), 200, { "cache-control": "no-cache" }),
+    ),
   );
 
   app.get(
     "/.well-known/oip/mind/:id/log",
     gated("log", limits.read, (request, param) => {
-      const id = param("id");
-      const mind = served(id);
       // An event's place in the log is its `seq`, and the genesis is at 0. `after` is exclusive.
       const from = new URL(request.url).searchParams.has("after")
         ? whole(request, "after", 0) + 1
         : 0;
       const limit = pageOf(request, maxPage);
-      const bundle = archive.resolve(id);
-      if (bundle === undefined) throw new OipError("not-found", NOT_SERVED);
+      const bundle = bundleOf(param("id"));
       const events = bundle.log.slice(from, from + limit);
-      const seen = (bundle as { firstSeen?: Record<string, string> }).firstSeen ?? {};
-      const firstSeen: Record<string, string> = {};
-      for (const event of events) {
-        const at = seen[contentId(event)];
-        if (at !== undefined) firstSeen[contentId(event)] = at;
-      }
+      // The times of the events in the page, and of no others.
+      const ids = new Set(events.map((event) => contentId(event)));
+      const firstSeen = Object.fromEntries(
+        Object.entries(bundle.firstSeen).filter(([id]) => ids.has(id)),
+      );
       return recordResponse(
         {
           oip: "1",
           type: "LogPage",
-          mind,
+          mind: bundle.mind,
           events,
           ...(from + events.length < bundle.log.length && events.length > 0
             ? { next: from + events.length - 1 }

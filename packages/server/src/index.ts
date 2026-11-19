@@ -14,6 +14,7 @@ export {
   type OtherRecord,
   publicationProblem,
   type Published,
+  type Resolved,
 } from "./archive.ts";
 export {
   ARCHIVE_SQL,
@@ -70,6 +71,7 @@ export {
 } from "./http.ts";
 export { type Address, inRange, isPublicAddress, parseAddress } from "./ip.ts";
 export {
+  every,
   healthResponse,
   readyResponse,
   Shutdown,
@@ -78,6 +80,7 @@ export {
   type StopSignal,
 } from "./lifecycle.ts";
 export { type Held, judgeCopy, type NotTaken, type Taken } from "./intake.ts";
+export { overlaid, seenAt, standing } from "./judging.ts";
 export { type Fields, type FieldValue, type Level, Log, type LogOptions } from "./log.ts";
 export {
   type Counter,
@@ -96,6 +99,7 @@ export {
   type DatabaseOptions,
   isBusy,
   isConstraint,
+  kept,
   type Migration,
   type SQLInputValue,
   type StatementSync,

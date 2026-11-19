@@ -54,6 +54,24 @@ export class StorageError extends Error {
   }
 }
 
+/**
+ * A thing a service reads back that it stored in one transaction with what
+ * led it there: an event with its first sight, a pair with its two events.
+ * It is there, or the database is not as the service wrote it, and the
+ * service says so loudly and serves nothing made up in its place.
+ *
+ * @param what - What is missing, for the error. Built from constants: it is logged.
+ * @throws StorageError if the value is `undefined`.
+ */
+export function kept<T>(value: T | undefined, what: string): T {
+  if (value === undefined) {
+    throw new StorageError(
+      `the database does not hold ${what}, which was stored with what names it`,
+    );
+  }
+  return value;
+}
+
 const IDENTIFIER = /^[a-z][a-z0-9_]*$/u;
 
 /**

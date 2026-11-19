@@ -15,6 +15,7 @@ import {
   Database,
   isBusy,
   isConstraint,
+  kept,
   type Migration,
   StorageError,
 } from "../src/index.ts";
@@ -403,5 +404,23 @@ describe("failures that are no SQLite failure", () => {
     expect(isConstraint({ errcode: 19 })).toBe(true);
     expect(isConstraint({ errcode: 1811 })).toBe(true);
     expect(isConstraint({ errcode: 2067 })).toBe(true);
+  });
+});
+
+describe("what a service reads back that it stored with what names it", () => {
+  it("is given as it is, and its absence is a failure of the storage that is said loudly", () => {
+    expect(kept(0, "a count")).toBe(0);
+    expect(kept("", "a text")).toBe("");
+    expect(kept(null, "a null")).toBeNull();
+    let thrown: unknown;
+    try {
+      kept(undefined, "the first sight of an event");
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(StorageError);
+    expect((thrown as Error).message).toBe(
+      "the database does not hold the first sight of an event, which was stored with what names it",
+    );
   });
 });

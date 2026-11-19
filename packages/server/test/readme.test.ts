@@ -87,6 +87,7 @@ describe("the README", () => {
         "Randomness",
         "RateLimit",
         "Resolve",
+        "Resolved",
         "SQLInputValue",
         "Setting",
         "Settings",

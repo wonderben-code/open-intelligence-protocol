@@ -33,14 +33,15 @@ import {
   type Log,
   type LogArchive,
   type Metrics,
+  overlaid,
   type Randomness,
   type RateLimiter,
   recordFrom,
+  standing,
   Unavailable,
 } from "@oip/server";
 
 import type { Answer, Host } from "./host.ts";
-import { overlaid, standing } from "./judging.ts";
 import { deliverLearning, type Lookup } from "./lookup.ts";
 
 /** The subprotocol a client asks for (13.4). */
@@ -208,9 +209,9 @@ export class Sockets {
     const failed = (error: unknown, outcome: string): void => {
       this.#messages.add({ outcome });
       if (error instanceof OipError) close(CLOSE.refused, error.code);
-      else if (error instanceof HttpFailure) {
-        close(error.status === 507 ? CLOSE.later : CLOSE.refused, error.message);
-      } else if (error instanceof Unavailable) close(CLOSE.later, "ask again");
+      // The one a delivery gives: no room in the mailbox now.
+      else if (error instanceof HttpFailure) close(CLOSE.later, error.message);
+      else if (error instanceof Unavailable) close(CLOSE.later, "ask again");
       else {
         log.failure("socket failed", error, {});
         close(CLOSE.failed, "internal error");
@@ -355,7 +356,13 @@ export class Sockets {
         }
         try {
           const pending = heard(text);
-          if (pending !== undefined) behind(() => pending);
+          if (pending !== undefined) {
+            // Its end is taken here: what waits behind it may not run if the connection goes.
+            const ended = pending.catch((error: unknown) => {
+              failed(error, outcome());
+            });
+            behind(() => ended);
+          }
         } catch (error) {
           failed(error, outcome());
         }

@@ -219,6 +219,14 @@ describe(`${clause("L1 13.2", "L1 12.4")} a packet that arrives at a mind's inbo
         { code: "invalid-record" },
       ],
       [
+        "a packet with no proof at all",
+        () => {
+          const { proof: _none, ...bare } = packet(ada, [bob]) as unknown as { proof: unknown };
+          return host.deliver(bob.address, bare as unknown as OipRecord);
+        },
+        { code: "invalid-record" },
+      ],
+      [
         "expired",
         () =>
           host.deliver(bob.address, packet(ada, [bob], { created: T(-9000), expires: T(-8000) })),
@@ -322,6 +330,65 @@ describe(`${clause("L1 13.5")} a mind's mailbox`, () => {
     expect(refused(() => small.post(bob.address, sealed(bob, "AAA9")))).toStrictEqual({
       status: 507,
     });
+  });
+
+  it("is drained in pages bounded in bytes as well, each of one item at least", () => {
+    const host = hosting({ limits: { pageBytes: 10 } });
+    for (let n = 1; n <= 3; n++) host.post(bob.address, sealed(bob, `AAA${String(n)}`));
+    expect(host.drain(bob.address, 0, 10)).toStrictEqual({
+      items: [{ cursor: 1, record: sealed(bob, "AAA1") }],
+      next: 1,
+    });
+    expect(host.drain(bob.address, 2, 10)).toStrictEqual({
+      items: [{ cursor: 3, record: sealed(bob, "AAA3") }],
+    });
+  });
+
+  it("takes what is well formed, whoever calls it, and only the mind's own acknowledgement", () => {
+    const host = hosting();
+    const unformed = { ...sealed(bob), suite: 7 } as unknown as OipRecord;
+    expect(refused(() => host.post(bob.address, unformed))).toStrictEqual({
+      code: "invalid-record",
+    });
+    const sent = packet(ada, [bob]);
+    host.deliver(bob.address, sent);
+    const ack = (by: Mind, more: JsonObject = {}): OipRecord =>
+      by.sign({
+        oip: "1",
+        type: "Ack",
+        author: by.address,
+        packet: contentId(sent),
+        received: T(110),
+        created: T(110),
+        ...more,
+      }) as unknown as OipRecord;
+    const cases: [string, OipRecord, object][] = [
+      ["no Ack", bob.sign(intentBy(bob, 100)) as unknown as OipRecord, { code: "invalid-record" }],
+      [
+        "an Ack that is not well formed",
+        { ...ack(bob), packet: 7 } as unknown as OipRecord,
+        { code: "invalid-record" },
+      ],
+      [
+        "an Ack another signed",
+        { ...ack(eve), author: bob.address } as unknown as OipRecord,
+        { code: "invalid-proof" },
+      ],
+      ["another mind's Ack", ack(ada), { code: "forbidden" }],
+    ];
+    for (const [name, record, problem] of cases) {
+      expect(
+        refused(() => host.acknowledge(bob.address, record)),
+        name,
+      ).toStrictEqual(problem);
+    }
+    expect(refused(() => host.acknowledge(ada.address, ack(ada)))).toStrictEqual({
+      code: "not-found",
+    });
+    expect(count("mailbox")).toBe(1);
+    expect(host.acknowledge(bob.address, ack(bob))).toBe(true);
+    expect(count("mailbox")).toBe(0);
+    expect(host.minds).toBe(1);
   });
 
   it("lets go of what has been there longer than the host keeps things", () => {

@@ -3,9 +3,9 @@
 
 import { EventEmitter } from "node:events";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { healthResponse, Log, readyResponse, Shutdown } from "../src/index.ts";
+import { every, healthResponse, Log, readyResponse, Shutdown } from "../src/index.ts";
 
 function logging() {
   const lines: Record<string, unknown>[] = [];
@@ -172,5 +172,34 @@ describe("whether a service is alive and ready", () => {
       failing: ["stopping", "database", "disk"],
     });
     expect(readyResponse({ database: () => true }, true).status).toBe(503);
+  });
+});
+
+describe("something done again and again", () => {
+  it("is done on a timer, and no more once it is stopped", () => {
+    vi.useFakeTimers();
+    try {
+      let done = 0;
+      const stop = every(() => done++, 1000);
+      vi.advanceTimersByTime(999);
+      expect(done).toBe(0);
+      vi.advanceTimersByTime(2001);
+      expect(done).toBe(3);
+      stop();
+      vi.advanceTimersByTime(10_000);
+      expect(done).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not keep a process alive that has nothing else to do", () => {
+    const unref = vi.fn();
+    const set = vi
+      .spyOn(globalThis, "setInterval")
+      .mockReturnValue({ unref } as unknown as ReturnType<typeof setInterval>);
+    every(() => undefined, 1000);
+    set.mockRestore();
+    expect(unref).toHaveBeenCalledOnce();
   });
 });

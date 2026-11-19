@@ -73,7 +73,7 @@ export class Lookup {
    */
   learn(mind: string): Promise<boolean> {
     const { clock, resolvers } = this.#options;
-    const id = typeof (mind as unknown) === "string" ? mindId(mind) : undefined;
+    const id = mindId(mind);
     if (id === undefined || resolvers.length === 0) return Promise.resolve(false);
     const asking = this.#asking.get(id);
     if (asking !== undefined) return asking;
@@ -130,13 +130,13 @@ export class Lookup {
   }
 }
 
-/** The sender of a record that was refused, if learning more of its log might change that. */
-function unjudged(error: unknown, record: OipRecord): string | undefined {
-  if (!(error instanceof OipError)) return undefined;
-  // A sender the host has not met, or a proof by a key or a version it does not know.
-  if (error.code !== "stale-version" && error.code !== "invalid-proof") return undefined;
-  const from = (record as { from?: unknown }).from;
-  return typeof from === "string" ? from : undefined;
+/**
+ * Whether learning more of a sender's log might change a refusal: it was
+ * for a sender the host has not met, or for a proof by a key or a version
+ * of the log it does not know.
+ */
+function mayBeLearned(error: unknown): boolean {
+  return error instanceof OipError && ["stale-version", "invalid-proof"].includes(error.code);
 }
 
 /**
@@ -157,9 +157,9 @@ export function deliverLearning(
   try {
     return host.deliver(mind, record);
   } catch (error) {
-    const from = lookup === undefined ? undefined : unjudged(error, record);
-    if (lookup === undefined || from === undefined) throw error;
-    return lookup.learn(from).then((learned) => {
+    if (lookup === undefined || !mayBeLearned(error)) throw error;
+    // What is no address is asked after nowhere.
+    return lookup.learn((record as { from?: unknown }).from as string).then((learned) => {
       if (!learned) throw error;
       return host.deliver(mind, record);
     });

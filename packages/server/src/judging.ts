@@ -1,12 +1,15 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-/** Two things every judgement the host makes needs. */
+/**
+ * What every judgement a service makes needs: a refusal to act on a check
+ * that was cut short, and evidence of first sight laid over what is held.
+ */
 
 import type { Instant } from "@oip/core";
 import type { IdentityView } from "@oip/identity";
 import { cutShortCount } from "@oip/schema";
-import { Unavailable } from "@oip/server";
+import { Unavailable } from "./http.ts";
 
 /**
  * Makes a judgement, and refuses to act on it if any check in it was cut
@@ -39,4 +42,15 @@ export function overlaid(
       proofSeen: (digest) => view.evidence.proofSeen(digest) ?? proofSeen(digest),
     },
   };
+}
+
+/**
+ * The evidence that some proofs were first seen at `now`: for a record
+ * judged as it will be once its proofs are recorded, before they are.
+ */
+export function seenAt(
+  digests: ReadonlySet<string>,
+  now: Instant,
+): (digest: string) => Instant | undefined {
+  return (digest) => (digests.has(digest) ? now : undefined);
 }

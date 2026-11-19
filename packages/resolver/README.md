@@ -133,11 +133,11 @@ pairs of conflicting events held as evidence: 1
 
 ## What it exports
 
-| Export                                                               | What it is                                                                                                  |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `start`, `Running`, `SETTINGS`, `PREFIX`, `clientAddress`, `Arrived` | The resolver as a running service, its settings, and how it tells where a request came from                 |
-| `resolverApp`, `ResolverAppOptions`, `Arrival`                       | Its HTTP interface, as a function from a request to a response                                              |
-| `RESOLVER_MIGRATIONS`                                                | Its database: an archive of identity logs (`LogArchive` of `@oip/server`) and the nonces of signed requests |
+| Export                                                                        | What it is                                                                                                  |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `start`, `Running`, `Edges`, `SETTINGS`, `PREFIX`, `clientAddress`, `Arrived` | The resolver as a running service, its settings, and how it tells where a request came from                 |
+| `resolverApp`, `ResolverAppOptions`, `Arrival`                                | Its HTTP interface, as a function from a request to a response                                              |
+| `RESOLVER_MIGRATIONS`                                                         | Its database: an archive of identity logs (`LogArchive` of `@oip/server`) and the nonces of signed requests |
 
 ## What to know
 

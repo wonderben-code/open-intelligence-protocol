@@ -61,7 +61,7 @@ describe("the README", () => {
     const values = Object.keys(resolver);
     for (const value of values) expect(named, value).toContain(value);
     expect(named.filter((name) => !values.includes(name)).sort()).toStrictEqual(
-      ["Arrival", "Arrived", "ResolverAppOptions", "Running"].sort(),
+      ["Arrival", "Arrived", "Edges", "ResolverAppOptions", "Running"].sort(),
     );
   });
 });

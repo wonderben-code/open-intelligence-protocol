@@ -231,6 +231,18 @@ describe(`${clause("L1 13.1")} what a host serves of a mind`, () => {
     expect((await ask("/.well-known/oip/other")).status).toBe(404);
   });
 
+  it("is nothing where the host is said to serve a mind and holds no log of it", async () => {
+    const { ask } = service();
+    // Not as the host writes its database: a mind is taken on with its log.
+    db.prepare("INSERT INTO hosted (mind, since) VALUES (?, ?)").run(eve.address, 1);
+    for (const rest of ["", "/log"]) {
+      expect(await problemOf(await ask(wellKnown(eve, rest)))).toStrictEqual({
+        status: 404,
+        type: "urn:oip:error:not-found",
+      });
+    }
+  });
+
   it("is the mind's log a page at a time, from after a position on", async () => {
     const long = new KeyMind("long");
     for (let n = 1; n <= 4; n++) long.update(10 * n);
@@ -619,6 +631,12 @@ describe(`${clause("L1 13.1", "L1 13.3")} a mind that brings its bundle to a hos
       });
     }
     expect((await ask(path, sending(bundleOf(eve), "PUT", "text/plain"))).status).toBe(415);
+    // A location record another mind signed: the log is the mind's, and the record is not.
+    const others = { ...bundleOf(eve), location: ada.sign(locationBy(eve, 100)) };
+    expect(await problemOf(await ask(path, await signed(eve, "PUT", path, others)))).toStrictEqual({
+      status: 400,
+      type: "urn:oip:error:invalid-proof",
+    });
     // A log whose second event does not verify: the mind signed, and the bundle is refused.
     const broken = new KeyMind("eve").update(50);
     const events = [broken.events[0], { ...broken.events[1], created: T(51) }];

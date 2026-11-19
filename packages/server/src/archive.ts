@@ -39,12 +39,13 @@ import {
   witnessRecord,
 } from "@oip/identity";
 import { currentLocation } from "@oip/net";
-import { cutShort, type Bundle, type DuplicityEvidence, type Validation } from "@oip/schema";
+import type { Bundle, DuplicityEvidence, Validation } from "@oip/schema";
 import type { Clock } from "./edges.ts";
 import { Unavailable } from "./http.ts";
-import type { Database } from "./storage.ts";
+import { type Database, kept } from "./storage.ts";
 
 import { type Held, judgeCopy, type NotTaken } from "./intake.ts";
+import { overlaid, seenAt, standing } from "./judging.ts";
 import { ArchiveStore, type Sighting, type Streamed } from "./archive-store.ts";
 
 /** How an archive is made. */
@@ -69,6 +70,9 @@ export type Published =
   | { readonly outcome: "refused"; readonly added: number; readonly refused: NotTaken }
   /** Its location record or its profile is not signed by the mind's own authority. The log was merged. */
   | { readonly outcome: "not-counted"; readonly added: number; readonly record: OtherRecord };
+
+/** A bundle as an archive gives it: with the time each event and each proof in it was first seen. */
+export type Resolved = Bundle & { readonly firstSeen: Readonly<Record<string, string>> };
 
 /** A record a bundle carries besides the log. */
 export type OtherRecord = "location" | "participant";
@@ -127,8 +131,11 @@ class Sightings extends FirstSeen {
 
 /** The proofs that verify on the record with a content ID, among those held. */
 function proofsOf(held: readonly JudgedRecord[], id: string): JudgedRecord["proofs"] {
-  return held.find((other) => contentId(other.record) === id)?.proofs ?? [];
+  return held.filter((other) => contentId(other.record) === id).flatMap((other) => other.proofs);
 }
+
+/** The later of two times. */
+const later = (a: Instant, b: Instant): Instant => (a > b ? a : b);
 
 /** Every mind that a log's events rest on: its members, at any state it has had. */
 function membersOf(log: VerifiedLog): string[] {
@@ -181,7 +188,9 @@ export class LogArchive {
     for (const { events } of this.#store.copies()) book.hold(events, now);
     const others = new Map<string, JudgedRecord[]>();
     for (const { mind, record } of this.#store.records()) {
-      const judged = judgeRecord(record, { understood: this.#understood });
+      // One that no longer judges, as where an extension it needs is no longer implemented,
+      // is not held. One that could not be judged just now stops the rebuilding.
+      const judged = standing(() => judgeRecord(record, { understood: this.#understood }));
       if (judged.ok) others.set(mind, [...(others.get(mind) ?? []), judged.value]);
     }
     this.#seen = seen;
@@ -245,7 +254,9 @@ export class LogArchive {
       });
     }
     const now = this.#reading();
-    const taken = judgeCopy(bundle.log, now, this.#held(now));
+    // No part of the judging is acted on if a check in it was cut short (ADR-0010): not a
+    // refusal of an event, and not the absence of a pair.
+    const taken = standing(() => judgeCopy(bundle.log, now, this.#held(now)));
     if (taken.log !== undefined && taken.log.mind !== mind) {
       throw new OipError("invalid-record", "the log in the bundle is of another mind", {
         clause: "L1 13.1",
@@ -269,25 +280,24 @@ export class LogArchive {
     let parted: number | undefined;
     if (taken.log !== undefined) {
       const log = taken.log;
-      const before = this.#book.log(mind);
-      const pair = before.ok ? divergence(before.value, log) : undefined;
+      const pair = standing(() => {
+        const before = this.#book.log(mind);
+        return before.ok ? divergence(before.value, log) : undefined;
+      });
       try {
         added = this.#db.transaction(() => {
           this.#seen.fresh.length = 0;
-          const held = this.#book.witness(taken.events, now, this.#seen, {
-            following: [mind, ...membersOf(log)],
-          });
-          if (!held.ok) {
-            throw new Unavailable(
-              held === cutShort()
-                ? "the log could not be judged just now"
-                : "the log could not be held as it was judged",
-            );
-          }
-          // Each event verified in its copy, with the present for its first sight.
-          for (const event of taken.events) {
-            const eventId = contentId(event);
-            if (this.#seen.eventSeen(eventId) === undefined) this.#seen.sawEvent(eventId, now);
+          const held = standing(() =>
+            this.#book.witness(taken.events, now, this.#seen, {
+              following: [mind, ...membersOf(log)],
+            }),
+          );
+          // What was judged is held, each event with its first sight, or nothing is stored.
+          if (
+            !held.ok ||
+            taken.events.some((event) => this.#seen.eventSeen(contentId(event)) === undefined)
+          ) {
+            throw new Unavailable("the log could not be held as it was judged");
           }
           const fresh = this.#store.add(mind, taken.events, this.#seen.fresh);
           if (pair !== undefined) {
@@ -304,7 +314,7 @@ export class LogArchive {
         this.#rebuild();
         throw error;
       }
-      if (now > this.#latest) this.#latest = now;
+      this.#latest = later(now, this.#latest);
       parted = pair?.position;
       if (added > 0) this.#tell();
     }
@@ -329,22 +339,16 @@ export class LogArchive {
    * record that is not kept.
    *
    * @returns Whether the record counts for the mind.
+   * @throws Unavailable if it could not be judged just now.
    */
   #take(mind: string, type: "Location" | "Participant", record: unknown, now: Instant): boolean {
-    const judged = judgeRecord(record, { understood: this.#understood });
+    const judged = standing(() => judgeRecord(record, { understood: this.#understood }));
     if (!judged.ok || judged.value.record.type !== type) return false;
     if ((judged.value.record as { author?: unknown }).author !== mind) return false;
     const digests = new Set(judged.value.proofs.map((proof) => proof.digest));
-    const view = this.view(now);
     // Judged as it will be once its proofs are recorded as seen now, and recorded only then.
-    const counts = ownSignedTime(judged.value, mind, {
-      log: (other) => view.log(other),
-      evidence: {
-        eventSeen: (id) => this.#seen.eventSeen(id),
-        proofSeen: (digest) =>
-          this.#seen.proofSeen(digest) ?? (digests.has(digest) ? now : undefined),
-      },
-    });
+    const own = overlaid(this.view(now), seenAt(digests, now));
+    const counts = standing(() => ownSignedTime(judged.value, mind, own));
     if (counts === undefined) return false;
     const held = this.#others.get(mind) ?? [];
     const id = contentId(judged.value.record);
@@ -365,7 +369,7 @@ export class LogArchive {
       throw error;
     }
     this.#others.set(mind, [...held, judged.value]);
-    if (now > this.#latest) this.#latest = now;
+    this.#latest = later(now, this.#latest);
     if (type === "Location") this.#tell();
     return true;
   }
@@ -378,17 +382,17 @@ export class LogArchive {
    * @returns `undefined` if the resolver holds no log of the mind.
    * @throws Unavailable if the log could not be judged just now.
    */
-  resolve(id: string): Bundle | undefined {
+  resolve(id: string): Resolved | undefined {
     const mind = mindAddress(id);
-    const held = this.#book.log(mind);
-    if (!held.ok) {
-      if (held === cutShort()) throw new Unavailable("the log could not be judged just now");
-      return undefined;
-    }
+    const held = standing(() => this.#book.log(mind));
+    if (!held.ok) return undefined;
+    // An event is held with its first sight, and a record with those of its proofs: each
+    // was stored in one transaction with it.
     const firstSeen: Record<string, string> = {};
     const log = held.value.entries.map(({ event }) => {
-      const seen = this.#seen.eventSeen(contentId(event));
-      if (seen !== undefined) firstSeen[contentId(event)] = formatTimestamp(seen);
+      firstSeen[contentId(event)] = formatTimestamp(
+        kept(this.#seen.eventSeen(contentId(event)), "the first sight of an event"),
+      );
       return event;
     });
     // The records that count now, by the logs as they stand at this reading of the clock.
@@ -409,8 +413,9 @@ export class LogArchive {
       ...(profile?.proofs ?? []),
     ];
     for (const proof of proofs) {
-      const seen = this.#seen.proofSeen(proof.digest);
-      if (seen !== undefined) firstSeen[proof.digest] = formatTimestamp(seen);
+      firstSeen[proof.digest] = formatTimestamp(
+        kept(this.#seen.proofSeen(proof.digest), "the first sight of a proof"),
+      );
     }
     return {
       oip: "1",
@@ -420,7 +425,7 @@ export class LogArchive {
       ...(location === undefined ? {} : { location: location.record }),
       ...(profile === undefined ? {} : { participant: profile.record }),
       firstSeen,
-    } as Bundle;
+    } as Resolved;
   }
 
   /**
@@ -432,14 +437,14 @@ export class LogArchive {
   duplicity(id: string): DuplicityEvidence | undefined {
     const mind = mindAddress(id);
     if (this.#store.event(id) === undefined) return undefined;
-    const pairs: DuplicityEvidence["pairs"] = [];
-    for (const { first, other } of this.#store.pairs(mind)) {
-      const events = [this.#store.event(first), this.#store.event(other)];
-      if (events[0] !== undefined && events[1] !== undefined) {
-        pairs.push(events as unknown as DuplicityEvidence["pairs"][number]);
-      }
-    }
-    return { oip: "1", type: "DuplicityEvidence", mind, pairs };
+    // A pair is stored in one transaction with its two events.
+    const pairs = this.#store
+      .pairs(mind)
+      .map(({ first, other }) => [
+        kept(this.#store.event(first), "an event of a pair"),
+        kept(this.#store.event(other), "an event of a pair"),
+      ]);
+    return { oip: "1", type: "DuplicityEvidence", mind, pairs } as DuplicityEvidence;
   }
 
   /**
@@ -464,7 +469,7 @@ export class LogArchive {
         this.#store.add("", [], this.#seen.fresh);
         return worked;
       });
-      if (now > this.#latest) this.#latest = now;
+      this.#latest = later(now, this.#latest);
       return result;
     } catch (error) {
       // Only if the memory has moved: work that refuses before it records has changed nothing.

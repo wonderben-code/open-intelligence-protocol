@@ -22,6 +22,7 @@ import {
   type Clock,
   Database,
   describeConfig,
+  every,
   flag,
   integer,
   list,
@@ -110,6 +111,15 @@ export interface Running {
   readonly shutdown: Shutdown;
 }
 
+/** The edges of a resolver: the machine's by default, a test's own otherwise. */
+export interface Edges {
+  readonly clock?: Clock;
+  /** Where the log goes. */
+  readonly sink?: (line: string) => void;
+  /** Does something again and again, and gives how to stop. By default `every` of `@oip/server`. */
+  readonly every?: (work: () => void, ms: number) => () => void;
+}
+
 /**
  * Starts a resolver.
  *
@@ -119,7 +129,7 @@ export interface Running {
  */
 export async function start(
   environment: Readonly<Record<string, string | undefined>>,
-  edges: { clock?: Clock; sink?: (line: string) => void } = {},
+  edges: Edges = {},
 ): Promise<Running> {
   const config = readConfig(PREFIX, SETTINGS, environment);
   const clock = edges.clock ?? systemClock;
@@ -153,18 +163,15 @@ export async function start(
   });
   const metrics = new Metrics();
   const nonces = new StoredNonces(db);
-  const tidy = setInterval(() => {
+  // A nonce is kept while its signature is valid, and forgotten every minute after.
+  const stopTidying = (edges.every ?? every)(() => {
     try {
       nonces.forget(clock.now());
     } catch (error) {
       log.failure("nonces not forgotten", error);
     }
   }, 60_000);
-  // A timer does not keep a process alive that has nothing else to do.
-  tidy.unref();
-  shutdown.add("timers", () => {
-    clearInterval(tidy);
-  });
+  shutdown.add("timers", stopTidying);
 
   let server: Server | undefined;
   shutdown.add(

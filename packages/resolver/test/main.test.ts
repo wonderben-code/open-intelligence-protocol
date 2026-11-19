@@ -11,7 +11,7 @@ import { MEDIA_TYPE, mindId } from "@oip/core";
 import { ConfigError } from "@oip/server";
 import { clause } from "@oip/testkit";
 import { KeyMind, type Mind } from "@oip/testkit/minds";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clientAddress, type Running, start } from "../src/index.ts";
 
@@ -146,6 +146,61 @@ describe(`${clause("L1 17.1")} a resolver that is running`, () => {
       'OIP_RESOLVER_PORT: "http" is not a whole number from 0 to 65535',
       "OIP_RESOLVER_PROT is no setting of this service",
     ]);
+  });
+});
+
+describe("what a resolver keeps only for a time", () => {
+  it("is forgotten every minute, and a failure to do so stops nothing", async () => {
+    let tidy: (() => void) | undefined;
+    let stopped = false;
+    const service = await start(
+      {
+        OIP_RESOLVER_ORIGIN: "https://resolver.example",
+        OIP_RESOLVER_HOST: "127.0.0.1",
+        OIP_RESOLVER_PORT: "0",
+        OIP_RESOLVER_DATABASE: join(directory, "resolver.db"),
+      },
+      {
+        sink: (line) => lines.push(JSON.parse(line) as Record<string, unknown>),
+        every: (work, ms) => {
+          expect(ms).toBe(60_000);
+          tidy = work;
+          return () => {
+            stopped = true;
+          };
+        },
+      },
+    );
+    running.push(service);
+    tidy?.();
+    expect(lines.map((line) => line["event"])).toStrictEqual(["starting", "listening"]);
+    await service.stop("test");
+    expect(stopped).toBe(true);
+    // The database is closed: forgetting fails, says so, and throws nothing.
+    tidy?.();
+    expect(lines.at(-1)).toMatchObject({ level: "error", event: "nonces not forgotten" });
+  });
+
+  it("writes its log to the process's own output where it is given nowhere else", async () => {
+    const written: string[] = [];
+    const write = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+      written.push(String(chunk));
+      return true;
+    });
+    const service = await start({
+      OIP_RESOLVER_ORIGIN: "https://resolver.example",
+      OIP_RESOLVER_HOST: "127.0.0.1",
+      OIP_RESOLVER_PORT: "0",
+      OIP_RESOLVER_DATABASE: join(directory, "resolver.db"),
+      OIP_RESOLVER_LOG_LEVEL: "warn",
+    });
+    await service.stop("test");
+    write.mockRestore();
+    // Nothing at `info` is written at `warn`.
+    expect(written.join("")).toBe("");
+    await expect(
+      start({ OIP_RESOLVER_ORIGIN: "https://resolver.example", OIP_RESOLVER_LOG_LEVEL: "loud" }),
+    ).rejects.toThrow('OIP_RESOLVER_LOG_LEVEL: "loud" is not one of debug, info, warn, error');
   });
 });
 

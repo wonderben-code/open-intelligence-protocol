@@ -335,6 +335,36 @@ describe(`${clause("L1 13.4", "L1 13.2")} a record sent over a socket`, () => {
     expect(metrics.render()).toContain('oip_host_socket_messages_total{outcome="refused"} 8');
   });
 
+  it("counts no address, and what is no address, as one client", () => {
+    const sockets = binding({ deliver: new RateLimiter({ burst: 2, perMinute: 6 }, clock) });
+    expect(sockets.room).toBe(true);
+    /** A connection from an address as it is given, on which Ada has authenticated. */
+    const from = (address: string | undefined) => {
+      const sent: JsonObject[] = [];
+      const state = { closed: undefined as [number, string] | undefined };
+      const connection = sockets.connect(
+        bob.address,
+        {
+          send: (text) => sent.push(JSON.parse(text) as JsonObject),
+          close: (code, reason) => {
+            state.closed = [code, reason];
+          },
+          buffered: 0,
+        },
+        address,
+      );
+      connection.message(hello(ada, sent[0]?.["nonce"] as string));
+      expect(sent[1]).toStrictEqual({ type: "Welcome", mind: ada.address });
+      return { connection, state };
+    };
+    const [one, two, three] = [from(undefined), from("not an address"), from("")];
+    one.connection.message(JSON.stringify(sealed(bob, "AAA1")));
+    two.connection.message(JSON.stringify(sealed(bob, "AAA2")));
+    three.connection.message(JSON.stringify(sealed(bob, "AAA3")));
+    expect([one.state.closed, two.state.closed]).toStrictEqual([undefined, undefined]);
+    expect(three.state.closed).toStrictEqual([1013, "rate-limited"]);
+  });
+
   it("counts against what its address may deliver", () => {
     const sockets = binding({ deliver: new RateLimiter({ burst: 2, perMinute: 6 }, clock) });
     const { connection, state } = welcomed(sockets, ada);

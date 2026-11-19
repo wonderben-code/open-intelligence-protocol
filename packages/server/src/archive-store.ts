@@ -16,7 +16,7 @@
 
 import { contentId, type Instant, type JsonObject, proofDigest } from "@oip/core";
 import type { Proof } from "@oip/schema";
-import { appendOnly, type Database } from "./storage.ts";
+import { appendOnly, type Database, kept } from "./storage.ts";
 
 const TABLES = `
 CREATE TABLE events (id TEXT PRIMARY KEY, mind TEXT NOT NULL, seq INTEGER NOT NULL, prev TEXT, body TEXT NOT NULL) STRICT, WITHOUT ROWID;
@@ -77,8 +77,8 @@ function rowOf(event: JsonObject): { id: string; seq: number; prev: string | nul
 
 /** The proofs of an event as it was given. */
 function proofsOn(event: JsonObject): Proof[] {
-  const proofs: unknown = event["proof"];
-  return Array.isArray(proofs) ? (proofs as Proof[]) : [];
+  // An event that verified is signed: it carries a list of proofs.
+  return event["proof"] as unknown as Proof[];
 }
 
 /** The store of an archive, in a service's database. */
@@ -229,9 +229,13 @@ export class ArchiveStore {
         // An end: no event held comes after it.
         if (followed.has(id)) continue;
         const path: JsonObject[] = [];
-        for (let at: string | null | undefined = id; typeof at === "string"; at = before.get(at)) {
-          const event = this.event(at);
-          if (event !== undefined) path.unshift(event);
+        // Back to the genesis, through events that are held.
+        for (
+          let at: string | null = id;
+          at !== null && before.has(at);
+          at = before.get(at) ?? null
+        ) {
+          path.unshift(kept(this.event(at), "an event"));
         }
         yield { mind, events: path };
       }
@@ -248,10 +252,12 @@ export class ArchiveStore {
       .prepare("SELECT cursor, mind, id FROM stream WHERE cursor > ? ORDER BY cursor LIMIT ?")
       .all(after, limit) as { cursor: number; mind: string; id: string }[];
     const other = this.#db.prepare("SELECT record FROM records WHERE id = ?");
-    return rows.flatMap(({ cursor, mind, id }) => {
+    return rows.map(({ cursor, mind, id }) => {
       const held = other.get(id) as { record: string } | undefined;
-      const record = this.event(id) ?? (held && (JSON.parse(held.record) as JsonObject));
-      return record === undefined ? [] : [{ cursor, mind, record }];
+      // An entry of the stream is stored in one transaction with what it tells of.
+      const record =
+        this.event(id) ?? (JSON.parse(kept(held, "what the stream tells of").record) as JsonObject);
+      return { cursor, mind, record };
     });
   }
 }

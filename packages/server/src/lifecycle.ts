@@ -13,6 +13,20 @@
 
 import type { Log } from "./log.ts";
 
+/**
+ * Does something again and again, on a timer that does not keep a process
+ * alive that has nothing else to do.
+ *
+ * @returns How to stop.
+ */
+export function every(work: () => void, ms: number): () => void {
+  const timer = setInterval(work, ms);
+  timer.unref();
+  return () => {
+    clearInterval(timer);
+  };
+}
+
 /** Something a service stops when it stops. */
 export type Stop = () => void | Promise<void>;
 

@@ -102,6 +102,15 @@ Two independent reviews of `@oip/delegation` and `@oip/web` found eight more (OE
 
 **Test vectors for the Mind Network.** Eight new kinds of case (`feed`, `checkpoint`, `receive`, `chain`, `hello`, `ack`, `location`, `participant`; the vectors' README defines each), with 13 must-accept cases, 37 negative cases and 37 controls. The independent Python checker judges them from the text of Layer 1, Sections 10 and 12 to 16. The vectors now hold 48 must-accept cases, 179 negative cases and 125 controls. Every value that was there is byte for byte what it was.
 
+**Service clarifications ([OEP-0005](../oeps/oep-0005-service-clarifications.md), found while building the resolver).** The milestone is not finished, and more may follow. No test vector changes.
+
+- **`<mindId>` (Layer 1, 17.1).** It is the content ID of the mind's genesis: its address without `did:oip:`, and the `m` of 13.1. The technical paper said so and the specification did not. A bundle published under another mind's `<mindId>` is `invalid-record`.
+- **The stream's cursor (17.1).** A string of decimal digits, rising in the order things were taken in. Without `since` a stream starts from the first; `Last-Event-ID` may stand for `since`. Each event and each location record is told of once.
+- **What a resolver takes of a bundle (17.2).** The events that verify, from the genesis on, and nothing after the first that does not. What verified before it is merged, and the request is answered with that event's problem: `invalid-proof`, `unsupported-critical` or `stale-version`. 17.2 said "verify every record before storing or serving it" and not what becomes of a bundle of which only part verifies.
+- **Which proofs a resolver keeps (17.2).** Those that can count for the event: a signature that verifies, by a control key the event reveals or an invocation key a member has at the version named. Without this rule anyone could put more proofs on a mind's event at two resolvers than a record carries, and a client that merged them would treat the log as not verified (7.1).
+- **Order (17.2).** A resolver records no two events of one mind as first seen at the same time.
+- **Authenticated publication (17.3).** The request is signed by a mind whose key is valid by the logs the resolver holds, or by the mind being published, judged against the log in the bundle. Nothing said how a mind could publish its own log to a resolver that asks for a signature and has never seen it.
+
 ## Revision 2026-11-17 (Draft)
 
 Security and consistency fixes from two independent reviews of revision 2026-10-30, one of the technical paper and one of the specifications, and from a third independent check of those fixes before publication ([reviews/](../reviews/)). Record formats change little; most changes are clearer rules about who may sign what, and when. Every mind address in the test vectors is unchanged.

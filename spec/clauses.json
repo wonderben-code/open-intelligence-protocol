@@ -1596,9 +1596,10 @@
       "summary": "A resolver MUST implement: - `GET /oip/v1/resolve/<mindId>`: returns a `Bundle` (13.1) with the…",
       "level": "MUST",
       "keywords": {
-        "MUST": 1
+        "MUST": 1,
+        "MAY": 1
       },
-      "digest": "f1ad0caeee30dbb0b8a006ea527f6fdf5285a060da9acb131d8abda9dd1201cf"
+      "digest": "e4914bd97cb77a9516f9dc9ba4c1b2d5258f60e04dcce788ad738d7e88195429"
     },
     {
       "id": "L1 17.2",
@@ -1608,21 +1609,21 @@
       "level": "MUST",
       "keywords": {
         "MUST": 3,
-        "MUST NOT": 1,
-        "MAY": 1
+        "MUST NOT": 3,
+        "MAY": 2
       },
-      "digest": "d9873a360ef64554eef832cba9572f981993efd77e0bb58dec5b743eaa9d4a22"
+      "digest": "d3c1d991130fc0bcca2938812ed0cbcfded83731f314e343f1051360bd191783"
     },
     {
       "id": "L1 17.3",
       "document": "L1",
       "section": "Resolvers",
-      "summary": "Resolvers MAY require authenticated publication (13.3) and MAY rate-limit.",
+      "summary": "Resolvers MAY require authenticated publication (13.3) and MAY rate-limit. A resolver that requ…",
       "level": "MAY",
       "keywords": {
         "MAY": 2
       },
-      "digest": "86a07beddbcdf741df9100f605f2a2b3a2353c3be610bbfb4e0d0865f9a71812"
+      "digest": "d0af3f877cb0a7876fc4977f6537f885d306609fdd6d9388f9b4fd55b3917017"
     },
     {
       "id": "L1 18.1",

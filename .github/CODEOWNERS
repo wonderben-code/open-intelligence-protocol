@@ -1,0 +1,15 @@
+# Code owners are asked to review every pull request that touches the paths they own.
+# The last matching pattern wins, so the specific paths come after the default.
+
+# Default owner of everything in the repository.
+*           @wonderben-code
+
+# The normative specifications and the test vectors. A change here that is more
+# than editorial also needs the OEP process: see GOVERNANCE.md.
+/spec/      @wonderben-code
+
+# The papers. They must agree with the specifications, which win if the two differ.
+/papers/    @wonderben-code
+
+# CI, the Bitcoin timestamp workflows and the community templates.
+/.github/   @wonderben-code

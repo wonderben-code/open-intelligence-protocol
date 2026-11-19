@@ -57,7 +57,7 @@ A key MUST NOT be both an operational and an invocation key.
 | Member | Required | Value |
 |---|---|---|
 | `oip`, `type`, `created`, `proof` | yes | core |
-| `kind` | yes | `human`, `agent`, `collective`, `institution`, `service`, or another string of at most 64 characters |
+| `kind` | yes | `human`, `agent`, `collective`, `institution`, `service`, or another non-empty string of at most 64 characters |
 | `controller` | yes | A key controller or a member controller |
 | `keys` | no | Operational keys (3.5) |
 | `invocation` | no | Invocation keys (3.5); a mind that may join a collective SHOULD include one |
@@ -437,7 +437,9 @@ Hosts MAY serve A2A Agent Cards (Layer 0, Section 3.2) and domain aliases at `/.
 
 | Item | Limit |
 |---|---|
-| Record size (canonical form) | 1 MiB (core 1.6) |
+| Record size (canonical form) | 1 MiB; for a container, each record it carries and the container without them (core 1.6) |
+| Nesting of arrays and objects in a record | 64; for a container, each record it carries and the container without them (core 1.9) |
+| Decimal string, and duration string | 64 characters each (core 1.3, 1.5) |
 | Proofs per record | 256 (core 5.1) |
 | Collective height | 4, fixed at genesis (Section 4.7) |
 | Delegation chain length | 8 |

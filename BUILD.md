@@ -160,6 +160,8 @@ These are the starting budgets. M1 and M5 measure them on a reference machine, r
 | Packet delivery over WebSocket, same machine | p99 of 20 ms |
 | Cold start of a server container | 2 s |
 
+Measured in M1 ([ADR-0006](docs/adr/0006-performance-budgets.md)): the portable implementation verifies a record with two proofs in about 4 ms and the signatures of a 1,000-event log in about 2 s, almost all of it Ed25519 in JavaScript. It has its own budgets (6 ms and 3 s), which `pnpm bench` asserts. The first two rows above stay as the targets for the servers, which M5 meets with a native Ed25519 that applies core 4.4 exactly.
+
 ## 4. Technology
 
 At M0, check each choice's current version, maintenance, licence and security history, then record the decision in an ADR. Prefer audited, dependency-light libraries. **Never implement a cryptographic primitive.**

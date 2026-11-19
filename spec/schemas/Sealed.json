@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Sealed",
+  "title": "Sealed",
+  "description": "A packet encrypted to one of the recipient's agreement keys with HPKE. Unsigned (Layer 1, 12.6).",
+  "type": "object",
+  "required": [
+    "oip",
+    "type",
+    "to",
+    "key",
+    "suite",
+    "enc",
+    "ciphertext"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proof": {
+      "not": {}
+    },
+    "type": {
+      "type": "string",
+      "const": "Sealed"
+    },
+    "to": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "key": {
+      "$ref": "urn:oip:schema:def:x25519Multikey"
+    },
+    "suite": {
+      "type": "string",
+      "const": "hpke-base-x25519-sha256-chacha20poly1305"
+    },
+    "enc": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "ciphertext": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$"
+    }
+  }
+}

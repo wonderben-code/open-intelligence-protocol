@@ -4,7 +4,113 @@ This file is the live status of the Open Intelligence Protocol project, so that 
 
 **Last updated:** 17 November 2026 (UTC+7)
 
-## Done (on `main`, Bitcoin-timestamped)
+## Where the v1 build stands
+
+| Milestone | Status |
+|---|---|
+| **M0. Foundations** | **Done**, pending merge of [its pull request](https://github.com/wonderben-code/open-intelligence-protocol/pull/1), which waits on one repository setting (E11 below). Two independent reviews; every finding fixed, queued or handed to Eks ([reviews/build/M0-foundations.md](reviews/build/M0-foundations.md)) |
+| **M1. Core** | **Done**, pending merge of [its pull request](https://github.com/wonderben-code/open-intelligence-protocol/pull/2). Four independent reviews; every finding fixed, queued or handed to Eks ([reviews/build/M1-core.md](reviews/build/M1-core.md)). The pull request carries [OEP-0001](oeps/oep-0001-core-clarifications.md), which is Eks's to accept (E13 below) |
+| **M2. Identity** | **Next.** Start here |
+| M3 to M14 | Not started |
+
+The plan is [BUILD.md](BUILD.md). [docs/conformance/coverage.md](docs/conformance/coverage.md) shows, clause by clause and vector case by vector case, what the code enforces today.
+
+### What M0 delivered
+
+- **The workspace.** pnpm, strict TypeScript, ESLint, Prettier, Vitest with coverage thresholds for each file, fast-check, API Extractor, TypeDoc, Changesets and REUSE. `pnpm run ci` is the script the CI job runs.
+- **Guards.** Pure packages cannot do I/O or read the clock: they have no ambient types, ESLint forbids every route to the clock, randomness and the environment, dependency-cruiser enforces the layers of BUILD.md 3.1, and a run-time trap catches the rest. `scripts/check-guards.ts` proves on every run that the guards still reject violations.
+- **`@oip/schema`.** A JSON Schema, a TypeScript type and a compiled validator for all 29 record types of core 11, plus `Proof`, `Policy` and extension records. The schemas are exported to [spec/schemas/](spec/schemas/). Every positive vector record validates; both malformed `record` cases are rejected. Validation never throws and its answer is bounded, whatever it is given.
+- **`@oip/conformance`.** A typed loader for the vectors, a runner for each kind of case, and the positive checks. Cases the implementation cannot answer yet are pending (87 of them), and turn green milestone by milestone.
+- **Differential testing.** `oip_vectors.py --judge` gives the Python checker's verdict on any case; `PythonJudge` keeps it open as one process. A nightly job runs a long campaign.
+- **Clause traceability.** [spec/clauses.json](spec/clauses.json) lists all 184 numbered clauses. Tests cite them with `clause("L1 6.4")`. `pnpm spec:coverage` fails if a clause owed by a completed milestone has no passing test from a package of that milestone. It gates 176 of the 184; the other 8 state no requirement.
+- **CI.** Lint, types, generated files, API reports, spec coverage, tests on Node 24 and the newest Node, the Python checker, REUSE, CodeQL, dependency review, OpenSSF Scorecard. Actions are pinned by SHA.
+- **Governance.** CONTRIBUTING (with the DCO), the Contributor Covenant, SECURITY, GOVERNANCE with the OEP process, an OEP template, issue forms and a PR template.
+- **Decisions.** [ADR-0001](docs/adr/0001-tooling.md) tooling, [ADR-0002](docs/adr/0002-cryptography-libraries.md) cryptography libraries, [ADR-0003](docs/adr/0003-evidence-model.md) the evidence model, [ADR-0004](docs/adr/0004-error-model.md) the error model.
+- **Review.** [reviews/build/M0-foundations.md](reviews/build/M0-foundations.md).
+
+### What M1 delivered
+
+- **`@oip/core`**, the rules of OIP Core, Sections 1 to 8 and 10 ([README](packages/core/README.md)):
+  - a strict parser for the JSON profile: no duplicate member names, valid Unicode with no noncharacters, safe integers judged by value, nesting of at most 64. `JSON.parse` is not used for records;
+  - canonical form (RFC 8785), content IDs in their one spelling, key hashes;
+  - Multikey; Ed25519 under the one rule of core 4.4, with the library in its strict mode and the order of `A` and `R` checked on top;
+  - `eddsa-jcs-2022` proofs: create, verify one, verify a set, each proof on its own;
+  - references, timestamps as nanosecond instants (no `Date`), durations, exact decimal comparison, critical extensions, the limits on size and depth, and the problem types with `OipError`.
+- **Every acceptance criterion of BUILD.md M1**, each with a test:
+  - every JCS output, content ID, address, key hash and `proofValue` in the vectors reproduces, and all 56 proofs verify;
+  - non-canonical content-ID spellings are rejected;
+  - the Ed25519 negative cases are rejected and honest signatures beside them accepted;
+  - changing any byte of any vector record makes verification fail;
+  - the parser is run on 10⁶ generated inputs in every test run, against an oracle that shares nothing with it;
+  - the first two budgets are measured ([ADR-0006](docs/adr/0006-performance-budgets.md), and E12 below);
+  - the mutation score of `@oip/core` is 98.5% (threshold 85%); the files of `@oip/schema` that M1 changed score 95.5%.
+- **Conformance.** The suite gained the M1 checks and a new kind of case, `json`. The differential tests compare the two parsers on generated texts under the rule "same". The vectors now hold 17 must-accept cases, 80 negative cases and 30 controls, all generated by the Python checker.
+- **Stryker**: `pnpm mutation`, and a weekly workflow.
+- **Decisions.** [ADR-0005](docs/adr/0005-cryptography-libraries-as-adopted.md) the libraries as adopted, [ADR-0006](docs/adr/0006-performance-budgets.md) budgets as measured, [ADR-0007](docs/adr/0007-programming-errors.md) a wrong argument is a `TypeError`.
+- **Specification.** [OEP-0001](oeps/oep-0001-core-clarifications.md) settles Q1 to Q8 and five more points, as one change: text, CHANGELOG, generator and vectors, paper.
+- **Review.** [reviews/build/M1-core.md](reviews/build/M1-core.md). Four reviews: two of the milestone (27 findings, one of them High: a rule M1 had itself added to the specification would have let anyone stop a log from being served), one of the fixes, and one of a single mechanism the fixes added. All findings are closed or queued. 1,060 tests pass.
+
+### What M1 found that later milestones need to know
+
+- **Verification costs about 2 ms a signature** in the portable implementation, almost all of it Ed25519 in JavaScript: 4 ms for a record with two proofs, 2 s for the signatures of a 1,000-event log. The starting budgets of BUILD.md 3.8 (2 ms and 1 s) stay as targets for the servers. M5 meets them with a native Ed25519 that applies core 4.4 exactly; ADR-0006 gives the argument.
+- **The Ed25519 library accepts three things core 4.4 forbids**, even in its strict mode: a mixed-order key, `R` the identity, and a mixed-order `R`. The wrapper rejects them. Only `@oip/core` may call the library.
+- **Signing reaches the random number generator** (the library masks the secret scalar) and stays deterministic. Tests of pure code that sign must allow randomness: `withAmbientTrapped(run, { randomness: true })`.
+- **A judge returns a result; a function that computes throws.** `parseRecord`, `verifyProofs` and every `parse…`, `decode…` and `is…` never throw. `contentId`, `canonicalize`, `createProof` and `withProofs` throw `OipError` on a value outside the JSON profile, and a wrong argument is a `TypeError`.
+- **`verifyProofs` returns three lists**, `verified`, `rejected` and `issues`, and no `ok`. Count distinct keys among `verified`, never entries.
+- **Validators return a plain copy. Use the copy**, never the value that was passed in: it was read once, through property descriptors, and nothing else about it is known.
+- **A container is limited part by part, and never as a whole** (core 1.6, 1.9): each record it carries, and the container without the members that hold them. `containerParts` in `@oip/schema` takes one apart. The one limit on a whole input is the reader's own, the length of the text (`maxLength`, 8 MiB by default). Anything that reads a page of a log or a feed must follow the same rule, or one junk entry in an event's `proof` stops the page. A server endpoint that accepts one record should pass a `maxLength` near the size limit, and a client refused a page should ask for a shorter one.
+- **`validateParsedRecord` is for a parser, and for nothing else.** It lets `parseRecord` validate what it has just parsed without copying it again. Every other value goes through `validateRecord`, which always copies.
+- **Do not keep the object read from the wire in a store.** Its strings can hold the whole source text in memory. Store the canonical form (M5).
+- **A size is counted, never written out** (`canonicalSizeUpTo` in `@oip/core`), and memory is measured in tests after a collection (`heapKeptBy` in `@oip/testkit`).
+- **A server that stores proofs should merge only proofs that verify.** A junk entry in `proof` never counts, but it travels with the record and takes one of its 256 places.
+- **`createProof` refuses a malformed record** before the signer is asked. `createProofSync` makes a proof without a promise, for a signer that holds its key in memory; test generators should use it.
+- **`parseExtensionRecord`** reads a record of a type an extension defines. `parseRecord` refuses those and says so.
+- **Mutation testing counts every package's tests.** It works on a copy of the repository, and a package used to reach its neighbours through `node_modules`, which leads back to the original: a mutant in `@oip/schema` never met the tests of `@oip/core`, and was counted as surviving them. Each package's tests now resolve the workspace packages by path (`scripts/lib/source-aliases.ts`). A new package's `vitest.config.ts` must use `sourceAliases` too.
+- **A full mutation run of one package takes one to two hours** on four cores, because a mutant in code that every record passes through is covered by nearly every test. Run it by file or by line range (`--mutate "packages/schema/src/validate.ts:1-300"`), and keep each run under the two-hour limit of a background command. The comparison campaigns are cut down for these runs in `stryker.config.mjs`.
+- **A refusal is tested for what it says**, not only for being a refusal: `packages/schema/test/issues.test.ts` reads the path, the message and the clause. Mutation testing showed that the schema tests had asserted verdicts alone.
+- **CI runs on every push to any branch**, so run `pnpm run ci` before each push, not only the last one.
+
+### Starting M2
+
+- Read BUILD.md "M2. Identity", [ADR-0003](docs/adr/0003-evidence-model.md), core Section 9 and Layer 1, Sections 3 to 9.
+- **Settle Q9 first.** The differential test for logs cannot start until it has one answer. The Python checker's `verify_log` now applies core 1 and core 5.1 to each event, which is part of the answer.
+- Build on `@oip/core`: `verifyProofs` for signatures, `parseVerificationMethod` for the two kinds of reference, `keyHash` for pre-rotation, `contentId` and `mindAddress` for addresses, `parseTimestamp` and `CLOCK_SKEW` for time.
+- core 6.2 is owed by M2 in `plan.json`: which kind of reference a proof must use depends on whose key it is.
+- The positive checks and the `log` cases of the vectors that turn green in M2 are listed in `packages/conformance/src/runner.ts` and [docs/conformance/coverage.md](docs/conformance/coverage.md).
+- Measure the second budget properly: replaying a 1,000-event log, not only its signatures.
+- Run Stryker on the packages a milestone changes before its review, not after, by file: `pnpm mutation --mutate "packages/identity/src/log.ts"`.
+- Run the rest of `@oip/schema` through mutation testing with every package's tests counted. Only the four files M1 changed have been; the others are M0's, and their earlier scores counted the package's own tests alone.
+- When M2 is done, add `"M2"` to `completed` in [docs/conformance/plan.json](docs/conformance/plan.json).
+
+## Specification feedback queue
+
+Gaps and ambiguities that the build has found. Q1 to Q8 were settled in M1 by [OEP-0001](oeps/oep-0001-core-clarifications.md). Each is fixed in the milestone named, as one change: specification text, CHANGELOG, generator and vectors, and the technical paper, with a short OEP ([GOVERNANCE.md](GOVERNANCE.md)).
+
+| # | Needed by | Question | Until it is settled |
+|---|---|---|---|
+| Q9 | **M2** | **Must each identity event be a well-formed record for its log to verify?** L1 4 does not say so. The Python checker verifies a signed genesis with 9 homes, 17 aliases or a malformed `expires`; the schemas reject it. An address is the hash of its genesis, so this must have one answer. Also: the syntax of an "HTTPS origin". | The schemas reject such events. The differential test for logs must not start before this is settled. |
+| Q10 | M2 | Are controllers and key entries closed objects (L1 3.4, 3.5)? Both implementations reject unknown members there; core 1.7 says readers ignore them. | Closed. |
+| Q11 | M2 | Do `keys`, `invocation`, `agreement`, `homes`, `alsoKnownAs` and `revoked` apply on `Fork` and `Retire`? L1 3.8 and 3.10 do not list them; L1 4.5 applies them to every event. | Validated on every later event. |
+| Q12 | M2 | Is `recovery` reserved only at the top level of an event, or anywhere in it? | Top level. |
+| Q13 | M2 | May a container or a `Sealed` record carry `created`? Is `Sealed` a container (core 11 against core 1.6)? | Allowed and not required. |
+| Q14 | M3 | Does a proof whose `authority` is malformed still count for its signer (core 5.2, 5.4; L2 7.1)? | Yes, as in the Python checker: `authority` is checked for shape only. |
+| Q15 | M3 | "Statements nest at most 8 deep": both implementations allow nine levels, counting the outermost as depth 0. A vector at the boundary is needed. | Nine levels. |
+| Q16 | M3 | "Beginning `/oip`": both implementations read it by path segment, so `/oipx/pay` is not reserved. | By segment. |
+| Q17 | M3 | Six policy vectors (`policy-negative-amount`, five `policy-not-decimal-*`) are rejected as malformed records and never reach a policy, so the rule that a comparison on a non-decimal is an error (L1 11.3) has no vector. Add one on a member that is not an amount. | The rule is tested only by unit tests. |
+| Q18 | M3, M4 | In the `{ … }` notation, is a member with no "optional" mark required? It matters for an endpoint's `priority`, `Resume.lastSent`, a result's `hints`, a power's `policy`, a role's `purpose` and `powers`, and a budget's `currency`. | Accepted with or without them; this implementation always writes them. |
+| Q19 | M3, M4 | May an "integer" be zero or negative, for `Location.seq`, `quantity`, `maxHops` and a query's `limit`? | Any integer. |
+| Q20 | M4 | A `Hello` "carries a single proof": a limit, or a description? | Not limited by the schema. |
+| Q21 | M4 | `to: { "subject": … }` is reserved: is such a packet rejected or ignored? May `to` combine forms? | Well formed; no receiver accepts it. |
+| Q22 | M4 | The types of `confidentiality`, `jurisdiction`, `context.summary` and the members of `generatedBy` are not given. | Any JSON value. |
+| Q23 | M4 | How an anchor's attestation is carried and verified is not specified (L1 10.6; core 9.4, item 3), though it is one of the four kinds of evidence. | Not implemented. |
+| Q24 | M2 | The vectors give each negative case's reason as prose. BUILD.md asks that each be "rejected, for its stated reason". Give each case the clause it breaks, so that a verdict's reason can be checked. | Only the 11 controls show that a case fails for its reason. |
+| Q25 | M4 | How much may a `Sealed` record exceed the size limit? core 1.6 says "by its encoding overhead" and gives no number. | `ciphertext` of at most 1,398,123 characters (a packet of 1 MiB with the cipher's tag, in base64url), and 1 MiB for the rest of the record. |
+| Q26 | M4 | A low-order X25519 key encodes as a valid Multikey (core 4.2). Sealing to one gives a shared secret of zeros, which RFC 9180 says to reject. The specification should say so. | Nothing seals yet. |
+| Q27 | M5 | Should receivers be required to reject duplicate member names? core 1.1 says SHOULD. A MUST would let the vectors include the case. | Both implementations reject them. |
+| Q28 | M5 | Is there a limit on the text of a record, as distinct from its canonical form? White space and escapes are unbounded. | 8 MiB of text by default, reported as an implementation limit, and set by the reader. |
+| Q29 | M5 | How should the vectors carry cases too large to write out, such as a record of exactly 1 MiB? Each would add a megabyte to the file. | The two implementations are compared at the size limit in the differential tests; no vector is at it. |
+
+## Done earlier (on `main`, Bitcoin-timestamped)
 
 ### Papers, published on Zenodo with permanent DOIs
 
@@ -25,7 +131,7 @@ This file is the live status of the Open Intelligence Protocol project, so that 
   - 5 must-accept cases;
   - 55 negative cases, each with its reason;
   - 11 controls that show each negative fails only for that reason.
-  
+
   All pass.
 - **Three independent reviews**, and the fixes they led to, in [reviews/](reviews/). Every finding is addressed in revision 2026-11-17.
 
@@ -33,15 +139,11 @@ This file is the live status of the Open Intelligence Protocol project, so that 
 
 - **Research**: four tracks, about 27,000 words with sources, in [research/](research/).
 - **Philosophy, licences and README.** Code is Apache-2.0; papers and specifications are CC BY 4.0.
-
-### The v1 build, ready to start
-
-- **[BUILD.md](BUILD.md)** is the full plan: the quality bar, the architecture, the technology, milestones M0 to M14 with acceptance criteria, workstreams, how the work runs, and Eks's gates G1 to G8.
-- **[CLAUDE.md](CLAUDE.md)** is the operating manual that every Claude Code session in this repository loads automatically.
+- **[BUILD.md](BUILD.md)** is the full plan, and **[CLAUDE.md](CLAUDE.md)** is the operating manual that every Claude Code session in this repository loads automatically.
 
 ## Next steps, in order
 
-1. **Build v1 in Claude Code**, from [BUILD.md](BUILD.md), milestone by milestone from M0, with the model and effort in BUILD.md Section 7. To start, see "How to resume" below.
+1. **Build v1 in Claude Code**, from [BUILD.md](BUILD.md), continuing with M2. To continue, see "How to resume" below.
 2. **Gates as they come up:**
    - npm organisation (G1);
    - domain (G2);
@@ -60,6 +162,30 @@ This file is the live status of the Open Intelligence Protocol project, so that 
 
 ## Open decisions for Eks
 
+**M1 is ready to merge after M0** ([its pull request](https://github.com/wonderben-code/open-intelligence-protocol/pull/2)); it needs your word on E12 and E13.
+
+**Two clicks block the merge of M0** ([pull request 1](https://github.com/wonderben-code/open-intelligence-protocol/pull/1)): E11 and, on the same settings page, E1. Everything else on that pull request is green.
+
+**Small things only you can do or decide.** Each is ready to the last click.
+
+| # | What | Why | Exactly what to do |
+|---|---|---|---|
+| E1 | Switch on private vulnerability reporting | [SECURITY.md](SECURITY.md) names it as the only way to report a vulnerability, and it is off | Repository **Settings → Code security → Private vulnerability reporting → Enable** |
+| E2 | A private contact for conduct reports | The Code of Conduct needs one; GitHub has no private messages | Give an email address; it replaces the `TODO(Eks)` comment in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
+| E3 | The DCO and the build's own commits | [CONTRIBUTING.md](CONTRIBUTING.md) asks for `Signed-off-by` on every commit. A sign-off is a personal certification, so the build's commits, made for you by an agent, carry none | Choose: apply the DCO to contributors other than you (my recommendation; one sentence in CONTRIBUTING), or sign off the build's commits yourself |
+| E4 | Confirm what was written in your name | [GOVERNANCE.md](GOVERNANCE.md) says the maintainer makes final decisions and there is no committee yet. [SECURITY.md](SECURITY.md) promises an acknowledgement in 3 working days, a plan in 30 days and disclosure at 90 | Read the two files; say "fine" or what to change |
+| E5 | A short OEP for every specification fix | GOVERNANCE.md, following Section 12 of the technical paper, asks for an OEP for any change to normative text. The build's own fixes (Q1 to Q24) would each carry a short one. [CLAUDE.md](CLAUDE.md) does not mention this | Say whether the build may write and accept those OEPs for you, or whether build-time fixes are exempt |
+| E6 | Licences of two kinds of file | Documentation outside `papers/` and `spec/` is marked CC BY 4.0, which [LICENSE-DOCS.md](LICENSE-DOCS.md) does not yet say. The JSON Schemas in `spec/schemas/` are offered under Apache-2.0 or CC BY 4.0, at the user's choice, because they are generated from Apache code and live in `spec/` | Say "fine", or which you prefer. [REUSE.toml](REUSE.toml) is where it is recorded |
+| E7 | Four areas with no milestone in BUILD.md | The plan lists them in v1 but no milestone builds them | Confirm my recommendation: a gateway that bridges an MCP server (L0 2.1) in M9; verifying aliases (L1 5.3, L0 4) in M6; checkpoint anchors (L1 10.6) in M4, after Q23; `@oip/did-resolver` in M9 |
+| E8 | Labels and issues | BUILD.md asks for issues labelled by layer and milestone. The labels `spec` and `oep`, which the issue forms use, do not exist yet. Issues I open would appear under your name | Say whether I should file Q1 to Q24 as issues. Create the labels `spec`, `oep`, `core`, `layer-0`, `layer-1`, `layer-2` and `M1` to `M14` (Issues → Labels), or say that I may |
+| E9 | The two Bitcoin timestamp workflows | They use `actions/checkout@v4` and an unpinned `pip install`. BUILD.md says to leave them as they are, and OpenSSF Scorecard will mark them down | Say whether I may pin them by commit SHA, changing nothing else |
+| E10 | Branch protection for `main` | Nothing yet stops a merge with CI red | **Settings → Branches → Add rule** for `main`: require the checks "Every check (pnpm run ci)", "Test (Node 24)" and "Test (Node latest)". Do not require linear history: `main` takes merge commits |
+| **E11** | **Switch on the dependency graph** | The dependency-review check fails on every pull request until it is on: "Dependency review is not supported on this repository". It is the only red check on the M0 pull request | Repository **Settings → Code security → Dependency graph → Enable**. Then re-run the "Dependency review" check on the pull request, or tell me and I will |
+| **E12** | **The first two performance budgets** | BUILD.md 3.8 starts from 2 ms to verify a record with two proofs and 1 s for a 1,000-event log. The portable implementation measures 3.9 ms and 2 s: almost all of it is Ed25519 in JavaScript, with the extra check core 4.4 requires. Nothing was traded for speed | Read [ADR-0006](docs/adr/0006-performance-budgets.md) (5 minutes). Say "fine" to its plan: the portable package is gated at 6 ms and 3 s, and at fixed ratios to the bare library; the starting budgets stay as the targets for the servers, which meet them in M5 with a native Ed25519 that applies core 4.4 exactly. Or say what you would rather have |
+| **E13** | **Accept OEP-0001** | It changes normative text: thirteen points, most of them the reading both implementations already followed, and two new limits (64 levels of nesting, 64 characters for a duration). The reviews shaped it: a container is limited part by part and never as a whole. It is on the [M1 pull request](https://github.com/wonderben-code/open-intelligence-protocol/pull/2) with status Review | Read [the OEP](oeps/oep-0001-core-clarifications.md) (10 minutes). Say "accepted", or what to change. Merging the pull request is the acceptance; I then set its status to Accepted |
+
+**The gates of BUILD.md, Section 8, as before:**
+
 - npm organisation name (G1): `@oip` if it is available, otherwise `@openintelligence`.
 - Domain name for the website (G2).
 - Hosting and accounts for the public resolver, indexer and host (G3).
@@ -67,14 +193,11 @@ This file is the live status of the Open Intelligence Protocol project, so that 
 
 ## How to resume
 
-**To start the v1 build in a new Claude Code session** (on this repository, with push access), paste:
-
-> You're the lead engineer for the Open Intelligence Protocol's v1 reference implementation. Read CLAUDE.md, PROGRESS.md and BUILD.md, then build v1 milestone by milestone, starting with M0. Work autonomously to the quality bar in BUILD.md, and stop only for the gates that need Eks.
-
-**To continue in a later session**, paste:
+**To continue the v1 build in a new Claude Code session** (on this repository, with push access), paste:
 
 > Continue the OIP v1 build from PROGRESS.md.
 
 **Other routes in:**
 - In Claude, continue in the chat named "Open Intelligence Protocol (OIP)".
 - To re-check the specifications' vectors: `python3 spec/test-vectors/oip_vectors.py --check`.
+- To run every check CI runs: `pnpm install && pnpm run ci`.

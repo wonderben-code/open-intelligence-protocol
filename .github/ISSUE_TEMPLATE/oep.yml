@@ -1,0 +1,95 @@
+name: OEP proposal
+description: Test an idea for a change to the protocol before you write an OIP Enhancement Proposal (OEP).
+title: "OEP: "
+labels: ["oep"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An OEP is needed for any change to a record format, a verification rule or other normative specification text, beyond editorial fixes. [GOVERNANCE.md](https://github.com/wonderben-code/open-intelligence-protocol/blob/main/GOVERNANCE.md) defines the process.
+
+        This form opens the discussion. The OEP itself is a file in `oeps/`, written from the [template](https://github.com/wonderben-code/open-intelligence-protocol/blob/main/oeps/oep-0000-template.md) and submitted as a pull request.
+
+        You do not need an OEP to define an extension in your own reverse-DNS namespace (core 8.1).
+
+        **If the change fixes a vulnerability, do not describe it here.** Report it privately at https://github.com/wonderben-code/open-intelligence-protocol/security/advisories/new.
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      description: The specification document the proposal mainly changes. Choose Process for a change to how the project runs.
+      options:
+        - "Core"
+        - "Layer 0"
+        - "Layer 1"
+        - "Layer 2"
+        - "Process"
+    validations:
+      required: true
+  - type: input
+    id: clauses
+    attributes:
+      label: Clauses affected
+      description: The clauses the proposal would change, if you know them.
+      placeholder: "core 8.5, L1 6.4"
+    validations:
+      required: false
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One paragraph. What changes, and who is affected.
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: The problem, with a concrete case. Say why the current rules and the extension mechanism (core 8) do not solve it.
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: Proposed change
+      description: Optional. A sketch of the new or changed rules. Exact text can wait for the OEP.
+    validations:
+      required: false
+  - type: dropdown
+    id: compatibility
+    attributes:
+      label: Backwards compatibility
+      description: How the change treats existing records and implementations (core 8).
+      options:
+        - "An optional member that older implementations can safely ignore (core 8.5)"
+        - "An oip.* extension that records list in critical (core 8.3, 8.5)"
+        - "A rule change: implementations of the earlier revision reach a different verdict"
+        - "No effect on records or verification"
+        - "Not sure yet"
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security and privacy
+      description: Optional. What the change makes possible for an attacker, what it prevents, and what it makes visible or linkable.
+    validations:
+      required: false
+  - type: input
+    id: draft
+    attributes:
+      label: Draft pull request
+      description: Optional. The link, if a draft OEP is already open.
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I have read GOVERNANCE.md, and this change needs an OEP.
+          required: true
+        - label: This does not disclose a security vulnerability.
+          required: true
+        - label: I am willing to write the OEP.
+          required: false

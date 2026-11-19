@@ -26,18 +26,19 @@ that each negative case fails only for its stated reason, and checks it.
 
 Run:  python3 oip_vectors.py            -> writes vectors.json and checks it
       python3 oip_vectors.py --check    -> checks an existing vectors.json
+      python3 oip_vectors.py --judge    -> reads cases in the vectors' format
+                                           on standard input and prints one
+                                           verdict per case (see judge())
 
 Requires only the `cryptography` package. Licensed Apache-2.0.
 STATUS: DRAFT. Tracks the spec revision in REVISION and may change.
 """
 import base64
-import calendar
 import copy
 import hashlib
 import json
 import re
 import sys
-from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -56,8 +57,26 @@ MAX_PROOFS = 256                # proofs per record
 MAX_CHAIN = 8                   # delegations per chain
 MAX_AUTHORITY = 8               # entries in a proof's `authority`
 MAX_NESTING = 4                 # greatest collective height
+MAX_DEPTH = 64                  # nesting of arrays and objects (core 1.9)
+MAX_RECORD_BYTES = 2**20        # canonical form of a record (core 1.6)
+MAX_DURATION = 64               # characters in a duration (core 1.5)
 
 IDENTITY_TYPES = ("Genesis", "Update", "Fork", "Merge", "Retire")
+# Every record type this revision defines (core 11). `Merge` is reserved.
+RECORD_TYPES = IDENTITY_TYPES + (
+    "Delegation", "Revocation", "Lineage", "Collective", "Intent", "Offer",
+    "Commitment", "Receipt", "Packet", "Entry", "Checkpoint", "Ack",
+    "QueryResult", "Forwarded", "Location", "Participant", "Hello",
+    "Session", "Resume", "Branch", "Bundle", "LogPage", "FeedPage",
+    "DuplicityEvidence", "Sealed")
+# The containers (core 1.6), and for each the members that hold the records
+# it carries. The limits on size and depth apply to each carried record and
+# to the container without them.
+CONTAINERS = {"Bundle": ("log", "location", "participant"),
+              "LogPage": ("events",), "FeedPage": ("entries",),
+              "DuplicityEvidence": ("pairs",)}
+SHORT_NAMESPACES = ("x402", "ap2", "acp", "l402", "vc", "as2")   # core 8.1
+NAMESPACE_RE = re.compile(r"[a-z0-9-]+(\.[a-z0-9-]+)+")
 CURRENT_STATE_TYPES = ("Location", "Participant", "Hello")
 DELEGABLE_TYPES = ("Intent", "Offer", "Commitment", "Receipt")
 OIP_COMMANDS = ("/oip/send",) + tuple("/oip/sign/" + t
@@ -288,17 +307,37 @@ def ed_has_order_l(b) -> bool:
 # ---------------------------------------------------------------- values
 
 
+def _days_from_civil(y: int, m: int, d: int) -> int:
+    """Days from 1970-01-01 in the proleptic Gregorian calendar, which is
+    the calendar of RFC 3339. Year 0000 exists in it and is a leap year."""
+    y -= m <= 2
+    era = y // 400
+    yoe = y - era * 400
+    doy = (153 * (m - 3 if m > 2 else m + 9) + 2) // 5 + d - 1
+    doe = yoe * 365 + yoe // 4 - yoe // 100 + doy
+    return era * 146097 + doe - 719468
+
+
+def _days_in_month(y: int, m: int) -> int:
+    if m == 2:
+        return 29 if y % 4 == 0 and (y % 100 != 0 or y % 400 == 0) else 28
+    return 30 if m in (4, 6, 9, 11) else 31
+
+
 def ts(s) -> int:
     """RFC 3339 UTC timestamp -> integer nanoseconds since the epoch.
-    Timestamps are compared as instants, never as strings."""
+    Timestamps are compared as instants, never as strings. The date and
+    time must be real: no month 13, no 30 February, no second 60."""
     m = TS_RE.fullmatch(s) if isinstance(s, str) else None
     if not m:
         raise ValueError(f"bad timestamp {s!r}")
     y, mo, d, h, mi, se = (int(g) for g in m.groups()[:6])
-    datetime(y, mo, d, h, mi, se)           # range check
+    if not (1 <= mo <= 12 and 1 <= d <= _days_in_month(y, mo) and
+            h <= 23 and mi <= 59 and se <= 59):
+        raise ValueError(f"not a real date and time: {s!r}")
     frac = (m.group(7) or "").ljust(9, "0")
-    return calendar.timegm((y, mo, d, h, mi, se, 0, 0, 0)) * 10**9 + \
-        int(frac)
+    seconds = ((_days_from_civil(y, mo, d) * 24 + h) * 60 + mi) * 60 + se
+    return seconds * 10**9 + int(frac)
 
 
 def as_decimal(v):
@@ -315,6 +354,132 @@ def as_decimal(v):
 def is_amount(v) -> bool:
     """A non-negative decimal string of at most 64 characters."""
     return fullmatch(NONNEG_DECIMAL_RE, v) and len(v) <= 64
+
+# ---------------------------------------------------------------- JSON profile
+
+
+def _text_ok(text: str) -> bool:
+    """core 1.1: valid Unicode, and no noncharacter (RFC 7493, 2.1): no
+    unpaired surrogate, nothing from U+FDD0 to U+FDEF, and no code point
+    whose last sixteen bits are FFFE or FFFF."""
+    for ch in text:
+        cp = ord(ch)
+        if 0xD800 <= cp <= 0xDFFF or 0xFDD0 <= cp <= 0xFDEF or \
+           cp & 0xFFFE == 0xFFFE:
+            return False
+    return True
+
+
+def values_ok(value) -> bool:
+    """What core Section 1 requires of every value in a record, whatever
+    the record is: numbers are integers within +/-(2^53-1) (1.2), strings
+    and member names are valid Unicode without noncharacters (1.1), and
+    arrays and objects nest at most MAX_DEPTH deep (1.9). It does not
+    recurse."""
+    pending = [(value, 1)]
+    while pending:
+        v, depth = pending.pop()
+        if v is None or isinstance(v, bool):
+            continue
+        if isinstance(v, int):
+            if abs(v) > MAX_SAFE_INT:
+                return False
+        elif isinstance(v, float):
+            return False                    # read_json() never returns one
+        elif isinstance(v, str):
+            if not _text_ok(v):
+                return False
+        elif isinstance(v, (list, dict)):
+            if depth > MAX_DEPTH:
+                return False
+            if isinstance(v, dict):
+                if not all(isinstance(k, str) and _text_ok(k) for k in v):
+                    return False
+                v = v.values()
+            pending.extend((item, depth + 1) for item in v)
+        else:
+            return False
+    return True
+
+
+_NUMBER_RE = re.compile(
+    r"(-?)(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:[eE]([-+]?[0-9]+))?")
+
+
+def _integer(text: str) -> int:
+    """The value of a JSON number if it is an integer within the safe
+    range (core 1.2). Validity depends on the value, not on how it is
+    written: `1.0` and `1e2` are 1 and 100. Exact: no float is involved."""
+    m = _NUMBER_RE.fullmatch(text)
+    if not m:
+        raise ValueError(f"not a JSON number: {text[:40]!r}")
+    sign, whole, frac, exp = m.groups()
+    # A number may be written with any count of digits, so the digits are
+    # handled as text: int() refuses a long run of them, and a number
+    # written at length can still be a small integer (1 followed by five
+    # thousand zeros, e-5000, is 1).
+    frac = frac or ""
+    significant = (whole + frac).lstrip("0")
+    if not significant:
+        return 0                            # -0 is 0 (core 2.2)
+    mantissa = significant.rstrip("0")
+    zeros = len(significant) - len(mantissa)
+    if len(mantissa) > 16:
+        # More than 16 significant digits: beyond the safe range, or with
+        # a fractional part.
+        raise ValueError("number outside the safe range, or with a "
+                         "fractional part")
+    exp_sign = -1 if exp and exp[0] == "-" else 1
+    exp_digits = (exp or "0").lstrip("+-").lstrip("0") or "0"
+    if len(exp_digits) > 18:
+        # Larger than any count of digits a text can hold.
+        raise ValueError("number with a fractional part" if exp_sign < 0
+                         else "number outside the safe range")
+    shift = zeros + exp_sign * int(exp_digits) - len(frac)
+    if shift < 0:
+        raise ValueError("number with a fractional part")
+    if shift > 16:
+        raise ValueError("number outside the safe range")
+    value = int(mantissa) * 10**shift
+    if value > MAX_SAFE_INT:
+        raise ValueError("number outside the safe range")
+    return -value if sign else value
+
+
+def _no_duplicates(pairs):
+    out = {}
+    for name, value in pairs:
+        if name in out:
+            raise ValueError(f"duplicate member name {name[:40]!r}")
+        out[name] = value
+    return out
+
+
+def _no_constant(name):
+    raise ValueError(f"{name} is not JSON")
+
+
+def read_json(text: str):
+    """Parse JSON text under the profile of core Section 1: RFC 8259, no
+    duplicate member names, valid Unicode without noncharacters, integers
+    within the safe range judged by value, and nesting of at most
+    MAX_DEPTH. Raises ValueError (or RecursionError, for very deep
+    nesting) on anything else."""
+    value = json.loads(text, object_pairs_hook=_no_duplicates,
+                       parse_int=_integer, parse_float=_integer,
+                       parse_constant=_no_constant)
+    if not values_ok(value):
+        raise ValueError("outside the JSON profile of core Section 1")
+    return value
+
+
+def json_ok(text) -> bool:
+    """Whether a text is JSON within the profile of core Section 1."""
+    try:
+        read_json(text)
+        return isinstance(text, str)
+    except (ValueError, RecursionError, TypeError):
+        return False
 
 # ---------------------------------------------------------------- keys
 
@@ -389,8 +554,15 @@ def verify_proof(doc: dict, proof, pub_multikey: str) -> bool:
             not 1 <= len(proof["authority"]) <= MAX_AUTHORITY):
         return False
     if "@context" in doc:
+        # core 5.2: present on the proof, with the same value. The values
+        # are compared in canonical form: Python's own comparison takes
+        # true for 1, and a missing member for null.
         allowed.add("@context")
-        if proof.get("@context") != doc["@context"]:
+        try:
+            if "@context" not in proof or \
+               jcs(proof["@context"]) != jcs(doc["@context"]):
+                return False
+        except Exception:
             return False
     if not PROOF_REQUIRED <= set(proof) or not set(proof) <= allowed:
         return False
@@ -634,6 +806,9 @@ def verify_log(events, verifier, depth=0) -> Log:
     for i, ev in enumerate(events):
         if not isinstance(ev, dict) or ev.get("oip") != OIP_VERSION:
             raise ValueError("unknown oip version")
+        if not values_ok(ev):
+            raise ValueError("an event outside the JSON profile of core "
+                             "Section 1")
         etype = ev.get("type")
         if etype == "Merge":
             raise ValueError("Merge is reserved in this revision")
@@ -644,8 +819,9 @@ def verify_log(events, verifier, depth=0) -> Log:
         created = ts(ev.get("created"))
         proofs = ev.get("proof")
         if not isinstance(proofs, list) or not proofs or \
-           len(proofs) > MAX_PROOFS:
-            raise ValueError("bad proof set")
+           len(proofs) > MAX_PROOFS or \
+           not all(isinstance(p, dict) for p in proofs):
+            raise ValueError("bad proof set")   # core 5.1
         when = verifier.event_time(ev)
         if times:
             when = max(when, times[-1])     # never before its predecessor
@@ -923,15 +1099,81 @@ def command_covers(granted: str, needed: str) -> bool:
 # ---------------------------------------------------------------- records
 
 
+_DURATION_TIME = (r"(?:[0-9]+H(?:[0-9]+M)?(?:[0-9]+S)?|"
+                  r"[0-9]+M(?:[0-9]+S)?|[0-9]+S)")
+DURATION_RE = re.compile(r"P(?:[0-9]+D(?:T" + _DURATION_TIME + r")?|T" +
+                         _DURATION_TIME + r")")
+
+
+def is_duration(v) -> bool:
+    """core 1.5: days, hours, minutes and seconds, in at most 64
+    characters."""
+    return fullmatch(DURATION_RE, v) and len(v) <= MAX_DURATION
+
+
+def _part_ok(part) -> bool:
+    """One record, or a container without the records it carries: the
+    values of core 1.1 and 1.2, at most 64 deep (1.9), in at most 1 MiB of
+    canonical form (1.6)."""
+    return values_ok(part) and len(jcs(part)) <= MAX_RECORD_BYTES
+
+
+def profile_ok(r: dict) -> bool:
+    """core 1.1, 1.2, 1.6 and 1.9 for a record. For a container the limits
+    on size and depth apply to each record it carries, counted from that
+    record, and to the container without the members that hold them. How
+    far a `Sealed` record may exceed the size is not yet settled (OEP-0001,
+    open questions), so its size is not judged here."""
+    carrying = CONTAINERS.get(r.get("type"))
+    if carrying is None:
+        if r.get("type") == "Sealed":
+            return values_ok(r)
+        return _part_ok(r)
+    carried = []
+    for name in carrying:
+        member = r.get(name, [])
+        if isinstance(member, list):
+            for item in member:
+                # A pair of events (DuplicityEvidence) is two records.
+                carried.extend(item if isinstance(item, list) and
+                               name == "pairs" else [item])
+        else:
+            carried.append(member)
+    rest = {k: v for k, v in r.items() if k not in carrying}
+    return _part_ok(rest) and all(_part_ok(c) for c in carried)
+
+
 def record_ok(r) -> bool:
     """Structural checks this generator relies on (not a full schema)."""
     try:
         if not isinstance(r, dict) or r.get("oip") != OIP_VERSION:
             return False
+        if not profile_ok(r):
+            return False                    # core 1.1, 1.2, 1.6 and 1.9
         t = r.get("type")
         if not isinstance(t, str):
             return False
-        if t not in ("Bundle", "Sealed"):
+        if "proof" in r and (
+                not isinstance(r["proof"], list) or
+                not 1 <= len(r["proof"]) <= MAX_PROOFS or
+                not all(isinstance(p, dict) for p in r["proof"])):
+            return False                    # core 5.1
+        if "ext" in r and (
+                not isinstance(r["ext"], dict) or not all(
+                    isinstance(block, dict) and (
+                        name in SHORT_NAMESPACES or name.startswith("oip.")
+                        or fullmatch(NAMESPACE_RE, name))
+                    for name, block in r["ext"].items())):
+            return False                    # core 8.1
+        critical = r.get("critical", [])
+        if not isinstance(critical, list) or not all(
+                isinstance(n, str) and isinstance(r.get("ext"), dict) and
+                n in r["ext"] for n in critical):
+            return False                    # core 8.3
+        if t not in RECORD_TYPES and not critical:
+            return False                    # core 7: a critical extension
+        if t not in ("Bundle", "LogPage", "FeedPage", "DuplicityEvidence",
+                     "Sealed"):
             ts(r["created"])
         if "expires" in r:
             ts(r["expires"])
@@ -996,6 +1238,10 @@ def record_ok(r) -> bool:
                 return False
         if t == "Packet" and "session" not in r and "expires" not in r:
             return False
+        if t == "Packet":
+            retention = r.get("constraints", {}).get("retention", "none")
+            if retention != "none" and not is_duration(retention):
+                return False                # core 1.5
         return True
     except (KeyError, TypeError, ValueError, AttributeError):
         return False
@@ -1722,6 +1968,8 @@ def build():
                        "event at its own `created` time. `seen` maps a "
                        "proof's digest, or an identity event's content ID, "
                        "to the earliest evidence that it existed.",
+         "baseline": {"logs": list(LOG_NAMES),
+                      "records": list(RECORD_NAMES)},
          "keys": {}, "cases": {}, "valid": [], "negative": [],
          "controls": []}
 
@@ -2812,6 +3060,31 @@ def build():
                 r_doc, amina_vm2, "assertionMethod", r_doc["created"],
                 lambda msg: ed_raw_sign(a_op2.scalar, a_op2.pub, msg,
                                         r_point=ED_IDENTITY))), amina)
+    m_doc = variant(intent, created="2026-10-30T10:03:00Z")
+    bad_sig("signature-r-mixed-order",
+            "R is an honest [nonce]B with the point of order 2 added to "
+            "it. The signature satisfies the verification equation as "
+            "RFC 8032 writes it, multiplied by the cofactor, so a library "
+            "that checks it that way accepts the signature, and one that "
+            "checks without the cofactor refuses it. Core 4.4 requires R "
+            "to have order exactly L, so every verifier rejects it.",
+            sign(m_doc, forged_proof(
+                m_doc, amina_vm2, "assertionMethod", m_doc["created"],
+                lambda msg: ed_raw_sign(
+                    a_op2.scalar, a_op2.pub, msg, nonce=0x4d1,
+                    offset=ed_decode((ED_P - 1).to_bytes(32, "little"))))),
+            amina)
+    w_doc = variant(intent, created="2026-10-30T10:04:00Z")
+    wrapped_vm = amina_vm2.replace("versionId=1-",
+                                   "versionId=%d-" % (2**64 + 1))
+    assert wrapped_vm != amina_vm2
+    bad_sig("key-reference-position-wraps-around",
+            "The verification method pins position 2^64+1 with the "
+            "content ID of the event at position 1. A reader that keeps "
+            "the position in 64 bits reads it as 1 and finds the key. A "
+            "position is an integer of at most 2^53-1 (core 6.1), so this "
+            "reference names no version of any log.",
+            signed(w_doc, a_op2, wrapped_vm), amina)
 
     # delegation chains are exact
     bad_sig("chain-out-of-order",
@@ -2937,6 +3210,235 @@ def build():
             "version after the divergence, does not count.",
             intent, amina, branches=[[a_gen, a_upd_alt]], seen=tie)
 
+    # The JSON profile (core Section 1), on texts: what a parser must read
+    # and what it must refuse. Duplicate member names are not among them,
+    # because core 1.1 says receivers SHOULD reject those, not MUST.
+    def json_case(section, name, reason, text):
+        section.append({"name": name, "reason": reason, "kind": "json",
+                        "text": text})
+
+    deep = lambda n: "[" * n + "]" * n      # noqa: E731
+    json_case(V["valid"], "json-integers-however-written",
+              "Validity depends on a number's value, not on how it is "
+              "written (core 1.2): these are the integers 1, 100, 1, 0 and "
+              "2^53-1, and canonical form writes them 1, 100, 1, 0 and "
+              "9007199254740991.",
+              '{"a":1.0,"b":1e2,"c":100e-2,"d":-0,"e":9007199254740991.0}')
+    json_case(V["valid"], "json-escapes-are-spellings",
+              "An escape is another spelling of the same character: the "
+              "member names are `oip` and `name`, and the value is one "
+              "character outside the basic plane, written as a surrogate "
+              "pair.",
+              '{"\\u006fip":"1","na\\u006de":"\\ud83d\\ude00"}')
+    json_case(V["valid"], "json-same-name-in-different-objects",
+              "Member names must be distinct within one object, not across "
+              "objects.",
+              '{"a":{"a":1},"b":[{"a":1},{"a":2}]}')
+    json_case(V["valid"], "json-nested-64-deep",
+              "Arrays and objects may nest 64 deep (core 1.9).",
+              deep(MAX_DEPTH))
+    json_case(neg, "json-number-with-fraction",
+              "A number whose value has a fractional part is rejected; "
+              "decimal quantities travel as strings (core 1.2, 1.3).",
+              '{"amount":1.5}')
+    json_case(neg, "json-number-with-negative-exponent",
+              "1e-1 is one tenth, which is not an integer.",
+              '{"n":1e-1}')
+    json_case(neg, "json-integer-beyond-safe-range",
+              "2^53 is outside the range -(2^53-1) to 2^53-1 (core 1.2).",
+              '{"n":9007199254740992}')
+    json_case(neg, "json-exponent-beyond-safe-range",
+              "1e16 is an integer, and outside the range.",
+              '{"n":1e16}')
+    json_case(neg, "json-unpaired-surrogate",
+              "Every string is valid Unicode (core 1.1): an escape that "
+              "writes half of a surrogate pair is not.",
+              '{"s":"\\ud800"}')
+    json_case(neg, "json-nested-65-deep",
+              "Arrays and objects nest at most 64 deep (core 1.9).",
+              deep(MAX_DEPTH + 1))
+    json_case(neg, "json-noncharacter",
+              "A record is an I-JSON message (core 1.1; RFC 7493, 2.1): no "
+              "string in it holds a noncharacter. U+FFFE is one, however "
+              "it is written.",
+              '{"s":"\\ufffe"}')
+    json_case(neg, "json-noncharacter-in-a-member-name",
+              "Member names are strings too. U+1FFFF, the last code point "
+              "of plane 1, is a noncharacter; here it is written as a pair "
+              "of escapes.",
+              '{"\\ud83f\\udfff":1}')
+    json_case(neg, "json-noncharacter-in-the-reserved-block",
+              "U+FDD0 to U+FDEF are noncharacters too, 32 of the 66.",
+              '{"s":"\\ufdd0\\ufdef"}')
+    json_case(neg, "json-noncharacter-in-the-last-plane",
+              "U+10FFFE, the last but one code point there is, is a "
+              "noncharacter: every plane ends with two.",
+              '{"s":"\\udbff\\udffe"}')
+    json_case(V["valid"], "json-integer-written-at-length",
+              "Validity depends on a number's value, not on how it is "
+              "written (core 1.2): 1 followed by 5,000 zeros and e-5000 "
+              "is the integer 1, and 0.000... is 0, at any length. A "
+              "reader that turns the digits into a number before it "
+              "judges them cannot read this text.",
+              '{"n":1' + "0" * 5000 + 'e-5000,"z":0.' + "0" * 5000 + '}')
+    json_case(neg, "json-trailing-comma",
+              "A record is JSON (RFC 8259), which has no trailing commas.",
+              '{"a":1,}')
+    json_case(neg, "json-not-a-number",
+              "NaN is not JSON.",
+              '{"n":NaN}')
+
+    # Records: what makes one well formed, whoever signed it.
+    def record_case(section, name, reason, record):
+        section.append({"name": name, "reason": reason, "kind": "record",
+                        "record": record})
+
+    def nest(levels):
+        value = []
+        for _ in range(levels - 1):
+            value = [value]
+        return value
+
+    def resigned(**changes):
+        return signed(variant(intent, **changes), a_op2, amina_vm2)
+
+    record_case(neg, "proof-entry-not-an-object",
+                "Every entry of `proof` is an object (core 5.1). A proof "
+                "that does not verify never counts and does not make the "
+                "record malformed (core 5.5); an entry that is not an "
+                "object at all does.",
+                {**intent, "proof": intent["proof"] + ["a proof"]})
+    not_a_proof = {**intent, "proof": intent["proof"] + [{"note": "x"}]}
+    record_case(neg, "extension-name-not-a-namespace",
+                "A member of `ext` is named by a reverse-DNS namespace, "
+                "one of the short names the specification lists, or a "
+                "name under `oip.` (core 8.1). Any other name makes the "
+                "record malformed.",
+                resigned(ext={"Example Extension": {"v": 1}}))
+    record_case(neg, "unknown-type-without-critical-extension",
+                "A record whose type this revision does not define is "
+                "defined by an extension, and lists that extension in "
+                "`critical` (core 7). Without it nobody can say what the "
+                "record is.",
+                resigned(type="com.example.Note"))
+    extension_typed = resigned(type="com.example.Note",
+                               ext={"com.example": {"v": 1}},
+                               critical=["com.example"])
+    record_case(V["valid"], "extension-type-with-critical-extension",
+                "A record of a type an extension defines is well formed "
+                "when it lists that extension in `critical` (core 7, 8.3). "
+                "A reader that does not understand the extension then "
+                "answers `unsupported-critical`; that is another "
+                "question.", extension_typed)
+    undated = variant(intent, type="com.example.Note",
+                      ext={"com.example": {"v": 1}},
+                      critical=["com.example"])
+    del undated["created"]
+    record_case(neg, "extension-type-without-created",
+                "`created` is required in every record except the "
+                "containers and `Sealed` (core 7), and those are types of "
+                "this specification. A record of a type an extension "
+                "defines carries it like any other.",
+                signed(undated, a_op2, amina_vm2,
+                       created=intent["created"]))
+
+    def retaining(duration):
+        return signed(variant(packet, constraints={
+            "retention": duration, "prohibitedUses": ["train"]}),
+            t_op, agent_vm)
+
+    record_case(V["valid"], "duration-of-64-characters",
+                "A duration string has at most 64 characters (core 1.5). "
+                "This one has exactly 64.", retaining("P" + "9" * 62 + "D"))
+    record_case(neg, "duration-of-65-characters",
+                "One character more than core 1.5 allows. Without the "
+                "limit a duration could have a million digits, and a "
+                "reader that computes with it would do arithmetic on "
+                "numbers of that size.", retaining("P" + "9" * 63 + "D"))
+    record_case(V["valid"], "timestamp-in-year-0000",
+                "Years run from 0000 to 9999, and year 0000 is a leap "
+                "year (core 1.4): 29 February 0000 is a real date.",
+                resigned(created="0000-02-29T00:00:00Z",
+                         expires="0000-03-01T00:00:00Z",
+                         constraints={"deadline": "0000-03-01T00:00:00Z"}))
+    record_case(V["valid"], "receipt-rating-of-minus-zero",
+                "`-0` is a decimal equal to `0` (core 1.3), so it is a "
+                "score from 0 to 1.",
+                signed(variant(receipt, rating={"score": "-0"}),
+                       a_op1, amina_vm1))
+    # The record is at depth 1, `ext` at 2 and its block at 3.
+    record_case(V["valid"], "record-nested-64-deep",
+                "The arrays and objects of a record nest at most 64 deep, "
+                "the record itself being depth 1 (core 1.9). This one "
+                "nests exactly 64.",
+                resigned(ext={"com.example.deep": {"down": nest(61)}}))
+    record_case(neg, "record-nested-65-deep",
+                "One level more than core 1.9 allows.",
+                resigned(ext={"com.example.deep": {"down": nest(62)}}))
+    # The event is at depth 1, `proof` at 2 and its entry at 3.
+    def padded_event(levels):
+        return {**a_gen, "proof": a_gen["proof"] + [{"junk": nest(levels)}]}
+
+    def page(event):
+        return {"oip": OIP_VERSION, "type": "LogPage", "mind": amina,
+                "events": [event]}
+
+    record_case(V["valid"], "container-carries-a-record-nested-64-deep",
+                "For a container the limit on depth applies to each record "
+                "it carries, counted from that record, and to the "
+                "container without them (core 1.9). Anyone can add an "
+                "entry to an event's `proof`, where it never counts "
+                "(core 5.5); here it brings the event to exactly 64 deep, "
+                "which is valid. The page as a whole nests 66 deep, and "
+                "must still be accepted: otherwise one junk entry would "
+                "stop a log from being served.", page(padded_event(61)))
+    record_case(neg, "container-carries-a-record-nested-65-deep",
+                "The same page with the event one level deeper. The event "
+                "is not a valid record (core 1.9), so the page is not "
+                "well formed.", page(padded_event(62)))
+
+    def junked(record, levels):
+        return {**record, "proof": record["proof"] + [{"junk": nest(levels)}]}
+
+    def evidence(levels):
+        return {"oip": OIP_VERSION, "type": "DuplicityEvidence",
+                "mind": amina, "pairs": [[junked(a_upd, levels), a_upd_alt]]}
+
+    def feed_page(levels):
+        return {"oip": OIP_VERSION, "type": "FeedPage", "mind": lexis,
+                "entries": [junked(entry, levels)]}
+
+    def bundle(levels):
+        return {"oip": OIP_VERSION, "type": "Bundle", "mind": lexis,
+                "log": [agent_gen, fork_ev],
+                "location": junked(location, levels),
+                "participant": participant}
+
+    def page_with_own(levels):
+        return {**page(a_gen), "ext": {"com.example.deep":
+                                       {"down": nest(levels)}}}
+
+    record_case(V["valid"], "duplicity-evidence-carries-a-record-nested-64-deep",
+                "An event in a pair of `DuplicityEvidence` sits three "
+                "levels down, the deepest a container carries a record. "
+                "The event nests exactly 64 deep, so the whole nests 67 "
+                "deep, which is the most any well-formed record can.",
+                evidence(61))
+    record_case(neg, "duplicity-evidence-carries-a-record-nested-65-deep",
+                "The same evidence with the event one level deeper.",
+                evidence(62))
+    record_case(neg, "feed-page-carries-a-record-nested-65-deep",
+                "The rule for containers holds for a `FeedPage` and the "
+                "entries it carries.", feed_page(62))
+    record_case(neg, "bundle-carries-a-location-nested-65-deep",
+                "A `Bundle` carries records in three members: `log`, "
+                "`location` and `participant`. Each is held to the limit.",
+                bundle(62))
+    record_case(neg, "container-nested-65-deep-without-its-records",
+                "The limit also applies to the container without the "
+                "members that hold its records: here a member of the "
+                "page's own nests 65 deep.", page_with_own(62))
+
     # Controls: each negative case above, changed only in the respect its
     # reason names, must be accepted, so it fails for that reason alone.
     by_name = {case["name"]: case for case in neg}
@@ -2972,6 +3474,39 @@ def build():
             record=signed(variant(unpriced, terms__price=usd("120")),
                           t_op, agent_vm, authority=[d_not]))
     control("collective-location-after-member-left", extraLogs=None)
+    # The Ed25519 cases: the same record with an honest signature counts.
+    control("signature-s-not-reduced", record=sign(s_doc, s_ok))
+    control("signature-r-identity", record=signed(r_doc, a_op2, amina_vm2))
+    control("signature-r-mixed-order",
+            record=signed(m_doc, a_op2, amina_vm2))
+    control("key-reference-position-wraps-around",
+            record=signed(w_doc, a_op2, amina_vm2))
+    control("json-noncharacter", text='{"s":"\\ufffd"}')
+    control("json-noncharacter-in-a-member-name",
+            text='{"\\ud83f\\udffd":1}')
+    control("json-noncharacter-in-the-reserved-block",
+            text='{"s":"\\ufdcf\\ufdf0"}')
+    control("json-noncharacter-in-the-last-plane",
+            text='{"s":"\\udbff\\udffd"}')
+    control("extension-type-without-created", record=extension_typed)
+    control("duration-of-65-characters",
+            record=retaining("P" + "9" * 62 + "D"))
+    control("duplicity-evidence-carries-a-record-nested-65-deep",
+            record=evidence(61))
+    control("feed-page-carries-a-record-nested-65-deep",
+            record=feed_page(61))
+    control("bundle-carries-a-location-nested-65-deep", record=bundle(61))
+    control("container-nested-65-deep-without-its-records",
+            record=page_with_own(61))
+    control("proof-entry-not-an-object", record=not_a_proof)
+    control("extension-name-not-a-namespace",
+            record=resigned(ext={"com.example.extension": {"v": 1}}))
+    control("unknown-type-without-critical-extension",
+            record=extension_typed)
+    control("record-nested-65-deep",
+            record=resigned(ext={"com.example.deep": {"down": nest(61)}}))
+    control("container-carries-a-record-nested-65-deep",
+            record=page(padded_event(61)))
     return V
 
 
@@ -2987,15 +3522,19 @@ def forged_proof(doc, vm, purpose, created, sign_raw) -> dict:
     return {**config, "proofValue": "z" + b58encode(sign_raw(msg))}
 
 
-def ed_raw_sign(scalar, pub: bytes, msg: bytes, nonce=None, r_point=None):
+def ed_raw_sign(scalar, pub: bytes, msg: bytes, nonce=None, r_point=None,
+                offset=None):
     """Ed25519 signing from a scalar (TEST VECTORS ONLY): R = [nonce]B, or
     r_point with its discrete log taken as 0 (the identity), and
-    S = r + k * scalar mod L."""
+    S = r + k * scalar mod L. With `offset`, a point of small order is
+    added to R: [8]R is what it was, so the equation still holds for a
+    verifier that multiplies it by the cofactor."""
     if r_point is not None:
         r, R = 0, ed_encode(r_point)
     else:
         r = nonce % ED_L
-        R = ed_encode(ed_mul(r, ED_B))
+        point = ed_mul(r, ED_B)
+        R = ed_encode(ed_add(point, offset) if offset is not None else point)
     k = int.from_bytes(hashlib.sha512(R + pub + msg).digest(), "little") % ED_L
     return R + ((r + k * scalar) % ED_L).to_bytes(32, "little")
 
@@ -3074,6 +3613,8 @@ def resign(record, key, **changes):
 def check(VEC) -> list:
     """Re-verify every positive case. Returns the names of the checks."""
     c = VEC["cases"]
+    assert VEC["baseline"] == {"logs": list(LOG_NAMES),
+                               "records": list(RECORD_NAMES)}
     V = verifier_for(c)
     done = []
     for log, mind in MINDS:
@@ -3190,9 +3731,12 @@ def _case_verifier(c, case):
 def _holds(c, case) -> bool:
     """Whether a case's claim holds: the log verifies, the record counts
     for (or was sent for) the mind, the status or assurance is `expect`,
-    or the record is well formed."""
-    V = _case_verifier(c, case)
+    the record is well formed, or the text is JSON within the profile of
+    core Section 1."""
     kind = case["kind"]
+    if kind == "json":
+        return json_ok(case["text"])
+    V = _case_verifier(c, case)
     if kind == "log":
         try:
             verify_log(case["log"], V)
@@ -3212,6 +3756,57 @@ def _holds(c, case) -> bool:
     if kind == "record":
         return record_ok(case["record"])
     raise ValueError(f"unknown case kind {kind}")
+
+
+def judge(c, case) -> dict:
+    """The verdict on one case in the vectors' format, for differential
+    testing against another implementation. `holds` says whether the case's
+    claim holds, as _holds() does. For `status` and `assurance` cases,
+    `value` is the result computed, whatever `expect` says (and `expect`
+    may be absent). An input this checker cannot process at all is
+    reported as `error`, with `holds` false: an error is never an
+    acceptance."""
+    out = {"name": case.get("name"), "kind": case.get("kind")} \
+        if isinstance(case, dict) else {"name": None, "kind": None}
+    try:
+        kind = case["kind"]
+        if kind == "status":
+            rec = case["of"]
+            out["value"] = STATUS_FN[rec["type"]](
+                _case_verifier(c, case), rec, case["records"], ts(case["at"]))
+            out["holds"] = "expect" not in case or \
+                out["value"] == case["expect"]
+        elif kind == "assurance":
+            out["value"] = bridge_assurance(_case_verifier(c, case),
+                                            case["record"])
+            out["holds"] = "expect" not in case or \
+                out["value"] == case["expect"]
+        else:
+            out["holds"] = bool(_holds(c, case))
+    except RecursionError:
+        out.pop("value", None)
+        out["holds"], out["error"] = False, "RecursionError"
+    except Exception as e:               # malformed input is a rejection
+        out.pop("value", None)
+        out["holds"], out["error"] = False, f"{type(e).__name__}: {e}"
+    return out
+
+
+def judge_stream(c, lines, write):
+    """Judge one JSON case per input line, writing one verdict per line and
+    flushing, so that a caller can keep this process open and judge
+    millions of cases."""
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            verdict = judge(c, json.loads(line))
+        except (ValueError, RecursionError) as e:
+            verdict = {"name": None, "kind": None, "holds": False,
+                       "error": f"not JSON: {type(e).__name__}: {e}"}
+        # ASCII only, so that no character a line reader treats as a line
+        # break (U+2028, U+2029) can appear inside a verdict.
+        write(json.dumps(verdict, ensure_ascii=True) + "\n")
 
 
 def check_valid(VEC) -> list:
@@ -3250,6 +3845,24 @@ def check_controls(VEC) -> list:
 
 if __name__ == "__main__":
     out = Path(__file__).with_name("vectors.json")
+    if "--judge" in sys.argv:
+        # Cases are judged against the existing vectors.json. With --lines,
+        # standard input holds one case per line and verdicts are written
+        # as they are reached. Otherwise it holds one case, or an array of
+        # cases, as a single JSON value.
+        cases = json.loads(out.read_text(encoding="utf-8"))["cases"]
+
+        def emit(text):
+            sys.stdout.write(text)
+            sys.stdout.flush()
+
+        if "--lines" in sys.argv:
+            judge_stream(cases, sys.stdin, emit)
+        else:
+            given = json.loads(sys.stdin.read())
+            for one in given if isinstance(given, list) else [given]:
+                emit(json.dumps(judge(cases, one), ensure_ascii=True) + "\n")
+        sys.exit(0)
     if "--check" not in sys.argv:
         out.write_text(json.dumps(build(), indent=2, ensure_ascii=False) +
                        "\n", encoding="utf-8")

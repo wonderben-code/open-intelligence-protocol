@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Update",
+  "title": "Update",
+  "description": "Rotates control keys or changes a mind's keys, homes or aliases (Layer 1, 3.7).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "mind",
+    "seq",
+    "prev",
+    "type"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "mind": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "prev": {
+      "$ref": "urn:oip:schema:def:contentId"
+    },
+    "controller": {
+      "$ref": "urn:oip:schema:def:controller"
+    },
+    "keys": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:oip:schema:def:signingKeyEntry"
+      },
+      "maxItems": 64
+    },
+    "invocation": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:oip:schema:def:signingKeyEntry"
+      },
+      "maxItems": 16
+    },
+    "agreement": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:oip:schema:def:agreementKeyEntry"
+      },
+      "maxItems": 16
+    },
+    "homes": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:oip:schema:def:httpsOrigin"
+      },
+      "maxItems": 8
+    },
+    "alsoKnownAs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 16
+    },
+    "revoked": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "$ref": "urn:oip:schema:def:ed25519Multikey"
+          },
+          "compromisedSince": {
+            "$ref": "urn:oip:schema:def:timestamp"
+          }
+        }
+      }
+    },
+    "type": {
+      "type": "string",
+      "const": "Update"
+    }
+  },
+  "not": {
+    "anyOf": [
+      {
+        "required": [
+          "height"
+        ]
+      },
+      {
+        "required": [
+          "recovery"
+        ]
+      }
+    ]
+  }
+}

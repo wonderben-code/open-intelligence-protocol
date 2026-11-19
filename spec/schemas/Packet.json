@@ -1,0 +1,502 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Packet",
+  "title": "Packet",
+  "description": "A signed message from one mind to others (Layer 1, 12.1).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "type",
+    "from",
+    "to",
+    "nonce",
+    "purpose",
+    "content"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "type": {
+      "type": "string",
+      "const": "Packet"
+    },
+    "from": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "to": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "urn:oip:schema:def:mindAddress"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        {
+          "type": "object",
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "$ref": "urn:oip:schema:def:capabilityQuery"
+            },
+            "brokers": {
+              "type": "array",
+              "items": {
+                "$ref": "urn:oip:schema:def:mindAddress"
+              },
+              "minItems": 1,
+              "maxItems": 8
+            },
+            "maxFanout": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "subject"
+          ],
+          "properties": {
+            "subject": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "nonce": {
+      "$ref": "urn:oip:schema:def:nonce"
+    },
+    "session": {
+      "$ref": "urn:oip:schema:def:contentId"
+    },
+    "seq": {
+      "$ref": "urn:oip:schema:def:count"
+    },
+    "prev": {
+      "$ref": "urn:oip:schema:def:contentId"
+    },
+    "instance": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "thread": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "parentThread": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "replyTo": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "purpose": {
+      "type": "object",
+      "required": [
+        "verb"
+      ],
+      "properties": {
+        "verb": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "inform"
+            },
+            {
+              "type": "string",
+              "const": "request"
+            },
+            {
+              "type": "string",
+              "const": "query"
+            },
+            {
+              "type": "string",
+              "const": "propose"
+            },
+            {
+              "type": "string",
+              "const": "accept"
+            },
+            {
+              "type": "string",
+              "const": "decline"
+            },
+            {
+              "type": "string",
+              "const": "deliver"
+            },
+            {
+              "type": "string",
+              "const": "ack"
+            },
+            {
+              "type": "string",
+              "const": "error"
+            },
+            {
+              "type": "string",
+              "const": "open"
+            },
+            {
+              "type": "string",
+              "const": "resume"
+            },
+            {
+              "type": "string",
+              "const": "branch"
+            },
+            {
+              "type": "string",
+              "const": "close"
+            },
+            {
+              "$ref": "urn:oip:schema:def:namespaced"
+            }
+          ]
+        },
+        "goal": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "content": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "mediaType": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mediaType",
+            "body"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "ref"
+                ]
+              },
+              {
+                "required": [
+                  "digest"
+                ]
+              },
+              {
+                "required": [
+                  "parts"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mediaType": {
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "digest": {
+              "$ref": "urn:oip:schema:def:sha256Digest"
+            }
+          },
+          "required": [
+            "mediaType",
+            "ref",
+            "digest"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "body"
+                ]
+              },
+              {
+                "required": [
+                  "parts"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "parts": {
+              "type": "array",
+              "maxItems": 32,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mediaType": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mediaType",
+                      "body"
+                    ],
+                    "not": {
+                      "anyOf": [
+                        {
+                          "required": [
+                            "ref"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "digest"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "parts"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mediaType": {
+                        "type": "string"
+                      },
+                      "ref": {
+                        "type": "string"
+                      },
+                      "digest": {
+                        "$ref": "urn:oip:schema:def:sha256Digest"
+                      }
+                    },
+                    "required": [
+                      "mediaType",
+                      "ref",
+                      "digest"
+                    ],
+                    "not": {
+                      "anyOf": [
+                        {
+                          "required": [
+                            "body"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "parts"
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": [
+            "parts"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "mediaType"
+                ]
+              },
+              {
+                "required": [
+                  "body"
+                ]
+              },
+              {
+                "required": [
+                  "ref"
+                ]
+              },
+              {
+                "required": [
+                  "digest"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "summary": {},
+        "assumptions": {},
+        "language": {
+          "type": "string"
+        },
+        "stateDoc": {}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "derivedFrom": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "generatedBy": {
+          "type": "object",
+          "properties": {
+            "model": {},
+            "version": {},
+            "tool": {}
+          }
+        },
+        "onBehalfOf": {
+          "$ref": "urn:oip:schema:def:mindAddress"
+        }
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "retention": {
+          "anyOf": [
+            {
+              "$ref": "urn:oip:schema:def:duration"
+            },
+            {
+              "type": "string",
+              "const": "none"
+            }
+          ]
+        },
+        "allowedUses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prohibitedUses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "confidentiality": {},
+        "licence": {
+          "type": "string"
+        },
+        "jurisdiction": {},
+        "forwardOk": {
+          "type": "boolean"
+        },
+        "maxHops": {
+          "$ref": "urn:oip:schema:def:safeInteger"
+        }
+      }
+    },
+    "hints": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^did:oip:bciq[a-p][a-z2-7]{50}[aiqy]$"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^https://\\S+$"
+        }
+      }
+    }
+  },
+  "dependentRequired": {
+    "session": [
+      "seq"
+    ],
+    "seq": [
+      "session"
+    ]
+  },
+  "allOf": [
+    {
+      "anyOf": [
+        {
+          "required": [
+            "expires"
+          ]
+        },
+        {
+          "required": [
+            "session"
+          ]
+        }
+      ]
+    },
+    {
+      "if": {
+        "properties": {
+          "seq": {
+            "minimum": 1
+          }
+        },
+        "required": [
+          "seq"
+        ]
+      },
+      "then": {
+        "required": [
+          "prev"
+        ]
+      }
+    }
+  ]
+}

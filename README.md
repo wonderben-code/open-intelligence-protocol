@@ -15,7 +15,7 @@ all while staying fully connected to everything on today's internet.
 
 It was created by **Ekram Alam** on 30 October 2026.
 
-**Status:** specification revision 2026-11-17 (Draft); both papers are published on Zenodo. The reference implementation is being built to the plan in [BUILD.md](BUILD.md).
+**Status:** specification revision 2026-11-17 (Draft); both papers are published on Zenodo. The reference implementation is being built to the plan in [BUILD.md](BUILD.md): the foundations (M0) and the core rules (M1: parsing, canonical form, content IDs, signatures) are built, and [PROGRESS.md](PROGRESS.md) says what comes next.
 
 ## The stack
 
@@ -51,17 +51,29 @@ The v1 reference implementation is planned in **[BUILD.md](BUILD.md)**. It is a 
 
 Progress is tracked in [PROGRESS.md](PROGRESS.md).
 
+To work on it, you need Node.js 24 and pnpm:
+
+```
+pnpm install
+pnpm test          # the tests, in a few seconds
+pnpm run ci        # every check CI runs, from a clean build
+```
+
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how to contribute, [docs/adr/](docs/adr/) records the decisions behind the build, and [docs/conformance/coverage.md](docs/conformance/coverage.md) shows which clauses of the specifications the code enforces today.
+
 ## Repository
 
 ```
 papers/      founding and technical papers, with their PDFs and the build that typesets them
-spec/        normative specifications and test vectors
+spec/        normative specifications, JSON Schemas and test vectors
 research/    research notes behind the design
-reviews/     independent reviews and the fixes they led to
+reviews/     independent reviews and the fixes they led to; reviews/build/ has one per milestone
 BUILD.md     the plan for the v1 reference implementation
 CLAUDE.md    how coding agents work in this repository
 PROGRESS.md  where the project stands
 packages/    the reference implementation (in progress)
+docs/        decision records and conformance coverage
+oeps/        OIP Enhancement Proposals
 site/        the public website (coming)
 ```
 

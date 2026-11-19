@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Delegation",
+  "title": "Delegation",
+  "description": "Grants a delegate the authority to act for a subject, within a command and a policy (Layer 1, 11.1).",
+  "type": "object",
+  "required": [
+    "oip",
+    "expires",
+    "created",
+    "proof",
+    "type",
+    "author",
+    "delegate",
+    "subject",
+    "command",
+    "nonce"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "type": {
+      "type": "string",
+      "const": "Delegation"
+    },
+    "author": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "delegate": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "subject": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "command": {
+      "type": "string",
+      "pattern": "^/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$",
+      "anyOf": [
+        {
+          "enum": [
+            "/oip/sign/Intent",
+            "/oip/sign/Offer",
+            "/oip/sign/Commitment",
+            "/oip/sign/Receipt",
+            "/oip/send"
+          ]
+        },
+        {
+          "not": {
+            "pattern": "^/oip(?:/|$)"
+          }
+        }
+      ]
+    },
+    "policy": {
+      "$ref": "urn:oip:schema:Policy"
+    },
+    "notBefore": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "nonce": {
+      "$ref": "urn:oip:schema:def:nonce"
+    }
+  }
+}

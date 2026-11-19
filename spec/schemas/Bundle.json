@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Bundle",
+  "title": "Bundle",
+  "description": "A mind's identity log with its current location record and profile (Layer 1, 13.1).",
+  "type": "object",
+  "required": [
+    "oip",
+    "type",
+    "mind",
+    "log"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proof": {
+      "not": {}
+    },
+    "type": {
+      "type": "string",
+      "const": "Bundle"
+    },
+    "mind": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "log": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:oip:schema:def:identityEvent"
+      }
+    },
+    "location": {
+      "$ref": "urn:oip:schema:Location"
+    },
+    "participant": {
+      "$ref": "urn:oip:schema:Participant"
+    },
+    "firstSeen": {
+      "type": "object",
+      "propertyNames": {
+        "anyOf": [
+          {
+            "pattern": "^bciq[a-p][a-z2-7]{50}[aiqy]$"
+          },
+          {
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        ]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^(?:[0-9]{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12][0-9]|3[01])|(?:0[469]|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8]))|(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:[02468][048]|[13579][26])00)-02-29)T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,9})?Z$",
+        "maxLength": 30
+      }
+    }
+  }
+}

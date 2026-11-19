@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Commitment",
+  "title": "Commitment",
+  "description": "A promise between parties, binding on those whose signatures count (Layer 2, Section 5).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "author",
+    "type",
+    "parties",
+    "promise",
+    "terms"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "author": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "supersedes": {
+      "$ref": "urn:oip:schema:def:recordRef"
+    },
+    "status": {
+      "type": "string"
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "rel",
+          "ref"
+        ],
+        "properties": {
+          "rel": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "type": {
+      "type": "string",
+      "const": "Commitment"
+    },
+    "parties": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "mind",
+          "role"
+        ],
+        "properties": {
+          "mind": {
+            "$ref": "urn:oip:schema:def:mindAddress"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "debtor"
+              },
+              {
+                "type": "string",
+                "const": "creditor"
+              },
+              {
+                "type": "string",
+                "const": "witness"
+              },
+              {
+                "$ref": "urn:oip:schema:def:namespaced"
+              }
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "if": {
+          "properties": {
+            "role": {
+              "enum": [
+                "debtor",
+                "creditor"
+              ]
+            }
+          },
+          "required": [
+            "role"
+          ]
+        },
+        "then": {
+          "properties": {
+            "required": {
+              "const": true
+            }
+          },
+          "required": [
+            "required"
+          ]
+        }
+      },
+      "minItems": 2,
+      "maxItems": 64,
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "role": {
+                "const": "debtor"
+              }
+            },
+            "required": [
+              "role"
+            ]
+          }
+        },
+        {
+          "contains": {
+            "properties": {
+              "role": {
+                "const": "creditor"
+              }
+            },
+            "required": [
+              "role"
+            ]
+          }
+        }
+      ]
+    },
+    "promise": {
+      "type": "string",
+      "maxLength": 8192
+    },
+    "terms": {
+      "type": "object",
+      "properties": {
+        "deadline": {
+          "$ref": "urn:oip:schema:def:timestamp"
+        },
+        "deliverables": {},
+        "price": {
+          "type": "object",
+          "required": [
+            "amount",
+            "currency",
+            "payer",
+            "payee"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "urn:oip:schema:def:amount"
+            },
+            "currency": {
+              "type": "string"
+            },
+            "payer": {
+              "$ref": "urn:oip:schema:def:mindAddress"
+            },
+            "payee": {
+              "$ref": "urn:oip:schema:def:mindAddress"
+            }
+          }
+        },
+        "conditions": {},
+        "selfReport": {
+          "type": "boolean"
+        }
+      }
+    },
+    "resolves": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:oip:schema:def:recordRef"
+      }
+    },
+    "closesIntent": {
+      "type": "boolean"
+    },
+    "onBehalfOf": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    }
+  },
+  "dependentRequired": {
+    "status": [
+      "supersedes"
+    ]
+  }
+}

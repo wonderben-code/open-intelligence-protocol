@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Intent",
+  "title": "Intent",
+  "description": "A statement of an outcome a mind seeks (Layer 2, 4.1).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "author",
+    "type",
+    "want"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "author": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "supersedes": {
+      "$ref": "urn:oip:schema:def:recordRef"
+    },
+    "status": {
+      "type": "string"
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "rel",
+          "ref"
+        ],
+        "properties": {
+          "rel": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "type": {
+      "type": "string",
+      "const": "Intent"
+    },
+    "want": {
+      "type": "string",
+      "maxLength": 4096
+    },
+    "subject": {},
+    "constraints": {
+      "type": "object",
+      "properties": {
+        "deadline": {
+          "$ref": "urn:oip:schema:def:timestamp"
+        },
+        "budget": {
+          "type": "object",
+          "required": [
+            "max"
+          ],
+          "properties": {
+            "max": {
+              "$ref": "urn:oip:schema:def:amount"
+            },
+            "currency": {
+              "type": "string"
+            }
+          }
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "audience": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "public"
+        },
+        {
+          "$ref": "urn:oip:schema:def:mindAddress"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "urn:oip:schema:def:mindAddress"
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "$ref": "urn:oip:schema:def:capabilityQuery"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "dependentRequired": {
+    "status": [
+      "supersedes"
+    ]
+  }
+}

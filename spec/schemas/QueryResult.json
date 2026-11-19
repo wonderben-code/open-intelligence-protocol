@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:QueryResult",
+  "title": "QueryResult",
+  "description": "An indexer's signed answer to a capability query (Layer 1, 18.3).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "type",
+    "author",
+    "query",
+    "results"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "type": {
+      "type": "string",
+      "const": "QueryResult"
+    },
+    "author": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "query": {
+      "$ref": "urn:oip:schema:def:capabilityQuery"
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "mind",
+          "record",
+          "score"
+        ],
+        "properties": {
+          "mind": {
+            "$ref": "urn:oip:schema:def:mindAddress"
+          },
+          "record": {
+            "$ref": "urn:oip:schema:def:contentId"
+          },
+          "capability": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "score": {
+            "$ref": "urn:oip:schema:def:unitDecimal"
+          },
+          "why": {
+            "type": "string"
+          },
+          "hints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

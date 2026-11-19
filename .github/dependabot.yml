@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+# SPDX-License-Identifier: Apache-2.0
+
+version: 2
+
+# Updates wait a week after release, matching minimumReleaseAge in
+# pnpm-workspace.yaml: a compromised release is usually caught within days.
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      development:
+        dependency-type: development
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: /.github/requirements
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7

@@ -1,5 +1,35 @@
 # Specification changelog
 
+## Since revision 2026-11-17 (not yet dated)
+
+Changes adopted while the reference implementation is built. They stay under this heading until the maintainer dates the next revision ([GOVERNANCE.md](../GOVERNANCE.md)), which [BUILD.md](../BUILD.md) plans for the release candidate (M12). Each names its OEP.
+
+**Core clarifications and limits ([OEP-0001](../oeps/oep-0001-core-clarifications.md), found while building `@oip/core` and in its two independent reviews).** No address, content ID or proof in the test vectors changes.
+
+- **Depth (core 1.9, new).** Arrays and objects nest at most 64 deep, the record itself being depth 1. The specification set no limit, so two implementations could disagree about a deeply nested record, and one could be made to exhaust its stack. Layer 1, Section 19 lists the limit.
+- **Containers are limited part by part (core 1.6, 1.9, 12).** For `Bundle`, `LogPage`, `FeedPage` and `DuplicityEvidence`, the limits on size and on depth apply to each record the container carries, counted from that record, and to the container without the members that hold those records. A container can therefore carry any record that is valid alone, and its own members are bounded too. Before, a container's own members had no size limit, and a record nesting 64 deep could not be carried at all.
+- **Noncharacters (core 1.1).** A string in a record holds no noncharacter, as I-JSON (RFC 7493, Section 2.1) requires. core 1.1 named I-JSON and only two of its three rules.
+- **Durations (core 1.5).** A duration string is at most 64 characters, as a decimal is.
+- **Size counts proofs (core 1.6).** The 1 MiB limit is on the canonical form of the record with its `proof` member. The rules of core 1 apply to every entry of `proof`.
+- **Proof entries are objects (core 5.1).** An entry of `proof` that is not a JSON object makes the record malformed. An entry that is an object but not a valid proof does not count, and does not make the record malformed.
+- **Year 0000 (core 1.4).** Years run from `0000` to `9999` of the proleptic Gregorian calendar, as in RFC 3339, and year `0000` is a leap year. The Python checker rejected year `0000`; it now accepts it.
+- **`"-0"` (core 1.3).** It is a decimal equal to `"0"`, and not an amount.
+- **Key hashes (core 3.4).** A key hash matches the content-ID pattern of core 3.2. Both implementations already required it.
+- **Positions (core 6.1).** A `seq` greater than 2⁵³−1 names no event.
+- **Types that extensions define (core 7).** A record whose `type` this specification does not define lists the extension that defines it in `critical`. core 7 said "defined by this specification or by a critical extension"; this states what follows.
+- **Extension names (core 8.1, 8.3).** A member of `ext` whose name is not a namespace makes the record malformed. A namespace repeated in `critical` counts once.
+- **`kind` (Layer 1, 3.6).** A `kind` is not empty. Both implementations already required it.
+
+**Test vectors.** `vectors.json` now holds 17 must-accept cases (5 in revision 2026-11-17), 80 negative cases (55) and 30 controls (11). Every value that was there is byte for byte what it was.
+
+- A new kind of case, `json`, gives texts that a parser of the JSON profile must read (5 must-accept cases: integers however they are written, an integer written with 5,000 digits, escapes, the same member name in different objects, nesting 64 deep) and must refuse (12 negative cases: fractions, integers outside the safe range, an unpaired surrogate, noncharacters of each kind in a string and in a member name, nesting 65 deep, text that is not JSON). Duplicate member names are not among them, because core 1.1 says receivers SHOULD reject those.
+- Cases of kind `record` now also stand among the must-accept cases and the controls. Seven must be accepted: a type an extension defines, year 0000, a rating of `-0`, a duration of 64 characters, nesting 64 deep, and a page and a `DuplicityEvidence` each carrying an event that nests 64 deep. Eleven must be rejected: a `proof` entry that is not an object, an extension name that is not a namespace, an unknown type with no critical extension or with no `created`, a duration of 65 characters, nesting 65 deep, and a record nesting 65 deep in each kind of container and in a container's own part.
+- Two negative cases of kind `countsFor`: a signature whose `R` has a small-order component (core 4.4), and a key reference whose position is 2⁶⁴+1 (core 6.1).
+- Nineteen controls, among them one for each signature that breaks core 4.4: the same record with an honest signature counts.
+- The file itself holds no float, unpaired surrogate or noncharacter: such things are written as escapes inside the texts that test them.
+
+**The Python checker** gained a parser for the profile, and applies core 1.1, 1.2, 1.6 and 1.9 to every record it judges, container by container, and core 1.1, 1.2 and 1.9 to every identity event. It checks the length and form of a packet's retention period (core 1.5). It reads a number of any length as text: before, Python's own limit of 4,300 digits made it reject an integer written at length. It compares a proof's `@context` with the record's in canonical form: before, it took `true` for `1` and a missing member for `null`. It rejects a `proof` entry that is not an object and an `ext` member whose name is not a namespace, as the specification requires.
+
 ## Revision 2026-11-17 (Draft)
 
 Security and consistency fixes from two independent reviews of revision 2026-10-30, one of the technical paper and one of the specifications, and from a third independent check of those fixes before publication ([reviews/](../reviews/)). Record formats change little; most changes are clearer rules about who may sign what, and when. Every mind address in the test vectors is unchanged.
@@ -29,6 +59,13 @@ Security and consistency fixes from two independent reviews of revision 2026-10-
 **Test vectors.** The generator implements the rules above, taking evidence of time from each case. New vectors: a two-step delegation chain, two agents committing for their principals, a packet sent on a principal's behalf, a collective's charter role, a `Lineage` record, a checkpoint, an `Ack`, a `Hello`, DID documents, a bridged mind attested by its gateway, withdrawals and edits, every status of Intents, Offers and Commitments, and the X25519 key. 55 negative cases (each with its reason) must be rejected, 5 must-accept cases accepted, and 11 controls, each a negative case changed only in the respect its reason names, accepted. A second, independent checker written from the first revision's text is in `reviews/spec-review-workfiles/`; it still reproduces the vectors' addresses, content IDs and ordinary signatures, but predates the newer rules (invocation keys, proof-level `authority`, evidence of time), which so far only the generator checks.
 
 **Pre-publication check.** An independent check of the fixes ([reviews/2026-11-17-fix-verification.md](../reviews/2026-11-17-fix-verification.md), of the candidate at commit `ab980a8`) confirmed 37 of the 46 earlier findings resolved and 9 partly resolved, and found ten new issues (N1–N10) and eleven minor ones (M1–M11). All are addressed in this revision as published: member proofs on collective identity events judged at the event's evaluation time instead of at their position (N1); evidence per proof (N2); fixed collective heights (N3); exact delegation chains (N4); strict Ed25519 in the checker and no identity point (N5); at most one principal per proof besides its signer, charter-naming role proofs and policies that exclude the delegate (N6); current-state records of collectives under the latest membership (N7); witness times for removals (N8); the gateway's feed attestation (N9); payer and payee (N10); and the minor items, including fail-closed policies (M1) and the checker's charter tie-break, author rule, `/oip/send` and duplicity handling (M9).
+
+**Machine-readable companions (17 November 2026, no normative change).** Added with the first milestone of the reference implementation. No specification text changed, and every value in the vectors is unchanged.
+- [`schemas/`](schemas/): a JSON Schema (2020-12) for every record type in core 11, generated from the reference implementation's `@oip/schema`. They are a convenience; the specifications remain normative.
+- [`clauses.json`](clauses.json): every numbered clause of these documents with its BCP 14 key words, extracted by `scripts/spec-clauses.ts`. Tests cite clauses by these IDs.
+- `vectors.json` gains `baseline`: the names of the identity logs and records that every case is evaluated with. Until now only the generator knew them, so another implementation could not reproduce a case's view exactly.
+- `oip_vectors.py` gains `--judge`, which reads cases in the vectors' format and prints a verdict for each, for differential testing against other implementations.
+- The generator's structural check no longer demands `created` on `LogPage`, `FeedPage` and `DuplicityEvidence`. They are containers and carry none (core 7 and 11). No vector exercised this.
 
 ## Revision 2026-10-30 (Draft)
 

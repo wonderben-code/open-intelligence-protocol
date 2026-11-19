@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:DuplicityEvidence",
+  "title": "DuplicityEvidence",
+  "description": "Pairs of conflicting identity events at the same position of one log (Layer 1, 17.1).",
+  "type": "object",
+  "required": [
+    "oip",
+    "type",
+    "mind",
+    "pairs"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proof": {
+      "not": {}
+    },
+    "type": {
+      "type": "string",
+      "const": "DuplicityEvidence"
+    },
+    "mind": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "pairs": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "$ref": "urn:oip:schema:def:identityEvent"
+          },
+          {
+            "$ref": "urn:oip:schema:def:identityEvent"
+          }
+        ],
+        "items": false,
+        "minItems": 2,
+        "maxItems": 2
+      }
+    }
+  }
+}

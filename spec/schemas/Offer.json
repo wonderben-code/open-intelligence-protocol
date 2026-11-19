@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Offer",
+  "title": "Offer",
+  "description": "A statement of what a mind provides, and on what terms (Layer 2, 4.2).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "author",
+    "type",
+    "provides",
+    "terms"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "author": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "supersedes": {
+      "$ref": "urn:oip:schema:def:recordRef"
+    },
+    "status": {
+      "type": "string"
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "rel",
+          "ref"
+        ],
+        "properties": {
+          "rel": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "type": {
+      "type": "string",
+      "const": "Offer"
+    },
+    "provides": {
+      "type": "string",
+      "maxLength": 4096
+    },
+    "terms": {
+      "$ref": "urn:oip:schema:def:offerTerms"
+    },
+    "answers": {
+      "$ref": "urn:oip:schema:def:recordRef"
+    },
+    "capability": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "subject": {},
+    "audience": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "public"
+        },
+        {
+          "$ref": "urn:oip:schema:def:mindAddress"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "urn:oip:schema:def:mindAddress"
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "query"
+          ],
+          "properties": {
+            "query": {
+              "$ref": "urn:oip:schema:def:capabilityQuery"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "dependentRequired": {
+    "status": [
+      "supersedes"
+    ]
+  }
+}

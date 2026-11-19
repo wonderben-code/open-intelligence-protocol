@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Forwarded",
+  "title": "Forwarded",
+  "description": "A broker's wrapper around a packet it delivers to a mind that matched the packet's query (Layer 1, 18.5).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "type",
+    "broker",
+    "to",
+    "packet"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "type": {
+      "type": "string",
+      "const": "Forwarded"
+    },
+    "broker": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "to": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "packet": {
+      "$ref": "urn:oip:schema:Packet"
+    }
+  }
+}

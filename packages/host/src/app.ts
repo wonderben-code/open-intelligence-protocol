@@ -12,14 +12,18 @@
  * |---|---|
  * | `GET /.well-known/oip/mind/m` | Its `Bundle` (13.1) |
  * | `GET /.well-known/oip/mind/m/log` | A `LogPage` of its identity log (13.1) |
+ * | `GET /.well-known/oip/mind/m/feed` | A `FeedPage` of its public feed (13.1) |
+ * | `GET /.well-known/oip/mind/m/obj/<contentId>` | A record its feed lists (10.2, 13.1) |
  * | `POST /oip/v1/minds/m/inbox` | Its inbox (13.2) |
  * | `POST /oip/v1/minds/m/mailbox` | Its mailbox (13.5) |
  * | `GET /oip/v1/minds/m/mailbox` | The owner drains it, with a signed request (13.3) |
  * | `DELETE /oip/v1/minds/m/mailbox/<cursor>` | The owner removes an item |
- * | `PUT /oip/v1/minds/m` | The mind publishes its own `Bundle` here, with a signed request |
+ * | `PUT /oip/v1/minds/m` | The mind brings its own `Bundle`, with a signed request |
+ * | `PUT /oip/v1/minds/m/obj/<contentId>` | The mind brings a record for the host to serve |
+ * | `POST /oip/v1/minds/m/feed` | The mind adds entries to its feed, as a `FeedPage` |
  *
- * The last is this host's own: Layer 1 says what a host serves for a mind,
- * and leaves to the host how the mind hands it over. So the endpoint a
+ * The last three are this host's own: Layer 1 says what a host serves for
+ * a mind, and leaves to the host how the mind hands it over. The endpoint a
  * location record gives for the `https` binding is
  * `{origin}/oip/v1/minds/m`, and for the `mailbox` binding
  * `{origin}/oip/v1/minds/m/mailbox` (15.1).
@@ -213,6 +217,34 @@ export function hostApp(options: HostAppOptions): Hono<{ Bindings: Arrival }> {
     }),
   );
 
+  app.get(
+    "/.well-known/oip/mind/:id/feed",
+    gated("feed", limits.read, (request, param) => {
+      const mind = served(param("id"));
+      const after = new URL(request.url).searchParams.has("after")
+        ? whole(request, "after", 0)
+        : undefined;
+      const { entries, next } = host.feed(mind, after, pageOf(request, maxPage));
+      return recordResponse(
+        { oip: "1", type: "FeedPage", mind, entries, ...(next === undefined ? {} : { next }) },
+        200,
+        { "cache-control": "no-cache" },
+      );
+    }),
+  );
+
+  app.get(
+    "/.well-known/oip/mind/:id/obj/:object",
+    gated("object", limits.read, (_request, param) => {
+      const record = host.object(served(param("id")), param("object"));
+      if (record === undefined) {
+        throw new OipError("not-found", "the host serves no record with that content ID");
+      }
+      // A record gains proofs, and its content ID stays: a copy held is asked after again.
+      return recordResponse(record, 200, { "cache-control": "no-cache" });
+    }),
+  );
+
   /** A record for a mind, which is a `Packet` or a `Sealed` record. */
   const sent = async (request: Request, clause: string): Promise<OipRecord> => {
     const record = await readRecord(request, maxRecordBytes);
@@ -310,6 +342,51 @@ export function hostApp(options: HostAppOptions): Hono<{ Bindings: Arrival }> {
       if (problem !== undefined) throw problem;
       if (!hosted) host.adopt(mind);
       return json({ added: published.added }, hosted ? 200 : 201);
+    }),
+  );
+
+  /** The record a mind brings with a request it signed. */
+  const brought = async (mind: string, request: Request): Promise<OipRecord> => {
+    requireRecordType(request);
+    const body = await readBody(request, maxRecordBytes);
+    signedBy(mind, request, body);
+    return recordFrom(body, maxRecordBytes);
+  };
+
+  app.put(
+    "/oip/v1/minds/:id/obj/:object",
+    gated("keep", limits.owner, async (request, param) => {
+      const mind = served(param("id"));
+      const record = await brought(mind, request);
+      if (contentId(record) !== param("object")) {
+        throw new OipError(
+          "invalid-record",
+          "the record has another content ID than the one named",
+          {
+            clause: "core 3.1",
+          },
+        );
+      }
+      const { fresh } = host.keep(mind, record);
+      return json({ stored: true }, fresh ? 201 : 200);
+    }),
+  );
+
+  app.post(
+    "/oip/v1/minds/:id/feed",
+    gated("append", limits.owner, async (request, param) => {
+      const mind = served(param("id"));
+      const page = (await brought(mind, request)) as {
+        type: string;
+        mind?: unknown;
+        entries?: unknown;
+      };
+      if (page.type !== "FeedPage" || page.mind !== mind || !Array.isArray(page.entries)) {
+        throw new OipError("invalid-record", "entries are brought as a FeedPage of the mind", {
+          clause: "L1 13.1",
+        });
+      }
+      return json({ added: host.append(mind, page.entries) }, 200);
     }),
   );
 

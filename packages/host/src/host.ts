@@ -16,6 +16,10 @@
  *   cannot judge the packet inside: that is the recipient's to do.
  * - **The mailbox** (13.5) keeps what is posted to it until its owner
  *   removes it or it has been there longer than the host keeps things.
+ * - **The feed** (10.1, 13.1) is the one the mind brings, entry by entry,
+ *   with every record an entry lists. The host holds one entry at each
+ *   position, so a mind whose instances all publish through its host has a
+ *   single writer (10.3).
  *
  * What the host keeps for a mind is bounded, in items and in bytes: anyone
  * can post to a mailbox.
@@ -34,9 +38,24 @@ import {
   type SyncSigner,
   withProofs,
 } from "@oip/core";
-import { latestState, witnessRecord } from "@oip/identity";
+import {
+  type IdentityView,
+  type JudgedRecord,
+  judgeRecord,
+  latestState,
+  ownSignedTime,
+  witnessRecord,
+} from "@oip/identity";
 import { draftAck, receivePacket } from "@oip/net";
-import { cutShort, validateRecordOfType } from "@oip/schema";
+import {
+  cutShort,
+  cutShortCount,
+  type Entry,
+  isRecordType,
+  validateExtensionRecord,
+  validateRecord,
+  validateRecordOfType,
+} from "@oip/schema";
 import { type Database, HttpFailure, type LogArchive, Unavailable } from "@oip/server";
 
 import { HostStore, type MailboxItem } from "./store.ts";
@@ -51,15 +70,20 @@ export interface HostLimits {
   readonly retention: bigint;
   /** How far back the host remembers a packet that states no `expires`, in nanoseconds (12.4). */
   readonly window: bigint;
-  /** The most bytes of records in one page of a drained mailbox. A page holds one item at least. */
+  /** The most bytes of records in one page of a mailbox or of a feed. A page holds one item at least. */
   readonly pageBytes: number;
+  /** The most bytes of records the host serves for one mind by their content IDs. */
+  readonly objectBytes: number;
+  /** The most entries in the feed of one mind. */
+  readonly feedEntries: number;
 }
 
 const DAY = 86_400_000_000_000n;
 
 /**
  * A thousand items and 64 MiB for each mailbox, kept 30 days; an hour's
- * memory of packets; pages of 4 MiB.
+ * memory of packets; pages of 4 MiB; 256 MiB of records and a million feed
+ * entries for each mind.
  */
 export const DEFAULT_HOST_LIMITS: HostLimits = {
   mailboxItems: 1000,
@@ -67,6 +91,8 @@ export const DEFAULT_HOST_LIMITS: HostLimits = {
   retention: 30n * DAY,
   window: 3_600_000_000_000n,
   pageBytes: 4 * 1024 * 1024,
+  objectBytes: 256 * 1024 * 1024,
+  feedEntries: 1_000_000,
 };
 
 /** How a host is made. */
@@ -111,6 +137,46 @@ function refusalOf(
         );
   }
   return new OipError("invalid-record", first.message, options);
+}
+
+/** The logs and the evidence held, with some proofs counted as first seen at `now`. */
+function seenNow(view: IdentityView, digests: ReadonlySet<string>, now: Instant): IdentityView {
+  return {
+    log: (mind) => view.log(mind),
+    evidence: {
+      eventSeen: (id) => view.evidence.eventSeen(id),
+      proofSeen: (digest) =>
+        view.evidence.proofSeen(digest) ?? (digests.has(digest) ? now : undefined),
+    },
+  };
+}
+
+/**
+ * The time a record counts from as its author's own, or `undefined` if it
+ * is not signed by the mind's own authority.
+ *
+ * @throws Unavailable if the check was cut short: that says nothing of the record.
+ */
+function ownTime(judged: JudgedRecord, mind: string, view: IdentityView): Instant | undefined {
+  const before = cutShortCount();
+  const time = ownSignedTime(judged, mind, view);
+  if (time === undefined && cutShortCount() !== before) {
+    throw new Unavailable("the record could not be judged just now");
+  }
+  return time;
+}
+
+/** The problem for a value that is no record of the form asked for. */
+function malformed(
+  refused: { readonly issues: readonly [{ message: string; clause: string }, ...unknown[]] },
+  prefix = "",
+): never {
+  if (refused === cutShort()) throw new Unavailable("the record could not be judged just now");
+  const [first] = refused.issues;
+  throw new OipError("invalid-record", prefix + first.message, {
+    clause: first.clause,
+    issues: refused.issues as never,
+  });
 }
 
 /** A host. */
@@ -240,14 +306,7 @@ export class Host {
       const received = receivePacket(record, {
         address: mind,
         now,
-        view: {
-          log: (other) => view.log(other),
-          evidence: {
-            eventSeen: (id) => view.evidence.eventSeen(id),
-            proofSeen: (digest) =>
-              view.evidence.proofSeen(digest) ?? (digests.has(digest) ? now : undefined),
-          },
-        },
+        view: seenNow(view, digests, now),
         accepted: (id) => this.#store.answered(mind, id) !== undefined,
         window: this.#limits.window,
       });
@@ -287,14 +346,7 @@ export class Host {
     }
     // Its form is checked, and no more: the mind judges what it drains.
     const formed = validateRecordOfType(record.type, record);
-    if (!formed.ok) {
-      if (formed === cutShort()) throw new Unavailable("the record could not be judged just now");
-      const [first] = formed.issues;
-      throw new OipError("invalid-record", first.message, {
-        clause: first.clause,
-        issues: formed.issues,
-      });
-    }
+    if (!formed.ok) malformed(formed);
     const to = (record as { to?: unknown }).to;
     const addressed =
       record.type === "Sealed" ? to === mind : Array.isArray(to) && to.includes(mind);
@@ -329,6 +381,170 @@ export class Host {
   remove(mind: string, cursor: number): boolean {
     this.#served(mind);
     return this.#db.transaction(() => this.#store.remove(mind, cursor));
+  }
+
+  /**
+   * Layer 1, 10.2, 13.1: keeps a record a mind brings, to serve it by its
+   * content ID. A record held already is replaced by the copy brought: a
+   * record gains proofs, and its content ID stays.
+   *
+   * Its form is checked and its proofs are not: a feed may list records
+   * of other minds, whose logs the host need not hold. Whoever fetches the
+   * record judges it.
+   *
+   * @returns The record's content ID, and whether the host did not hold it before.
+   * @throws OipError `not-found` if the host does not serve the mind;
+   *   `invalid-record` for what is no record.
+   * @throws HttpFailure 507 if the mind has no room left.
+   */
+  keep(mind: string, record: OipRecord): { id: string; fresh: boolean } {
+    this.#served(mind);
+    const formed = isRecordType(record.type)
+      ? validateRecord(record)
+      : validateExtensionRecord(record);
+    if (!formed.ok) malformed(formed);
+    const id = contentId(record);
+    return this.#db.transaction(() => {
+      const held = this.#store.objectHeld(mind, id);
+      const bytes = Buffer.byteLength(JSON.stringify(record));
+      if (this.#store.objectBytes(mind) - (held?.bytes ?? 0) + bytes > this.#limits.objectBytes) {
+        throw new HttpFailure(507, "Insufficient Storage");
+      }
+      this.#store.keep(mind, id, record.type, record as unknown as JsonObject);
+      return { id, fresh: held === undefined };
+    });
+  }
+
+  /** Layer 1, 13.1: a record the host serves for a mind by its content ID, if it holds it. */
+  object(mind: string, id: string): JsonObject | undefined {
+    this.#served(mind);
+    return this.#store.object(mind, id);
+  }
+
+  /**
+   * Layer 1, 10.1: adds entries to the feed the host serves for a mind.
+   *
+   * An entry is taken if it is the mind's own (signed by a valid
+   * operational key, judged as first seen now), stands at the end of the
+   * feed held and names the entry before it, and lists a record the host
+   * holds for the mind (10.2). An entry the host holds already is passed
+   * over. All of the entries given are taken, or none.
+   *
+   * The host holds one entry at each position. Another valid entry at a
+   * position it holds is refused, not served beside the first: that would
+   * be feed equivocation (10.3), and a mind that publishes through its
+   * host is kept from it. If the entry held there no longer verifies, as
+   * after its key was declared compromised (10.4), it and what follows it
+   * are dropped, and the feed goes on with the entry given.
+   *
+   * @returns How many entries were added.
+   * @throws OipError `not-found` if the host does not serve the mind;
+   *   `invalid-record` for a value that is no entry of the mind's, that
+   *   does not stand at the end of the feed, or that lists a record the
+   *   host does not hold; `invalid-proof` for one the mind did not sign;
+   *   `duplicity` for one at a position where the host holds another.
+   * @throws HttpFailure 507 if the feed is as long as the host keeps one.
+   */
+  append(mind: string, entries: readonly unknown[]): number {
+    this.#served(mind);
+    return this.#archive.witnessing((seen, now) => {
+      const view = this.#archive.view(now);
+      let added = 0;
+      for (const [index, value] of entries.entries()) {
+        const where = `entry ${index}: `;
+        const judged = judgeRecord(value);
+        if (!judged.ok) malformed(judged, where);
+        const { type, author } = judged.value.record as { type: string; author?: unknown };
+        if (type !== "Entry" || author !== mind) {
+          throw new OipError("invalid-record", `${where}it is no entry of this mind's feed`, {
+            clause: "L1 10.1",
+          });
+        }
+        const entry = judged.value.record as Entry;
+        const id = contentId(entry);
+        if (this.#store.entryAt(mind, entry.seq)?.id === id) continue;
+        const digests = new Set(judged.value.proofs.map((proof) => proof.digest));
+        if (ownTime(judged.value, mind, seenNow(view, digests, now)) === undefined) {
+          throw new OipError(
+            "invalid-proof",
+            `${where}it is not signed by a valid operational key of the mind`,
+            { clause: "L1 10.1" },
+          );
+        }
+        const length = this.#length(mind, entry.seq, view, where);
+        if (entry.seq !== length) {
+          throw new OipError(
+            "invalid-record",
+            `${where}the feed held here has ${length} entries, and the next is at seq ${length}`,
+            { clause: "L1 10.1" },
+          );
+        }
+        if (entry.seq > 0 && this.#store.entryAt(mind, entry.seq - 1)?.id !== entry.prev) {
+          throw new OipError("invalid-record", `${where}it does not name the entry before it`, {
+            clause: "L1 10.1",
+          });
+        }
+        if (this.#store.objectHeld(mind, entry.object)?.type !== entry.objectType) {
+          throw new OipError(
+            "invalid-record",
+            `${where}the host holds no ${entry.objectType} record with the content ID it lists: bring the record first`,
+            { clause: "L1 10.2" },
+          );
+        }
+        if (length >= this.#limits.feedEntries) throw new HttpFailure(507, "Insufficient Storage");
+        witnessRecord(judged.value, now, seen);
+        this.#store.append(mind, entry.seq, id, judged.value.record as unknown as JsonObject);
+        added++;
+      }
+      return added;
+    });
+  }
+
+  /**
+   * How long a mind's feed is for an entry given at `seq`: as long as it
+   * is held, unless the entry held at `seq` no longer verifies. Then the
+   * feed ends before it (10.4).
+   *
+   * @throws OipError `duplicity` if the entry held at `seq` is valid.
+   */
+  #length(mind: string, seq: number, view: IdentityView, where: string): number {
+    const length = this.#store.feedLength(mind);
+    const held = seq < length ? this.#store.entryAt(mind, seq) : undefined;
+    if (held === undefined) return length;
+    const judged = judgeRecord(held.entry);
+    if (!judged.ok && judged === cutShort()) {
+      throw new Unavailable("the feed could not be judged just now");
+    }
+    if (judged.ok && ownTime(judged.value, mind, view) !== undefined) {
+      throw new OipError(
+        "duplicity",
+        `${where}the feed holds another valid entry at seq ${seq}, and a feed has one at each (10.3)`,
+        { clause: "L1 10.3" },
+      );
+    }
+    this.#store.truncate(mind, seq);
+    return seq;
+  }
+
+  /**
+   * Layer 1, 13.1: a page of a mind's feed.
+   *
+   * @param after - The `seq` of the last entry the reader has, or
+   *   `undefined` to start at `seq` 0.
+   * @returns The entries in order, and what to pass as `after` next if there are more.
+   */
+  feed(
+    mind: string,
+    after: number | undefined,
+    limit: number,
+  ): { entries: JsonObject[]; next?: number } {
+    this.#served(mind);
+    const from = after === undefined ? 0 : after + 1;
+    const entries = this.#store.entriesFrom(mind, from, limit, this.#limits.pageBytes);
+    const last = from + entries.length - 1;
+    return entries.length > 0 && last + 1 < this.#store.feedLength(mind)
+      ? { entries, next: last }
+      : { entries };
   }
 
   /**

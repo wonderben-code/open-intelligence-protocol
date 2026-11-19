@@ -355,6 +355,258 @@ describe(`${clause("L1 13.5")} a mind's mailbox`, () => {
   });
 });
 
+type Signed = JsonObject & { proof: JsonObject[] };
+
+/** An entry of a mind's feed, not yet signed: at `seq`, after `prev`, publishing `object`. */
+function draft(
+  author: Mind,
+  seq: number,
+  prev: object | undefined,
+  object: Signed,
+  seconds: number,
+): JsonObject {
+  return {
+    oip: "1",
+    type: "Entry",
+    author: author.address,
+    seq,
+    ...(prev === undefined ? {} : { prev: contentId(prev) }),
+    created: T(seconds),
+    object: contentId(object),
+    objectType: object["type"] as string,
+    proofs: object.proof.map((proof) => proofDigest(proof as never)),
+  };
+}
+
+describe(`${clause("L1 10.2", "L1 13.1")} the records a host serves for a mind`, () => {
+  it("are those the mind brings, each by its content ID, in the copy brought last", () => {
+    const host = hosting();
+    const intent = bob.sign(intentBy(bob, 100)) as unknown as OipRecord;
+    const id = contentId(intent);
+    expect(host.object(bob.address, id)).toBeUndefined();
+    expect(host.keep(bob.address, intent)).toStrictEqual({ id, fresh: true });
+    expect(host.object(bob.address, id)).toStrictEqual(intent);
+    // The same record with another proof is the same record (core 3.1).
+    const cosigned = {
+      ...intent,
+      proof: [
+        ...(intent as never as Signed).proof,
+        ...(ada.sign(intentBy(bob, 100)) as Signed).proof,
+      ],
+    };
+    expect(host.keep(bob.address, cosigned as unknown as OipRecord)).toStrictEqual({
+      id,
+      fresh: false,
+    });
+    expect(host.object(bob.address, id)).toStrictEqual(cosigned);
+    expect(count("objects")).toBe(1);
+    // A record of another mind's, whose proofs the host does not judge.
+    const others = eve.sign(intentBy(eve, 100), {}) as unknown as OipRecord;
+    expect(host.keep(bob.address, others).fresh).toBe(true);
+    // What one mind brought is not served for another.
+    host.adopt(eve.address);
+    expect(host.object(eve.address, id)).toBeUndefined();
+  });
+
+  it("are records in form, for a mind the host serves, within the room it has", () => {
+    const host = hosting({ limits: { objectBytes: 1200 } });
+    const intent = bob.sign(intentBy(bob, 100)) as unknown as OipRecord;
+    expect(refused(() => host.keep(ada.address, intent))).toStrictEqual({ code: "not-found" });
+    expect(refused(() => host.object(ada.address, contentId(intent)))).toStrictEqual({
+      code: "not-found",
+    });
+    const unformed = { ...intent, want: 7 } as unknown as OipRecord;
+    expect(refused(() => host.keep(bob.address, unformed))).toStrictEqual({
+      code: "invalid-record",
+    });
+    // A record of a type an extension defines is held by what it shares with every record.
+    const extension = {
+      oip: "1",
+      type: "example.org/Thing",
+      author: bob.address,
+      created: T(100),
+      critical: ["example.org"],
+      ext: { "example.org": { colour: "green" } },
+    };
+    expect(host.keep(bob.address, extension as unknown as OipRecord).fresh).toBe(true);
+    expect(
+      refused(() => host.keep(bob.address, { ...extension, oip: "2" } as unknown as OipRecord)),
+    ).toStrictEqual({ code: "invalid-record" });
+    host.keep(bob.address, intent);
+    // The copy that replaces one counts in its place, not beside it.
+    host.keep(bob.address, intent);
+    const more = bob.sign(intentBy(bob, 101, { want: "x".repeat(600) })) as unknown as OipRecord;
+    expect(refused(() => host.keep(bob.address, more))).toStrictEqual({ status: 507 });
+    expect(count("objects")).toBe(2);
+  });
+});
+
+describe(`${clause("L1 10.1", "L1 13.1")} the feed a host serves for a mind`, () => {
+  const published = [1, 2, 3].map(
+    (n) => bob.sign(intentBy(bob, n, { want: `Thing ${n}.` })) as Signed,
+  );
+  const first = bob.sign(draft(bob, 0, undefined, published[0]!, 10)) as Signed;
+  const second = bob.sign(draft(bob, 1, first, published[1]!, 20)) as Signed;
+  const third = bob.sign(draft(bob, 2, second, published[2]!, 30)) as Signed;
+
+  function feeding(more: Partial<HostOptions> = {}): Host {
+    const host = hosting(more);
+    for (const record of published) host.keep(bob.address, record as unknown as OipRecord);
+    return host;
+  }
+
+  it("is the entries the mind brings, in order, a page at a time", () => {
+    const host = feeding();
+    expect(host.feed(bob.address, undefined, 10)).toStrictEqual({ entries: [] });
+    expect(host.append(bob.address, [first, second])).toBe(2);
+    expect(host.append(bob.address, [third])).toBe(1);
+    expect(host.feed(bob.address, undefined, 10)).toStrictEqual({
+      entries: [first, second, third],
+    });
+    expect(host.feed(bob.address, undefined, 2)).toStrictEqual({
+      entries: [first, second],
+      next: 1,
+    });
+    // `after` is exclusive.
+    expect(host.feed(bob.address, 0, 1)).toStrictEqual({ entries: [second], next: 1 });
+    expect(host.feed(bob.address, 1, 5)).toStrictEqual({ entries: [third] });
+    expect(host.feed(bob.address, 2, 5)).toStrictEqual({ entries: [] });
+    // The proofs on the entries were first seen when they were brought.
+    expect(
+      seenProofs()
+        .map((seen) => seen.digest)
+        .sort(),
+    ).toStrictEqual(
+      [first, second, third].map((entry) => proofDigest(entry.proof[0] as never)).sort(),
+    );
+    // An entry the host holds is passed over, and with it what follows is taken.
+    expect(host.append(bob.address, [first, second, third])).toBe(0);
+    expect(refused(() => host.feed(ada.address, undefined, 10))).toStrictEqual({
+      code: "not-found",
+    });
+  });
+
+  it("is bounded in the bytes of a page, which holds one entry at least", () => {
+    const host = feeding({ limits: { pageBytes: 10 } });
+    host.append(bob.address, [first, second, third]);
+    expect(host.feed(bob.address, undefined, 10)).toStrictEqual({ entries: [first], next: 0 });
+    expect(host.feed(bob.address, 1, 10)).toStrictEqual({ entries: [third] });
+  });
+
+  it("takes all the entries brought or none, and leaves no trace of those refused", () => {
+    const host = feeding();
+    const cases: [string, unknown[], object][] = [
+      ["an entry that is no record", [first, { ...second, seq: "1" }], { code: "invalid-record" }],
+      ["another record", [first, published[0]], { code: "invalid-record" }],
+      [
+        "another mind's entry",
+        [ada.sign(draft(ada, 0, undefined, published[0]!, 10))],
+        { code: "invalid-record" },
+      ],
+      [
+        "an entry the mind did not sign",
+        [first, eve.sign(draft(bob, 1, first, published[1]!, 20))],
+        { code: "invalid-proof" },
+      ],
+      [
+        "an entry whose proof does not verify",
+        [{ ...first, proof: [{ ...first.proof[0], created: T(11) }] }],
+        { code: "invalid-proof" },
+      ],
+      ["an entry ahead of the feed", [first, third], { code: "invalid-record" }],
+      [
+        "an entry that names another before it",
+        [first, bob.sign(draft(bob, 1, second, published[1]!, 20))],
+        { code: "invalid-record" },
+      ],
+      [
+        "an entry that lists a record the host does not hold",
+        [first, bob.sign(draft(bob, 1, first, bob.sign(intentBy(bob, 9)) as Signed, 20))],
+        { code: "invalid-record" },
+      ],
+      [
+        "an entry that lists a record as of another type",
+        [bob.sign({ ...draft(bob, 0, undefined, published[0]!, 10), objectType: "Offer" })],
+        { code: "invalid-record" },
+      ],
+    ];
+    for (const [name, entries, problem] of cases) {
+      expect(
+        refused(() => host.append(bob.address, entries)),
+        name,
+      ).toStrictEqual(problem);
+      expect(host.feed(bob.address, undefined, 10), name).toStrictEqual({ entries: [] });
+      expect(count("seen_proofs"), name).toBe(0);
+    }
+    expect(refused(() => host.append(ada.address, [first]))).toStrictEqual({ code: "not-found" });
+    // The host goes on as before.
+    expect(host.append(bob.address, [first, second])).toBe(2);
+  });
+
+  it(`${clause("L1 10.3")} holds one entry at each position, and refuses another`, () => {
+    const host = feeding();
+    host.append(bob.address, [first, second]);
+    const other = bob.sign(draft(bob, 1, first, published[2]!, 25)) as Signed;
+    expect(refused(() => host.append(bob.address, [other]))).toStrictEqual({ code: "duplicity" });
+    const restart = bob.sign(draft(bob, 0, undefined, published[2]!, 25)) as Signed;
+    expect(refused(() => host.append(bob.address, [restart, third]))).toStrictEqual({
+      code: "duplicity",
+    });
+    expect(host.feed(bob.address, undefined, 10)).toStrictEqual({ entries: [first, second] });
+    expect(count("seen_proofs")).toBe(2);
+    expect(host.append(bob.address, [third])).toBe(1);
+  });
+
+  it(`${clause("L1 10.4")} goes on from the last valid entry after a key is declared compromised`, () => {
+    // Eve's first entry is brought at 10. A thief with her key brings a second at 30. At
+    // 300 she replaces the key and declares it compromised since 20, and goes on from
+    // her first entry with the new key.
+    const eve = new KeyMind("eve");
+    const made = eve.sign(intentBy(eve, 5)) as Signed;
+    const own = eve.sign(draft(eve, 0, undefined, made, 10)) as Signed;
+    const thiefs = eve.sign(draft(eve, 1, own, made, 30)) as Signed;
+    const after = eve.sign(draft(eve, 2, thiefs, made, 40)) as Signed;
+    clock.at = at(10);
+    const host = hosting();
+    host.adopt(eve.address);
+    host.keep(eve.address, made as unknown as OipRecord);
+    host.append(eve.address, [own]);
+    clock.at = at(30);
+    host.append(eve.address, [thiefs]);
+    clock.at = at(40);
+    host.append(eve.address, [after]);
+    eve.update(300, {
+      keys: [{ key: eve.operational(1).publicKey }],
+      revoked: [{ key: eve.operational(0).publicKey, compromisedSince: T(20) }],
+    });
+    const resumed = eve.sign(draft(eve, 1, own, made, 310), { key: 1 }) as Signed;
+    // Until the declaration is known here, the thief's entry is as good as any.
+    clock.at = at(310);
+    expect(refused(() => host.append(eve.address, [resumed]))).toStrictEqual({
+      code: "invalid-proof",
+    });
+    archive.publish(mindId(eve.address) ?? "", {
+      oip: "1",
+      type: "Bundle",
+      mind: eve.address,
+      log: eve.events,
+    } as unknown as Bundle);
+    // Once it is, that entry is no entry: it and what stood on it go, and the feed goes on.
+    expect(host.append(eve.address, [resumed])).toBe(1);
+    expect(host.feed(eve.address, undefined, 10)).toStrictEqual({ entries: [own, resumed] });
+    // What the key signed before that time stands, and is not replaced.
+    const again = eve.sign(draft(eve, 0, undefined, made, 320), { key: 1 }) as Signed;
+    expect(refused(() => host.append(eve.address, [again]))).toStrictEqual({ code: "duplicity" });
+  });
+
+  it("is as long as the host keeps one, and no longer", () => {
+    const host = feeding({ limits: { feedEntries: 2 } });
+    host.append(bob.address, [first, second]);
+    expect(refused(() => host.append(bob.address, [third]))).toStrictEqual({ status: 507 });
+    expect(host.feed(bob.address, undefined, 10).entries).toHaveLength(2);
+  });
+});
+
 describe("a host that has restarted", () => {
   it("serves the same minds, holds their mail, and answers a packet as it did", () => {
     let host = hosting({ signer: () => bob.operational() });

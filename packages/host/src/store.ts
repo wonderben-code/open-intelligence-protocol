@@ -3,8 +3,9 @@
 
 /**
  * What a host keeps besides its archive of identity logs: the minds it
- * serves, the packets it has accepted for each and what it answered, and
- * each mind's mailbox (Layer 1, 13.2, 13.5).
+ * serves, the packets it has accepted for each and what it answered, each
+ * mind's mailbox (Layer 1, 13.2, 13.5), and the feed and the records it
+ * serves for each (10.1, 13.1).
  */
 
 import type { Instant, JsonObject } from "@oip/core";
@@ -17,13 +18,15 @@ CREATE INDEX accepted_until ON accepted (until);
 CREATE TABLE mailbox (cursor INTEGER PRIMARY KEY AUTOINCREMENT, mind TEXT NOT NULL, id TEXT NOT NULL, record TEXT NOT NULL, received INTEGER NOT NULL, bytes INTEGER NOT NULL) STRICT;
 CREATE UNIQUE INDEX mailbox_once ON mailbox (mind, id);
 CREATE INDEX mailbox_received ON mailbox (received);
+CREATE TABLE objects (mind TEXT NOT NULL, id TEXT NOT NULL, type TEXT NOT NULL, record TEXT NOT NULL, bytes INTEGER NOT NULL, PRIMARY KEY (mind, id)) STRICT, WITHOUT ROWID;
+CREATE TABLE feed (mind TEXT NOT NULL, seq INTEGER NOT NULL, id TEXT NOT NULL, entry TEXT NOT NULL, PRIMARY KEY (mind, seq)) STRICT, WITHOUT ROWID;
 `;
 
 /** The migrations of a host's database. */
 export const HOST_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
-    name: "logs, nonces, hosted minds, accepted packets and mailboxes",
+    name: "logs, nonces, hosted minds, accepted packets, mailboxes, objects and feeds",
     sql: [ARCHIVE_SQL, NONCES_SQL, TABLES].join("\n"),
   },
 ];
@@ -148,5 +151,88 @@ export class HostStore {
     const mail = this.#db.prepare("DELETE FROM mailbox WHERE received < ?").run(kept).changes;
     const packets = this.#db.prepare("DELETE FROM accepted WHERE until < ?").run(now).changes;
     return Number(mail) + Number(packets);
+  }
+
+  /** A record the host serves for a mind by its content ID, if it holds it. */
+  object(mind: string, id: string): JsonObject | undefined {
+    const row = this.#db
+      .prepare("SELECT record FROM objects WHERE mind = ? AND id = ?")
+      .get(mind, id) as { record: string } | undefined;
+    return row === undefined ? undefined : (JSON.parse(row.record) as JsonObject);
+  }
+
+  /** The type and the size of a record held for a mind, if it is held. */
+  objectHeld(mind: string, id: string): { type: string; bytes: number } | undefined {
+    return this.#db
+      .prepare("SELECT type, bytes FROM objects WHERE mind = ? AND id = ?")
+      .get(mind, id) as { type: string; bytes: number } | undefined;
+  }
+
+  /** How many bytes of records the host holds for a mind. */
+  objectBytes(mind: string): number {
+    return (
+      this.#db
+        .prepare("SELECT COALESCE(SUM(bytes), 0) AS bytes FROM objects WHERE mind = ?")
+        .get(mind) as { bytes: number }
+    ).bytes;
+  }
+
+  /** Keeps a record for a mind, in place of the copy held before if there was one. */
+  keep(mind: string, id: string, type: string, record: JsonObject): void {
+    const text = JSON.stringify(record);
+    this.#db
+      .prepare(
+        "INSERT INTO objects (mind, id, type, record, bytes) VALUES (?, ?, ?, ?, ?) ON CONFLICT (mind, id) DO UPDATE SET record = excluded.record, bytes = excluded.bytes",
+      )
+      .run(mind, id, type, text, Buffer.byteLength(text));
+  }
+
+  /** How many entries the feed held for a mind has: the `seq` of the next. */
+  feedLength(mind: string): number {
+    return (
+      this.#db
+        .prepare("SELECT COALESCE(MAX(seq) + 1, 0) AS length FROM feed WHERE mind = ?")
+        .get(mind) as { length: number }
+    ).length;
+  }
+
+  /** The entry of a mind's feed at a position, if the host holds one there. */
+  entryAt(mind: string, seq: number): { id: string; entry: JsonObject } | undefined {
+    const row = this.#db
+      .prepare("SELECT id, entry FROM feed WHERE mind = ? AND seq = ?")
+      .get(mind, seq) as { id: string; entry: string } | undefined;
+    return row === undefined
+      ? undefined
+      : { id: row.id, entry: JSON.parse(row.entry) as JsonObject };
+  }
+
+  /** Adds an entry to a mind's feed. */
+  append(mind: string, seq: number, id: string, entry: JsonObject): void {
+    this.#db
+      .prepare("INSERT INTO feed (mind, seq, id, entry) VALUES (?, ?, ?, ?)")
+      .run(mind, seq, id, JSON.stringify(entry));
+  }
+
+  /** Drops the entries of a mind's feed from a position on. */
+  truncate(mind: string, from: number): void {
+    this.#db.prepare("DELETE FROM feed WHERE mind = ? AND seq >= ?").run(mind, from);
+  }
+
+  /**
+   * The entries of a mind's feed from a position on, in order: at most
+   * `limit` of them, and no more after the one that brings them to `maxBytes`.
+   */
+  entriesFrom(mind: string, from: number, limit: number, maxBytes: number): JsonObject[] {
+    const rows = this.#db
+      .prepare("SELECT entry FROM feed WHERE mind = ? AND seq >= ? ORDER BY seq LIMIT ?")
+      .iterate(mind, from, limit) as Iterable<{ entry: string }>;
+    const entries: JsonObject[] = [];
+    let bytes = 0;
+    for (const row of rows) {
+      entries.push(JSON.parse(row.entry) as JsonObject);
+      bytes += Buffer.byteLength(row.entry);
+      if (bytes >= maxBytes) break;
+    }
+    return entries;
   }
 }

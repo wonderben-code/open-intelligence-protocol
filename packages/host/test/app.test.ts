@@ -601,6 +601,137 @@ describe(`${clause("L1 13.1", "L1 13.3")} a mind that brings its bundle to a hos
   });
 });
 
+describe(`${clause("L1 10.2", "L1 13.1")} the feed and the records a mind brings to its host`, () => {
+  type Signed = JsonObject & { proof: JsonObject[] };
+  const published = [1, 2].map(
+    (n) => bob.sign(intentBy(bob, n, { want: `Thing ${n}.` })) as Signed,
+  );
+  const entry = (
+    seq: number,
+    prev: object | undefined,
+    object: Signed,
+    seconds = 100 + seq,
+  ): Signed =>
+    bob.sign({
+      oip: "1",
+      type: "Entry",
+      author: bob.address,
+      seq,
+      ...(prev === undefined ? {} : { prev: contentId(prev) }),
+      created: T(seconds),
+      object: contentId(object),
+      objectType: "Intent",
+    }) as Signed;
+  const first = entry(0, undefined, published[0]!);
+  const second = entry(1, first, published[1]!);
+  const pageOf = (entries: unknown[], mind: Mind = bob): JsonObject => ({
+    oip: "1",
+    type: "FeedPage",
+    mind: mind.address,
+    entries: entries as JsonObject[],
+  });
+  const object = (record: object, mind: Mind = bob): string =>
+    endpoint(mind, `/obj/${contentId(record)}`);
+
+  it("are served once the mind itself has brought them", async () => {
+    const { ask } = service();
+    const feed = endpoint(bob, "/feed");
+    // A record: not signed for, signed for by another, and under another name.
+    const path = object(published[0]!);
+    expect((await problemOf(await ask(path, sending(published[0], "PUT")))).status).toBe(401);
+    expect(
+      (await problemOf(await ask(path, await signed(ada, "PUT", path, published[0])))).status,
+    ).toBe(403);
+    const misnamed = object(published[1]!);
+    expect(
+      await problemOf(await ask(misnamed, await signed(bob, "PUT", misnamed, published[0]))),
+    ).toStrictEqual({
+      status: 400,
+      type: "urn:oip:error:invalid-record",
+    });
+    expect((await ask(wellKnown(bob, `/obj/${contentId(published[0]!)}`))).status).toBe(404);
+    for (const [record, status] of [
+      [published[0]!, 201],
+      [published[1]!, 201],
+      [published[0]!, 200],
+    ] as const) {
+      const kept = await ask(object(record), await signed(bob, "PUT", object(record), record));
+      expect([kept.status, await kept.json()]).toStrictEqual([status, { stored: true }]);
+    }
+    const served = await ask(wellKnown(bob, `/obj/${contentId(published[0]!)}`));
+    expect(served.status).toBe(200);
+    expect(served.headers.get("content-type")).toBe(MEDIA_TYPE);
+    expect(await served.json()).toStrictEqual(published[0]);
+    expect((await ask(wellKnown(bob, "/obj/nothing"))).status).toBe(404);
+    expect((await ask(wellKnown(ada, `/obj/${contentId(published[0]!)}`))).status).toBe(404);
+
+    // The entries that list them: not signed for, signed for by another, then brought.
+    expect((await problemOf(await ask(feed, sending(pageOf([first]))))).status).toBe(401);
+    expect(
+      (await problemOf(await ask(feed, await signed(ada, "POST", feed, pageOf([first]))))).status,
+    ).toBe(403);
+    const added = await ask(feed, await signed(bob, "POST", feed, pageOf([first, second])));
+    expect([added.status, await added.json()]).toStrictEqual([200, { added: 2 }]);
+    const again = await ask(feed, await signed(bob, "POST", feed, pageOf([first, second])));
+    expect(await again.json()).toStrictEqual({ added: 0 });
+
+    const page = async (query: string) => {
+      const response = await ask(wellKnown(bob, `/feed${query}`));
+      expect(response.status, query).toBe(200);
+      expect(response.headers.get("content-type")).toBe(MEDIA_TYPE);
+      // What is served is a record a client's reader takes.
+      const parsed = parseRecord(await response.text());
+      if (!parsed.ok) throw new Error(JSON.stringify(parsed.issues));
+      const { type, mind, entries, next } = parsed.value as unknown as {
+        type: string;
+        mind: string;
+        entries: unknown[];
+        next?: number;
+      };
+      expect([type, mind]).toStrictEqual(["FeedPage", bob.address]);
+      return { entries, next };
+    };
+    expect(await page("")).toStrictEqual({ entries: [first, second], next: undefined });
+    expect(await page("?limit=1")).toStrictEqual({ entries: [first], next: 0 });
+    expect(await page("?after=0")).toStrictEqual({ entries: [second], next: undefined });
+    expect(await page("?after=1")).toStrictEqual({ entries: [], next: undefined });
+    for (const query of ["?after=x", "?limit=0", "?after=-1"]) {
+      expect((await ask(wellKnown(bob, `/feed${query}`))).status, query).toBe(400);
+    }
+    expect((await ask(wellKnown(ada, "/feed"))).status).toBe(404);
+  });
+
+  it("are refused when they are not the mind's to bring so, each with its problem", async () => {
+    const { ask } = service();
+    const feed = endpoint(bob, "/feed");
+    const bring = async (record: unknown, path = feed) =>
+      problemOf(await ask(path, await signed(bob, "POST", path, record)));
+    const invalid = { status: 400, type: "urn:oip:error:invalid-record" };
+    // No page of entries, a page of another mind's, and an entry whose record is not held.
+    expect(await bring(first)).toStrictEqual(invalid);
+    expect(await bring(pageOf([first], ada))).toStrictEqual(invalid);
+    expect(await bring({ ...pageOf([first]), entries: "all" })).toStrictEqual(invalid);
+    expect(await bring(pageOf([first]))).toStrictEqual(invalid);
+    const kept = object(published[0]!);
+    await ask(kept, await signed(bob, "PUT", kept, published[0]));
+    expect((await ask(feed, await signed(bob, "POST", feed, pageOf([first])))).status).toBe(200);
+    // Another entry where the host holds one (10.3).
+    const conflicting = entry(0, undefined, published[0]!, 200);
+    expect(await bring(pageOf([conflicting]))).toStrictEqual({
+      status: 409,
+      type: "urn:oip:error:duplicity",
+    });
+    // A mind the host does not serve has no feed here, and nothing to bring it to.
+    const elsewhere = endpoint(ada, "/feed");
+    expect(
+      (await ask(elsewhere, await signed(ada, "POST", elsewhere, pageOf([], ada)))).status,
+    ).toBe(404);
+    const another = object(published[0]!, ada);
+    expect((await ask(another, await signed(ada, "PUT", another, published[0]))).status).toBe(404);
+    expect((await ask(feed, sending(pageOf([first]), "POST", "text/plain"))).status).toBe(415);
+  });
+});
+
 describe("what a host asks of its clients", () => {
   it("limits what one address delivers, reads and signs for, each apart", async () => {
     const tight = (): RateLimiter => new RateLimiter({ burst: 2, perMinute: 6 }, clock);

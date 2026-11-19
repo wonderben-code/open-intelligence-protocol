@@ -34,7 +34,6 @@ import {
   type JsonObject,
   OipError,
   type OipRecord,
-  proofDigest,
   type SyncSigner,
   withProofs,
 } from "@oip/core";
@@ -128,17 +127,21 @@ function refusalOf(
 ): OipError {
   const [first] = issues;
   const options = { clause: first.clause, issues: issues as never };
-  if (first.path.endsWith("/to")) return new OipError("forbidden", first.message, options);
+  // Addressed to another, or forwarded by a broker the packet does not name (18.5).
+  if (/\/(?:to|brokers)$/u.test(first.path)) {
+    return new OipError("forbidden", first.message, options);
+  }
   if (/\/(?:created|expires)$/u.test(first.path)) {
     return new OipError("expired", first.message, options);
   }
   if (first.path.endsWith("/proof")) {
-    // Without the sender's log the host cannot tell a forgery from a stranger.
+    // Without the logs of the sender and of its broker, the host cannot tell a forgery
+    // from a stranger.
     return senderKnown
       ? new OipError("invalid-proof", first.message, options)
       : new OipError(
           "stale-version",
-          "the host holds no log of the packet's sender that verifies, so it cannot judge the packet's proof",
+          "the host holds no log that verifies of the packet's sender, or of the broker that forwarded it, so it cannot judge their proofs",
           options,
         );
   }
@@ -155,6 +158,29 @@ function malformed(
     clause: first.clause,
     issues: refused.issues as never,
   });
+}
+
+/** A record of first sight that notes which proofs were recorded in it. */
+class Noted extends FirstSeen {
+  readonly proofs: string[] = [];
+
+  override sawProof(digest: string, at: Instant): Instant {
+    this.proofs.push(digest);
+    return super.sawProof(digest, at);
+  }
+}
+
+/**
+ * The minds whose logs a record at an inbox is judged by: the sender of
+ * the packet, and the broker if one forwarded it (Layer 1, 18.5). What is
+ * no address is left out.
+ */
+export function partiesOf(record: OipRecord): string[] {
+  const { from, broker, packet } = record as { from?: unknown; broker?: unknown; packet?: unknown };
+  const carried = typeof packet === "object" && packet !== null ? packet : {};
+  return [from, broker, (carried as { from?: unknown }).from].filter(
+    (party) => typeof party === "string",
+  );
 }
 
 /** A host. */
@@ -254,51 +280,45 @@ export class Host {
   /**
    * Layer 1, 13.2: a record that arrives at a mind's inbox.
    *
-   * @param record - A `Packet` or a `Sealed` record, already read.
+   * @param record - A `Packet`, a `Forwarded` record that carries one from a
+   *   broker (18.5), or a `Sealed` record, already read.
    * @returns What to answer with `202`: an `Ack`, or `{ "stored": true }`.
    * @throws OipError `not-found` if the host does not serve the mind;
    *   `forbidden` for a record addressed to another; `expired`,
    *   `invalid-proof` or `invalid-record` for a packet that 12.4 does not
    *   let a recipient accept; `stale-version` if the host cannot judge the
-   *   packet because it holds no log of its sender.
+   *   packet because it holds no log of its sender or of its broker.
    * @throws HttpFailure 507 if the mind's mailbox is full.
    * @throws Unavailable if the judging was cut short.
    */
   deliver(mind: string, record: OipRecord): Answer {
     this.#served(mind);
     if (record.type === "Sealed") return this.post(mind, record);
-    const shown = (record as { proof?: unknown }).proof;
-    const digests = new Set(
-      (Array.isArray(shown) ? shown : []).flatMap((proof) => {
-        try {
-          return [proofDigest(proof as never)];
-        } catch {
-          return [];
-        }
-      }),
-    );
     return this.#archive.witnessing((seen, now) => {
       const view = this.#archive.view(now);
-      // Judged as it will be once its proofs are recorded as seen now. They are recorded
-      // only if the packet is kept: one that is refused leaves nothing behind.
+      // Judged with its proofs, and those of a broker's wrapper, noted as first seen now.
+      // The note becomes the archive's only if the packet is kept: one that is refused
+      // leaves nothing behind.
+      const noted = new Noted();
       const received = standing(() =>
         receivePacket(record, {
           address: mind,
           now,
-          view: overlaid(view, seenAt(digests, now)),
+          seen: noted,
+          view: overlaid(view, (digest) => noted.proofSeen(digest)),
           accepted: (id) => this.#store.answered(mind, id) !== undefined,
           window: this.#limits.window,
         }),
       );
       if (!received.ok) {
-        const from = (record as { from?: unknown }).from;
-        throw refusalOf(received.issues, typeof from === "string" && view.log(from).ok);
+        const known = partiesOf(record).every((party) => view.log(party).ok);
+        throw refusalOf(received.issues, known);
       }
-      const { id, duplicate, forgetAfter, judged } = received.value;
+      const { id, duplicate, forgetAfter } = received.value;
       // It is a duplicate because an answer is held for it.
       if (duplicate) return kept(this.#store.answered(mind, id), "the answer to a packet");
       this.#room(mind, record as unknown as JsonObject);
-      witnessRecord(judged, now, seen);
+      for (const digest of noted.proofs) seen.sawProof(digest, now);
       const answer = this.#acknowledged(mind, received.value, now) ?? STORED;
       this.#put(mind, id, record as unknown as JsonObject, now);
       this.#store.accept(mind, id, forgetAfter, answer);

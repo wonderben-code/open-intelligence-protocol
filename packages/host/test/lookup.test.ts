@@ -313,6 +313,27 @@ describe(`${clause("L1 13.2")} a packet whose sender the host cannot judge`, () 
     });
   });
 
+  it(`${clause("L1 18.5")} is judged again once the log of the broker that forwarded it is learned`, async () => {
+    const yan = new KeyMind("yan");
+    const asked = packet(ada, [], { to: { query: { want: "A translator." } } });
+    const wrapped = yan.sign({
+      oip: "1",
+      type: "Forwarded",
+      broker: yan.address,
+      to: bob.address,
+      packet: asked,
+      created: T(105),
+    }) as unknown as OipRecord;
+    await expect(deliverLearning(host, lookup(), bob.address, wrapped)).rejects.toMatchObject({
+      code: "stale-version",
+    });
+    clock.at = at(200);
+    served.set(urlOf(FIRST, yan), ok(bundleOf(yan)));
+    expect(await deliverLearning(host, lookup(), bob.address, wrapped)).toStrictEqual({
+      stored: true,
+    });
+  });
+
   it("is taken at the inbox and over a socket the same way", async () => {
     served.set(urlOf(FIRST, zed), ok(bundleOf(zed)));
     const generous = (): RateLimiter => new RateLimiter({ burst: 1000, perMinute: 60_000 }, clock);

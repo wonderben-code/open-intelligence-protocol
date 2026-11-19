@@ -15,6 +15,7 @@ export {
   Host,
   type HostLimits,
   type HostOptions,
+  partiesOf,
 } from "./host.ts";
 export { deliverLearning, Lookup, type LookupOptions } from "./lookup.ts";
 export { type Edges, PREFIX, type Running, SETTINGS, start } from "./main.ts";

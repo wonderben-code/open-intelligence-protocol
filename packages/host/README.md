@@ -40,18 +40,18 @@ It stops in order on `SIGTERM` or `SIGINT`: its sockets close with code 1001, wh
 
 A mind `M` whose genesis has the content ID `m` (its address without `did:oip:`) is served at these URLs. Errors are RFC 9457 problem details with the types of core 10.2.
 
-| Request                                                  | Answer                                                                                                                                |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /.well-known/oip/mind/m`                            | The mind's `Bundle`: its log, its current location record and profile, and `firstSeen` (13.1)                                         |
-| `GET /.well-known/oip/mind/m/log?after=<seq>&limit=<n>`  | A `LogPage`                                                                                                                           |
-| `GET /.well-known/oip/mind/m/feed?after=<seq>&limit=<n>` | A `FeedPage` of the mind's public feed                                                                                                |
-| `GET /.well-known/oip/mind/m/obj/<contentId>`            | A record the mind's feed lists                                                                                                        |
-| `POST /oip/v1/minds/m/inbox`                             | `202` with `{ "stored": true }`, or with the mind's `Ack` if the host signs for it (13.2). The same packet again gets the same answer |
-| `GET /oip/v1/minds/m/ws`                                 | The WebSocket of 13.4, with the subprotocol `oip.v1`                                                                                  |
-| `POST /oip/v1/minds/m/mailbox`                           | `202` with `{ "stored": true }` (13.5). `507` if the mailbox is full                                                                  |
-| `GET /oip/v1/minds/m/mailbox?after=<cursor>&limit=<n>`   | `{ "items": [{ "cursor", "record" }], "next" }`, for a request the mind signed (13.3)                                                 |
-| `DELETE /oip/v1/minds/m/mailbox/<cursor>`                | `204`, for a request the mind signed                                                                                                  |
-| `GET /healthz`, `/readyz`, `/metrics`                    | Whether it runs, whether it can do its work, and its counts in the Prometheus text format                                             |
+| Request                                                  | Answer                                                                                                                                                                                                                         |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /.well-known/oip/mind/m`                            | The mind's `Bundle`: its log, its current location record and profile, and `firstSeen` (13.1)                                                                                                                                  |
+| `GET /.well-known/oip/mind/m/log?after=<seq>&limit=<n>`  | A `LogPage`                                                                                                                                                                                                                    |
+| `GET /.well-known/oip/mind/m/feed?after=<seq>&limit=<n>` | A `FeedPage` of the mind's public feed                                                                                                                                                                                         |
+| `GET /.well-known/oip/mind/m/obj/<contentId>`            | A record the mind's feed lists                                                                                                                                                                                                 |
+| `POST /oip/v1/minds/m/inbox`                             | `202` with `{ "stored": true }`, or with the mind's `Ack` if the host signs for it (13.2). A packet addressed to a query is taken inside a `Forwarded` record from a broker (18.5). The same packet again gets the same answer |
+| `GET /oip/v1/minds/m/ws`                                 | The WebSocket of 13.4, with the subprotocol `oip.v1`                                                                                                                                                                           |
+| `POST /oip/v1/minds/m/mailbox`                           | `202` with `{ "stored": true }` (13.5). `507` if the mailbox is full                                                                                                                                                           |
+| `GET /oip/v1/minds/m/mailbox?after=<cursor>&limit=<n>`   | `{ "items": [{ "cursor", "record" }], "next" }`, for a request the mind signed (13.3)                                                                                                                                          |
+| `DELETE /oip/v1/minds/m/mailbox/<cursor>`                | `204`, for a request the mind signed                                                                                                                                                                                           |
+| `GET /healthz`, `/readyz`, `/metrics`                    | Whether it runs, whether it can do its work, and its counts in the Prometheus text format                                                                                                                                      |
 
 So in a location record (15.1), the `https` endpoint of a mind served here is `{origin}/oip/v1/minds/m`, and its `mailbox` endpoint is `{origin}/oip/v1/minds/m/mailbox`.
 
@@ -69,7 +69,7 @@ Layer 1 says what a host serves for a mind, and leaves open how the mind brings 
 
 The host speaks first, with `{ "type": "Challenge", "nonce", "domain" }`. The client answers with a `Hello` (13.3) and is welcomed, or the connection closes with code 4401. After that each message is one record.
 
-- A `Packet` or a `Sealed` record is delivered as at the inbox. If the host signs for the mind, the `Ack` is sent back.
+- A `Packet`, a `Forwarded` record or a `Sealed` record is delivered as at the inbox. If the host signs for the mind, the `Ack` is sent back.
 - The mind's own instance is sent what is in its mailbox, in order, and what arrives while the socket is open. A record stays in the mailbox until the mind says it has it: with its own `Ack` over the socket, or with `DELETE` over HTTP. A socket that drops loses nothing.
 - A message that is refused closes the connection with code 1008 and the code of its problem as the reason, such as `invalid-proof`. Code 1013 means ask again later.
 
@@ -208,7 +208,7 @@ left in the mailbox: 0
 | `Host`, `HostOptions`, `HostLimits`, `DEFAULT_HOST_LIMITS`, `Answer`      | What a host does with a record once it has been read: the inbox, the mailbox, the feed and the records served. Give it a `signer` and it acknowledges for the minds whose keys it holds |
 | `Sockets`, `SocketsOptions`, `Wire`, `Connection`, `SUBPROTOCOL`, `CLOSE` | The WebSocket binding without the socket: what is said over a connection                                                                                                                |
 | `attachSockets`, `UpgradeOptions`                                         | The binding on an HTTP server's upgrade requests, with the `ws` library                                                                                                                 |
-| `Lookup`, `LookupOptions`, `deliverLearning`                              | Asking resolvers for the log of a sender the host has not met, and judging the packet again                                                                                             |
+| `Lookup`, `LookupOptions`, `deliverLearning`, `partiesOf`                 | Asking resolvers for the log of a sender, or of a broker, that the host has not met, and judging the packet again                                                                       |
 | `HOST_MIGRATIONS`, `HostStore`, `MailboxItem`                             | Its database: an archive of identity logs (`LogArchive` of `@oip/server`), the nonces of signed requests, and the host's own tables                                                     |
 
 ## What to know

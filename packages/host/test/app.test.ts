@@ -327,6 +327,26 @@ describe(`${clause("L1 13.2")} a mind's inbox`, () => {
     expect(metrics.render()).toContain('oip_host_records_kept_total{at="inbox",answer="ack"} 2');
   });
 
+  it(`${clause("L1 18.5")} takes a packet a broker forwarded to the mind, and a mailbox does not`, async () => {
+    const { ask } = service({}, { known: [ada, bob, eve] });
+    const asked = packet(ada, [], { to: { query: { want: "A translator." } } });
+    const wrapped = eve.sign({
+      oip: "1",
+      type: "Forwarded",
+      broker: eve.address,
+      to: bob.address,
+      packet: asked,
+      created: T(105),
+    });
+    const taken = await ask(endpoint(bob, "/inbox"), sending(wrapped));
+    expect([taken.status, await taken.json()]).toStrictEqual([202, { stored: true }]);
+    expect(await problemOf(await ask(endpoint(bob, "/mailbox"), sending(wrapped)))).toStrictEqual({
+      status: 400,
+      type: "urn:oip:error:invalid-record",
+    });
+    expect(count("mailbox")).toBe(1);
+  });
+
   it("takes a sealed record for the mind as it is", async () => {
     const { ask } = service();
     const response = await ask(endpoint(bob, "/inbox"), sending(sealed(bob)));

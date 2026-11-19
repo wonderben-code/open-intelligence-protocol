@@ -14,7 +14,7 @@
  * | `GET /.well-known/oip/mind/m/log` | A `LogPage` of its identity log (13.1) |
  * | `GET /.well-known/oip/mind/m/feed` | A `FeedPage` of its public feed (13.1) |
  * | `GET /.well-known/oip/mind/m/obj/<contentId>` | A record its feed lists (10.2, 13.1) |
- * | `POST /oip/v1/minds/m/inbox` | Its inbox (13.2) |
+ * | `POST /oip/v1/minds/m/inbox` | Its inbox (13.2), for packets and for those a broker forwards (18.5) |
  * | `POST /oip/v1/minds/m/mailbox` | Its mailbox (13.5) |
  * | `GET /oip/v1/minds/m/mailbox` | The owner drains it, with a signed request (13.3) |
  * | `DELETE /oip/v1/minds/m/mailbox/<cursor>` | The owner removes an item |
@@ -253,17 +253,17 @@ export function hostApp(options: HostAppOptions): Hono<{ Bindings: Arrival }> {
     }),
   );
 
-  /** A record for a mind, which is a `Packet` or a `Sealed` record. */
-  const sent = async (request: Request, clause: string): Promise<OipRecord> => {
+  /** A record sent to a mind: of one of the types the endpoint takes. */
+  const sent = async (
+    request: Request,
+    clause: string,
+    types: readonly string[],
+  ): Promise<OipRecord> => {
     const record = await readRecord(request, maxRecordBytes);
-    if (record.type !== "Packet" && record.type !== "Sealed") {
-      throw new OipError(
-        "invalid-record",
-        "what is sent to a mind is a Packet or a Sealed record",
-        {
-          clause,
-        },
-      );
+    if (!types.includes(record.type)) {
+      throw new OipError("invalid-record", `what is sent here is one of: ${types.join(", ")}`, {
+        clause,
+      });
     }
     return record;
   };
@@ -272,7 +272,8 @@ export function hostApp(options: HostAppOptions): Hono<{ Bindings: Arrival }> {
     "/oip/v1/minds/:id/inbox",
     gated("inbox", limits.deliver, async (request, param) => {
       const mind = served(param("id"));
-      const record = await sent(request, "L1 13.2");
+      // A packet, or one a broker forwarded to the mind (18.5).
+      const record = await sent(request, "L1 13.2", ["Packet", "Sealed", "Forwarded"]);
       const answer = await deliverLearning(host, options.lookup, mind, record);
       const acknowledged = answer["type"] === "Ack";
       kept.add({ at: "inbox", answer: acknowledged ? "ack" : "stored" });
@@ -284,7 +285,7 @@ export function hostApp(options: HostAppOptions): Hono<{ Bindings: Arrival }> {
     "/oip/v1/minds/:id/mailbox",
     gated("mailbox", limits.deliver, async (request, param) => {
       const mind = served(param("id"));
-      const answer = host.post(mind, await sent(request, "L1 13.5"));
+      const answer = host.post(mind, await sent(request, "L1 13.5", ["Packet", "Sealed"]));
       kept.add({ at: "mailbox", answer: "stored" });
       return json(answer, 202);
     }),

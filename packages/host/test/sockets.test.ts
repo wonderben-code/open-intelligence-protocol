@@ -264,11 +264,21 @@ describe(`${clause("L1 13.4", "L1 13.2")} a record sent over a socket`, () => {
     const record = packet(ada, [bob]);
     connection.message(JSON.stringify(record));
     connection.message(JSON.stringify(sealed(bob)));
-    expect(mailbox()).toStrictEqual([record, sealed(bob)]);
+    // One a broker forwarded is a message as any other (18.5).
+    const wrapped = eve.sign({
+      oip: "1",
+      type: "Forwarded",
+      broker: eve.address,
+      to: bob.address,
+      packet: packet(ada, [], { to: { query: {} }, nonce: "nonce-0009" }),
+      created: T(105),
+    }) as unknown as OipRecord;
+    connection.message(JSON.stringify(wrapped));
+    expect(mailbox()).toStrictEqual([record, sealed(bob), wrapped]);
     // A host that holds no key of the mind's says nothing back: there is no record for that.
     expect(sent).toHaveLength(2);
     expect(state.closed).toBeUndefined();
-    expect(metrics.render()).toContain('oip_host_socket_messages_total{outcome="delivered"} 2');
+    expect(metrics.render()).toContain('oip_host_socket_messages_total{outcome="delivered"} 3');
 
     db.close();
     rmSync(join(directory, "host.db"));

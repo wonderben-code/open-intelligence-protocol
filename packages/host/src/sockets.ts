@@ -305,10 +305,12 @@ export class Sockets {
         this.#messages.add({ outcome: "acknowledged" });
         return undefined;
       }
-      if (read.type !== "Packet" && read.type !== "Sealed") {
-        throw new OipError("invalid-record", "a message is a Packet, a Sealed record or an Ack", {
-          clause: "L1 13.4",
-        });
+      if (!["Packet", "Sealed", "Forwarded"].includes(read.type)) {
+        throw new OipError(
+          "invalid-record",
+          "a message is a Packet, a Forwarded record, a Sealed record or an Ack",
+          { clause: "L1 13.4" },
+        );
       }
       const answer = deliverLearning(host, this.#options.lookup, mind, read);
       if (answer instanceof Promise) return answer.then(delivered);

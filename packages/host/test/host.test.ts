@@ -21,7 +21,7 @@ import { clause } from "@oip/testkit";
 import { at, intentBy, KeyMind, type Mind, T } from "@oip/testkit/minds";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Host, HOST_MIGRATIONS, type HostOptions } from "../src/index.ts";
+import { Host, HOST_MIGRATIONS, type HostOptions, partiesOf } from "../src/index.ts";
 
 let directory: string;
 let db: Database;
@@ -252,6 +252,107 @@ describe(`${clause("L1 13.2", "L1 12.4")} a packet that arrives at a mind's inbo
     expect(host.drain(bob.address, 0, 10).items).toStrictEqual([
       { cursor: 1, record: sealed(bob) },
     ]);
+  });
+});
+
+describe(`${clause("L1 18.5", "L1 12.4")} a packet a broker forwarded to a mind`, () => {
+  /** A broker's wrapper around a packet, for one mind that matched its query. */
+  const forward = (broker: Mind, to: Mind, carried: OipRecord, by: Mind = broker): OipRecord =>
+    by.sign({
+      oip: "1",
+      type: "Forwarded",
+      broker: broker.address,
+      to: to.address,
+      packet: carried,
+      created: T(105),
+    }) as unknown as OipRecord;
+  const asked = (more: JsonObject = {}): OipRecord =>
+    packet(ada, [], { to: { query: { want: "A translator." }, ...more } });
+
+  it("is kept as it came, by the packet's content ID, and the sight of both signatures with it", () => {
+    const host = hosting({ signer: () => bob.operational() });
+    const sent = asked();
+    const wrapped = forward(eve, bob, sent);
+    const ack = host.deliver(bob.address, wrapped);
+    expect(ack).toMatchObject({ type: "Ack", author: bob.address, packet: contentId(sent) });
+    expect(host.drain(bob.address, 0, 10).items).toStrictEqual([{ cursor: 1, record: wrapped }]);
+    const digests = [sent, wrapped].map((record) =>
+      proofDigest((record as unknown as { proof: Proof[] }).proof[0]!),
+    );
+    expect(
+      seenProofs()
+        .map((seen) => seen.digest)
+        .sort(),
+    ).toStrictEqual(digests.sort());
+    // The same packet from another broker is the same packet: answered alike, kept once.
+    clock.at = at(200);
+    expect(host.deliver(bob.address, forward(ada, bob, sent))).toStrictEqual(ack);
+    expect(count("mailbox")).toBe(1);
+    expect(count("seen_proofs")).toBe(2);
+  });
+
+  it("is refused where a recipient may not accept it, and nothing is kept of it", () => {
+    const host = hosting();
+    const cases: [string, OipRecord, object][] = [
+      // It is addressed to nobody by name: only a broker's wrapper addresses it to a mind.
+      ["a packet for a query with no broker's wrapper", asked(), { code: "forbidden" }],
+      ["forwarded to another mind", forward(eve, ada, asked()), { code: "forbidden" }],
+      [
+        "forwarded by a broker the packet does not name",
+        forward(eve, bob, asked({ brokers: [ada.address] })),
+        { code: "forbidden" },
+      ],
+      [
+        "a wrapper its broker did not sign",
+        forward(eve, bob, asked(), ada),
+        { code: "invalid-proof" },
+      ],
+      [
+        "forwarded by a broker the host cannot judge",
+        forward(zed, bob, asked()),
+        { code: "stale-version" },
+      ],
+      [
+        "a packet its sender did not sign",
+        forward(eve, bob, packet(ada, [], { to: { query: {} } }, eve)),
+        { code: "invalid-proof" },
+      ],
+      [
+        "a wrapper around what is no packet",
+        {
+          ...forward(eve, bob, asked()),
+          packet: ada.sign(intentBy(ada, 100)),
+        } as unknown as OipRecord,
+        { code: "invalid-record" },
+      ],
+    ];
+    for (const [name, record, problem] of cases) {
+      expect(
+        refused(() => host.deliver(bob.address, record)),
+        name,
+      ).toStrictEqual(problem);
+    }
+    for (const table of ["mailbox", "accepted", "seen_proofs"]) expect(count(table), table).toBe(0);
+    // A packet addressed by a list stands by its own proof, whoever wrapped it.
+    expect(host.deliver(bob.address, forward(zed, bob, packet(ada, [bob])))).toStrictEqual({
+      stored: true,
+    });
+    // A mailbox takes a packet or a sealed record, and no wrapper (13.5).
+    expect(refused(() => host.post(bob.address, forward(eve, bob, asked())))).toStrictEqual({
+      code: "invalid-record",
+    });
+  });
+
+  it("names the minds whose logs it is judged by", () => {
+    expect(partiesOf(packet(ada, [bob]))).toStrictEqual([ada.address]);
+    expect(partiesOf(forward(eve, bob, asked()))).toStrictEqual([eve.address, ada.address]);
+    expect(partiesOf(sealed(bob))).toStrictEqual([]);
+    expect(
+      partiesOf({ oip: "1", type: "Forwarded", broker: 7, packet: null } as never),
+    ).toStrictEqual([]);
+    expect(partiesOf({ oip: "1", type: "Forwarded", packet: { from: 7 } } as never)).toStrictEqual(
+      [],
+    );
   });
 });
 

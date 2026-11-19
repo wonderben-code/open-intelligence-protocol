@@ -19,7 +19,7 @@
 import { MAX_TEXT_LENGTH, MEDIA_TYPE, mindId, OipError, type OipRecord } from "@oip/core";
 import { type Clock, type Log, type LogArchive, type Metrics, recordFrom } from "@oip/server";
 
-import type { Answer, Host } from "./host.ts";
+import { type Answer, type Host, partiesOf } from "./host.ts";
 
 /** How a lookup is made. */
 export interface LookupOptions {
@@ -131,9 +131,9 @@ export class Lookup {
 }
 
 /**
- * Whether learning more of a sender's log might change a refusal: it was
- * for a sender the host has not met, or for a proof by a key or a version
- * of the log it does not know.
+ * Whether learning more of a log might change a refusal: it was for a
+ * sender or a broker the host has not met, or for a proof by a key or a
+ * version of a log it does not know.
  */
 function mayBeLearned(error: unknown): boolean {
   return error instanceof OipError && ["stale-version", "invalid-proof"].includes(error.code);
@@ -158,9 +158,9 @@ export function deliverLearning(
     return host.deliver(mind, record);
   } catch (error) {
     if (lookup === undefined || !mayBeLearned(error)) throw error;
-    // What is no address is asked after nowhere.
-    return lookup.learn((record as { from?: unknown }).from as string).then((learned) => {
-      if (!learned) throw error;
+    // The sender, and the broker if one forwarded the packet: whichever log is wanting.
+    return Promise.all(partiesOf(record).map((party) => lookup.learn(party))).then((learned) => {
+      if (!learned.includes(true)) throw error;
       return host.deliver(mind, record);
     });
   }

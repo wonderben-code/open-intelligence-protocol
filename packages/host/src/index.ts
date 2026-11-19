@@ -17,7 +17,7 @@ export {
   type HostOptions,
   partiesOf,
 } from "./host.ts";
-export { deliverLearning, Lookup, type LookupOptions } from "./lookup.ts";
+export { deliverLearning } from "./lookup.ts";
 export { type Edges, PREFIX, type Running, SETTINGS, start } from "./main.ts";
 export { HOST_MIGRATIONS, HostStore, type MailboxItem } from "./store.ts";
 export {

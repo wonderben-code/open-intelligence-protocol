@@ -79,6 +79,7 @@ describe("the README", () => {
         "Labels",
         "Level",
         "LogOptions",
+        "LookupOptions",
         "Migration",
         "NotTaken",
         "OtherRecord",

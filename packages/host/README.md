@@ -208,7 +208,7 @@ left in the mailbox: 0
 | `Host`, `HostOptions`, `HostLimits`, `DEFAULT_HOST_LIMITS`, `Answer`      | What a host does with a record once it has been read: the inbox, the mailbox, the feed and the records served. Give it a `signer` and it acknowledges for the minds whose keys it holds |
 | `Sockets`, `SocketsOptions`, `Wire`, `Connection`, `SUBPROTOCOL`, `CLOSE` | The WebSocket binding without the socket: what is said over a connection                                                                                                                |
 | `attachSockets`, `UpgradeOptions`                                         | The binding on an HTTP server's upgrade requests, with the `ws` library                                                                                                                 |
-| `Lookup`, `LookupOptions`, `deliverLearning`, `partiesOf`                 | Asking resolvers for the log of a sender, or of a broker, that the host has not met, and judging the packet again                                                                       |
+| `deliverLearning`, `partiesOf`                                            | Judging a packet again once the log of its sender, or of its broker, has been learned from the resolvers (`Lookup` of `@oip/server`)                                                    |
 | `HOST_MIGRATIONS`, `HostStore`, `MailboxItem`                             | Its database: an archive of identity logs (`LogArchive` of `@oip/server`), the nonces of signed requests, and the host's own tables                                                     |
 
 ## What to know

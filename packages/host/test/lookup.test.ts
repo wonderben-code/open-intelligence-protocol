@@ -12,6 +12,8 @@ import {
   FetchRefused,
   Log,
   LogArchive,
+  Lookup,
+  type LookupOptions,
   Metrics,
   RateLimiter,
   Shutdown,
@@ -21,15 +23,7 @@ import { clause } from "@oip/testkit";
 import { at, KeyMind, type Mind, T } from "@oip/testkit/minds";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  deliverLearning,
-  Host,
-  HOST_MIGRATIONS,
-  hostApp,
-  Lookup,
-  type LookupOptions,
-  Sockets,
-} from "../src/index.ts";
+import { deliverLearning, Host, HOST_MIGRATIONS, hostApp, Sockets } from "../src/index.ts";
 
 const ORIGIN = "https://host.example";
 const FIRST = "https://one.resolver.example";
@@ -97,6 +91,7 @@ function lookup(more: Partial<LookupOptions> = {}): Lookup {
     clock,
     log,
     metrics,
+    service: "host",
     ...more,
   });
 }

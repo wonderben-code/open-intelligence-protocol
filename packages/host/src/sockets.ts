@@ -32,6 +32,7 @@ import {
   HttpFailure,
   type Log,
   type LogArchive,
+  type Lookup,
   type Metrics,
   overlaid,
   type Randomness,
@@ -42,7 +43,7 @@ import {
 } from "@oip/server";
 
 import type { Answer, Host } from "./host.ts";
-import { deliverLearning, type Lookup } from "./lookup.ts";
+import { deliverLearning } from "./lookup.ts";
 
 /** The subprotocol a client asks for (13.4). */
 export const SUBPROTOCOL = "oip.v1";

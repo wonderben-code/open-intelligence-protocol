@@ -46,6 +46,7 @@ import {
   HttpFailure,
   type Log,
   type LogArchive,
+  type Lookup,
   type Metrics,
   METRICS_MEDIA_TYPE,
   publicationProblem,
@@ -63,7 +64,7 @@ import {
 import { Hono } from "hono";
 
 import type { Host } from "./host.ts";
-import { deliverLearning, type Lookup } from "./lookup.ts";
+import { deliverLearning } from "./lookup.ts";
 
 /** What the HTTP interface is made with. */
 export interface HostAppOptions {

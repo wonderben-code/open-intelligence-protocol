@@ -30,6 +30,8 @@ import {
   list,
   Log,
   LogArchive,
+  Lookup,
+  type LookupOptions,
   Metrics,
   origin,
   type Randomness,
@@ -44,7 +46,6 @@ import {
 
 import { hostApp } from "./app.ts";
 import { DEFAULT_HOST_LIMITS, Host } from "./host.ts";
-import { Lookup, type LookupOptions } from "./lookup.ts";
 import { Sockets } from "./sockets.ts";
 import { HOST_MIGRATIONS } from "./store.ts";
 import { attachSockets } from "./upgrade.ts";
@@ -300,6 +301,7 @@ export async function start(
           clock,
           log,
           metrics,
+          service: "host",
           maxBundleBytes: config.MAX_RECORD_BYTES,
         });
   const app = hostApp({

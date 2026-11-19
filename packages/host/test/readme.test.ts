@@ -98,7 +98,6 @@ describe("the README", () => {
         "HostAppOptions",
         "HostLimits",
         "HostOptions",
-        "LookupOptions",
         "MailboxItem",
         "Running",
         "SocketsOptions",

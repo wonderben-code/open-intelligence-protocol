@@ -32,6 +32,11 @@ const { books } = inNode(new URL("./spent-stack.node.ts", import.meta.url), ["bo
   };
 };
 
+/** And told to make again, with room, each look that was refused for want of it. */
+const { again } = inNode(new URL("./spent-stack.node.ts", import.meta.url), ["again"]) as {
+  readonly again: Tally;
+};
+
 const total = (tally: Tally) => Object.values(tally).reduce((sum, count) => sum + count, 0);
 
 describe(`${clause("core 4.4")} a book asked for the first time with the stack all but spent`, () => {
@@ -62,6 +67,19 @@ describe(`${clause("core 4.4", "core 9.5")} a book's own operations with the sta
         others(looks, "ok, removal recorded", "implementation limit, removal not recorded"),
       ).toStrictEqual([]);
     }
+  });
+
+  it("passes over nothing when a look refused for want of room is made again at the same reading", () => {
+    // A club's removal of its keys waits on the logs of the members who signed it, which
+    // the look follows. The look that was cut short has moved those logs to its reading
+    // already: made again, it must still reach what waited on them.
+    expect(total(again)).toBe(200);
+    expect(
+      // The second look is made with room, so it goes through.
+      others(again, "ok, removal recorded at 160", "refused, then ok, removal recorded at 160"),
+    ).toStrictEqual([]);
+    // Some of the looks were cut short: the case was asked.
+    expect(again["refused, then ok, removal recorded at 160"]).toBeGreaterThan(0);
   });
 
   it("takes a copy in whole or not at all, and answers for a log or refuses for want of room", () => {

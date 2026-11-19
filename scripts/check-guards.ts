@@ -132,6 +132,39 @@ for (const [rule, code] of impure) {
   }
 }
 
+// --- The one exception ------------------------------------------------------------
+
+// One file of the pure packages names the global object, to keep there the count that two
+// copies of `@oip/schema` share (ADR-0010). The exception is that name and nothing more.
+const countFile = join(repoRoot, "packages", "schema", "src", "process-count.ts");
+for (const code of [
+  "export const x = Date.now();",
+  "export const x = process.env;",
+  'export const x = Reflect.get(globalThis, "process");',
+  "// eslint-disable-next-line no-restricted-globals\nexport const x = Date.now();",
+]) {
+  const [result] = await eslint.lintText(code, { filePath: countFile });
+  if (!result?.messages.some((message) => message.ruleId === "no-restricted-globals")) {
+    problems.push(
+      `ESLint did not report no-restricted-globals in process-count.ts for: ${code.replaceAll("\n", " ")}`,
+    );
+  }
+}
+// It names the global object once, to read and write one property of it by a symbol. The
+// type it gives the object has no other member, so the compiler lets nothing else through.
+const namings = readFileSync(countFile, "utf8")
+  .split("\n")
+  .filter((line) => !/^\s*(?:\/\/|\/?\*)/u.test(line) && line.includes("globalThis"));
+if (
+  namings.length !== 1 ||
+  namings[0]?.trim() !==
+    "export function countOfTheProcess(shared: { [COUNT]?: unknown } = globalThis as object): Count {"
+) {
+  problems.push(
+    "packages/schema/src/process-count.ts names the global object otherwise than to keep the count",
+  );
+}
+
 // --- Nothing escapes the lists ---------------------------------------------------
 
 const { LAYERS, PURE, TEST_ONLY } = createRequire(import.meta.url)("./layers.cjs") as {

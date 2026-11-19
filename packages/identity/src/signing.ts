@@ -82,9 +82,10 @@ export interface JudgeOptions {
  * rejected under core 8.3. It is not malformed, and may be kept and passed
  * on; it may not be treated as valid for any decision.
  *
- * The result is frozen. It never throws. With the call stack too nearly
- * spent to finish a check, it refuses and says so: what it would answer
- * then says nothing of the record, and a caller keeps what this returns.
+ * A record that is judged is returned frozen. It never throws. With the
+ * call stack too nearly spent to finish a check, it refuses and says so:
+ * what it would answer then says nothing of the record, and a caller keeps
+ * what this returns.
  */
 export function judgeRecord(record: unknown, options?: JudgeOptions): Validation<JudgedRecord> {
   // A proof left out because its check was cut short would stay left out for as long

@@ -538,7 +538,11 @@ export class LogBook implements IdentityView {
         minds.push(resting);
       }
     };
-    for (const mind of this.#follow(following, now)) reach(mind);
+    this.#follow(following, now);
+    // What rests on a log that is followed is looked at whether or not this call moved the
+    // log. A look that was cut short has moved it already, and the look made again with the
+    // same reading would otherwise pass over what waited on it.
+    for (const mind of following) if (this.#held.has(mind)) reach(mind);
     for (const mind of minds) reach(mind);
     this.#witness(minds, now, seen);
     return held;
@@ -588,11 +592,8 @@ export class LogBook implements IdentityView {
    * core 9.4: a log the verifier follows itself is known up to its reading
    * of the clock: every copy held of it, wherever it ended. A mind held in
    * two branches is known up to the least of them, so each is moved.
-   *
-   * @returns The minds whose logs are now known further than they were.
    */
-  #follow(following: ReadonlySet<string>, now: Instant): string[] {
-    const moved: string[] = [];
+  #follow(following: ReadonlySet<string>, now: Instant): void {
     for (const mind of following) {
       const ends = [...(this.#held.get(mind)?.ends ?? [])].filter(
         (end) => end.asOf !== undefined && end.asOf < now,
@@ -601,9 +602,7 @@ export class LogBook implements IdentityView {
       // Before anything changes, as in `hold`.
       this.#changed(mind);
       for (const end of ends) end.asOf = now;
-      moved.push(mind);
     }
-    return moved;
   }
 
   /** Records first sight of what verifies now in the logs of `minds`. */

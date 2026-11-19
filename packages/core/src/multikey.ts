@@ -3,7 +3,7 @@
 
 /** Public keys as Multikey strings (core 4.1 to 4.3). */
 
-import { patterns, type Validation } from "@oip/schema";
+import { judging, patterns, type Validation } from "@oip/schema";
 import { base58 } from "@scure/base";
 
 import { concatBytes } from "./bytes.ts";
@@ -79,6 +79,11 @@ export function encodeEd25519Multikey(publicKey: Uint8Array): string {
  * (core 4.2) and that it is a point of order exactly L (core 4.4).
  */
 export function decodeEd25519Multikey(multikey: unknown): Validation<Uint8Array> {
+  // The order check answers no where it was cut short, and that is no verdict on the key.
+  return judging(() => ed25519KeyOf(multikey));
+}
+
+function ed25519KeyOf(multikey: unknown): Validation<Uint8Array> {
   const decoded = decode(ED25519, multikey);
   if (!decoded.ok) return decoded;
   if (!isEd25519PublicKey(decoded.value)) {
@@ -106,7 +111,7 @@ export function encodeX25519Multikey(publicKey: Uint8Array): string {
 
 /** Reads an X25519 public key from a Multikey, checking its prefix and length (core 4.2). */
 export function decodeX25519Multikey(multikey: unknown): Validation<Uint8Array> {
-  return decode(X25519, multikey);
+  return judging(() => decode(X25519, multikey));
 }
 
 /** Whether a value is an X25519 public key as a Multikey. */

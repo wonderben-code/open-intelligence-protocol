@@ -95,7 +95,10 @@ export function example(
       [[genesis, update], "2026-11-17T13:00:00Z"],
     ];
     for (const [log, when] of served) {
-      book.witness(log, at(when), seen);
+      // The look says whether it went through. One that did not is made again at the same
+      // reading: an event recorded late would be a key believed for longer than it was.
+      const looked = book.witness(log, at(when), seen);
+      if (!looked.ok) throw new Error(looked.issues[0].message);
     }
     const record = judgeRecord(intent);
     if (!record.ok) return "is not well formed";

@@ -9,9 +9,11 @@
  * own rejection into a refusal for want of room, for whoever asks.
  */
 
+import { inNode } from "@oip/testkit";
 import fc from "fast-check";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type * as CutShort from "../src/cut-short.ts";
 import {
   CUT_SHORT,
   cutShort,
@@ -63,6 +65,33 @@ describe("a failure for want of room, or for the state of the process", () => {
     expect(noted(new SyntaxError("Invalid regular expression: /^[a-z]+$/u: Stack overflow"))).toBe(
       1,
     );
+    // And one that could not be parsed.
+    expect(
+      noted(
+        new SyntaxError(
+          "Invalid regular expression: /^[a-z]+$/u: Maximum call stack size exceeded",
+        ),
+      ),
+    ).toBe(1);
+  });
+
+  it("is each thing the engine throws for a regular expression at the end of the stack", () => {
+    // Asked of the engine itself, in a process of its own: an expression made there, and
+    // one made beforehand and first used there.
+    const report = inNode(new URL("./regex-at-depth.node.ts", import.meta.url)) as Readonly<
+      Record<"made" | "firstUsed", Readonly<Record<string, number>>>
+    >;
+    const kinds = [...Object.keys(report.made), ...Object.keys(report.firstUsed)];
+    expect(kinds.filter((kind) => !kind.endsWith(", counted"))).toStrictEqual([]);
+    // The engine said each of the three things this run. If it has new words for one, the
+    // rule must learn them: this is where that shows.
+    expect(Object.keys(report.made)).toContain(
+      "SyntaxError: Invalid regular expression: /…/: Maximum call stack size exceeded, counted",
+    );
+    expect(Object.keys(report.firstUsed)).toContain(
+      "SyntaxError: Invalid regular expression: /…/: Stack overflow, counted",
+    );
+    expect(kinds).toContain("RangeError: Maximum call stack size exceeded, counted");
   });
 
   it("is a process that can serialise nothing", () => {
@@ -84,6 +113,13 @@ describe("a failure for want of room, or for the state of the process", () => {
       ),
       new SyntaxError("Unexpected token: Stack overflow"),
       new SyntaxError("Invalid regular expression: /(/: Unterminated group"),
+      // An expression that says the engine's words: the reason comes after it.
+      new SyntaxError("Invalid regular expression: /(: Stack overflow/: Unterminated group"),
+      new SyntaxError(
+        "Invalid regular expression: /(: Maximum call stack size exceeded/: Unterminated group",
+      ),
+      // And the reason for a spent stack on an error of another class.
+      new Error("Invalid regular expression: /a/: Maximum call stack size exceeded"),
       new Error("Maximum call stack size exceeded, said the record"),
       new Error("the call stack"),
       new TypeError("not a function"),
@@ -159,6 +195,82 @@ describe("a failure for want of room, or for the state of the process", () => {
     expect(moved(() => parseSelector('["Maximum call stack size exceeded'))).toBe(0);
     expect(moved(() => parseSelector('["Maximum call stack size exceeded"x]'))).toBe(0);
   });
+});
+
+describe("a second copy of this module in one process", () => {
+  // Two installed versions, or two bundles: `@oip/core` may note through one copy while
+  // `@oip/identity` compares through the other.
+  async function secondCopy(): Promise<typeof CutShort> {
+    vi.resetModules();
+    return import("../src/cut-short.ts");
+  }
+
+  it("shares the count: a note made through one is seen through the other", async () => {
+    const other = await secondCopy();
+    expect(other.noteCutShort).not.toBe(noteCutShort);
+    expect(other.cutShortCount()).toBe(cutShortCount());
+    expect(moved(() => other.noteCutShort(spent()))).toBe(1);
+    const before = other.cutShortCount();
+    noteCutShort(spent());
+    expect(other.cutShortCount()).toBe(before + 1);
+    // So a judge of the one refuses for a check that the other noted.
+    expect(
+      judging(() => {
+        other.noteCutShort(spent());
+        return { ok: true, value: 1 };
+      }),
+    ).toBe(cutShort());
+    expect(
+      other.finding(() => {
+        noteCutShort(spent());
+        return 1;
+      }),
+    ).toBeUndefined();
+  });
+
+  it("knows the other's `UnfitProcess`, which is none of its own", async () => {
+    const other = await secondCopy();
+    const unfit = new other.UnfitProcess("nothing can be serialised safely");
+    expect(unfit).not.toBeInstanceOf(UnfitProcess);
+    expect(noted(unfit)).toBe(1);
+    expect(moved(() => other.noteCutShort(new UnfitProcess("x")))).toBe(1);
+    // The mark is the error's own: one on a prototype marks nothing, and no getter is run.
+    const marked = Object.create(unfit) as object;
+    expect(noted(marked)).toBe(0);
+    let ran = 0;
+    const sly = Object.defineProperty(
+      new Error("plain"),
+      Symbol.for("@oip/schema/unfit-process/1"),
+      {
+        get: () => {
+          ran++;
+          return true;
+        },
+      },
+    );
+    expect(noted(sly)).toBe(0);
+    expect(ran).toBe(0);
+  });
+
+  it.each([
+    ["closed", "undefined"],
+    ["taken", "string"],
+    ["unsound", "object"],
+    ["frozen", "object"],
+  ])(
+    "keeps a count of its own where the global object cannot hold the one shared: %s",
+    (how, shared) => {
+      // A global object that takes no new property; one where the place is taken by
+      // something else, or by what looks like a count and is none; and a count that other
+      // code froze after the module loaded. Each in a process of its own.
+      expect(inNode(new URL("./own-count.node.ts", import.meta.url), [how])).toStrictEqual({
+        moved: 1,
+        refused: true,
+        answered: { ok: true, value: 1 },
+        shared,
+      });
+    },
+  );
 });
 
 describe("a validator, where a check is cut short", () => {

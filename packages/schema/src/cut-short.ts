@@ -23,6 +23,15 @@
  */
 
 import type { Validation } from "./issue.ts";
+import { countOfTheProcess } from "./process-count.ts";
+
+/**
+ * The mark of an `UnfitProcess`, in the registry of symbols that a whole
+ * process shares. A program may hold two copies of this module, from two
+ * installed versions or two bundles. An error thrown by code that uses the
+ * one must be known to the other, and `instanceof` knows only its own.
+ */
+const UNFIT = Symbol.for("@oip/schema/unfit-process/1");
 
 /**
  * Thrown where nothing can be judged in the state the process is in: other
@@ -33,10 +42,20 @@ export class UnfitProcess extends Error {
   constructor(message: string) {
     super(message);
     this.name = "UnfitProcess";
+    Object.defineProperty(this, UNFIT, { value: true });
   }
 }
 
-let noted = 0;
+/** Shared with every other copy of this package in the process: `process-count.ts` says why. */
+const count = countOfTheProcess();
+
+/**
+ * The notes that could not be added to the shared count: other code can
+ * freeze everything the global object holds, after this module has loaded.
+ * A note is then kept here, where this copy at least sees it, and a reading
+ * is the two together.
+ */
+let apart = 0;
 
 /**
  * What each engine says, word for word, of a call stack that is spent: V8
@@ -56,16 +75,20 @@ const SPENT = new Set([
  * of the error does not tell: a library throws a `RangeError` for a value
  * out of range, and such a value may come from outside. Nor does a part of
  * a message: a parser's message may quote the text it was given. A spent
- * stack also stops a regular expression from being compiled the first time
- * it is used, which V8 reports as a `SyntaxError` that names the expression
- * and ends in "Stack overflow"; every expression here is the code's own.
+ * stack also stops a regular expression from being made ready the first
+ * time it is used, which V8 reports as a `SyntaxError` that names the
+ * expression and then says why: "Stack overflow" where it could not be
+ * compiled, and the words of a spent stack where it could not be parsed.
+ * The reason comes last, after the expression, and is the engine's; every
+ * expression here is the code's own.
  *
  * What was thrown may be anything a caller's value chose to throw. No
- * getter of it is run: the message read is an own data property, as an
- * engine's error has it.
+ * getter of it is run: the mark and the message are read as own data
+ * properties, as `UnfitProcess` and an engine's error have them.
  */
 function noFaultOfTheValue(error: unknown): boolean {
-  if (error instanceof UnfitProcess) return true;
+  if (typeof error !== "object" || error === null) return false;
+  if (Object.getOwnPropertyDescriptor(error, UNFIT)?.value === true) return true;
   if (!(error instanceof Error)) return false;
   const message = Object.getOwnPropertyDescriptor(error, "message")?.value as unknown;
   if (typeof message !== "string") return false;
@@ -73,7 +96,8 @@ function noFaultOfTheValue(error: unknown): boolean {
     SPENT.has(message) ||
     (error instanceof SyntaxError &&
       message.startsWith("Invalid regular expression: ") &&
-      message.endsWith(": Stack overflow"))
+      (message.endsWith(": Stack overflow") ||
+        message.endsWith(": Maximum call stack size exceeded")))
   );
 }
 
@@ -93,7 +117,12 @@ export function noteCutShort(error: unknown): void {
   } catch {
     // The look itself failed: counted.
   }
-  if (cut) noted++;
+  if (!cut) return;
+  try {
+    count.noted++;
+  } catch {
+    apart++;
+  }
 }
 
 /**
@@ -102,7 +131,7 @@ export function noteCutShort(error: unknown): void {
  * worked out in between is not to be kept.
  */
 export function cutShortCount(): number {
-  return noted;
+  return count.noted + apart;
 }
 
 /** The message of a refusal given in place of an answer that a cut-short check went into. */
@@ -139,16 +168,16 @@ export function cutShort(): Refusal {
  * in this one, and is not hidden.
  */
 export function judging<T>(work: () => Validation<T>): Validation<T> {
-  const before = noted;
+  const before = count.noted + apart;
   let answer: Validation<T>;
   try {
     answer = work();
   } catch (error) {
     noteCutShort(error);
-    if (noted === before) throw error;
+    if (count.noted + apart === before) throw error;
     return REFUSAL;
   }
-  return noted === before ? answer : REFUSAL;
+  return count.noted + apart === before ? answer : REFUSAL;
 }
 
 /**
@@ -158,16 +187,16 @@ export function judging<T>(work: () => Validation<T>): Validation<T> {
  * `cutShortCount()` itself.
  */
 export function finding<T>(work: () => T | undefined): T | undefined {
-  const before = noted;
+  const before = count.noted + apart;
   let found: T | undefined;
   try {
     found = work();
   } catch (error) {
     noteCutShort(error);
-    if (noted === before) throw error;
+    if (count.noted + apart === before) throw error;
     return undefined;
   }
-  return noted === before ? found : undefined;
+  return count.noted + apart === before ? found : undefined;
 }
 
 // An engine compiles a function when it is first called, and that takes room on the call stack

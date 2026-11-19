@@ -31,6 +31,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   collectiveSignedTime,
+  didDocument,
+  draftUpdate,
   type EvidenceView,
   FirstSeen,
   judgeRecord,
@@ -57,6 +59,16 @@ function failing(error: Error): object {
 }
 
 const overflow = (): RangeError => new RangeError("Maximum call stack size exceeded");
+
+/** Options that find no room when one member of them is asked for, and are read as given otherwise. */
+function withoutRoomFor<T extends object>(options: T, name: string): T {
+  return new Proxy(options, {
+    getOwnPropertyDescriptor: (target, key) => {
+      if (key === name) throw overflow();
+      return Reflect.getOwnPropertyDescriptor(target, key);
+    },
+  });
+}
 
 /** Evidence that notes a check cut short, while `cut.now` is set, each time it is asked about an event. */
 function cutting(seen: EvidenceView): { view: EvidenceView; cut: { now: boolean } } {
@@ -172,6 +184,45 @@ describe(`${clause("core 4.4")} a check that was cut short`, () => {
       removalSeen: at(400),
       counts: at(200),
     });
+  });
+
+  it("is looked at again at the same reading for what waited on a log that is followed, too", () => {
+    // A club's removal of its keys waits on its members' logs, which the verifier follows.
+    // The look that would have recorded it at 160 is cut short after it has moved those logs
+    // to 160. Made again with the same reading, it moves nothing, and still looks.
+    const [a, b, c] = ["a", "b", "c"].map((name) => new KeyMind(name)) as [
+      KeyMind,
+      KeyMind,
+      KeyMind,
+    ];
+    const zed = new KeyMind("zed");
+    const club = new Collective("club", [a, b, c], 2, 5);
+    const removal = rawSign(draftUpdate(club.head, T(20), { keys: [] }), [
+      a.asMember(),
+      b.asMember(),
+    ]);
+    const signed = judgeRecord(club.sign(intentBy(club, 15), { position: 0 }));
+    if (!signed.ok) throw new Error(JSON.stringify(signed.issues));
+    const following = [a, b, c, club].map((mind) => mind.address);
+    const seen = new FirstSeen();
+    const { view, cut } = cutting(seen);
+    const book = new LogBook(view);
+    for (const mind of [a, b, c, club]) {
+      expect(book.witness(mind.events, at(100), seen, { following }).ok).toBe(true);
+    }
+    // The removal arrives at 150 with no reading of the members' logs, and waits.
+    expect(book.witness([...club.events, removal], at(150), seen).ok).toBe(true);
+    expect(seen.eventSeen(contentId(removal))).toBeUndefined();
+    cut.now = true;
+    expect(book.witness(zed.events, at(160), seen, { following })).toStrictEqual(cutShort());
+    expect(seen.eventSeen(contentId(removal))).toBeUndefined();
+    cut.now = false;
+    expect(book.witness(zed.events, at(160), seen, { following }).ok).toBe(true);
+    expect(seen.eventSeen(contentId(removal))).toBe(at(160));
+    // So a proof by the removed key, first seen at 165, does not count.
+    for (const proof of signed.value.proofs) seen.sawProof(proof.digest, at(165));
+    book.witnessHeld(at(400), seen, { following });
+    expect(ownSignedTime(signed.value, club.address, book)).toBeUndefined();
   });
 
   it("is no reading of the logs followed: `following` that could not be read follows nothing, and says so", () => {
@@ -314,6 +365,27 @@ describe(`${clause("core 4.4")} a check that was cut short`, () => {
     expect(judgeRecord(record, { understood: failing(new Error("no")) as never }).ok).toBe(true);
   });
 
+  it("is no reading of the options a document is asked for with", () => {
+    const ada = new KeyMind("ada").update(10);
+    const log = verifyLog(ada.events, { evidence: witness([ada.events]), asOf: LATER });
+    if (!log.ok) throw new Error(JSON.stringify(log.issues));
+    const versionId = log.value.entries[0].state.versionId;
+    const first = didDocument(log.value, { versionId });
+    const latest = didDocument(log.value);
+    expect(first).not.toStrictEqual(latest);
+    // A version that could not be read is not read as none asked for: that would be the
+    // document of the latest version, given as the one of the version named.
+    expect(didDocument(log.value, withoutRoomFor({ versionId }, "versionId"))).toStrictEqual(
+      cutShort(),
+    );
+    for (const name of ["endpoints", "verifiedAliases"]) {
+      expect(didDocument(log.value, withoutRoomFor({ versionId }, name))).toStrictEqual(cutShort());
+    }
+    expect(didDocument(log.value, { versionId })).toStrictEqual(first);
+    // Options that cannot be read for another reason are options that say nothing.
+    expect(didDocument(log.value, failing(new Error("no")) as never)).toStrictEqual(latest);
+  });
+
   it("is no reading of the options a copy is witnessed with, and no failure of the evidence", () => {
     const ada = new KeyMind("ada").update(10);
     const seen = witness([ada.events]);
@@ -322,6 +394,12 @@ describe(`${clause("core 4.4")} a check that was cut short`, () => {
     // Options that could not be read are not read as none: nothing is witnessed with them.
     expect(witnessLog(ada.events, at(50), own, failing(overflow()) as never)).toStrictEqual(cut);
     expect(own.eventSeen(contentId(ada.events[0]))).toBeUndefined();
+    // Nor is any one of them, where the others can be read.
+    for (const name of ["evidence", "memberLog", "maxEvents", "understood"]) {
+      const options = withoutRoomFor({ evidence: seen }, name);
+      expect(witnessLog(ada.events, at(50), own, options)).toStrictEqual(cut);
+      expect(own.eventSeen(contentId(ada.events[0]))).toBeUndefined();
+    }
     // Evidence that found no room has not said the log is unreadable.
     const spent = {
       proofSeen: seen.proofSeen.bind(seen),

@@ -18,10 +18,16 @@ import { base58 } from "@scure/base";
 import fc from "fast-check";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { BoundedCache } from "../src/cache.ts";
 import {
   contentId,
+  decodeEd25519Multikey,
+  decodeX25519Multikey,
   ed25519PublicKey,
+  encodeEd25519Multikey,
+  encodeX25519Multikey,
   hexToBytes,
+  isEd25519Multikey,
   isEd25519PublicKey,
   parseExtensionRecord,
   parseJson,
@@ -293,10 +299,13 @@ describe(`${clause("core 4.4")} the first signature a process checks, near the e
         String(frames),
         ...mode,
       ]) as {
+        readonly remembered: boolean;
         readonly answer: string;
         readonly where: string;
         readonly afterwards: boolean;
       };
+      // The run asked what it was meant to: of a key the process had checked before, or not.
+      expect(report.remembered).toBe(!mode.includes("cold"));
       // A check that throws could not be entered: the failure is the caller's call, not its own.
       const answer =
         report.answer === "threw" && !report.where.startsWith("at descend")
@@ -336,6 +345,25 @@ describe(`${clause("core 4.4")} the first signature a process checks, near the e
     // is the check that its point has order L, which this package makes itself.
     expectNoSilentNo(answersAt(DEPTHS, "cold"));
   }, 120_000);
+
+  it("is never called invalid so by code that has verified often, whose frames are other sizes", () => {
+    // The steps the library guards are taken again from deeper than the library took them.
+    // Taken from no deeper, they find room where the library found none: this is where that
+    // shows, at one depth in some hundreds. Each depth is asked below frames of another
+    // size as well, so that the depths asked lie closer together than one frame.
+    const report = inNode(new URL("./warm-verify.node.ts", import.meta.url)) as {
+      readonly answers: Readonly<Record<string, number>>;
+      readonly silent: readonly string[];
+      readonly afterwards: boolean;
+    };
+    expect(report.silent).toStrictEqual([]);
+    expect(Object.keys(report.answers).sort()).toStrictEqual([
+      "false, noted",
+      "threw",
+      "true, nothing noted",
+    ]);
+    expect(report.afterwards).toBe(true);
+  }, 120_000);
 });
 
 describe(`${clause("core 4.4")} a spent stack inside what this package calls`, () => {
@@ -363,6 +391,36 @@ describe(`${clause("core 4.4")} a spent stack inside what this package calls`, (
       }),
     ).toBe(0);
     expect(answer).toMatchObject({ ok: false, issues: [{ clause: "core 1.1" }] });
+  });
+
+  it("is refused by the reader of a key, which does not call it a key no signature counts by", () => {
+    const multikey = encodeEd25519Multikey(key);
+    // The check of the key's order looks first at the keys it remembers.
+    vi.spyOn(BoundedCache.prototype, "has").mockImplementationOnce(spent);
+    expect(decodeEd25519Multikey(multikey)).toStrictEqual(SPENT);
+    expect(decodeEd25519Multikey(multikey)).toStrictEqual({ ok: true, value: key });
+    // The question with a yes or a no for an answer gives the no, and notes it.
+    vi.spyOn(BoundedCache.prototype, "has").mockImplementationOnce(spent);
+    expect(moved(() => expect(isEd25519Multikey(multikey)).toBe(false))).toBe(1);
+    expect(isEd25519Multikey(multikey)).toBe(true);
+    // A key of small order is refused as that: the encoding of the identity point, here.
+    const small = `z${base58.encode(Uint8Array.of(0xed, 0x01, 1, ...new Uint8Array(31)))}`;
+    let answer: ReturnType<typeof decodeEd25519Multikey> | undefined;
+    expect(
+      moved(() => {
+        answer = decodeEd25519Multikey(small);
+      }),
+    ).toBe(0);
+    expect(answer).toMatchObject({ ok: false, issues: [{ clause: "core 4.4" }] });
+  });
+
+  it("is refused by the reader of an agreement key, which does not throw", () => {
+    const bytes = new Uint8Array(32).fill(9);
+    const multikey = encodeX25519Multikey(bytes);
+    // The form of the string is looked at first.
+    vi.spyOn(RegExp.prototype, "test").mockImplementationOnce(spent);
+    expect(decodeX25519Multikey(multikey)).toStrictEqual(SPENT);
+    expect(decodeX25519Multikey(multikey)).toStrictEqual({ ok: true, value: bytes });
   });
 });
 

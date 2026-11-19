@@ -17,6 +17,7 @@
 
 import { cutShortCount } from "@oip/schema";
 
+import { hasOrderL } from "../src/ed25519.ts";
 import { ed25519PublicKey, isEd25519PublicKey, signEd25519, verifyEd25519 } from "../src/index.ts";
 
 const frames = Number(process.argv[2]);
@@ -27,6 +28,9 @@ const signature = signEd25519(text, seed);
 // The key is remembered as of order L, so that the check asked for is the library's. With
 // `cold`, it is not: the check of the key's order is then the first thing to find no room.
 if (process.argv[3] !== "cold") isEd25519PublicKey(key);
+// Which of the two this run is, as the package has it: a check that says no shows whether
+// the key is remembered, and leaves nothing remembered.
+const remembered = hasOrderL(key, () => false);
 
 let deepest = 0;
 let target = -1;
@@ -76,5 +80,11 @@ const where =
         .map((line) => line.trim().replace(/\(.*\/packages\//u, "("))
         .join(" < ");
 process.stdout.write(
-  JSON.stringify({ frames, answer, where, afterwards: verifyEd25519(signature, text, key) }),
+  JSON.stringify({
+    frames,
+    remembered,
+    answer,
+    where,
+    afterwards: verifyEd25519(signature, text, key),
+  }),
 );

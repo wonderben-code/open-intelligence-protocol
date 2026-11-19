@@ -37,10 +37,14 @@ export default {
     "packages/web/src/**/*.ts",
     "packages/net/src/**/*.ts",
     "packages/server/src/**/*.ts",
+    "packages/resolver/src/**/*.ts",
+    "packages/host/src/**/*.ts",
     "packages/schema/src/**/*.ts",
     // Generated from the schemas, and tested through them.
     "!packages/schema/src/generated/**",
     "!packages/**/*.d.ts",
+    // Each starts its service from the process's environment, and is run by hand and in the containers.
+    "!packages/*/src/bin.ts",
   ],
   coverageAnalysis: "perTest",
   // Nothing type-checks the copies, so no file needs a `@ts-nocheck` put at

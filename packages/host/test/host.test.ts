@@ -15,11 +15,11 @@ import {
   proofDigest,
 } from "@oip/core";
 import { judgeRecord, ownSignedTime } from "@oip/identity";
-import type { Bundle, Proof } from "@oip/schema";
-import { Database, HttpFailure, LogArchive } from "@oip/server";
+import { type Bundle, noteCutShort, type Proof } from "@oip/schema";
+import { Database, HttpFailure, LogArchive, Unavailable } from "@oip/server";
 import { clause } from "@oip/testkit";
 import { at, intentBy, KeyMind, type Mind, T } from "@oip/testkit/minds";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Host, HOST_MIGRATIONS, type HostOptions } from "../src/index.ts";
 
@@ -58,6 +58,7 @@ beforeEach(() => {
   db = open();
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   db.close();
   rmSync(directory, { recursive: true, force: true });
 });
@@ -209,6 +210,12 @@ describe(`${clause("L1 13.2", "L1 12.4")} a packet that arrives at a mind's inbo
       [
         "no packet",
         () => host.deliver(bob.address, ada.sign(intentBy(ada, 100)) as unknown as OipRecord),
+        { code: "invalid-record" },
+      ],
+      [
+        "a packet whose proof is no proof",
+        () =>
+          host.deliver(bob.address, { ...packet(ada, [bob]), proof: [7] } as unknown as OipRecord),
         { code: "invalid-record" },
       ],
       [
@@ -604,6 +611,68 @@ describe(`${clause("L1 10.1", "L1 13.1")} the feed a host serves for a mind`, ()
     host.append(bob.address, [first, second]);
     expect(refused(() => host.append(bob.address, [third]))).toStrictEqual({ status: 507 });
     expect(host.feed(bob.address, undefined, 10).entries).toHaveLength(2);
+  });
+});
+
+describe("a judgement the host could not make (ADR-0010)", () => {
+  /** Makes the next view the archive gives note a check cut short when a log is asked of it. */
+  function cutShortOnce(): void {
+    const view = archive.view.bind(archive);
+    vi.spyOn(archive, "view").mockImplementationOnce((now) => {
+      const held = view(now);
+      return {
+        evidence: held.evidence,
+        log: (mind) => {
+          noteCutShort(new RangeError("Maximum call stack size exceeded"));
+          return held.log(mind);
+        },
+      };
+    });
+  }
+  const unavailable = (work: () => unknown): boolean => {
+    try {
+      work();
+    } catch (error) {
+      return error instanceof Unavailable;
+    }
+    return false;
+  };
+
+  it("refuses nothing and keeps nothing: the same thing asked again is judged", () => {
+    const host = hosting();
+    const sent = packet(ada, [bob]);
+    cutShortOnce();
+    expect(unavailable(() => host.deliver(bob.address, sent))).toBe(true);
+    expect(count("mailbox") + count("accepted") + count("seen_proofs")).toBe(0);
+    expect(host.deliver(bob.address, sent)).toStrictEqual({ stored: true });
+
+    const intent = bob.sign(intentBy(bob, 100)) as unknown as Signed;
+    host.keep(bob.address, intent as unknown as OipRecord);
+    const first = bob.sign(draft(bob, 0, undefined, intent, 100));
+    cutShortOnce();
+    expect(unavailable(() => host.append(bob.address, [first]))).toBe(true);
+    expect(host.append(bob.address, [first])).toBe(1);
+    // An entry that is held is not dropped because it could not be judged again.
+    const other = bob.sign(draft(bob, 0, undefined, intent, 105));
+    cutShortOnce();
+    expect(unavailable(() => host.append(bob.address, [other]))).toBe(true);
+    expect(host.feed(bob.address, undefined, 10)).toStrictEqual({ entries: [first] });
+    expect(refused(() => host.append(bob.address, [other]))).toStrictEqual({ code: "duplicity" });
+
+    const ack = bob.sign({
+      oip: "1",
+      type: "Ack",
+      author: bob.address,
+      packet: contentId(sent),
+      received: T(110),
+      created: T(110),
+    }) as unknown as OipRecord;
+    cutShortOnce();
+    expect(unavailable(() => host.acknowledge(bob.address, ack))).toBe(true);
+    expect(count("mailbox")).toBe(1);
+    expect(host.acknowledge(bob.address, ack)).toBe(true);
+    expect(host.acknowledge(bob.address, ack)).toBe(false);
+    expect(count("mailbox")).toBe(0);
   });
 });
 

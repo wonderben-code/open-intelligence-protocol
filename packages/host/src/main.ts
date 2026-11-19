@@ -17,6 +17,7 @@ import { serve } from "@hono/node-server";
 import { MAX_TEXT_LENGTH, mindId } from "@oip/core";
 import {
   type Arrived,
+  choice,
   clientAddress,
   type Clock,
   ConfigError,
@@ -156,9 +157,7 @@ export const SETTINGS = {
     text("a namespace"),
     [],
   ),
-  LOG_LEVEL: text("the least level that is logged: debug, info, warn or error", {
-    fallback: "info",
-  }),
+  LOG_LEVEL: choice("the least level that is logged", ["debug", "info", "warn", "error"], "info"),
   SHUTDOWN_GRACE_MS: integer("how long the host may take to stop, in milliseconds", {
     min: 0,
     max: 600_000,
@@ -166,7 +165,6 @@ export const SETTINGS = {
   }),
 };
 
-const LEVELS = ["debug", "info", "warn", "error"] as const;
 const DAY = 86_400_000_000_000n;
 
 /** A host that is running. */
@@ -187,7 +185,21 @@ export interface Edges {
   readonly sink?: (line: string) => void;
   /** How a resolver is asked. By default a `GuardedFetcher` of `@oip/server`. */
   readonly get?: LookupOptions["get"];
+  /**
+   * Does something again and again, and gives how to stop. By default a
+   * timer that does not keep the process alive.
+   */
+  readonly every?: (work: () => void, ms: number) => () => void;
 }
+
+const everySoOften = (work: () => void, ms: number): (() => void) => {
+  const timer = setInterval(work, ms);
+  // A timer does not keep a process alive that has nothing else to do.
+  timer.unref();
+  return () => {
+    clearInterval(timer);
+  };
+};
 
 /**
  * Starts a host.
@@ -206,11 +218,10 @@ export async function start(
     ]);
   }
   const clock = edges.clock ?? systemClock;
-  const level = LEVELS.find((known) => known === config.LOG_LEVEL) ?? "info";
   const log = new Log({
     service: "host",
     clock,
-    level,
+    level: config.LOG_LEVEL,
     ...(edges.sink === undefined ? {} : { sink: edges.sink }),
   });
   // Each setting under its name as a log's field has it: MAX_SOCKETS as maxSockets.
@@ -249,7 +260,9 @@ export async function start(
       feedEntries: config.FEED_ENTRIES,
     },
   });
-  const tidy = setInterval(() => {
+  // What is kept only for a time is let go of every minute: nonces, old mail, packets
+  // that can no longer be accepted.
+  const stopTidying = (edges.every ?? everySoOften)(() => {
     try {
       nonces.forget(clock.now());
       host.prune(clock.now());
@@ -257,11 +270,7 @@ export async function start(
       log.failure("not tidied", error);
     }
   }, 60_000);
-  // A timer does not keep a process alive that has nothing else to do.
-  tidy.unref();
-  shutdown.add("timers", () => {
-    clearInterval(tidy);
-  });
+  shutdown.add("timers", stopTidying);
 
   let server: Server | undefined;
   shutdown.add(
@@ -339,8 +348,9 @@ export async function start(
     const listening = serve(
       {
         fetch: (request, env: { incoming: Arrived }) => {
-          const address = clientAddress(env.incoming, config.TRUSTED_PROXIES);
-          return app.fetch(request, address === undefined ? {} : { address });
+          return app.fetch(request, {
+            address: clientAddress(env.incoming, config.TRUSTED_PROXIES),
+          });
         },
         hostname: config.HOST,
         port: config.PORT,

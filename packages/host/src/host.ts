@@ -41,7 +41,6 @@ import {
 import {
   FirstSeen,
   type IdentityView,
-  type JudgedRecord,
   judgeRecord,
   latestState,
   ownSignedTime,
@@ -49,15 +48,15 @@ import {
 } from "@oip/identity";
 import { draftAck, receivePacket, verifyAck } from "@oip/net";
 import {
-  cutShort,
-  cutShortCount,
   type Entry,
   isRecordType,
   validateExtensionRecord,
   validateRecord,
   validateRecordOfType,
 } from "@oip/schema";
-import { type Database, HttpFailure, type LogArchive, Unavailable } from "@oip/server";
+import { type Database, HttpFailure, type LogArchive } from "@oip/server";
+
+import { overlaid, standing } from "./judging.ts";
 
 import { HostStore, type MailboxItem } from "./store.ts";
 
@@ -140,39 +139,17 @@ function refusalOf(
   return new OipError("invalid-record", first.message, options);
 }
 
-/** The logs and the evidence held, with some proofs counted as first seen at `now`. */
-function seenNow(view: IdentityView, digests: ReadonlySet<string>, now: Instant): IdentityView {
-  return {
-    log: (mind) => view.log(mind),
-    evidence: {
-      eventSeen: (id) => view.evidence.eventSeen(id),
-      proofSeen: (digest) =>
-        view.evidence.proofSeen(digest) ?? (digests.has(digest) ? now : undefined),
-    },
-  };
-}
-
-/**
- * The time a record counts from as its author's own, or `undefined` if it
- * is not signed by the mind's own authority.
- *
- * @throws Unavailable if the check was cut short: that says nothing of the record.
- */
-function ownTime(judged: JudgedRecord, mind: string, view: IdentityView): Instant | undefined {
-  const before = cutShortCount();
-  const time = ownSignedTime(judged, mind, view);
-  if (time === undefined && cutShortCount() !== before) {
-    throw new Unavailable("the record could not be judged just now");
-  }
-  return time;
-}
+/** The evidence that some proofs were first seen at `now`. */
+const seenAt =
+  (digests: ReadonlySet<string>, now: Instant) =>
+  (digest: string): Instant | undefined =>
+    digests.has(digest) ? now : undefined;
 
 /** The problem for a value that is no record of the form asked for. */
 function malformed(
   refused: { readonly issues: readonly [{ message: string; clause: string }, ...unknown[]] },
   prefix = "",
 ): never {
-  if (refused === cutShort()) throw new Unavailable("the record could not be judged just now");
   const [first] = refused.issues;
   throw new OipError("invalid-record", prefix + first.message, {
     clause: first.clause,
@@ -304,16 +281,16 @@ export class Host {
       const view = this.#archive.view(now);
       // Judged as it will be once its proofs are recorded as seen now. They are recorded
       // only if the packet is kept: one that is refused leaves nothing behind.
-      const received = receivePacket(record, {
-        address: mind,
-        now,
-        view: seenNow(view, digests, now),
-        accepted: (id) => this.#store.answered(mind, id) !== undefined,
-        window: this.#limits.window,
-      });
+      const received = standing(() =>
+        receivePacket(record, {
+          address: mind,
+          now,
+          view: overlaid(view, seenAt(digests, now)),
+          accepted: (id) => this.#store.answered(mind, id) !== undefined,
+          window: this.#limits.window,
+        }),
+      );
       if (!received.ok) {
-        if (received === cutShort())
-          throw new Unavailable("the packet could not be judged just now");
         const from = (record as { from?: unknown }).from;
         throw refusalOf(received.issues, typeof from === "string" && view.log(from).ok);
       }
@@ -346,7 +323,7 @@ export class Host {
       });
     }
     // Its form is checked, and no more: the mind judges what it drains.
-    const formed = validateRecordOfType(record.type, record);
+    const formed = standing(() => validateRecordOfType(record.type, record));
     if (!formed.ok) malformed(formed);
     const to = (record as { to?: unknown }).to;
     const addressed =
@@ -402,20 +379,14 @@ export class Host {
     return this.#archive.witnessing((_seen, now) => {
       // Judged as first seen now. The host is no witness of it, and keeps no record of that.
       const seen = new FirstSeen();
-      const view = this.#archive.view(now);
-      const verified = verifyAck(record, {
-        now,
-        seen,
-        view: {
-          log: (other) => view.log(other),
-          evidence: {
-            eventSeen: (id) => view.evidence.eventSeen(id),
-            proofSeen: (digest) => view.evidence.proofSeen(digest) ?? seen.proofSeen(digest),
-          },
-        },
-      });
+      const verified = standing(() =>
+        verifyAck(record, {
+          now,
+          seen,
+          view: overlaid(this.#archive.view(now), (digest) => seen.proofSeen(digest)),
+        }),
+      );
       if (!verified.ok) {
-        if (verified === cutShort()) throw new Unavailable("the Ack could not be judged just now");
         const [first] = verified.issues;
         throw new OipError(
           first.path === "/proof" ? "invalid-proof" : "invalid-record",
@@ -447,9 +418,9 @@ export class Host {
    */
   keep(mind: string, record: OipRecord): { id: string; fresh: boolean } {
     this.#served(mind);
-    const formed = isRecordType(record.type)
-      ? validateRecord(record)
-      : validateExtensionRecord(record);
+    const formed = standing(() =>
+      isRecordType(record.type) ? validateRecord(record) : validateExtensionRecord(record),
+    );
     if (!formed.ok) malformed(formed);
     const id = contentId(record);
     return this.#db.transaction(() => {
@@ -500,7 +471,7 @@ export class Host {
       let added = 0;
       for (const [index, value] of entries.entries()) {
         const where = `entry ${index}: `;
-        const judged = judgeRecord(value);
+        const judged = standing(() => judgeRecord(value));
         if (!judged.ok) malformed(judged, where);
         const { type, author } = judged.value.record as { type: string; author?: unknown };
         if (type !== "Entry" || author !== mind) {
@@ -512,7 +483,8 @@ export class Host {
         const id = contentId(entry);
         if (this.#store.entryAt(mind, entry.seq)?.id === id) continue;
         const digests = new Set(judged.value.proofs.map((proof) => proof.digest));
-        if (ownTime(judged.value, mind, seenNow(view, digests, now)) === undefined) {
+        const own = overlaid(view, seenAt(digests, now));
+        if (standing(() => ownSignedTime(judged.value, mind, own)) === undefined) {
           throw new OipError(
             "invalid-proof",
             `${where}it is not signed by a valid operational key of the mind`,
@@ -559,11 +531,12 @@ export class Host {
     const length = this.#store.feedLength(mind);
     const held = seq < length ? this.#store.entryAt(mind, seq) : undefined;
     if (held === undefined) return length;
-    const judged = judgeRecord(held.entry);
-    if (!judged.ok && judged === cutShort()) {
-      throw new Unavailable("the feed could not be judged just now");
-    }
-    if (judged.ok && ownTime(judged.value, mind, view) !== undefined) {
+    // Whether it still verifies. An answer that a cut-short check went into drops nothing.
+    const valid = standing(() => {
+      const judged = judgeRecord(held.entry);
+      return judged.ok && ownSignedTime(judged.value, mind, view) !== undefined;
+    });
+    if (valid) {
       throw new OipError(
         "duplicity",
         `${where}the feed holds another valid entry at seq ${seq}, and a feed has one at each (10.3)`,

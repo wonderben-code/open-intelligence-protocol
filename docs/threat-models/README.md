@@ -2,9 +2,10 @@
 
 One for each service and each tool (BUILD.md 3.7). Each says what the thing protects, who can reach it and how, what could go wrong, what stops it, and what is left.
 
-| Model                      | What it covers                                                           |
-| -------------------------- | ------------------------------------------------------------------------ |
-| [resolver.md](resolver.md) | `@oip/resolver`: publication, resolution, the stream, duplicity evidence |
+| Model                      | What it covers                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------ |
+| [resolver.md](resolver.md) | `@oip/resolver`: publication, resolution, the stream, duplicity evidence             |
+| [host.md](host.md)         | `@oip/host`: well-known resources, the inbox, the mailbox, sockets, asking resolvers |
 
 ## How they are written
 

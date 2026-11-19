@@ -21,8 +21,8 @@ import { addressKey, type RateLimiter } from "./rate.ts";
 
 /** What a request arrives with besides itself: the address it came from. */
 export interface Arrival {
-  /** The client's IP address, as the socket has it. */
-  readonly address?: string;
+  /** The client's IP address, as the socket has it. A socket that has closed has none. */
+  readonly address?: string | undefined;
 }
 
 /** A request as the server has it, as far as telling where it came from needs. */

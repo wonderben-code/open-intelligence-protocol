@@ -17,6 +17,7 @@ import { serve } from "@hono/node-server";
 import { MAX_TEXT_LENGTH } from "@oip/core";
 import {
   type Arrived,
+  choice,
   clientAddress,
   type Clock,
   Database,
@@ -91,17 +92,13 @@ export const SETTINGS = {
     text("a namespace"),
     [],
   ),
-  LOG_LEVEL: text("the least level that is logged: debug, info, warn or error", {
-    fallback: "info",
-  }),
+  LOG_LEVEL: choice("the least level that is logged", ["debug", "info", "warn", "error"], "info"),
   SHUTDOWN_GRACE_MS: integer("how long the resolver may take to stop, in milliseconds", {
     min: 0,
     max: 600_000,
     fallback: 10_000,
   }),
 };
-
-const LEVELS = ["debug", "info", "warn", "error"] as const;
 
 /** A resolver that is running. */
 export interface Running {
@@ -126,11 +123,10 @@ export async function start(
 ): Promise<Running> {
   const config = readConfig(PREFIX, SETTINGS, environment);
   const clock = edges.clock ?? systemClock;
-  const level = LEVELS.find((known) => known === config.LOG_LEVEL) ?? "info";
   const log = new Log({
     service: "resolver",
     clock,
-    level,
+    level: config.LOG_LEVEL,
     ...(edges.sink === undefined ? {} : { sink: edges.sink }),
   });
   // Each setting under its name as a log's field has it: MAX_STREAMS as maxStreams.
@@ -212,8 +208,9 @@ export async function start(
     const listening = serve(
       {
         fetch: (request, env: { incoming: Arrived }) => {
-          const address = clientAddress(env.incoming, config.TRUSTED_PROXIES);
-          return app.fetch(request, address === undefined ? {} : { address });
+          return app.fetch(request, {
+            address: clientAddress(env.incoming, config.TRUSTED_PROXIES),
+          });
         },
         hostname: config.HOST,
         port: config.PORT,

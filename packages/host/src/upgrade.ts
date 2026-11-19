@@ -20,7 +20,7 @@ import { addressKey, type Log, type RateLimiter } from "@oip/server";
 import { type WebSocket, WebSocketServer } from "ws";
 
 import type { Host } from "./host.ts";
-import { type Sockets, SUBPROTOCOL } from "./sockets.ts";
+import { type Connection, type Sockets, SUBPROTOCOL, type Wire } from "./sockets.ts";
 
 /** What the upgrade is made with. */
 export interface UpgradeOptions {
@@ -42,6 +42,39 @@ export interface UpgradeOptions {
 }
 
 const PATH = /^\/oip\/v1\/minds\/([^/]+)\/ws$/u;
+
+/** A WebSocket, as far as sending over it needs. */
+export interface Sending {
+  send(text: string, sent: () => void): void;
+  close(code: number, reason: string): void;
+  readonly bufferedAmount: number;
+}
+
+/**
+ * A connection as the binding uses one, made of a WebSocket. It says when
+ * a connection that was full has room again: once, when what waits to be
+ * sent has fallen to half of `maxBuffered`.
+ */
+export function wireFor(ws: Sending, maxBuffered: number, drained: () => void): Wire {
+  let full = false;
+  return {
+    send: (text) => {
+      ws.send(text, () => {
+        if (full && ws.bufferedAmount < maxBuffered / 2) {
+          full = false;
+          drained();
+        }
+      });
+      if (ws.bufferedAmount >= maxBuffered) full = true;
+    },
+    close: (code, reason) => {
+      ws.close(code, reason);
+    },
+    get buffered() {
+      return ws.bufferedAmount;
+    },
+  };
+}
 
 /**
  * Hands a server's upgrade requests to the binding.
@@ -65,27 +98,11 @@ export function attachSockets(
   const alive = new Map<WebSocket, boolean>();
 
   const bind = (ws: WebSocket, mind: string, address: string | undefined): void => {
-    let full = false;
-    const connection = sockets.connect(
+    const connection: Connection = sockets.connect(
       mind,
-      {
-        send: (text) => {
-          ws.send(text, () => {
-            // Told once when a connection that was full has room again.
-            if (full && ws.bufferedAmount < maxBuffered / 2) {
-              full = false;
-              connection.drained();
-            }
-          });
-          if (ws.bufferedAmount >= maxBuffered) full = true;
-        },
-        close: (code, reason) => {
-          ws.close(code, reason);
-        },
-        get buffered() {
-          return ws.bufferedAmount;
-        },
-      },
+      wireFor(ws, maxBuffered, () => {
+        connection.drained();
+      }),
       address,
     );
     alive.set(ws, true);

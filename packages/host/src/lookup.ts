@@ -38,10 +38,13 @@ export interface LookupOptions {
   readonly maxAtOnce?: number;
   /** The most bytes of a bundle that are read. `MAX_TEXT_LENGTH` of `@oip/core` by default. */
   readonly maxBundleBytes?: number;
+  /**
+   * How many minds the lookup remembers having asked after. 10,000 by
+   * default. Beyond that the one asked after longest ago is forgotten, and
+   * may be asked after again sooner.
+   */
+  readonly remembered?: number;
 }
-
-/** How many minds the lookup remembers having asked after. */
-const REMEMBERED = 10_000;
 
 /** Asks resolvers for the logs of minds the host cannot judge. */
 export class Lookup {
@@ -93,8 +96,9 @@ export class Lookup {
   #rest(id: string, now: bigint): void {
     this.#rests.delete(id);
     this.#rests.set(id, now + (this.#options.rest ?? 60_000_000_000n));
+    const remembered = this.#options.remembered ?? 10_000;
     for (const oldest of this.#rests.keys()) {
-      if (this.#rests.size <= REMEMBERED) break;
+      if (this.#rests.size <= remembered) break;
       this.#rests.delete(oldest);
     }
   }

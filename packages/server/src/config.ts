@@ -93,6 +93,22 @@ export function text(
   };
 }
 
+/** One of a few words. */
+export function choice<T extends string>(
+  doc: string,
+  words: readonly [T, ...T[]],
+  fallback?: T,
+): Setting<T> {
+  return {
+    doc,
+    ...(fallback === undefined ? {} : { fallback }),
+    read: (value) => {
+      const word = words.find((known) => known === value);
+      return word === undefined ? { expected: `one of ${words.join(", ")}` } : { value: word };
+    },
+  };
+}
+
 /**
  * An HTTPS origin: the scheme, the host and perhaps a port, and nothing
  * after them. It is what a service calls itself, and what a `Hello` must

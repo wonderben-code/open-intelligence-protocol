@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { base64urlToBytes, contentId, type JsonObject, mindId, type OipRecord } from "@oip/core";
-import type { Bundle } from "@oip/schema";
+import { Challenges } from "@oip/net";
+import { type Bundle, noteCutShort } from "@oip/schema";
 import { Database, Log, LogArchive, Metrics, RateLimiter } from "@oip/server";
 import { clause } from "@oip/testkit";
 import { at, intentBy, KeyMind, type Mind, T } from "@oip/testkit/minds";
@@ -44,6 +45,7 @@ beforeEach(() => {
   lines = [];
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.useRealTimers();
   try {
     db.close();
@@ -453,6 +455,47 @@ describe(`${clause("L1 13.4", "L1 13.5")} the socket of a mind's own instance`, 
     const other = welcomed(sockets, ada);
     other.connection.drained();
     expect(other.sent).toHaveLength(2);
+  });
+});
+
+describe("a socket on which something fails", () => {
+  it("is closed with 1011 when the mind's mail cannot be read or sent", () => {
+    const sockets = binding();
+    // Mail that arrives cannot be sent: the connection is broken.
+    const broken = welcomed(sockets, bob);
+    const send = broken.sent.push.bind(broken.sent);
+    broken.sent.push = () => {
+      throw new Error("the connection is gone");
+    };
+    host.post(bob.address, sealed(bob, "AAA1"));
+    broken.sent.push = send;
+    expect(broken.state.closed).toStrictEqual([1011, "internal error"]);
+    expect(lines.at(-1)).toMatchObject({ level: "error", event: "socket failed" });
+    // The mailbox cannot be read when the connection has room again.
+    const waiting = welcomed(sockets, bob);
+    db.close();
+    waiting.connection.drained();
+    expect(waiting.state.closed).toStrictEqual([1011, "internal error"]);
+    expect(metrics.render()).toContain('oip_host_socket_messages_total{outcome="failed"} 2');
+  });
+
+  it("is told to ask again where a Hello or a record could not be judged (ADR-0010)", () => {
+    const sockets = binding();
+    // A check cut short while the Hello is judged: the challenge is left as it was.
+    const opened = connect(sockets);
+    const judged = vi.spyOn(Challenges.prototype, "issuedAt").mockImplementationOnce(function (
+      this: Challenges,
+      challenge: string,
+    ) {
+      noteCutShort(new RangeError("Maximum call stack size exceeded"));
+      judged.mockRestore();
+      return this.issuedAt(challenge);
+    });
+    opened.connection.message(hello(ada, opened.nonce));
+    expect(opened.state.closed).toStrictEqual([1013, "ask again"]);
+    const again = connect(sockets);
+    again.connection.message(hello(ada, opened.nonce));
+    expect(again.sent[1]).toStrictEqual({ type: "Welcome", mind: ada.address });
   });
 });
 

@@ -216,6 +216,26 @@ describe(`${clause("L1 17.1", "L1 12.4")} the log of a mind the host has not met
   });
 });
 
+describe("what a lookup remembers", () => {
+  it("is so many minds, and the one asked after longest ago goes first", async () => {
+    const [yan, xia] = [new KeyMind("yan"), new KeyMind("xia")];
+    const looking = lookup({ remembered: 2, resolvers: [FIRST] });
+    for (const mind of [zed, yan, xia]) await looking.learn(mind.address);
+    expect(asked).toStrictEqual([urlOf(FIRST, zed), urlOf(FIRST, yan), urlOf(FIRST, xia)]);
+    // The two asked after last are remembered, and not asked after again yet.
+    await looking.learn(yan.address);
+    await looking.learn(xia.address);
+    expect(asked).toHaveLength(3);
+    // Zed is forgotten, and asked after again: and now yan is the one forgotten.
+    await looking.learn(zed.address);
+    expect(asked).toHaveLength(4);
+    await looking.learn(xia.address);
+    expect(asked).toHaveLength(4);
+    await looking.learn(yan.address);
+    expect(asked).toHaveLength(5);
+  });
+});
+
 describe(`${clause("L1 13.2")} a packet whose sender the host cannot judge`, () => {
   it("is judged again once the sender's log is learned, and refused as it was if it is not", async () => {
     const sent = packet(zed, [bob]);

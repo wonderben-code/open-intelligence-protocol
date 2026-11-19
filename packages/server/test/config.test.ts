@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  choice,
   ConfigError,
   describeConfig,
   flag,
@@ -184,6 +185,28 @@ describe("a service's configuration", () => {
     expect(
       readConfig("X_", { N: integer("n", { min: 0, max: 9, fallback: 0 }) }, {}),
     ).toStrictEqual({ N: 0 });
+  });
+
+  it("takes one of a few words, and no other", () => {
+    const settings = { LEVEL: choice("the least level logged", ["debug", "info"], "info") };
+    const read = (value?: string) =>
+      readConfig("OIP_T_", settings, value === undefined ? {} : { OIP_T_LEVEL: value }).LEVEL;
+    expect(read()).toBe("info");
+    expect(read("debug")).toBe("debug");
+    for (const value of ["DEBUG", "warn", "", " info"]) {
+      let thrown: unknown;
+      try {
+        read(value);
+      } catch (error) {
+        thrown = error;
+      }
+      expect((thrown as ConfigError).problems, value).toStrictEqual([
+        `OIP_T_LEVEL: ${JSON.stringify(value)} is not one of debug, info`,
+      ]);
+    }
+    // One with no default must be set.
+    const needed = { LEVEL: choice("the level", ["debug", "info"]) };
+    expect(() => readConfig("OIP_T_", needed, {})).toThrow(ConfigError);
   });
 
   it("reads a setting from its own variable only, and not from one a prototype brings", () => {

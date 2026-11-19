@@ -311,9 +311,106 @@ describe(`${clause("L1 13.1", "L1 13.2", "L1 13.5")} a host that is running`, ()
     expect(
       await wrong({ OIP_HOST_ORIGIN: ORIGIN, OIP_HOST_MINDS: `${bob.address},bob` }),
     ).toStrictEqual(["OIP_HOST_MINDS: each is the address of a mind, which starts with did:oip:"]);
+    expect(await wrong({ OIP_HOST_ORIGIN: ORIGIN, OIP_HOST_LOG_LEVEL: "loud" })).toStrictEqual([
+      'OIP_HOST_LOG_LEVEL: "loud" is not one of debug, info, warn, error',
+    ]);
     expect(await wrong({ OIP_HOST_ORIGIN: ORIGIN, OIP_HOST_RETENTION_DAYS: "7" })).toStrictEqual([
       'OIP_HOST_RETENTION_DAYS: "7" is not a whole number from 30 to 3650',
     ]);
+  });
+});
+
+describe("a host with the machine's own edges", () => {
+  it("runs on the machine's clock, and asks resolvers through the guarded fetcher", async () => {
+    const service = await start({
+      OIP_HOST_ORIGIN: ORIGIN,
+      OIP_HOST_HOST: "127.0.0.1",
+      OIP_HOST_PORT: "0",
+      OIP_HOST_DATABASE: join(directory, "host.db"),
+      OIP_HOST_OPEN: "true",
+      // No public address: the fetcher refuses it before anything is sent.
+      OIP_HOST_RESOLVERS: "https://10.0.0.1",
+      OIP_HOST_LOG_LEVEL: "error",
+    });
+    running.push(service);
+    const http = `http://127.0.0.1:${service.port}`;
+    expect((await fetch(`${http}/readyz`)).status).toBe(200);
+    // Signed at the present, as the machine has it: a signature is made at a whole second.
+    clock.at = BigInt(Math.floor(Date.now() / 1000)) * 1_000_000_000n;
+    expect((await bring(http, bob)).status).toBe(201);
+    // Every signed request is judged at one reading of a clock that moves.
+    const mailbox = endpoint(bob, "/mailbox");
+    expect((await fetch(`${http}${mailbox}`, await signed(bob, "GET", mailbox))).status).toBe(200);
+    // A mind the host has not met says Hello: the resolver is asked, and cannot be.
+    const stranger = socket(`ws://127.0.0.1:${service.port}`, bob);
+    const challenge = await stranger.message(0);
+    stranger.ws.send(
+      JSON.stringify(
+        eve.sign(
+          { oip: "1", type: "Hello", author: eve.address, created: T(110) },
+          { more: { challenge: challenge["nonce"] as string, domain: ORIGIN } },
+        ),
+      ),
+    );
+    expect(await stranger.closed()).toMatchObject({ code: 4401 });
+    const metrics = await (await fetch(`${http}/metrics`)).text();
+    expect(metrics).toContain('oip_host_lookups_total{outcome="nothing"} 1');
+  });
+
+  it("serves nobody new and asks no resolver unless it is told to", async () => {
+    const { http } = await started({ OIP_HOST_MINDS: "", OIP_HOST_RESOLVERS: "" });
+    expect((await bring(http, bob)).status).toBe(403);
+    expect(await (await fetch(`${http}/metrics`)).text()).not.toContain("oip_host_lookups_total");
+  });
+});
+
+describe("what a host keeps only for a time", () => {
+  it("is let go of every minute, and a failure to do so stops nothing", async () => {
+    let tidy: (() => void) | undefined;
+    let stopped = false;
+    const service = await start(
+      {
+        OIP_HOST_ORIGIN: ORIGIN,
+        OIP_HOST_HOST: "127.0.0.1",
+        OIP_HOST_PORT: "0",
+        OIP_HOST_DATABASE: join(directory, "host.db"),
+        OIP_HOST_MINDS: bob.address,
+        OIP_HOST_RESOLVERS: RESOLVER,
+      },
+      {
+        clock,
+        sink: (line) => lines.push(JSON.parse(line) as Record<string, unknown>),
+        get: () => Promise.resolve({ status: 200, body: utf8(JSON.stringify(bundleOf(ada))) }),
+        every: (work, ms) => {
+          expect(ms).toBe(60_000);
+          tidy = work;
+          return () => {
+            stopped = true;
+          };
+        },
+      },
+    );
+    running.push(service);
+    const http = `http://127.0.0.1:${service.port}`;
+    await bring(http, bob);
+    expect((await deliver(http, bob, packet(ada, [bob]))).status).toBe(202);
+    const mailbox = endpoint(bob, "/mailbox");
+    const held = async (): Promise<number> => {
+      const drained = await fetch(`${http}${mailbox}`, await signed(bob, "GET", mailbox));
+      return ((await drained.json()) as { items: unknown[] }).items.length;
+    };
+    // Thirty days less a second: it is still there.
+    clock.at = at(110 + 30 * 86_400 - 1);
+    tidy?.();
+    expect(await held()).toBe(1);
+    clock.at = at(110 + 30 * 86_400 + 1);
+    tidy?.();
+    expect(await held()).toBe(0);
+    await service.stop("test");
+    expect(stopped).toBe(true);
+    // The database is closed: tidying fails, says so, and throws nothing.
+    tidy?.();
+    expect(lines.at(-1)).toMatchObject({ level: "error", event: "not tidied" });
   });
 });
 

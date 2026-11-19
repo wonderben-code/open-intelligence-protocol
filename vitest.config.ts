@@ -11,6 +11,9 @@ const VERIFICATION_PACKAGES = ["core", "identity", "delegation", "web", "net"];
 // Files of `@oip/server` held to the same threshold.
 const SERVER_GUARDS = ["auth", "http", "ip", "fetcher", "intake", "archive", "archive-store"];
 
+// Files of `@oip/host` held to it too: what judges a record, a request or a connection.
+const HOST_GUARDS = ["host", "app", "sockets", "lookup"];
+
 const strict = { lines: 95, branches: 95, functions: 95, statements: 95 };
 
 export default defineConfig({
@@ -30,6 +33,9 @@ export default defineConfig({
         "**/scripts/**",
         // Mutation testing works on copies of the repository (stryker.config.mjs).
         ".stryker-tmp/**",
+        // Each starts its service from the process's environment and ends the process. Its
+        // test runs it as a process of its own, which this coverage does not see.
+        "**/src/bin.ts",
       ],
       thresholds: {
         // Each file must meet the threshold, so that an untested file cannot
@@ -52,6 +58,12 @@ export default defineConfig({
           SERVER_GUARDS.filter((name) => existsSync(`packages/server/src/${name}.ts`)).map(
             (name) => [`**/packages/server/src/${name}.ts`, strict],
           ),
+        ),
+        ...Object.fromEntries(
+          HOST_GUARDS.filter((name) => existsSync(`packages/host/src/${name}.ts`)).map((name) => [
+            `**/packages/host/src/${name}.ts`,
+            strict,
+          ]),
         ),
       },
     },

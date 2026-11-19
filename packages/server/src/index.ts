@@ -24,6 +24,7 @@ export {
 } from "./archive-store.ts";
 export { authenticate, type Authentication, NONCES_SQL, StoredNonces } from "./auth.ts";
 export {
+  choice,
   ConfigError,
   type ConfigOf,
   describeConfig,

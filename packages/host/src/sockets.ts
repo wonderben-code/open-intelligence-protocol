@@ -26,7 +26,6 @@
 import { bytesToBase64url, MAX_TEXT_LENGTH, OipError, utf8 } from "@oip/core";
 import { FirstSeen } from "@oip/identity";
 import { Challenges, verifyHello } from "@oip/net";
-import { cutShort } from "@oip/schema";
 import {
   addressKey,
   type Clock,
@@ -41,6 +40,7 @@ import {
 } from "@oip/server";
 
 import type { Answer, Host } from "./host.ts";
+import { overlaid, standing } from "./judging.ts";
 import { deliverLearning, type Lookup } from "./lookup.ts";
 
 /** The subprotocol a client asks for (13.4). */
@@ -223,20 +223,15 @@ export class Sockets {
       // The proof answers a challenge made a moment ago. The host is no witness of it,
       // and keeps no record of that.
       const seen = new FirstSeen();
-      const view = archive.view(at);
-      return verifyHello(value, {
-        origin,
-        now: at,
-        challenges: this.#challenges,
-        seen,
-        view: {
-          log: (other) => view.log(other),
-          evidence: {
-            eventSeen: (id) => view.evidence.eventSeen(id),
-            proofSeen: (digest) => view.evidence.proofSeen(digest) ?? seen.proofSeen(digest),
-          },
-        },
-      });
+      return standing(() =>
+        verifyHello(value, {
+          origin,
+          now: at,
+          challenges: this.#challenges,
+          seen,
+          view: overlaid(archive.view(at), (digest) => seen.proofSeen(digest)),
+        }),
+      );
     };
 
     /** Welcomes the mind, or closes. */
@@ -244,8 +239,7 @@ export class Sockets {
       if (over) return;
       if (!judged.ok) {
         this.#messages.add({ outcome: "unauthenticated" });
-        if (judged === cutShort()) close(CLOSE.later, "ask again");
-        else close(CLOSE.unauthenticated, "the Hello does not authenticate a mind");
+        close(CLOSE.unauthenticated, "the Hello does not authenticate a mind");
         return;
       }
       clearTimeout(timer);
@@ -279,12 +273,7 @@ export class Sockets {
         typeof value === "object" && value !== null
           ? (value as { author?: unknown }).author
           : undefined;
-      if (
-        judged.ok ||
-        judged === cutShort() ||
-        lookup === undefined ||
-        typeof author !== "string"
-      ) {
+      if (judged.ok || lookup === undefined || typeof author !== "string") {
         settle(judged);
         return undefined;
       }

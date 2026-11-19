@@ -53,5 +53,8 @@
   },
   "devDependencies": {
     "@oip/testkit": "workspace:*"
+  },
+  "bin": {
+    "oip-resolver": "./dist/bin.js"
   }
 }

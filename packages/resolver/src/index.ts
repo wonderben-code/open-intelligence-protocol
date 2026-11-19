@@ -18,3 +18,4 @@ export {
   type Sighting,
   type Streamed,
 } from "./store.ts";
+export { type Arrived, clientAddress, PREFIX, type Running, SETTINGS, start } from "./main.ts";

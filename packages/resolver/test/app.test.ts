@@ -308,6 +308,112 @@ describe(`${clause("L1 17.3")} what a resolver asks of its clients`, () => {
   });
 });
 
+describe(`${clause("L1 17.1")} the stream of what a resolver takes in`, () => {
+  /** Reads a stream of server-sent events, one event or comment at a time. */
+  function reading(response: Response) {
+    const reader = (response.body as ReadableStream<Uint8Array>).getReader();
+    const decoder = new TextDecoder();
+    let buffered = "";
+    const next = async (): Promise<string | undefined> => {
+      for (;;) {
+        const end = buffered.indexOf("\n\n");
+        if (end >= 0) {
+          const event = buffered.slice(0, end);
+          buffered = buffered.slice(end + 2);
+          return event;
+        }
+        const { done, value } = await reader.read();
+        if (done) return undefined;
+        buffered += decoder.decode(value, { stream: true });
+      }
+    };
+    /** The next event that is no comment: its `id`, and what its `data` holds. */
+    const event = async (): Promise<{
+      id: string;
+      data: { cursor: string; mind: string; record: unknown };
+    }> => {
+      for (;;) {
+        const text = await next();
+        if (text === undefined) throw new Error("the stream ended");
+        if (text.startsWith(":")) continue;
+        const [id = "", data = ""] = text.split("\n");
+        return {
+          id: id.replace(/^id: /u, ""),
+          data: JSON.parse(data.replace(/^data: /u, "")) as never,
+        };
+      }
+    };
+    return { next, event, cancel: () => reader.cancel() };
+  }
+
+  it("tells of each event from the beginning, and of what is taken in while it is open", async () => {
+    const [ada, bob] = [new KeyMind("ada").update(10), new KeyMind("bob")];
+    const { ask } = service();
+    await ask(pathOf(ada), put(bundleOf(ada)));
+    const response = await ask("/oip/v1/stream");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("text/event-stream");
+    const stream = reading(response);
+    expect(await stream.event()).toStrictEqual({
+      id: "1",
+      data: { cursor: "1", mind: ada.address, record: ada.events[0] },
+    });
+    expect((await stream.event()).data).toMatchObject({ cursor: "2", record: ada.events[1] });
+    // Nothing more is held. What is published now reaches the open stream.
+    const waiting = stream.event();
+    await ask(pathOf(bob), put(bundleOf(bob)));
+    expect(await waiting).toStrictEqual({
+      id: "3",
+      data: { cursor: "3", mind: bob.address, record: bob.events[0] },
+    });
+    expect(await (await ask("/metrics")).text()).toContain("oip_resolver_streams_open 1");
+    await stream.cancel();
+    expect(await (await ask("/metrics")).text()).toContain("oip_resolver_streams_open 0");
+  });
+
+  it("goes on from a cursor, given in the query or as the last event a client had", async () => {
+    const ada = new KeyMind("ada").update(10).update(20);
+    const { ask } = service();
+    await ask(pathOf(ada), put(bundleOf(ada)));
+    for (const response of [
+      await ask("/oip/v1/stream?since=2"),
+      await ask("/oip/v1/stream", { headers: { "last-event-id": "2" } }),
+    ]) {
+      const stream = reading(response);
+      expect((await stream.event()).id).toBe("3");
+      await stream.cancel();
+    }
+    for (const since of ["x", "-1", "1.5", "01", "", "9".repeat(16)]) {
+      expect((await ask(`/oip/v1/stream?since=${since}`)).status, since).toBe(400);
+    }
+  });
+
+  it("says that it is there while there is nothing to tell", async () => {
+    const { ask } = service({ heartbeatMs: 20 });
+    const stream = reading(await ask("/oip/v1/stream"));
+    expect(await stream.next()).toBe(": here");
+    expect(await stream.next()).toBe(": here");
+    await stream.cancel();
+  });
+
+  it("is one of a bounded number, and ends when the resolver stops", async () => {
+    const { ask } = service({ maxStreams: 2 });
+    const [first, second] = [
+      reading(await ask("/oip/v1/stream")),
+      reading(await ask("/oip/v1/stream")),
+    ];
+    // Asked for something, so that each is waiting.
+    const [one, two] = [first.next(), second.next()];
+    const refused = await ask("/oip/v1/stream");
+    expect(refused.status).toBe(503);
+    expect(refused.headers.get("retry-after")).toBe("30");
+    await shutdown.run("test");
+    expect(await one).toBeUndefined();
+    expect(await two).toBeUndefined();
+    expect(await (await ask("/metrics")).text()).toContain("oip_resolver_streams_open 0");
+  });
+});
+
 describe("a resolver's own endpoints", () => {
   it("says it is alive, and ready until it stops or a check fails", async () => {
     let database = true;

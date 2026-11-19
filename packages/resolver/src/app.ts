@@ -32,6 +32,7 @@ import {
   responseFor,
   type Shutdown,
   type StoredNonces,
+  Unavailable,
 } from "@oip/server";
 import { Hono } from "hono";
 
@@ -58,6 +59,10 @@ export interface ResolverAppOptions {
   readonly shutdown: Shutdown;
   /** What must hold for the service to be ready, each by a name. */
   readonly ready: Readonly<Record<string, () => boolean>>;
+  /** The most streams open at once. 256 by default. */
+  readonly maxStreams?: number;
+  /** How often a stream with nothing to tell says that it is there, in milliseconds. 15,000 by default. */
+  readonly heartbeatMs?: number;
 }
 
 /** What a request arrives with besides itself: the address it came from. */
@@ -144,6 +149,102 @@ export function resolverApp(options: ResolverAppOptions): Hono<{ Bindings: Arriv
   };
 
   const app = new Hono<{ Bindings: Arrival }>();
+
+  const maxStreams = options.maxStreams ?? 256;
+  const heartbeatMs = options.heartbeatMs ?? 15_000;
+  const streams = new Set<() => void>();
+  const open = metrics.gauge("oip_resolver_streams_open", "Streams open.");
+  // A service that stops ends its streams: a client follows on from its cursor elsewhere.
+  options.shutdown.add("streams", () => {
+    for (const end of [...streams]) end();
+  });
+
+  /**
+   * Layer 1, 17.1: a stream of what the resolver takes in, as server-sent
+   * events, from a cursor on. Each event's `id` is its cursor, so a client
+   * that reconnects says where it was.
+   */
+  const streamFrom = (since: number): Response => {
+    let cursor = since;
+    const encoder = new TextEncoder();
+    let wake: (() => void) | undefined;
+    let ended = false;
+    const end = (): void => {
+      ended = true;
+      wake?.();
+    };
+    const unsubscribe = resolver.subscribe(() => wake?.());
+    const close = (): void => {
+      unsubscribe();
+      streams.delete(end);
+      open.set(streams.size);
+    };
+    streams.add(end);
+    open.set(streams.size);
+    const body = new ReadableStream<Uint8Array>({
+      // Asked for when the client has room: nothing is read from the store before that.
+      async pull(controller) {
+        for (;;) {
+          if (ended) {
+            close();
+            controller.close();
+            return;
+          }
+          const entries = resolver.stream(cursor, 100);
+          if (entries.length > 0) {
+            for (const entry of entries) {
+              cursor = entry.cursor;
+              const data = JSON.stringify({ ...entry, cursor: String(entry.cursor) });
+              controller.enqueue(encoder.encode(`id: ${entry.cursor}\ndata: ${data}\n\n`));
+            }
+            return;
+          }
+          // Nothing new: wait to be told, or say that the stream is there.
+          const told = await new Promise<boolean>((resolve) => {
+            const timer = setTimeout(() => {
+              resolve(false);
+            }, heartbeatMs);
+            wake = () => {
+              clearTimeout(timer);
+              resolve(true);
+            };
+          });
+          wake = undefined;
+          if (!told) {
+            controller.enqueue(encoder.encode(": here\n\n"));
+            return;
+          }
+        }
+      },
+      cancel() {
+        end();
+        close();
+      },
+    });
+    return new Response(body, {
+      headers: {
+        "content-type": "text/event-stream",
+        "cache-control": "no-store",
+        // A proxy that gathers a response before it passes it on would hold the stream back.
+        "x-accel-buffering": "no",
+      },
+    });
+  };
+
+  app.get(
+    "/oip/v1/stream",
+    gated("stream", limits.read, (request) => {
+      const asked =
+        new URL(request.url).searchParams.get("since") ?? request.headers.get("last-event-id");
+      if (asked !== null && !/^(?:0|[1-9]\d{0,14})$/u.test(asked)) {
+        throw new HttpFailure(400, "Bad Request");
+      }
+      if (streams.size >= maxStreams) {
+        throw new Unavailable("as many streams are open as this resolver serves", 30);
+      }
+      return streamFrom(asked === null ? 0 : Number(asked));
+    }),
+  );
 
   app.get(
     "/oip/v1/resolve/:id",

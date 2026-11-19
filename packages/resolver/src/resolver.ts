@@ -113,6 +113,8 @@ export class Resolver {
   #others = new Map<string, JudgedRecord[]>();
   /** The latest time anything was first seen at. */
   #latest = 0n;
+  /** Those to tell when the stream has something new. */
+  readonly #listeners = new Set<() => void>();
 
   constructor(options: ResolverOptions) {
     this.#db = options.db;
@@ -254,6 +256,7 @@ export class Resolver {
       }
       if (now > this.#latest) this.#latest = now;
       parted = pair?.position;
+      if (added > 0) this.#tell();
     }
     if (parted !== undefined) return { outcome: "duplicity", added, position: parted };
     if (taken.refused !== undefined) return { outcome: "refused", added, refused: taken.refused };
@@ -313,6 +316,7 @@ export class Resolver {
     }
     this.#others.set(mind, [...held, judged.value]);
     if (now > this.#latest) this.#latest = now;
+    if (type === "Location") this.#tell();
     return true;
   }
 
@@ -391,5 +395,28 @@ export class Resolver {
   /** Layer 1, 17.1: what was taken in after a cursor, in the order it came. */
   stream(after: number, limit: number): Streamed[] {
     return this.#store.streamAfter(after, limit);
+  }
+
+  /**
+   * Asks to be told when the stream has something new.
+   *
+   * @returns How to stop being told.
+   */
+  subscribe(listener: () => void): () => void {
+    this.#listeners.add(listener);
+    return () => {
+      this.#listeners.delete(listener);
+    };
+  }
+
+  #tell(): void {
+    // A listener that fails is its own affair: the others are told, and the publisher is answered.
+    for (const listener of this.#listeners) {
+      try {
+        listener();
+      } catch {
+        // Nothing to do here.
+      }
+    }
   }
 }

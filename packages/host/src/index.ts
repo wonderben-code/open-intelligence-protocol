@@ -17,6 +17,7 @@ export {
   type HostOptions,
 } from "./host.ts";
 export { deliverLearning, Lookup, type LookupOptions } from "./lookup.ts";
+export { type Edges, PREFIX, type Running, SETTINGS, start } from "./main.ts";
 export { HOST_MIGRATIONS, HostStore, type MailboxItem } from "./store.ts";
 export {
   CLOSE,
@@ -26,3 +27,4 @@ export {
   SUBPROTOCOL,
   type Wire,
 } from "./sockets.ts";
+export { attachSockets, type UpgradeOptions } from "./upgrade.ts";

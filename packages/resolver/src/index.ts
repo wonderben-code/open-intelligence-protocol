@@ -9,6 +9,6 @@
  */
 
 export { resolverApp, type ResolverAppOptions } from "./app.ts";
-export type { Arrival } from "@oip/server";
+export { type Arrival, type Arrived, clientAddress } from "@oip/server";
 export { RESOLVER_MIGRATIONS } from "./store.ts";
-export { type Arrived, clientAddress, PREFIX, type Running, SETTINGS, start } from "./main.ts";
+export { PREFIX, type Running, SETTINGS, start } from "./main.ts";

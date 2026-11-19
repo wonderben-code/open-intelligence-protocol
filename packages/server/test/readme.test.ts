@@ -58,6 +58,7 @@ describe("the README", () => {
         "Allowance",
         "ArchiveOptions",
         "Arrival",
+        "Arrived",
         "Asked",
         "Authentication",
         "Clock",

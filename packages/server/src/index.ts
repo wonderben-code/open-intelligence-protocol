@@ -47,7 +47,15 @@ export {
   type GuardedFetcherOptions,
   type Resolve,
 } from "./fetcher.ts";
-export { type Arrival, type Asked, gate, type GateOptions, type Handler } from "./gate.ts";
+export {
+  type Arrival,
+  type Arrived,
+  type Asked,
+  clientAddress,
+  gate,
+  type GateOptions,
+  type Handler,
+} from "./gate.ts";
 export {
   HttpFailure,
   problemResponse,

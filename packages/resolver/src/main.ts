@@ -16,6 +16,8 @@ import type { AddressInfo } from "node:net";
 import { serve } from "@hono/node-server";
 import { MAX_TEXT_LENGTH } from "@oip/core";
 import {
+  type Arrived,
+  clientAddress,
   type Clock,
   Database,
   describeConfig,
@@ -100,30 +102,6 @@ export const SETTINGS = {
 };
 
 const LEVELS = ["debug", "info", "warn", "error"] as const;
-
-/** A request as the server has it, as far as telling where it came from needs. */
-export interface Arrived {
-  readonly socket: { readonly remoteAddress?: string | undefined };
-  readonly headers: Readonly<Record<string, string | string[] | undefined>>;
-}
-
-/**
- * The address a request came from. With no proxy in front it is the
- * socket's. Each trusted proxy adds the address it was asked from to
- * `X-Forwarded-For`, so with `trusted` of them the client is that many from
- * the end. What stands before that is the sender's to write, and is not
- * read.
- */
-export function clientAddress(incoming: Arrived, trusted: number): string | undefined {
-  const socket = incoming.socket.remoteAddress;
-  if (trusted === 0) return socket;
-  const forwarded = incoming.headers["x-forwarded-for"];
-  const hops = (Array.isArray(forwarded) ? forwarded.join(",") : (forwarded ?? ""))
-    .split(",")
-    .map((hop) => hop.trim())
-    .filter((hop) => hop !== "");
-  return hops.at(-trusted) ?? socket;
-}
 
 /** A resolver that is running. */
 export interface Running {

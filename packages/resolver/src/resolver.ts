@@ -143,11 +143,16 @@ export class Resolver {
    * Layer 1, 17.1: takes in a bundle published for a mind.
    *
    * @param id - The content ID of the mind's genesis, as the request's path names it.
+   * @param authorise - Called before anything is stored, with the logs the
+   *   resolver holds and the log of the bundle as far as it verified: a
+   *   resolver that asks for authenticated publication (17.3) judges the
+   *   request's signature against them, and throws to refuse. A mind can
+   *   so publish its own log for the first time.
    * @throws OipError `invalid-record` if the bundle is of another mind.
    * @throws Unavailable if the judging was cut short, or the store could
    *   not be written: nothing was merged, and the publisher asks again.
    */
-  publish(id: string, bundle: Bundle): Published {
+  publish(id: string, bundle: Bundle, authorise?: (view: IdentityView) => void): Published {
     const mind = mindAddress(id);
     if (bundle.mind !== mind) {
       throw new OipError("invalid-record", "the bundle is of another mind than the one named", {
@@ -159,6 +164,17 @@ export class Resolver {
     if (taken.log !== undefined && taken.log.mind !== mind) {
       throw new OipError("invalid-record", "the log in the bundle is of another mind", {
         clause: "L1 13.1",
+      });
+    }
+    if (authorise !== undefined) {
+      const held = this.view(now);
+      const published = taken.log;
+      authorise({
+        evidence: held.evidence,
+        log: (other) =>
+          other === mind && published !== undefined
+            ? { ok: true, value: { ...published, asOf: now } }
+            : held.log(other),
       });
     }
     let added = 0;

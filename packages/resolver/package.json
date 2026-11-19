@@ -43,11 +43,13 @@
     "provenance": true
   },
   "dependencies": {
+    "@hono/node-server": "2.1.7",
     "@oip/core": "workspace:*",
     "@oip/identity": "workspace:*",
     "@oip/net": "workspace:*",
     "@oip/schema": "workspace:*",
-    "@oip/server": "workspace:*"
+    "@oip/server": "workspace:*",
+    "hono": "4.13.18"
   },
   "devDependencies": {
     "@oip/testkit": "workspace:*"

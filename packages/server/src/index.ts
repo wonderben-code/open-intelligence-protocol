@@ -38,7 +38,9 @@ export {
   problemResponse,
   readBody,
   readRecord,
+  recordFrom,
   recordResponse,
+  requireRecordType,
   responseFor,
   Unavailable,
 } from "./http.ts";

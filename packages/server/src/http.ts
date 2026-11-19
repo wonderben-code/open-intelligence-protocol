@@ -167,22 +167,20 @@ export async function readBody(request: Request, limit: number): Promise<Uint8Ar
 }
 
 /**
- * Reads the record a request carries (core 10.1): well formed, of the JSON
- * profile, within the limits of core 1.6. Its proofs are not verified here.
+ * Reads a record from the bytes of a body (core 10.1): well formed, of the
+ * JSON profile, within the limits of core 1.6. Its proofs are not verified
+ * here. For an endpoint that needs the bytes as well, to check a
+ * signature's digest against them.
  *
  * @param limit - The most bytes read. A record's canonical form is at most
  *   1 MiB, and the text sent may be longer: `MAX_TEXT_LENGTH` of
  *   `@oip/core` is what its reader accepts.
- * @throws HttpFailure 415 if the body is not `application/oip+json`.
  * @throws OipError `too-large` or `invalid-record`.
  * @throws Unavailable if the check was cut short (ADR-0010): that says
  *   nothing of the record.
  */
-export async function readRecord(request: Request, limit: number): Promise<OipRecord> {
-  if (mediaType(request) !== MEDIA_TYPE) {
-    throw new HttpFailure(415, "Unsupported Media Type", { accept: MEDIA_TYPE });
-  }
-  const parsed = parseRecord(await readBody(request, limit), { maxLength: limit });
+export function recordFrom(body: Uint8Array, limit: number): OipRecord {
+  const parsed = parseRecord(body, { maxLength: limit });
   if (parsed.ok) return parsed.value;
   if (parsed === cutShort()) throw new Unavailable("the record could not be judged just now");
   const [first] = parsed.issues;
@@ -192,4 +190,25 @@ export async function readRecord(request: Request, limit: number): Promise<OipRe
       ? "too-large"
       : "invalid-record";
   throw new OipError(code, first.message, { clause: first.clause, issues: parsed.issues });
+}
+
+/**
+ * Refuses a request whose body is not said to be `application/oip+json`.
+ *
+ * @throws HttpFailure 415.
+ */
+export function requireRecordType(request: Request): void {
+  if (mediaType(request) !== MEDIA_TYPE) {
+    throw new HttpFailure(415, "Unsupported Media Type", { accept: MEDIA_TYPE });
+  }
+}
+
+/**
+ * Reads the record a request carries: `requireRecordType`, `readBody` and
+ * `recordFrom`, in that order, so that nothing is read of a request that
+ * names another media type.
+ */
+export async function readRecord(request: Request, limit: number): Promise<OipRecord> {
+  requireRecordType(request);
+  return recordFrom(await readBody(request, limit), limit);
 }

@@ -330,6 +330,9 @@ importers:
 
   packages/resolver:
     dependencies:
+      '@hono/node-server':
+        specifier: 2.1.7
+        version: 2.1.7(hono@4.13.18)
       '@oip/core':
         specifier: workspace:*
         version: link:../core
@@ -345,6 +348,9 @@ importers:
       '@oip/server':
         specifier: workspace:*
         version: link:../server
+      hono:
+        specifier: 4.13.18
+        version: 4.13.18
     devDependencies:
       '@oip/testkit':
         specifier: workspace:*
@@ -758,6 +764,12 @@ packages:
 
   '@gerrit0/mini-shiki@3.23.0':
     resolution: {integrity: sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg==}
+
+  '@hono/node-server@2.1.7':
+    resolution: {integrity: sha512-Wr0E6S+v2Bw9FkpGNP5BQ5QbJvclUa06UVehd65WFZe6XeJwbrKQQ5wPDevc0IC+QyzbO7v3Llh5uo45IZcSnA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      hono: ^4 || ^5.0.0-0
 
   '@hpke/chacha20poly1305@1.8.1':
     resolution: {integrity: sha512-EqIpqvybIQrdMMbVcrF9cr6q8PZWbKQ60428iZyESjGO8j9jJCsILNHaCyWWBwnJYAKT8nZko5sNIkIXmlHsuw==}
@@ -1695,6 +1707,10 @@ packages:
   hasown@2.0.4:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
+
+  hono@4.13.18:
+    resolution: {integrity: sha512-H9q/E1XizaWstJxUW881dmLxEj+t/TrGGnyxINkm4+sK0qUwsMtFdo2BWI9Vs3cIS19MU6b6iCijoUoEf4f3DA==}
+    engines: {node: '>=16.9.0'}
 
   hookified@1.15.1:
     resolution: {integrity: sha512-MvG/clsADq1GPM2KGo2nyfaWVyn9naPiXrqIe4jYjXNZQt238kWyOGrsyc/DmRAQ+Re6yeo6yX/yoNCG5KAEVg==}
@@ -2874,6 +2890,10 @@ snapshots:
       '@shikijs/types': 3.23.0
       '@shikijs/vscode-textmate': 10.1.0
 
+  '@hono/node-server@2.1.7(hono@4.13.18)':
+    dependencies:
+      hono: 4.13.18
+
   '@hpke/chacha20poly1305@1.8.1':
     dependencies:
       '@hpke/common': 1.13.0
@@ -3838,6 +3858,8 @@ snapshots:
   hasown@2.0.4:
     dependencies:
       function-bind: 1.1.2
+
+  hono@4.13.18: {}
 
   hookified@1.15.1: {}
 

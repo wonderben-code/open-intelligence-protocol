@@ -346,6 +346,34 @@ importers:
         specifier: workspace:*
         version: link:../testkit
 
+  packages/indexer:
+    dependencies:
+      '@hono/node-server':
+        specifier: 2.1.7
+        version: 2.1.7(hono@4.13.18)
+      '@oip/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oip/identity':
+        specifier: workspace:*
+        version: link:../identity
+      '@oip/net':
+        specifier: workspace:*
+        version: link:../net
+      '@oip/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@oip/server':
+        specifier: workspace:*
+        version: link:../server
+      hono:
+        specifier: 4.13.18
+        version: 4.13.18
+    devDependencies:
+      '@oip/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+
   packages/net:
     dependencies:
       '@oip/core':

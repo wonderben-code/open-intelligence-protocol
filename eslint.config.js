@@ -119,6 +119,8 @@ export default tseslint.config(
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "module",
+      // Linting with types holds a program for each package: about 4 GB for the workspace,
+      // which is more than Node gives itself. The `lint` script in package.json gives it 6.
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
     },
     linterOptions: { reportUnusedDisableDirectives: "error" },

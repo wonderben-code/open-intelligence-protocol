@@ -13,7 +13,7 @@
     "build": "tsc -b tsconfig.build.json",
     "clean": "node scripts/clean.ts",
     "typecheck": "pnpm -r --no-sort --workspace-concurrency=1 exec tsc --noEmit && tsc -p scripts/tsconfig.json --noEmit",
-    "lint": "eslint . && prettier --check . && depcruise packages scripts --config .dependency-cruiser.cjs && node scripts/check-guards.ts",
+    "lint": "node --max-old-space-size=6144 node_modules/eslint/bin/eslint.js . && prettier --check . && depcruise packages scripts --config .dependency-cruiser.cjs && node scripts/check-guards.ts",
     "format": "prettier --write .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

@@ -73,6 +73,42 @@ export type Published =
 /** A record a bundle carries besides the log. */
 export type OtherRecord = "location" | "participant";
 
+/**
+ * The problem that says why a published bundle was not wholly taken (core
+ * 10.2), if it was not. What verified of it was merged all the same.
+ */
+export function publicationProblem(published: Published): OipError | undefined {
+  switch (published.outcome) {
+    case "merged":
+      return undefined;
+    case "duplicity":
+      return new OipError(
+        "duplicity",
+        `the log holds another valid event at position ${published.position} than the one seen first here`,
+        { clause: "L1 7.1" },
+      );
+    case "not-counted":
+      return new OipError(
+        "invalid-proof",
+        `the ${published.record} record in the bundle is not signed by the mind's own authority under the current-state rule`,
+        { clause: published.record === "location" ? "L1 15.1" : "L1 16.1" },
+      );
+    case "refused": {
+      const { refused } = published;
+      const [first] = refused.issues;
+      const detail = `event ${refused.position} of the log: ${first.message}`;
+      const options = { clause: first.clause, issues: refused.issues };
+      // An extension that is not implemented here: the event may be the mind's own.
+      if (refused.issues.some((issue) => issue.clause === "core 8.3")) {
+        return new OipError("unsupported-critical", detail, options);
+      }
+      // What cannot be judged with the logs and the evidence held.
+      if (refused.undecided) return new OipError("stale-version", detail, options);
+      return new OipError("invalid-proof", detail, options);
+    }
+  }
+}
+
 /** The evidence of a resolver, which notes each first sight it records. */
 class Sightings extends FirstSeen {
   /** What has been recorded for the first time since this was last emptied. */

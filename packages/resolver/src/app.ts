@@ -12,19 +12,19 @@
  * expected is logged, and tells the client nothing.
  */
 
-import { isContentId, MAX_TEXT_LENGTH, OipError, problemDetails } from "@oip/core";
+import { isContentId, MAX_TEXT_LENGTH, OipError } from "@oip/core";
 import {
-  addressKey,
+  type Arrival,
   authenticate,
   type Clock,
+  gate,
   healthResponse,
   HttpFailure,
   type Log,
   type LogArchive,
   type Metrics,
-  type NotTaken,
   METRICS_MEDIA_TYPE,
-  problemResponse,
+  publicationProblem,
   type RateLimiter,
   readBody,
   readyResponse,
@@ -65,82 +65,18 @@ export interface ResolverAppOptions {
   readonly heartbeatMs?: number;
 }
 
-/** What a request arrives with besides itself: the address it came from. */
-export interface Arrival {
-  /** The client's IP address, as the socket has it. */
-  readonly address?: string;
-}
-
-/** The problem that says why an event of a published log was not taken (core 10.2). */
-function refusal(refused: NotTaken): OipError {
-  const [first] = refused.issues;
-  const detail = `event ${refused.position} of the log: ${first.message}`;
-  const options = { clause: first.clause, issues: refused.issues };
-  // An extension the resolver does not implement: the event may be the mind's own.
-  if (refused.issues.some((issue) => issue.clause === "core 8.3")) {
-    return new OipError("unsupported-critical", detail, options);
-  }
-  // What the resolver cannot judge with the logs and the evidence it holds.
-  if (refused.undecided) return new OipError("stale-version", detail, options);
-  return new OipError("invalid-proof", detail, options);
-}
-
 const NOT_FOUND = "the resolver holds no log of that mind";
 
 /** Layer 1, 17.1: the resolver's HTTP interface. */
 export function resolverApp(options: ResolverAppOptions): Hono<{ Bindings: Arrival }> {
   const { resolver, clock, log, metrics, limits } = options;
   const maxBundleBytes = options.maxBundleBytes ?? MAX_TEXT_LENGTH;
-  const requests = metrics.counter("oip_resolver_requests_total", "Requests answered.", [
-    "route",
-    "status",
-  ]);
-  const seconds = metrics.histogram(
-    "oip_resolver_request_seconds",
-    "How long a request took to answer.",
-    ["route"],
-  );
   const merged = metrics.counter(
     "oip_resolver_events_merged_total",
     "Identity events taken in that were not held before.",
   );
 
-  /** The gate every request passes: a rate limit, the metrics, and the answer to a failure. */
-  const gated =
-    (
-      route: string,
-      limiter: RateLimiter,
-      handle: (request: Request, id: string) => Response | Promise<Response>,
-    ) =>
-    async (context: {
-      req: { raw: Request; param(name: string): string };
-      env: Arrival | undefined;
-    }) => {
-      const started = clock.now();
-      let response: Response;
-      try {
-        // An address that is none is one client: what cannot be told apart is limited together.
-        const client = addressKey(context.env?.address ?? "") ?? "unknown";
-        const allowed = limiter.take(client);
-        if (!allowed.ok) {
-          response = problemResponse(problemDetails("rate-limited", "too many requests"), {
-            "retry-after": String(allowed.retryAfter),
-          });
-        } else {
-          response = await handle(context.req.raw, context.req.param("id"));
-        }
-      } catch (error) {
-        const answer = responseFor(error);
-        if (answer.unexpected) log.failure("request failed", error, { route });
-        response = answer.response;
-      }
-      requests.add({ route, status: String(response.status) });
-      seconds.observe(Number(clock.now() - started) / 1e9, { route });
-      // Public data, read by clients in browsers too.
-      response.headers.set("access-control-allow-origin", "*");
-      response.headers.set("x-content-type-options", "nosniff");
-      return response;
-    };
+  const gated = gate({ clock, log, metrics, service: "resolver" });
 
   /** The content ID a path names, or a 404: what is no content ID names no mind. */
   const named = (id: string): string => {
@@ -248,8 +184,8 @@ export function resolverApp(options: ResolverAppOptions): Hono<{ Bindings: Arriv
 
   app.get(
     "/oip/v1/resolve/:id",
-    gated("resolve", limits.read, (_request, id) => {
-      const bundle = resolver.resolve(named(id));
+    gated("resolve", limits.read, (_request, param) => {
+      const bundle = resolver.resolve(named(param("id")));
       if (bundle === undefined) throw new OipError("not-found", NOT_FOUND);
       return recordResponse(bundle, 200, { "cache-control": "no-cache" });
     }),
@@ -257,8 +193,8 @@ export function resolverApp(options: ResolverAppOptions): Hono<{ Bindings: Arriv
 
   app.put(
     "/oip/v1/resolve/:id",
-    gated("publish", limits.publish, async (request, id) => {
-      const mind = named(id);
+    gated("publish", limits.publish, async (request, param) => {
+      const mind = named(param("id"));
       requireRecordType(request);
       const body = await readBody(request, maxBundleBytes);
       const record = recordFrom(body, maxBundleBytes);
@@ -282,21 +218,8 @@ export function resolverApp(options: ResolverAppOptions): Hono<{ Bindings: Arriv
           : undefined,
       );
       if (published.added > 0) merged.add({}, published.added);
-      if (published.outcome === "duplicity") {
-        throw new OipError(
-          "duplicity",
-          `the log holds another valid event at position ${published.position} than the one this resolver saw first`,
-          { clause: "L1 7.1" },
-        );
-      }
-      if (published.outcome === "refused") throw refusal(published.refused);
-      if (published.outcome === "not-counted") {
-        throw new OipError(
-          "invalid-proof",
-          `the ${published.record} record in the bundle is not signed by the mind's own authority under the current-state rule`,
-          { clause: published.record === "location" ? "L1 15.1" : "L1 16.1" },
-        );
-      }
+      const problem = publicationProblem(published);
+      if (problem !== undefined) throw problem;
       return new Response(JSON.stringify({ added: published.added }), {
         status: 202,
         headers: { "content-type": "application/json" },
@@ -306,8 +229,8 @@ export function resolverApp(options: ResolverAppOptions): Hono<{ Bindings: Arriv
 
   app.get(
     "/oip/v1/duplicity/:id",
-    gated("duplicity", limits.read, (_request, id) => {
-      const evidence = resolver.duplicity(named(id));
+    gated("duplicity", limits.read, (_request, param) => {
+      const evidence = resolver.duplicity(named(param("id")));
       if (evidence === undefined) throw new OipError("not-found", NOT_FOUND);
       return recordResponse(evidence, 200, { "cache-control": "no-cache" });
     }),

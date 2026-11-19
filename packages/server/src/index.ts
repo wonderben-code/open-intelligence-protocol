@@ -8,7 +8,13 @@
  * @packageDocumentation
  */
 
-export { type ArchiveOptions, LogArchive, type OtherRecord, type Published } from "./archive.ts";
+export {
+  type ArchiveOptions,
+  LogArchive,
+  type OtherRecord,
+  publicationProblem,
+  type Published,
+} from "./archive.ts";
 export {
   ARCHIVE_SQL,
   ArchiveStore,
@@ -41,6 +47,7 @@ export {
   type GuardedFetcherOptions,
   type Resolve,
 } from "./fetcher.ts";
+export { type Arrival, type Asked, gate, type GateOptions, type Handler } from "./gate.ts";
 export {
   HttpFailure,
   problemResponse,

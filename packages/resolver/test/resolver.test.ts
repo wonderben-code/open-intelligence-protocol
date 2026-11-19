@@ -5,12 +5,28 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { contentId, type JsonObject, mindId, OipError, parseTimestamp } from "@oip/core";
+import {
+  contentId,
+  type JsonObject,
+  mindId,
+  OipError,
+  parseTimestamp,
+  proofDigest,
+} from "@oip/core";
 import { FirstSeen, verifyLog } from "@oip/identity";
 import type { Bundle, Proof } from "@oip/schema";
 import { Database } from "@oip/server";
 import { clause } from "@oip/testkit";
-import { at, Collective, KeyMind, type Mind, rawSign } from "@oip/testkit/minds";
+import {
+  at,
+  Collective,
+  intentBy,
+  KeyMind,
+  locationBy,
+  type Mind,
+  rawSign,
+  T,
+} from "@oip/testkit/minds";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { RESOLVER_MIGRATIONS, Resolver } from "../src/index.ts";
@@ -286,6 +302,129 @@ describe(`${clause("L1 17.1")} the stream of what a resolver took in`, () => {
     expect(resolver.stream(2, 10).map((entry) => entry.cursor)).toStrictEqual([3]);
     expect(resolver.stream(0, 2).map((entry) => entry.cursor)).toStrictEqual([1, 2]);
     expect(resolver.stream(3, 10)).toStrictEqual([]);
+  });
+});
+
+describe(`${clause("L1 15.2", "L1 17.1", "L1 17.2")} the location record a bundle carries`, () => {
+  /** A signed location record of a mind, and the digest its proof is known by. */
+  function located(mind: Mind, seconds: number, more: JsonObject = {}, by: Mind = mind) {
+    const record = by.sign({ ...locationBy(mind, seconds), ...more }) as JsonObject & {
+      proof: Proof[];
+    };
+    return { record, digest: proofDigest(record.proof[0]!) };
+  }
+  const withLocation = (mind: Mind, location: unknown, more: JsonObject = {}): Bundle =>
+    ({ ...bundleOf(mind), location, ...more }) as unknown as Bundle;
+
+  it("is served as the mind's current one, with the time its proof was first seen", () => {
+    const ada = new KeyMind("ada");
+    const resolver = new Resolver({ db, clock });
+    const first = located(ada, 90);
+    expect(resolver.publish(idOf(ada), withLocation(ada, first.record))).toStrictEqual({
+      outcome: "merged",
+      added: 1,
+    });
+    const bundle = resolver.resolve(idOf(ada));
+    expect(bundle?.location).toStrictEqual(first.record);
+    expect(seenIn(bundle)[first.digest]).toBe(at(100));
+    // One with a higher `seq` takes its place. The one before it stays held.
+    clock.at = at(200);
+    const second = located(ada, 190, { seq: 2 });
+    resolver.publish(idOf(ada), withLocation(ada, second.record));
+    clock.at = at(300);
+    resolver.publish(idOf(ada), withLocation(ada, first.record));
+    const later = resolver.resolve(idOf(ada));
+    expect(later?.location).toStrictEqual(second.record);
+    expect(seenIn(later)).toStrictEqual({ [idOf(ada)]: at(100), [second.digest]: at(200) });
+  });
+
+  it("is not kept where the mind's own authority did not sign it, and the log is merged all the same", () => {
+    const [ada, eve] = [new KeyMind("ada"), new KeyMind("eve")];
+    const resolver = new Resolver({ db, clock });
+    resolver.publish(idOf(eve), bundleOf(eve));
+    for (const location of [
+      // Signed by another mind, for Ada or for itself, and what is no location record at all.
+      located(ada, 90, {}, eve).record,
+      located(eve, 90).record,
+      ada.sign(intentBy(ada, 90)),
+      { type: "Location" },
+    ]) {
+      expect(resolver.publish(idOf(ada), withLocation(ada, location))).toMatchObject({
+        outcome: "not-counted",
+        record: "location",
+      });
+    }
+    const bundle = resolver.resolve(idOf(ada));
+    expect(bundle?.log).toStrictEqual(ada.events);
+    expect(bundle).not.toHaveProperty("location");
+    // No time was recorded for a proof on a record that was not kept.
+    expect(Object.keys(seenIn(bundle))).toStrictEqual([idOf(ada)]);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM seen_proofs").get()).toEqual({ n: 0 });
+  });
+
+  it("counts no longer once the key that signed it is removed, however high its `seq`", () => {
+    const ada = new KeyMind("ada");
+    const resolver = new Resolver({ db, clock });
+    const { record } = located(ada, 90, { seq: 1000 });
+    resolver.publish(idOf(ada), withLocation(ada, record));
+    expect(resolver.resolve(idOf(ada))?.location).toStrictEqual(record);
+    // An update that lists no operational key.
+    ada.update(150, { keys: [] });
+    clock.at = at(200);
+    expect(resolver.publish(idOf(ada), bundleOf(ada)).outcome).toBe("merged");
+    expect(resolver.resolve(idOf(ada))).not.toHaveProperty("location");
+    // Published again, it is refused as any record the removed key signs.
+    expect(resolver.publish(idOf(ada), withLocation(ada, record)).outcome).toBe("not-counted");
+  });
+
+  it("is held after a restart, and told of in the stream after the events", () => {
+    const ada = new KeyMind("ada");
+    let resolver = new Resolver({ db, clock });
+    const { record } = located(ada, 90);
+    resolver.publish(idOf(ada), withLocation(ada, record));
+    const before = resolver.resolve(idOf(ada));
+    expect(resolver.stream(0, 10)).toStrictEqual([
+      { cursor: 1, mind: ada.address, record: ada.events[0] },
+      { cursor: 2, mind: ada.address, record },
+    ]);
+    db.close();
+    db = open();
+    resolver = new Resolver({ db, clock });
+    expect(resolver.resolve(idOf(ada))).toStrictEqual(before);
+    expect(resolver.stream(1, 10)).toStrictEqual([{ cursor: 2, mind: ada.address, record }]);
+  });
+
+  it("brings the profile it names, where the bundle carries that and the mind signed it", () => {
+    const ada = new KeyMind("ada");
+    const resolver = new Resolver({ db, clock });
+    const profile = ada.sign({
+      oip: "1",
+      type: "Participant",
+      author: ada.address,
+      created: T(80),
+      name: "ada",
+      kind: "agent",
+    }) as JsonObject & { proof: Proof[] };
+    // A profile that no location record names is held, and not served.
+    resolver.publish(
+      idOf(ada),
+      withLocation(ada, located(ada, 90).record, { participant: profile }),
+    );
+    expect(resolver.resolve(idOf(ada))).not.toHaveProperty("participant");
+    clock.at = at(200);
+    const naming = located(ada, 190, { seq: 2, participant: contentId(profile) });
+    resolver.publish(idOf(ada), withLocation(ada, naming.record));
+    const bundle = resolver.resolve(idOf(ada));
+    expect(bundle?.participant).toStrictEqual(profile);
+    expect(seenIn(bundle)[proofDigest(profile.proof[0]!)]).toBe(at(100));
+    // One that another mind signed is not kept.
+    const eve = new KeyMind("eve");
+    resolver.publish(idOf(eve), bundleOf(eve));
+    const { proof: _, ...unsigned } = profile;
+    const forged = eve.sign({ ...unsigned, name: "eve as ada" });
+    expect(
+      resolver.publish(idOf(ada), { ...bundleOf(ada), participant: forged } as unknown as Bundle),
+    ).toMatchObject({ outcome: "not-counted", record: "participant" });
   });
 });
 

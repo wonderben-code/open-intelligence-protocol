@@ -26,18 +26,26 @@ CREATE TABLE seen_events (id TEXT PRIMARY KEY, at INTEGER NOT NULL) STRICT, WITH
 CREATE TABLE seen_proofs (digest TEXT PRIMARY KEY, at INTEGER NOT NULL) STRICT, WITHOUT ROWID;
 CREATE TABLE duplicity (mind TEXT NOT NULL, first TEXT NOT NULL, other TEXT NOT NULL, position INTEGER NOT NULL, PRIMARY KEY (mind, first, other)) STRICT, WITHOUT ROWID;
 CREATE TABLE stream (cursor INTEGER PRIMARY KEY AUTOINCREMENT, mind TEXT NOT NULL, id TEXT NOT NULL) STRICT;
+CREATE TABLE records (id TEXT PRIMARY KEY, mind TEXT NOT NULL, type TEXT NOT NULL, record TEXT NOT NULL) STRICT, WITHOUT ROWID;
+CREATE INDEX records_of_mind ON records (mind);
 `;
 
 /** The migrations of a resolver's database. */
 export const RESOLVER_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
-    name: "logs, first sight, duplicity and the stream",
+    name: "logs, records, first sight, duplicity and the stream",
     sql: [
       TABLES,
-      ...["events", "event_proofs", "seen_events", "seen_proofs", "duplicity", "stream"].map(
-        appendOnly,
-      ),
+      ...[
+        "events",
+        "event_proofs",
+        "seen_events",
+        "seen_proofs",
+        "duplicity",
+        "stream",
+        "records",
+      ].map(appendOnly),
       NONCES_SQL,
     ].join("\n"),
   },
@@ -146,6 +154,43 @@ export class ResolverStore {
     return fresh;
   }
 
+  /**
+   * Adds a record of a mind that is no identity event: its location record,
+   * its profile. One held already is left as it is.
+   *
+   * @returns Whether it was not held before.
+   */
+  addRecord(
+    mind: string,
+    type: "Location" | "Participant",
+    record: JsonObject,
+    sightings: readonly Sighting[],
+  ): boolean {
+    const id = contentId(record);
+    const fresh =
+      Number(
+        this.#db
+          .prepare("INSERT OR IGNORE INTO records (id, mind, type, record) VALUES (?, ?, ?, ?)")
+          .run(id, mind, type, JSON.stringify(record)).changes,
+      ) > 0;
+    // Layer 1, 17.1: the stream tells of identity events and of location records.
+    if (fresh && type === "Location") {
+      this.#db.prepare("INSERT INTO stream (mind, id) VALUES (?, ?)").run(mind, id);
+    }
+    this.add(mind, [], sightings);
+    return fresh;
+  }
+
+  /** Every record held that is no identity event, with its mind. */
+  *records(): Generator<{ mind: string; record: JsonObject }> {
+    for (const row of this.#db
+      .prepare("SELECT mind, record FROM records ORDER BY mind, id")
+      .iterate()) {
+      const { mind, record } = row as { mind: string; record: string };
+      yield { mind, record: JSON.parse(record) as JsonObject };
+    }
+  }
+
   /** Records a pair of events that shows duplicity. One recorded already is left as it is. */
   addPair(mind: string, pair: Pair): void {
     this.#db
@@ -212,8 +257,10 @@ export class ResolverStore {
     const rows = this.#db
       .prepare("SELECT cursor, mind, id FROM stream WHERE cursor > ? ORDER BY cursor LIMIT ?")
       .all(after, limit) as { cursor: number; mind: string; id: string }[];
+    const other = this.#db.prepare("SELECT record FROM records WHERE id = ?");
     return rows.flatMap(({ cursor, mind, id }) => {
-      const record = this.event(id);
+      const held = other.get(id) as { record: string } | undefined;
+      const record = this.event(id) ?? (held && (JSON.parse(held.record) as JsonObject));
       return record === undefined ? [] : [{ cursor, mind, record }];
     });
   }

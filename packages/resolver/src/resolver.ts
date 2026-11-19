@@ -17,8 +17,26 @@
  * the memory is rebuilt from the database.
  */
 
-import { contentId, formatTimestamp, type Instant, mindAddress, OipError } from "@oip/core";
-import { divergence, FirstSeen, type IdentityView, LogBook, type VerifiedLog } from "@oip/identity";
+import {
+  contentId,
+  formatTimestamp,
+  type Instant,
+  type JsonObject,
+  mindAddress,
+  OipError,
+} from "@oip/core";
+import {
+  divergence,
+  FirstSeen,
+  type IdentityView,
+  type JudgedRecord,
+  judgeRecord,
+  LogBook,
+  ownSignedTime,
+  type VerifiedLog,
+  witnessRecord,
+} from "@oip/identity";
+import { currentLocation } from "@oip/net";
 import { cutShort, type Bundle, type DuplicityEvidence, type Validation } from "@oip/schema";
 import { type Clock, type Database, Unavailable } from "@oip/server";
 
@@ -44,7 +62,12 @@ export type Published =
    */
   | { readonly outcome: "duplicity"; readonly added: number; readonly position: number }
   /** An event of it did not verify. What came before it was merged. */
-  | { readonly outcome: "refused"; readonly added: number; readonly refused: NotTaken };
+  | { readonly outcome: "refused"; readonly added: number; readonly refused: NotTaken }
+  /** Its location record or its profile is not signed by the mind's own authority. The log was merged. */
+  | { readonly outcome: "not-counted"; readonly added: number; readonly record: OtherRecord };
+
+/** A record a bundle carries besides the log. */
+export type OtherRecord = "location" | "participant";
 
 /** The evidence of a resolver, which notes each first sight it records. */
 class Sightings extends FirstSeen {
@@ -60,6 +83,11 @@ class Sightings extends FirstSeen {
     if (this.proofSeen(digest) === undefined) this.fresh.push({ kind: "proof", id: digest, at });
     return super.sawProof(digest, at);
   }
+}
+
+/** The proofs that verify on the record with a content ID, among those held. */
+function proofsOf(held: readonly JudgedRecord[], id: string): JudgedRecord["proofs"] {
+  return held.find((other) => contentId(other.record) === id)?.proofs ?? [];
 }
 
 /** Every mind that a log's events rest on: its members, at any state it has had. */
@@ -81,6 +109,8 @@ export class Resolver {
   readonly #understood: readonly string[];
   #seen = new Sightings();
   #book = new LogBook(this.#seen);
+  /** The location records and profiles held, by mind, each as it was judged. */
+  #others = new Map<string, JudgedRecord[]>();
   /** The latest time anything was first seen at. */
   #latest = 0n;
 
@@ -107,8 +137,14 @@ export class Resolver {
     // reach it. So each is known up to the present.
     const now = this.#reading(latest);
     for (const { events } of this.#store.copies()) book.hold(events, now);
+    const others = new Map<string, JudgedRecord[]>();
+    for (const { mind, record } of this.#store.records()) {
+      const judged = judgeRecord(record, { understood: this.#understood });
+      if (judged.ok) others.set(mind, [...(others.get(mind) ?? []), judged.value]);
+    }
     this.#seen = seen;
     this.#book = book;
+    this.#others = others;
     this.#latest = latest;
   }
 
@@ -221,7 +257,63 @@ export class Resolver {
     }
     if (parted !== undefined) return { outcome: "duplicity", added, position: parted };
     if (taken.refused !== undefined) return { outcome: "refused", added, refused: taken.refused };
+    for (const [name, type] of [
+      ["location", "Location"],
+      ["participant", "Participant"],
+    ] as const) {
+      const record: unknown = bundle[name];
+      if (record !== undefined && !this.#take(mind, type, record, now)) {
+        return { outcome: "not-counted", added, record: name };
+      }
+    }
     return { outcome: "merged", added };
+  }
+
+  /**
+   * Takes in a record of a mind that is no identity event, if the mind's own
+   * authority signed it under the current-state rule (Layer 1, 6.1, 15.1,
+   * 16). The time its proofs were first seen is recorded with it, and of no
+   * record that is not kept.
+   *
+   * @returns Whether the record counts for the mind.
+   */
+  #take(mind: string, type: "Location" | "Participant", record: unknown, now: Instant): boolean {
+    const judged = judgeRecord(record, { understood: this.#understood });
+    if (!judged.ok || judged.value.record.type !== type) return false;
+    if ((judged.value.record as { author?: unknown }).author !== mind) return false;
+    const digests = new Set(judged.value.proofs.map((proof) => proof.digest));
+    const view = this.view(now);
+    // Judged as it will be once its proofs are recorded as seen now, and recorded only then.
+    const counts = ownSignedTime(judged.value, mind, {
+      log: (other) => view.log(other),
+      evidence: {
+        eventSeen: (id) => this.#seen.eventSeen(id),
+        proofSeen: (digest) =>
+          this.#seen.proofSeen(digest) ?? (digests.has(digest) ? now : undefined),
+      },
+    });
+    if (counts === undefined) return false;
+    const held = this.#others.get(mind) ?? [];
+    const id = contentId(judged.value.record);
+    if (held.some((other) => contentId(other.record) === id)) return true;
+    try {
+      this.#db.transaction(() => {
+        this.#seen.fresh.length = 0;
+        witnessRecord(judged.value, now, this.#seen);
+        this.#store.addRecord(
+          mind,
+          type,
+          judged.value.record as unknown as JsonObject,
+          this.#seen.fresh,
+        );
+      });
+    } catch (error) {
+      this.#rebuild();
+      throw error;
+    }
+    this.#others.set(mind, [...held, judged.value]);
+    if (now > this.#latest) this.#latest = now;
+    return true;
   }
 
   /**
@@ -245,7 +337,36 @@ export class Resolver {
       if (seen !== undefined) firstSeen[contentId(event)] = formatTimestamp(seen);
       return event;
     });
-    return { oip: "1", type: "Bundle", mind, log, firstSeen };
+    // The records that count now, by the logs as they stand at this reading of the clock.
+    const others = this.#others.get(mind) ?? [];
+    const view = this.view(this.#reading());
+    const location = currentLocation(others, mind, view);
+    const profile =
+      location?.record.participant === undefined
+        ? undefined
+        : others.find(
+            (other) =>
+              other.record.type === "Participant" &&
+              contentId(other.record) === location.record.participant &&
+              ownSignedTime(other, mind, view) !== undefined,
+          );
+    const proofs = [
+      ...(location === undefined ? [] : proofsOf(others, location.id)),
+      ...(profile?.proofs ?? []),
+    ];
+    for (const proof of proofs) {
+      const seen = this.#seen.proofSeen(proof.digest);
+      if (seen !== undefined) firstSeen[proof.digest] = formatTimestamp(seen);
+    }
+    return {
+      oip: "1",
+      type: "Bundle",
+      mind,
+      log,
+      ...(location === undefined ? {} : { location: location.record }),
+      ...(profile === undefined ? {} : { participant: profile.record }),
+      firstSeen,
+    } as Bundle;
   }
 
   /**

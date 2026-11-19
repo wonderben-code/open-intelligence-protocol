@@ -189,6 +189,13 @@ export function resolverApp(options: ResolverAppOptions): Hono<{ Bindings: Arriv
         );
       }
       if (published.outcome === "refused") throw refusal(published.refused);
+      if (published.outcome === "not-counted") {
+        throw new OipError(
+          "invalid-proof",
+          `the ${published.record} record in the bundle is not signed by the mind's own authority under the current-state rule`,
+          { clause: published.record === "location" ? "L1 15.1" : "L1 16.1" },
+        );
+      }
       return new Response(JSON.stringify({ added: published.added }), {
         status: 202,
         headers: { "content-type": "application/json" },

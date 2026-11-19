@@ -36,7 +36,7 @@ import {
 } from "@oip/core";
 import { latestState, witnessRecord } from "@oip/identity";
 import { draftAck, receivePacket } from "@oip/net";
-import { cutShort } from "@oip/schema";
+import { cutShort, validateRecordOfType } from "@oip/schema";
 import { type Database, HttpFailure, type LogArchive, Unavailable } from "@oip/server";
 
 import { HostStore, type MailboxItem } from "./store.ts";
@@ -51,16 +51,22 @@ export interface HostLimits {
   readonly retention: bigint;
   /** How far back the host remembers a packet that states no `expires`, in nanoseconds (12.4). */
   readonly window: bigint;
+  /** The most bytes of records in one page of a drained mailbox. A page holds one item at least. */
+  readonly pageBytes: number;
 }
 
 const DAY = 86_400_000_000_000n;
 
-/** A thousand items and 64 MiB for each mailbox, kept 30 days; an hour's memory of packets. */
+/**
+ * A thousand items and 64 MiB for each mailbox, kept 30 days; an hour's
+ * memory of packets; pages of 4 MiB.
+ */
 export const DEFAULT_HOST_LIMITS: HostLimits = {
   mailboxItems: 1000,
   mailboxBytes: 64 * 1024 * 1024,
   retention: 30n * DAY,
   window: 3_600_000_000_000n,
+  pageBytes: 4 * 1024 * 1024,
 };
 
 /** How a host is made. */
@@ -143,6 +149,11 @@ export class Host {
       }
       this.#store.adopt(mind, now);
     });
+  }
+
+  /** How many minds the host serves. */
+  get minds(): number {
+    return this.#store.minds();
   }
 
   #served(mind: string): void {
@@ -269,12 +280,22 @@ export class Host {
    */
   post(mind: string, record: OipRecord): Answer {
     this.#served(mind);
-    const to = (record as { to?: unknown }).to;
     if (record.type !== "Sealed" && record.type !== "Packet") {
       throw new OipError("invalid-record", "a mailbox takes a Packet or a Sealed record", {
         clause: "L1 13.5",
       });
     }
+    // Its form is checked, and no more: the mind judges what it drains.
+    const formed = validateRecordOfType(record.type, record);
+    if (!formed.ok) {
+      if (formed === cutShort()) throw new Unavailable("the record could not be judged just now");
+      const [first] = formed.issues;
+      throw new OipError("invalid-record", first.message, {
+        clause: first.clause,
+        issues: formed.issues,
+      });
+    }
+    const to = (record as { to?: unknown }).to;
     const addressed =
       record.type === "Sealed" ? to === mind : Array.isArray(to) && to.includes(mind);
     if (!addressed) {
@@ -293,14 +314,15 @@ export class Host {
    * Layer 1, 13.5: the items of a mind's mailbox after a cursor.
    *
    * @param after - The cursor of the last item the owner has. 0 for the first.
-   * @returns The items, and the cursor to ask after next if there may be more.
+   * @param limit - The most items in the page. A page is bounded in bytes
+   *   as well, and may hold fewer.
+   * @returns The items, and the cursor to ask after next if there are more.
    */
   drain(mind: string, after: number, limit: number): { items: MailboxItem[]; next?: number } {
     this.#served(mind);
-    const items = this.#store.after(mind, after, limit + 1);
-    if (items.length <= limit) return { items };
-    const page = items.slice(0, limit);
-    return { items: page, next: page.at(-1)?.cursor ?? after };
+    const items = this.#store.after(mind, after, limit, this.#limits.pageBytes);
+    const last = items.at(-1)?.cursor;
+    return last !== undefined && this.#store.more(mind, last) ? { items, next: last } : { items };
   }
 
   /** Layer 1, 13.5: removes an item from a mind's mailbox. Whether it was there. */

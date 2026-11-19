@@ -92,17 +92,40 @@ export class HostStore {
     return Number(added.changes) > 0;
   }
 
-  /** The items of a mind's mailbox after a cursor, in the order they came. */
-  after(mind: string, cursor: number, limit: number): MailboxItem[] {
+  /**
+   * The items of a mind's mailbox after a cursor, in the order they came:
+   * at most `limit` of them, and no more after the one that brings them to
+   * `maxBytes`. A record is read from the database only if it is returned.
+   */
+  after(mind: string, cursor: number, limit: number, maxBytes: number): MailboxItem[] {
     const rows = this.#db
       .prepare(
-        "SELECT cursor, record FROM mailbox WHERE mind = ? AND cursor > ? ORDER BY cursor LIMIT ?",
+        "SELECT cursor, record, bytes FROM mailbox WHERE mind = ? AND cursor > ? ORDER BY cursor LIMIT ?",
       )
-      .all(mind, cursor, limit) as { cursor: number; record: string }[];
-    return rows.map((row) => ({
-      cursor: row.cursor,
-      record: JSON.parse(row.record) as JsonObject,
-    }));
+      .iterate(mind, cursor, limit) as Iterable<{ cursor: number; record: string; bytes: number }>;
+    const items: MailboxItem[] = [];
+    let bytes = 0;
+    for (const row of rows) {
+      items.push({ cursor: row.cursor, record: JSON.parse(row.record) as JsonObject });
+      bytes += row.bytes;
+      if (bytes >= maxBytes) break;
+    }
+    return items;
+  }
+
+  /** Whether a mind's mailbox holds anything after a cursor. */
+  more(mind: string, cursor: number): boolean {
+    return (
+      this.#db
+        .prepare("SELECT 1 AS more FROM mailbox WHERE mind = ? AND cursor > ? LIMIT 1")
+        .get(mind, cursor) !== undefined
+    );
+  }
+
+  /** How many minds the host serves. */
+  minds(): number {
+    return (this.#db.prepare("SELECT COUNT(*) AS minds FROM hosted").get() as { minds: number })
+      .minds;
   }
 
   /** Removes an item from a mind's mailbox. Whether it was there. */

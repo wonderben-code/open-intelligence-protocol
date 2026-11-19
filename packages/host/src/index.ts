@@ -8,6 +8,7 @@
  * @packageDocumentation
  */
 
+export { hostApp, type HostAppOptions } from "./app.ts";
 export {
   type Answer,
   DEFAULT_HOST_LIMITS,

@@ -79,8 +79,8 @@ function rowOf(event: JsonObject): { id: string; seq: number; prev: string | nul
 
 /** The proofs of an event as it was given. */
 function proofsOn(event: JsonObject): Proof[] {
-  const proofs = event["proof"];
-  return Array.isArray(proofs) ? proofs : [];
+  const proofs: unknown = event["proof"];
+  return Array.isArray(proofs) ? (proofs as Proof[]) : [];
 }
 
 /** A resolver's store, in its database. */

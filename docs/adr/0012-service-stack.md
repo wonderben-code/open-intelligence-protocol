@@ -17,7 +17,7 @@ Three of the named libraries are not taken. Each is replaced by something smalle
 | Storage      | `better-sqlite3`          | **`node:sqlite`**, the SQLite built into Node.js           | none                        |
 | Logs         | `pino`                    | **a log of our own**, in `@oip/server`                     | none                        |
 | Metrics      | a Prometheus endpoint     | **the text format written by hand**, in `@oip/server`      | none                        |
-| HTTP routing | Hono, `@hono/node-server` | as BUILD.md, when the first service is built               | two, with none of their own |
+| HTTP routing | Hono, `@hono/node-server` | as BUILD.md: `hono` 4.13.18 and `@hono/node-server` 2.1.7  | two, with none of their own |
 | WebSocket    | `ws`                      | as BUILD.md, when the host is built                        | one, with none of its own   |
 | Traces       | OpenTelemetry             | `@opentelemetry/api` only, when the first service is built | one, with none of its own   |
 
@@ -59,4 +59,4 @@ A counter, a gauge and a histogram in the Prometheus text format are some hundre
 
 - The three services add four packages to the lock file in all, none with dependencies of its own, and none with an install script.
 - `@oip/server` holds code that libraries would have held: a logger, the metrics format, the rate limiter, the address rules of the fetcher. Each is small, has its own tests, and is in the mutation run.
-- To check when the HTTP and WebSocket libraries are added: their advisories and maintenance; the limits of `@hono/node-server` on header size and request time; `ws` with `maxPayload` set and per-message compression off.
+- `hono` and `@hono/node-server` were added with the resolver, at the newest versions that the workspace's minimum release age of seven days allows. Both are MIT, with no dependency and no install script. Still to check when `ws` is added with the host: its advisories and maintenance, `maxPayload` set, and per-message compression off.

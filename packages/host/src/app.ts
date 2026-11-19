@@ -63,6 +63,7 @@ import {
 import { Hono } from "hono";
 
 import type { Host } from "./host.ts";
+import { deliverLearning, type Lookup } from "./lookup.ts";
 
 /** What the HTTP interface is made with. */
 export interface HostAppOptions {
@@ -82,6 +83,11 @@ export interface HostAppOptions {
    * takes on nobody.
    */
   readonly admits?: (mind: string) => boolean;
+  /**
+   * How the host learns the log of a sender it cannot judge. Without it, an
+   * inbox takes packets only from minds whose logs the host holds already.
+   */
+  readonly lookup?: Lookup;
   /** The most bytes of a record that are read. `MAX_TEXT_LENGTH` of `@oip/core` by default. */
   readonly maxRecordBytes?: number;
   /** The most events in a page of a log, and items in a page of a mailbox. 100 by default. */
@@ -264,7 +270,8 @@ export function hostApp(options: HostAppOptions): Hono<{ Bindings: Arrival }> {
     "/oip/v1/minds/:id/inbox",
     gated("inbox", limits.deliver, async (request, param) => {
       const mind = served(param("id"));
-      const answer = host.deliver(mind, await sent(request, "L1 13.2"));
+      const record = await sent(request, "L1 13.2");
+      const answer = await deliverLearning(host, options.lookup, mind, record);
       const acknowledged = answer["type"] === "Ack";
       kept.add({ at: "inbox", answer: acknowledged ? "ack" : "stored" });
       return acknowledged ? recordResponse(answer, 202) : json(answer, 202);

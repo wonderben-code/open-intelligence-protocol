@@ -16,6 +16,7 @@ export {
   type HostLimits,
   type HostOptions,
 } from "./host.ts";
+export { deliverLearning, Lookup, type LookupOptions } from "./lookup.ts";
 export { HOST_MIGRATIONS, HostStore, type MailboxItem } from "./store.ts";
 export {
   CLOSE,

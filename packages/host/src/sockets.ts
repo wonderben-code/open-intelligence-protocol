@@ -23,7 +23,7 @@
  * problem (core 10.2) as the reason: there is no record that says no.
  */
 
-import { bytesToBase64url, type Instant, MAX_TEXT_LENGTH, OipError, utf8 } from "@oip/core";
+import { bytesToBase64url, MAX_TEXT_LENGTH, OipError, utf8 } from "@oip/core";
 import { FirstSeen } from "@oip/identity";
 import { Challenges, verifyHello } from "@oip/net";
 import { cutShort } from "@oip/schema";
@@ -40,7 +40,8 @@ import {
   Unavailable,
 } from "@oip/server";
 
-import type { Host } from "./host.ts";
+import type { Answer, Host } from "./host.ts";
+import { deliverLearning, type Lookup } from "./lookup.ts";
 
 /** The subprotocol a client asks for (13.4). */
 export const SUBPROTOCOL = "oip.v1";
@@ -92,6 +93,10 @@ export interface SocketsOptions {
   readonly origin: string;
   /** The limit on what one address may deliver: the same as for the inbox. */
   readonly deliver: RateLimiter;
+  /** How the host learns the log of a sender it cannot judge, as at the inbox. */
+  readonly lookup?: Lookup;
+  /** How many messages may wait on one connection while a resolver is asked. 64 by default. */
+  readonly maxWaiting?: number;
   /** The most connections open at once. 1,024 by default. */
   readonly maxSockets?: number;
   /** How long a client has to answer the challenge, in milliseconds. 10,000 by default. */
@@ -212,19 +217,14 @@ export class Sockets {
       }
     };
 
-    const hello = (text: string, at: Instant): void => {
-      let value: unknown;
-      try {
-        value = JSON.parse(text);
-      } catch {
-        close(CLOSE.unauthenticated, "no Hello");
-        return;
-      }
-      // Judged as first seen now: the proof answers a challenge made a moment ago. The
-      // host is no witness of it, and keeps no record of that.
+    /** The mind a Hello authenticates now, judged as first seen now. */
+    const judge = (value: unknown): ReturnType<typeof verifyHello> => {
+      const at = clock.now();
+      // The proof answers a challenge made a moment ago. The host is no witness of it,
+      // and keeps no record of that.
       const seen = new FirstSeen();
       const view = archive.view(at);
-      const judged = verifyHello(value, {
+      return verifyHello(value, {
         origin,
         now: at,
         challenges: this.#challenges,
@@ -237,6 +237,11 @@ export class Sockets {
           },
         },
       });
+    };
+
+    /** Welcomes the mind, or closes. */
+    const settle = (judged: ReturnType<typeof verifyHello>): void => {
+      if (over) return;
       if (!judged.ok) {
         this.#messages.add({ outcome: "unauthenticated" });
         if (judged === cutShort()) close(CLOSE.later, "ask again");
@@ -259,38 +264,111 @@ export class Sockets {
       mail();
     };
 
-    const record = (text: string): void => {
+    /** The first message. A promise where a resolver is asked for the mind's log first. */
+    const hello = (text: string): Promise<void> | undefined => {
+      let value: unknown;
+      try {
+        value = JSON.parse(text);
+      } catch {
+        close(CLOSE.unauthenticated, "no Hello");
+        return undefined;
+      }
+      const judged = judge(value);
+      const lookup = this.#options.lookup;
+      const author =
+        typeof value === "object" && value !== null
+          ? (value as { author?: unknown }).author
+          : undefined;
+      if (
+        judged.ok ||
+        judged === cutShort() ||
+        lookup === undefined ||
+        typeof author !== "string"
+      ) {
+        settle(judged);
+        return undefined;
+      }
+      // A mind the host has not met, or whose log has grown. A Hello that failed left its
+      // challenge as it was, so it is judged again with what was learned.
+      return lookup.learn(author).then((learned) => {
+        settle(learned && !over ? judge(value) : judged);
+      });
+    };
+
+    const delivered = (answer: Answer): void => {
+      this.#messages.add({ outcome: "delivered" });
+      if (!over && answer["type"] === "Ack") wire.send(JSON.stringify(answer));
+    };
+
+    /** One record. A promise where a resolver is asked for its sender's log first. */
+    const record = (text: string): Promise<void> | undefined => {
       const taken = this.#options.deliver.take(client);
       if (!taken.ok) {
         this.#messages.add({ outcome: "rate-limited" });
         close(CLOSE.later, "rate-limited");
-        return;
+        return undefined;
       }
       const read = recordFrom(utf8(text), maxRecordBytes);
       if (read.type === "Ack") {
         if (who !== mind) throw new OipError("forbidden", "only the mind itself acknowledges here");
         host.acknowledge(mind, read);
         this.#messages.add({ outcome: "acknowledged" });
-        return;
+        return undefined;
       }
       if (read.type !== "Packet" && read.type !== "Sealed") {
         throw new OipError("invalid-record", "a message is a Packet, a Sealed record or an Ack", {
           clause: "L1 13.4",
         });
       }
-      const answer = host.deliver(mind, read);
-      this.#messages.add({ outcome: "delivered" });
-      if (answer["type"] === "Ack") wire.send(JSON.stringify(answer));
+      const answer = deliverLearning(host, this.#options.lookup, mind, read);
+      if (answer instanceof Promise) return answer.then(delivered);
+      delivered(answer);
+      return undefined;
+    };
+
+    /** The messages that wait behind one whose sender is being asked after, in order. */
+    let tail: Promise<void> | undefined;
+    let waiting = 0;
+    const maxWaiting = this.#options.maxWaiting ?? 64;
+    const heard = (text: string): Promise<void> | undefined => {
+      return who === undefined ? hello(text) : record(text);
+    };
+    const outcome = (): string => (who === undefined ? "unauthenticated" : "refused");
+    /** Puts work behind what the connection is waiting on, which stays one chain. */
+    const behind = (work: () => Promise<void> | undefined): void => {
+      const link: Promise<void> = (tail ?? Promise.resolve())
+        .then(() => (over ? undefined : work()))
+        .catch((error: unknown) => {
+          failed(error, outcome());
+        })
+        .then(() => {
+          if (tail === link) tail = undefined;
+        });
+      tail = link;
     };
 
     return {
       message: (text) => {
         if (over) return;
+        if (tail !== undefined) {
+          // Kept in the order they came, and no more of them than a connection may leave waiting.
+          if (waiting >= maxWaiting) {
+            this.#messages.add({ outcome: "refused" });
+            close(CLOSE.refused, "too many messages at once");
+            return;
+          }
+          waiting++;
+          behind(() => {
+            waiting--;
+            return heard(text);
+          });
+          return;
+        }
         try {
-          if (who === undefined) hello(text, clock.now());
-          else record(text);
+          const pending = heard(text);
+          if (pending !== undefined) behind(() => pending);
         } catch (error) {
-          failed(error, who === undefined ? "unauthenticated" : "refused");
+          failed(error, outcome());
         }
       },
       drained: () => {

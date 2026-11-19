@@ -207,10 +207,11 @@ export function resolverApp(options: ResolverAppOptions): Hono<{ Bindings: Arriv
         mind,
         record,
         options.authenticatedPublication
-          ? (view) => {
+          ? (view, now) => {
+              // Judged at the reading the logs are held as of, and at no later one.
               authenticate(request, body, {
                 origin: options.origin,
-                now: clock.now(),
+                now,
                 view,
                 nonces: options.nonces,
               });

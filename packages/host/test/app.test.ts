@@ -29,7 +29,7 @@ import {
 } from "@oip/server";
 import { clause } from "@oip/testkit";
 import { at, intentBy, KeyMind, locationBy, type Mind, T } from "@oip/testkit/minds";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   Host,
@@ -62,6 +62,7 @@ beforeEach(() => {
   lines = [];
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   try {
     db.close();
   } catch {
@@ -141,7 +142,8 @@ async function signed(
     { method, url: `${ORIGIN}${path}`, headers, ...(body === undefined ? {} : { body }) },
     {
       keyRef: formatKeyRef(by.address, by.versionId(), by.operational().publicKey),
-      created: clock.at,
+      // A signature is made at a whole second.
+      created: clock.at - (clock.at % 1_000_000_000n),
       nonce: `nonce-${String(++nonce).padStart(4, "0")}`,
     },
     by.operational(),
@@ -535,6 +537,37 @@ describe(`${clause("L1 13.1", "L1 13.3")} a mind that brings its bundle to a hos
     expect((await ask(endpoint(eve, "/inbox"), sending(packet(ada, [eve])))).status).toBe(202);
   });
 
+  it("is judged at one reading of the clock, as every signed request is, though the clock moves", async () => {
+    const { ask } = service({ admits: () => true });
+    // A millisecond passes each time the clock is read, as on a machine.
+    clock.now = () => (clock.at += 1_000_000n);
+    const path = endpoint(eve);
+    expect((await ask(path, await signed(eve, "PUT", path, bundleOf(eve)))).status).toBe(201);
+    expect((await ask(path, await signed(eve, "PUT", path, bundleOf(eve)))).status).toBe(200);
+    const mailbox = endpoint(eve, "/mailbox");
+    expect((await ask(mailbox, sending(sealed(eve)))).status).toBe(202);
+    expect((await ask(mailbox, await signed(eve, "GET", mailbox))).status).toBe(200);
+    expect((await ask(`${mailbox}/1`, await signed(eve, "DELETE", `${mailbox}/1`))).status).toBe(
+      204,
+    );
+    const intent = eve.sign(intentBy(eve, 100));
+    const object = endpoint(eve, `/obj/${contentId(intent)}`);
+    expect((await ask(object, await signed(eve, "PUT", object, intent))).status).toBe(201);
+    const entry = eve.sign({
+      oip: "1",
+      type: "Entry",
+      author: eve.address,
+      seq: 0,
+      created: T(100),
+      object: contentId(intent),
+      objectType: "Intent",
+    });
+    const feed = endpoint(eve, "/feed");
+    const page = { oip: "1", type: "FeedPage", mind: eve.address, entries: [entry] };
+    expect((await ask(feed, await signed(eve, "POST", feed, page))).status).toBe(200);
+    expect((await ask(endpoint(eve, "/inbox"), sending(packet(ada, [eve])))).status).toBe(202);
+  });
+
   it("is refused if the host does not admit it, before anything of the request is read", async () => {
     const { ask } = service();
     const path = endpoint(eve);
@@ -819,5 +852,21 @@ describe("a host's own endpoints", () => {
       route: "bundle",
     });
     expect((await ask("/nowhere")).status).toBe(404);
+  });
+
+  it("answers the same for a failure where no request passes the gate", async () => {
+    const { ask } = service();
+    vi.spyOn(metrics, "render").mockImplementation(() => {
+      throw new Error("the registry holds hunter2");
+    });
+    const response = await ask("/metrics");
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("hunter2");
+    expect(lines.at(-1)).toMatchObject({
+      level: "error",
+      event: "request failed",
+      route: "(none)",
+    });
+    expect(JSON.stringify(lines)).not.toContain("hunter2");
   });
 });

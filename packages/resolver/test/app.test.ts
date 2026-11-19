@@ -301,6 +301,17 @@ describe(`${clause("L1 17.3")} what a resolver asks of its clients`, () => {
     expect((await ask(pathOf(ada))).status).toBe(200);
   });
 
+  it("judges a signed publication at one reading of the clock, though the clock moves", async () => {
+    const [ada, bob] = [new KeyMind("ada"), new KeyMind("bob")];
+    const { ask } = service({ authenticatedPublication: true });
+    const own = await signedPut(ada, ada);
+    const others = await signedPut(bob, ada, "nonce-0002");
+    // A millisecond passes each time the clock is read, as on a machine.
+    clock.now = () => (clock.at += 1_000_000n);
+    expect((await ask(pathOf(ada), own)).status).toBe(202);
+    expect((await ask(pathOf(bob), others)).status).toBe(202);
+  });
+
   it("answers a browser that asks before it sends a signed request", async () => {
     const { ask } = service();
     const response = await ask("/oip/v1/resolve/anything", { method: "OPTIONS" });

@@ -225,12 +225,19 @@ export class LogArchive {
    *   resolver holds and the log of the bundle as far as it verified: a
    *   resolver that asks for authenticated publication (17.3) judges the
    *   request's signature against them, and throws to refuse. A mind can
-   *   so publish its own log for the first time.
+   *   so publish its own log for the first time. It is given the reading of
+   *   the clock those logs are held as of, which is the present to judge
+   *   at: a later reading would be after the logs were obtained, and a
+   *   proof first seen then is not judged by them (core 9.4).
    * @throws OipError `invalid-record` if the bundle is of another mind.
    * @throws Unavailable if the judging was cut short, or the store could
    *   not be written: nothing was merged, and the publisher asks again.
    */
-  publish(id: string, bundle: Bundle, authorise?: (view: IdentityView) => void): Published {
+  publish(
+    id: string,
+    bundle: Bundle,
+    authorise?: (view: IdentityView, now: Instant) => void,
+  ): Published {
     const mind = mindAddress(id);
     if (bundle.mind !== mind) {
       throw new OipError("invalid-record", "the bundle is of another mind than the one named", {
@@ -247,13 +254,16 @@ export class LogArchive {
     if (authorise !== undefined) {
       const held = this.view(now);
       const published = taken.log;
-      authorise({
-        evidence: held.evidence,
-        log: (other) =>
-          other === mind && published !== undefined
-            ? { ok: true, value: { ...published, asOf: now } }
-            : held.log(other),
-      });
+      authorise(
+        {
+          evidence: held.evidence,
+          log: (other) =>
+            other === mind && published !== undefined
+              ? { ok: true, value: { ...published, asOf: now } }
+              : held.log(other),
+        },
+        now,
+      );
     }
     let added = 0;
     let parted: number | undefined;

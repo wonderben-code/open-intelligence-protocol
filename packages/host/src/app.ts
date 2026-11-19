@@ -161,11 +161,13 @@ export function hostApp(options: HostAppOptions): Hono<{ Bindings: Arrival }> {
     mind: string,
     request: Request,
     body: Uint8Array,
-    view = archive.view(clock.now()),
+    // The clock is read once: a signature is judged at the reading the logs are held as of.
+    now = clock.now(),
+    view = archive.view(now),
   ): void => {
     const who = authenticate(request, body, {
       origin: options.origin,
-      now: clock.now(),
+      now,
       view,
       nonces: options.nonces,
     });
@@ -342,8 +344,8 @@ export function hostApp(options: HostAppOptions): Hono<{ Bindings: Arrival }> {
       }
       // Judged against the log in the bundle as far as it verified: a mind can so bring
       // its own log for the first time, and nobody else can bring it for the mind.
-      const published = archive.publish(id, record, (view) => {
-        signedBy(mind, request, body, view);
+      const published = archive.publish(id, record, (view, now) => {
+        signedBy(mind, request, body, now, view);
       });
       const problem = publicationProblem(published);
       if (problem !== undefined) throw problem;

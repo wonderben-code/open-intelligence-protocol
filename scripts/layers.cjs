@@ -35,6 +35,10 @@ const PURE_DEPENDENCIES = [
   "@noble/hashes",
   "@scure/base",
   "canonicalize",
+  // ADR-0011: HPKE, for sealed records. Only @oip/core imports these.
+  "@hpke/core",
+  "@hpke/dhkem-x25519",
+  "@hpke/chacha20poly1305",
 ];
 
 // Packages used only by tests. No package's source may import them.

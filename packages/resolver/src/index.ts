@@ -9,3 +9,11 @@
  */
 
 export { type Held, judgeCopy, type NotTaken, type Taken } from "./intake.ts";
+export { type Published, Resolver, type ResolverOptions } from "./resolver.ts";
+export {
+  type Pair,
+  RESOLVER_MIGRATIONS,
+  ResolverStore,
+  type Sighting,
+  type Streamed,
+} from "./store.ts";

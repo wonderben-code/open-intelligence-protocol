@@ -2,7 +2,7 @@
 
 The resolver of the Open Intelligence Protocol (Layer 1, Section 17). It takes in the identity logs that are published to it, keeps what verifies with the time it first saw it, and serves that. It is a witness: clients that trust it use those times as evidence (core 9.4), and it keeps and publishes any second valid event it is shown for a position of a log (Layer 1, 7.2).
 
-It is built on [`@oip/server`](../server/README.md), and runs on Node.js 24.15 or later.
+It is built on [`@oip/server`](../server/README.md), whose `LogArchive` is what it keeps and judges with. It runs on Node.js 24.15 or later.
 
 ## Run it
 
@@ -49,13 +49,14 @@ import {
   type Clock,
   Database,
   Log,
+  LogArchive,
   Metrics,
   RateLimiter,
   Shutdown,
   StoredNonces,
 } from "@oip/server";
 
-import { RESOLVER_MIGRATIONS, Resolver, resolverApp } from "@oip/resolver";
+import { RESOLVER_MIGRATIONS, resolverApp } from "@oip/resolver";
 
 /**
  * A resolver in memory, asked as a client would ask one over HTTP: a log is
@@ -73,7 +74,7 @@ export async function example(
   const log = new Log({ service: "resolver", clock, sink: () => undefined });
   const limiter = (): RateLimiter => new RateLimiter({ burst: 100, perMinute: 600 }, clock);
   const app = resolverApp({
-    resolver: new Resolver({ db, clock }),
+    resolver: new LogArchive({ db, clock }),
     clock,
     log,
     metrics: new Metrics(),
@@ -132,13 +133,11 @@ pairs of conflicting events held as evidence: 1
 
 ## What it exports
 
-| Export                                                                 | What it is                                                                                  |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `start`, `Running`, `SETTINGS`, `PREFIX`, `clientAddress`, `Arrived`   | The resolver as a running service, its settings, and how it tells where a request came from |
-| `resolverApp`, `ResolverAppOptions`, `Arrival`                         | Its HTTP interface, as a function from a request to a response                              |
-| `Resolver`, `ResolverOptions`, `Published`, `OtherRecord`              | The resolver itself: `publish`, `resolve`, `duplicity`, `stream`, `subscribe` and `view`    |
-| `judgeCopy`, `Held`, `Taken`, `NotTaken`                               | What a published copy of a log may add to what is held                                      |
-| `ResolverStore`, `RESOLVER_MIGRATIONS`, `Sighting`, `Pair`, `Streamed` | What it keeps on disk                                                                       |
+| Export                                                               | What it is                                                                                                  |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `start`, `Running`, `SETTINGS`, `PREFIX`, `clientAddress`, `Arrived` | The resolver as a running service, its settings, and how it tells where a request came from                 |
+| `resolverApp`, `ResolverAppOptions`, `Arrival`                       | Its HTTP interface, as a function from a request to a response                                              |
+| `RESOLVER_MIGRATIONS`                                                | Its database: an archive of identity logs (`LogArchive` of `@oip/server`) and the nonces of signed requests |
 
 ## What to know
 
@@ -152,6 +151,5 @@ pairs of conflicting events held as evidence: 1
 
 ## Tests
 
-- The intake is tested with copies crowded with proofs that sign nothing: a stranger's control key, a mind that controls nothing, a member's name on a key that is not the member's, a signature that fails.
-- The resolver is tested with a database file: restarts, two valid events for one position, a clock that does not move and one that goes back, a table that goes missing in the middle of a write.
+- What it keeps and how it judges is tested in `@oip/server`: copies crowded with proofs that sign nothing, restarts, two valid events for one position, a clock that does not move and one that goes back, a table that goes missing in the middle of a write.
 - The HTTP interface is tested as a function, and the running service over a socket on the machine.

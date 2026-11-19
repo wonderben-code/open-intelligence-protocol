@@ -23,6 +23,7 @@ import {
   integer,
   list,
   Log,
+  LogArchive,
   Metrics,
   origin,
   RateLimiter,
@@ -34,7 +35,6 @@ import {
 } from "@oip/server";
 
 import { resolverApp } from "./app.ts";
-import { Resolver } from "./resolver.ts";
 import { RESOLVER_MIGRATIONS } from "./store.ts";
 
 /** What every variable of the resolver starts with. */
@@ -211,7 +211,7 @@ export async function start(
   const limiter = (burst: number, perMinute: number): RateLimiter =>
     new RateLimiter({ burst, perMinute }, clock);
   const app = resolverApp({
-    resolver: new Resolver({ db, clock, understood: config.UNDERSTOOD }),
+    resolver: new LogArchive({ db, clock, understood: config.UNDERSTOOD }),
     clock,
     log,
     metrics,

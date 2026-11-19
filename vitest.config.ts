@@ -9,7 +9,7 @@ import { defineConfig } from "vitest/config";
 const VERIFICATION_PACKAGES = ["core", "identity", "delegation", "web", "net"];
 
 // Files of `@oip/server` held to the same threshold.
-const SERVER_GUARDS = ["auth", "http", "ip", "fetcher"];
+const SERVER_GUARDS = ["auth", "http", "ip", "fetcher", "intake", "archive", "archive-store"];
 
 const strict = { lines: 95, branches: 95, functions: 95, statements: 95 };
 

@@ -12,16 +12,17 @@ Each of them needs the same things before it does anything of its own: a configu
 
 A package, `@oip/server`, holds what the services share. It is a layer of its own in `scripts/layers.cjs`, above `@oip/client` and below the three services. It is not pure: it is where a service reads the clock, takes randomness, opens files and connects to the network, each through a small interface (`Clock`, `Randomness`, `Database`, `GuardedFetcher`) that a test replaces.
 
-| Part                          | What it is                                                                                                                                 |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `edges`                       | The clock and randomness. The packages below read neither.                                                                                 |
-| `config`                      | Settings read from the service's own variables. Everything wrong is said at once, and the service does not start. A secret is never shown. |
-| `storage`                     | SQLite ([ADR-0012](0012-service-stack.md)): migrations recorded with a digest, transactions, tables that are append-only.                  |
-| `http`                        | A body bounded before it is read, a record read by the reader of `@oip/core`, and errors as problem details (core 10.2).                   |
-| `auth`                        | Who a request is from (Layer 1, 13.3): `verifyRequest` of `@oip/net`, for the service's own origin, with nonces kept in the database.      |
-| `rate`                        | A burst and a steady rate for each client, on the caller's clock.                                                                          |
-| `ip`, `fetcher`               | Which addresses are public, and the fetcher that connects only to an address it has checked (BUILD.md 3.7).                                |
-| `log`, `metrics`, `lifecycle` | One line of JSON for each event, the Prometheus text format, `/healthz`, `/readyz` and an orderly stop.                                    |
+| Part                          | What it is                                                                                                                                                                                                 |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `edges`                       | The clock and randomness. The packages below read neither.                                                                                                                                                 |
+| `config`                      | Settings read from the service's own variables. Everything wrong is said at once, and the service does not start. A secret is never shown.                                                                 |
+| `storage`                     | SQLite ([ADR-0012](0012-service-stack.md)): migrations recorded with a digest, transactions, tables that are append-only.                                                                                  |
+| `http`                        | A body bounded before it is read, a record read by the reader of `@oip/core`, and errors as problem details (core 10.2).                                                                                   |
+| `auth`                        | Who a request is from (Layer 1, 13.3): `verifyRequest` of `@oip/net`, for the service's own origin, with nonces kept in the database.                                                                      |
+| `archive`, `intake`           | An archive of identity logs: what verifies of the logs published to a service, with first-seen times and duplicity evidence (Layer 1, 7.2, 17.2). All three services judge what they are sent against one. |
+| `rate`                        | A burst and a steady rate for each client, on the caller's clock.                                                                                                                                          |
+| `ip`, `fetcher`               | Which addresses are public, and the fetcher that connects only to an address it has checked (BUILD.md 3.7).                                                                                                |
+| `log`, `metrics`, `lifecycle` | One line of JSON for each event, the Prometheus text format, `/healthz`, `/readyz` and an orderly stop.                                                                                                    |
 
 Rules it keeps:
 

@@ -64,7 +64,7 @@ None yet. Vectors for requests and responses over HTTP are planned with the conf
 
 ## Reference implementation
 
-`@oip/resolver` in `packages/resolver`: `intake.ts` (items 2 and 3), `resolver.ts` (items 1, 4 and 5), `app.ts` (items 1, 2, 5 and 6).
+`LogArchive` of `@oip/server`, in `packages/server`: `intake.ts` (items 2 and 3) and `archive.ts` (items 1, 4 and 5). `@oip/resolver`, in `packages/resolver`: `app.ts` (items 1, 2, 5 and 6).
 
 ## Open questions
 

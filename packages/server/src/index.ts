@@ -8,6 +8,14 @@
  * @packageDocumentation
  */
 
+export { type ArchiveOptions, LogArchive, type OtherRecord, type Published } from "./archive.ts";
+export {
+  ARCHIVE_SQL,
+  ArchiveStore,
+  type Pair,
+  type Sighting,
+  type Streamed,
+} from "./archive-store.ts";
 export { authenticate, type Authentication, NONCES_SQL, StoredNonces } from "./auth.ts";
 export {
   ConfigError,
@@ -53,6 +61,7 @@ export {
   type Stop,
   type StopSignal,
 } from "./lifecycle.ts";
+export { type Held, judgeCopy, type NotTaken, type Taken } from "./intake.ts";
 export { type Fields, type FieldValue, type Level, Log, type LogOptions } from "./log.ts";
 export {
   type Counter,

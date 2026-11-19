@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * A resolver (Layer 1, Section 17): it takes in the logs that are
- * published to it, keeps what verifies with the time it first saw it, and
- * serves that.
+ * An archive of identity logs: what a service that others publish to keeps
+ * of them (Layer 1, 7.2, 17.2). It takes in the logs that are published to
+ * it, keeps what verifies with the time it first saw it, and gives that
+ * back. A resolver is one and little more; a host and an indexer each keep
+ * one, to judge the records they are sent.
  *
  * It is a witness. The time it first saw an event is evidence others rely
  * on (core 9.4), so it is recorded once, in the same transaction as the
@@ -38,14 +40,16 @@ import {
 } from "@oip/identity";
 import { currentLocation } from "@oip/net";
 import { cutShort, type Bundle, type DuplicityEvidence, type Validation } from "@oip/schema";
-import { type Clock, type Database, Unavailable } from "@oip/server";
+import type { Clock } from "./edges.ts";
+import { Unavailable } from "./http.ts";
+import type { Database } from "./storage.ts";
 
 import { type Held, judgeCopy, type NotTaken } from "./intake.ts";
-import { ResolverStore, type Sighting, type Streamed } from "./store.ts";
+import { ArchiveStore, type Sighting, type Streamed } from "./archive-store.ts";
 
-/** How a resolver is made. */
-export interface ResolverOptions {
-  /** Its database, opened with `RESOLVER_MIGRATIONS`. */
+/** How an archive is made. */
+export interface ArchiveOptions {
+  /** The service's database, whose migrations include `ARCHIVE_SQL`. */
   readonly db: Database;
   readonly clock: Clock;
   /** core 8.3: the extension namespaces it implements. None by default. */
@@ -101,10 +105,10 @@ function membersOf(log: VerifiedLog): string[] {
   return [...members];
 }
 
-/** A resolver. */
-export class Resolver {
+/** An archive of identity logs. */
+export class LogArchive {
   readonly #db: Database;
-  readonly #store: ResolverStore;
+  readonly #store: ArchiveStore;
   readonly #clock: Clock;
   readonly #understood: readonly string[];
   #seen = new Sightings();
@@ -116,9 +120,9 @@ export class Resolver {
   /** Those to tell when the stream has something new. */
   readonly #listeners = new Set<() => void>();
 
-  constructor(options: ResolverOptions) {
+  constructor(options: ArchiveOptions) {
     this.#db = options.db;
-    this.#store = new ResolverStore(options.db);
+    this.#store = new ArchiveStore(options.db);
     this.#clock = options.clock;
     this.#understood = options.understood ?? [];
     this.#rebuild();

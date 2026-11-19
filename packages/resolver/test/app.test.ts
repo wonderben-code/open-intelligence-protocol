@@ -7,17 +7,20 @@ import { join } from "node:path";
 
 import { formatKeyRef, MEDIA_TYPE, mindId, parseRecord, PROBLEM_MEDIA_TYPE, utf8 } from "@oip/core";
 import { signRequest } from "@oip/net";
-import { Database, Log, Metrics, RateLimiter, Shutdown, StoredNonces } from "@oip/server";
+import {
+  Database,
+  Log,
+  LogArchive,
+  Metrics,
+  RateLimiter,
+  Shutdown,
+  StoredNonces,
+} from "@oip/server";
 import { clause } from "@oip/testkit";
 import { at, Collective, intentBy, KeyMind, type Mind, rawSign } from "@oip/testkit/minds";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  RESOLVER_MIGRATIONS,
-  Resolver,
-  resolverApp,
-  type ResolverAppOptions,
-} from "../src/index.ts";
+import { RESOLVER_MIGRATIONS, resolverApp, type ResolverAppOptions } from "../src/index.ts";
 
 const ORIGIN = "https://resolver.example";
 
@@ -54,7 +57,7 @@ function service(more: Partial<ResolverAppOptions> = {}) {
   shutdown = new Shutdown({ log });
   const generous = (): RateLimiter => new RateLimiter({ burst: 1000, perMinute: 60_000 }, clock);
   const app = resolverApp({
-    resolver: new Resolver({ db, clock }),
+    resolver: new LogArchive({ db, clock }),
     clock,
     log,
     metrics,

@@ -15,7 +15,6 @@ import {
 } from "@oip/core";
 import { FirstSeen, verifyLog } from "@oip/identity";
 import type { Bundle, Proof } from "@oip/schema";
-import { Database } from "@oip/server";
 import { clause } from "@oip/testkit";
 import {
   at,
@@ -29,7 +28,9 @@ import {
 } from "@oip/testkit/minds";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { RESOLVER_MIGRATIONS, Resolver } from "../src/index.ts";
+import { ARCHIVE_SQL, Database, LogArchive } from "../src/index.ts";
+
+const MIGRATIONS = [{ version: 1, name: "archive", sql: ARCHIVE_SQL }];
 
 let directory: string;
 let db: Database;
@@ -37,14 +38,10 @@ let db: Database;
 let clock: { at: bigint; now: () => bigint };
 
 const open = (): Database =>
-  Database.open(
-    { path: join(directory, "resolver.db"), durable: false },
-    RESOLVER_MIGRATIONS,
-    clock,
-  );
+  Database.open({ path: join(directory, "archive.db"), durable: false }, MIGRATIONS, clock);
 
 beforeEach(() => {
-  directory = mkdtempSync(join(tmpdir(), "oip-resolver-"));
+  directory = mkdtempSync(join(tmpdir(), "oip-archive-"));
   clock = { at: at(100), now: () => clock.at };
   db = open();
 });
@@ -67,7 +64,7 @@ const seenIn = (bundle: Bundle | undefined): Record<string, bigint | undefined> 
 describe(`${clause("L1 17.1", "L1 17.2")} a log published to a resolver`, () => {
   it("is served as it verified, with the time each event was first seen", () => {
     const ada = new KeyMind("ada").update(10);
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     expect(resolver.resolve(idOf(ada))).toBeUndefined();
     expect(resolver.publish(idOf(ada), bundleOf(ada))).toStrictEqual({
       outcome: "merged",
@@ -87,7 +84,7 @@ describe(`${clause("L1 17.1", "L1 17.2")} a log published to a resolver`, () => 
 
   it("keeps the time an event was first seen, whatever is published after", () => {
     const ada = new KeyMind("ada");
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     resolver.publish(idOf(ada), bundleOf(ada));
     clock.at = at(200);
     expect(resolver.publish(idOf(ada), bundleOf(ada))).toStrictEqual({
@@ -119,7 +116,7 @@ describe(`${clause("L1 17.1", "L1 17.2")} a log published to a resolver`, () => 
       KeyMind,
     ];
     const club = new Collective("club", [a, b, c], 2, 5).update(20, [a, b]);
-    let resolver = new Resolver({ db, clock });
+    let resolver = new LogArchive({ db, clock });
     for (const mind of [ada, a, b, c, club]) {
       clock.at += 1_000_000_000n;
       expect(resolver.publish(idOf(mind), bundleOf(mind)).outcome).toBe("merged");
@@ -129,7 +126,7 @@ describe(`${clause("L1 17.1", "L1 17.2")} a log published to a resolver`, () => 
     db.close();
     clock.at = at(9000);
     db = open();
-    resolver = new Resolver({ db, clock });
+    resolver = new LogArchive({ db, clock });
     expect([ada, a, b, c, club].map((mind) => resolver.resolve(idOf(mind)))).toStrictEqual(before);
   });
 
@@ -147,14 +144,14 @@ describe(`${clause("L1 17.1", "L1 17.2")} a log published to a resolver`, () => 
         ...rawSign(genesis, [{ control: eve.control(0) }, eve.asMember()]).proof,
       ],
     };
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     expect(resolver.publish(idOf(ada), bundleOf(ada, [crowded, update])).outcome).toBe("merged");
     expect(resolver.resolve(idOf(ada))?.log).toStrictEqual(ada.events);
   });
 
   it("is not taken under another mind's name", () => {
     const [ada, bob] = [new KeyMind("ada"), new KeyMind("bob")];
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     for (const [id, bundle] of [
       [idOf(ada), bundleOf(bob)],
       [idOf(ada), bundleOf(ada, bob.events)],
@@ -179,7 +176,7 @@ describe(`${clause("L1 17.2", "L1 4.9")} an event that does not verify`, () => {
     const eve = new KeyMind("eve");
     const [genesis, update] = ada.events;
     const forged = rawSign(update as object, [{ control: eve.control(0) }]);
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     const published = resolver.publish(idOf(ada), bundleOf(ada, [genesis, forged]));
     expect(published).toMatchObject({
       outcome: "refused",
@@ -201,7 +198,7 @@ describe(`${clause("L1 17.2", "L1 4.9")} an event that does not verify`, () => {
       KeyMind,
     ];
     const club = new Collective("club", [a, b, c], 2, 5);
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     expect(resolver.publish(idOf(club), bundleOf(club))).toMatchObject({
       outcome: "refused",
       added: 0,
@@ -228,7 +225,7 @@ describe(`${clause("L1 7.2", "L1 7.3", "L1 17.1")} two valid events for one posi
 
   it("are kept as evidence, and the one seen first has the position", () => {
     const { first, other } = parted();
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     expect(resolver.duplicity(idOf(first))).toBeUndefined();
     resolver.publish(idOf(first), bundleOf(first));
     expect(resolver.duplicity(idOf(first))).toStrictEqual({
@@ -255,14 +252,14 @@ describe(`${clause("L1 7.2", "L1 7.3", "L1 17.1")} two valid events for one posi
 
   it("are still told apart after the resolver has restarted", () => {
     const { first, other } = parted();
-    let resolver = new Resolver({ db, clock });
+    let resolver = new LogArchive({ db, clock });
     resolver.publish(idOf(first), bundleOf(first));
     clock.at = at(200);
     resolver.publish(idOf(other), bundleOf(other));
     db.close();
     clock.at = at(5000);
     db = open();
-    resolver = new Resolver({ db, clock });
+    resolver = new LogArchive({ db, clock });
     expect(resolver.resolve(idOf(first))?.log).toStrictEqual(first.events);
     expect(resolver.duplicity(idOf(first))?.pairs).toStrictEqual([
       [first.events[1], other.events[1]],
@@ -271,7 +268,7 @@ describe(`${clause("L1 7.2", "L1 7.3", "L1 17.1")} two valid events for one posi
 
   it("are never first seen at one reading of the clock: the one published first was seen first", () => {
     const { first, other } = parted();
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     // The clock does not move between the two.
     resolver.publish(idOf(first), bundleOf(first));
     expect(resolver.publish(idOf(other), bundleOf(other)).outcome).toBe("duplicity");
@@ -289,7 +286,7 @@ describe(`${clause("L1 7.2", "L1 7.3", "L1 17.1")} two valid events for one posi
 describe(`${clause("L1 17.1")} the stream of what a resolver took in`, () => {
   it("gives each event once, in the order it came, from a cursor on", () => {
     const [ada, bob] = [new KeyMind("ada").update(10), new KeyMind("bob")];
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     expect(resolver.stream(0, 10)).toStrictEqual([]);
     resolver.publish(idOf(ada), bundleOf(ada));
     resolver.publish(idOf(bob), bundleOf(bob));
@@ -318,7 +315,7 @@ describe(`${clause("L1 15.2", "L1 17.1", "L1 17.2")} the location record a bundl
 
   it("is served as the mind's current one, with the time its proof was first seen", () => {
     const ada = new KeyMind("ada");
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     const first = located(ada, 90);
     expect(resolver.publish(idOf(ada), withLocation(ada, first.record))).toStrictEqual({
       outcome: "merged",
@@ -340,7 +337,7 @@ describe(`${clause("L1 15.2", "L1 17.1", "L1 17.2")} the location record a bundl
 
   it("is not kept where the mind's own authority did not sign it, and the log is merged all the same", () => {
     const [ada, eve] = [new KeyMind("ada"), new KeyMind("eve")];
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     resolver.publish(idOf(eve), bundleOf(eve));
     for (const location of [
       // Signed by another mind, for Ada or for itself, and what is no location record at all.
@@ -364,7 +361,7 @@ describe(`${clause("L1 15.2", "L1 17.1", "L1 17.2")} the location record a bundl
 
   it("counts no longer once the key that signed it is removed, however high its `seq`", () => {
     const ada = new KeyMind("ada");
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     const { record } = located(ada, 90, { seq: 1000 });
     resolver.publish(idOf(ada), withLocation(ada, record));
     expect(resolver.resolve(idOf(ada))?.location).toStrictEqual(record);
@@ -379,7 +376,7 @@ describe(`${clause("L1 15.2", "L1 17.1", "L1 17.2")} the location record a bundl
 
   it("is held after a restart, and told of in the stream after the events", () => {
     const ada = new KeyMind("ada");
-    let resolver = new Resolver({ db, clock });
+    let resolver = new LogArchive({ db, clock });
     const { record } = located(ada, 90);
     resolver.publish(idOf(ada), withLocation(ada, record));
     const before = resolver.resolve(idOf(ada));
@@ -389,14 +386,14 @@ describe(`${clause("L1 15.2", "L1 17.1", "L1 17.2")} the location record a bundl
     ]);
     db.close();
     db = open();
-    resolver = new Resolver({ db, clock });
+    resolver = new LogArchive({ db, clock });
     expect(resolver.resolve(idOf(ada))).toStrictEqual(before);
     expect(resolver.stream(1, 10)).toStrictEqual([{ cursor: 2, mind: ada.address, record }]);
   });
 
   it("brings the profile it names, where the bundle carries that and the mind signed it", () => {
     const ada = new KeyMind("ada");
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     const profile = ada.sign({
       oip: "1",
       type: "Participant",
@@ -431,7 +428,7 @@ describe(`${clause("L1 15.2", "L1 17.1", "L1 17.2")} the location record a bundl
 describe("a resolver whose database fails", () => {
   it("has merged nothing, in memory or on disk, and says the failure", () => {
     const ada = new KeyMind("ada").update(10);
-    const resolver = new Resolver({ db, clock });
+    const resolver = new LogArchive({ db, clock });
     // The stream's table is gone: the last write of the transaction fails.
     db.exec("DROP TABLE stream");
     expect(() => resolver.publish(idOf(ada), bundleOf(ada))).toThrow(/no such table/u);

@@ -9,13 +9,5 @@
  */
 
 export { type Arrival, resolverApp, type ResolverAppOptions } from "./app.ts";
-export { type Held, judgeCopy, type NotTaken, type Taken } from "./intake.ts";
-export { type OtherRecord, type Published, Resolver, type ResolverOptions } from "./resolver.ts";
-export {
-  type Pair,
-  RESOLVER_MIGRATIONS,
-  ResolverStore,
-  type Sighting,
-  type Streamed,
-} from "./store.ts";
+export { RESOLVER_MIGRATIONS } from "./store.ts";
 export { type Arrived, clientAddress, PREFIX, type Running, SETTINGS, start } from "./main.ts";

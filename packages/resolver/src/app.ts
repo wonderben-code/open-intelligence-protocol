@@ -20,7 +20,9 @@ import {
   healthResponse,
   HttpFailure,
   type Log,
+  type LogArchive,
   type Metrics,
+  type NotTaken,
   METRICS_MEDIA_TYPE,
   problemResponse,
   type RateLimiter,
@@ -36,12 +38,10 @@ import {
 } from "@oip/server";
 import { Hono } from "hono";
 
-import type { NotTaken } from "./intake.ts";
-import type { Resolver } from "./resolver.ts";
-
 /** What the HTTP interface is made with. */
 export interface ResolverAppOptions {
-  readonly resolver: Resolver;
+  /** The logs the resolver keeps. */
+  readonly resolver: LogArchive;
   readonly clock: Clock;
   readonly log: Log;
   readonly metrics: Metrics;

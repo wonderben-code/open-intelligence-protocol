@@ -6,13 +6,14 @@ import {
   type Clock,
   Database,
   Log,
+  LogArchive,
   Metrics,
   RateLimiter,
   Shutdown,
   StoredNonces,
 } from "@oip/server";
 
-import { RESOLVER_MIGRATIONS, Resolver, resolverApp } from "@oip/resolver";
+import { RESOLVER_MIGRATIONS, resolverApp } from "@oip/resolver";
 
 /**
  * A resolver in memory, asked as a client would ask one over HTTP: a log is
@@ -30,7 +31,7 @@ export async function example(
   const log = new Log({ service: "resolver", clock, sink: () => undefined });
   const limiter = (): RateLimiter => new RateLimiter({ burst: 100, perMinute: 600 }, clock);
   const app = resolverApp({
-    resolver: new Resolver({ db, clock }),
+    resolver: new LogArchive({ db, clock }),
     clock,
     log,
     metrics: new Metrics(),

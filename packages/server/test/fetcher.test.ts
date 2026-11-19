@@ -53,7 +53,15 @@ beforeAll(async () => {
         const redirect = (location: string | undefined): void => {
           response.writeHead(302, location === undefined ? {} : { location }).end();
         };
-        if (path === "/ok") {
+        if (path === "/inbox") {
+          // What was posted is said back, with how it was said to be.
+          const chunks: Buffer[] = [];
+          request.on("data", (chunk: Buffer) => chunks.push(chunk));
+          request.on("end", () => {
+            const said = `${request.method ?? ""} ${String(request.headers["content-type"])} ${Buffer.concat(chunks).toString("utf8")}`;
+            response.writeHead(202, { "content-type": "application/json" }).end(said);
+          });
+        } else if (path === "/ok") {
           response.writeHead(200, { "content-type": "application/oip+json" }).end('{"ok":true}');
         } else if (path === "/missing") {
           response.writeHead(404, { "content-type": "application/problem+json" }).end("{}");
@@ -201,6 +209,55 @@ describe("a fetch for a stranger", () => {
       expect(await refusal(fetcher.get(url)), url).toBe("credentials");
     }
     expect(resolve.asked).toStrictEqual([]);
+    expect(requests).toStrictEqual([]);
+  });
+});
+
+describe("a body posted for a stranger", () => {
+  it("is sent as it is to an HTTPS URL on an allowed address, and the answer given", async () => {
+    const body = new TextEncoder().encode('{"oip":"1"}');
+    const posted = await fetcherFor().post(at("/inbox"), body, "application/oip+json");
+    expect(posted.status).toBe(202);
+    expect(new TextDecoder().decode(posted.body)).toBe('POST application/oip+json {"oip":"1"}');
+    expect(requests.at(-1)?.headers).toMatchObject({
+      accept: "*/*",
+      "content-type": "application/oip+json",
+      "content-length": "11",
+      "user-agent": "oip-server",
+    });
+    // Nothing at all is a body too.
+    const empty = await fetcherFor().post(at("/inbox"), new Uint8Array(0), "text/plain", "text/*");
+    expect(new TextDecoder().decode(empty.body)).toBe("POST text/plain ");
+    expect(requests.at(-1)?.headers).toMatchObject({ accept: "text/*", "content-length": "0" });
+  });
+
+  it("is not sent on where the answer redirects: the redirect is the answer", async () => {
+    const body = new TextEncoder().encode("{}");
+    const answer = await fetcherFor().post(at("/redirect/same"), body, "application/json");
+    expect(answer.status).toBe(302);
+    expect(answer.headers["location"]).toBe("/ok");
+    expect(requests.map((request) => request.path)).toStrictEqual(["/redirect/same"]);
+  });
+
+  it("is refused under the same guard as a fetch, before anything is sent", async () => {
+    const body = new TextEncoder().encode("{}");
+    const refusal = async (fetcher: GuardedFetcher, url: string): Promise<string> => {
+      try {
+        await fetcher.post(url, body, "application/json");
+      } catch (error) {
+        if (error instanceof FetchRefused) return error.reason;
+        throw error;
+      }
+      return "sent";
+    };
+    expect(await refusal(fetcherFor(), `http://home.example:${port}/inbox`)).toBe("not-https");
+    expect(await refusal(fetcherFor(), `https://u:p@home.example:${port}/inbox`)).toBe(
+      "credentials",
+    );
+    // This machine, by its address and by a name that resolves to it, where it is not allowed.
+    const strict = new GuardedFetcher({ resolve: resolverOf(HERE), ca });
+    expect(await refusal(strict, `https://127.0.0.1:${port}/inbox`)).toBe("address");
+    expect(await refusal(strict, at("/inbox"))).toBe("address");
     expect(requests).toStrictEqual([]);
   });
 });

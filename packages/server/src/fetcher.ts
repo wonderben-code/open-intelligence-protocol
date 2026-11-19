@@ -161,6 +161,22 @@ export class GuardedFetcher {
     }
   }
 
+  /**
+   * Posts a body to a URL, under the same guard as `get`. A redirect is not
+   * followed: what was meant for one place is not sent on to another, and
+   * the answer is given as it is.
+   *
+   * @param accept - The media types asked for.
+   * @returns The response, whatever its status.
+   * @throws FetchRefused if the URL may not be fetched, or the exchange failed.
+   */
+  async post(url: string, body: Uint8Array, contentType: string, accept = "*/*"): Promise<Fetched> {
+    const deadline = AbortSignal.timeout(this.#limits.timeoutMs);
+    const target = this.#vetted(url);
+    const addresses = await this.#addresses(target.hostname, deadline);
+    return this.#exchange(target, addresses, accept, deadline, { body, contentType });
+  }
+
   /** The URL, if it is one this fetcher may ask at all. */
   #vetted(url: string): URL {
     let target: URL;
@@ -212,13 +228,14 @@ export class GuardedFetcher {
     addresses: Addresses,
     accept: string,
     deadline: AbortSignal,
+    sent?: { readonly body: Uint8Array; readonly contentType: string },
   ): Promise<Fetched> {
     const { maxBytes } = this.#limits;
     return new Promise<Fetched>((resolve, reject) => {
       const outgoing = request(
         target,
         {
-          method: "GET",
+          method: sent === undefined ? "GET" : "POST",
           // No connection is kept for another request to find.
           agent: false,
           signal: deadline,
@@ -226,6 +243,9 @@ export class GuardedFetcher {
             accept,
             "accept-encoding": "identity",
             "user-agent": this.#userAgent,
+            ...(sent === undefined
+              ? {}
+              : { "content-type": sent.contentType, "content-length": sent.body.length }),
           },
           ...(this.#ca === undefined ? {} : { ca: this.#ca }),
           // The name is not resolved again: the connection goes to an address that was checked.
@@ -278,7 +298,7 @@ export class GuardedFetcher {
       outgoing.on("error", (error) => {
         reject(failureOf(error, deadline));
       });
-      outgoing.end();
+      outgoing.end(sent?.body);
     });
   }
 }

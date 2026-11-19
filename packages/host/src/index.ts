@@ -17,3 +17,11 @@ export {
   type HostOptions,
 } from "./host.ts";
 export { HOST_MIGRATIONS, HostStore, type MailboxItem } from "./store.ts";
+export {
+  CLOSE,
+  type Connection,
+  Sockets,
+  type SocketsOptions,
+  SUBPROTOCOL,
+  type Wire,
+} from "./sockets.ts";

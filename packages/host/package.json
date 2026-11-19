@@ -49,10 +49,12 @@
     "@oip/net": "workspace:*",
     "@oip/schema": "workspace:*",
     "@oip/server": "workspace:*",
-    "hono": "4.13.18"
+    "hono": "4.13.18",
+    "ws": "8.22.2"
   },
   "devDependencies": {
-    "@oip/testkit": "workspace:*"
+    "@oip/testkit": "workspace:*",
+    "@types/ws": "8.18.2"
   },
   "bin": {
     "oip-host": "./dist/bin.js"

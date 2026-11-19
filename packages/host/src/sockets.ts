@@ -1,0 +1,307 @@
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+// SPDX-License-Identifier: Apache-2.0
+
+/**
+ * The host's WebSocket binding (Layer 1, 13.4), without the socket: what is
+ * said over a connection, and what is done with each message. The library
+ * that speaks WebSocket is bound to this in `main.ts`; a test speaks to it
+ * directly.
+ *
+ * The server speaks first, with a challenge. The client answers with a
+ * `Hello` (13.3), and the server welcomes the mind it authenticates or
+ * closes with 4401. After that each message is one record:
+ *
+ * - **To the host**, a `Packet` or a `Sealed` record is delivered as at the
+ *   inbox (13.2). If the host signs for the mind, the `Ack` is sent back.
+ * - **To the mind's own instance**, the host sends what is in the mind's
+ *   mailbox, in the order it came, and what arrives while the socket is
+ *   open. A record stays in the mailbox until the mind says it has it: with
+ *   an `Ack` over the socket, or by removing it over HTTP (13.5). So a
+ *   socket that drops loses nothing.
+ *
+ * A message that is refused closes the connection, with the code of its
+ * problem (core 10.2) as the reason: there is no record that says no.
+ */
+
+import { bytesToBase64url, type Instant, MAX_TEXT_LENGTH, OipError, utf8 } from "@oip/core";
+import { FirstSeen } from "@oip/identity";
+import { Challenges, verifyHello } from "@oip/net";
+import { cutShort } from "@oip/schema";
+import {
+  addressKey,
+  type Clock,
+  HttpFailure,
+  type Log,
+  type LogArchive,
+  type Metrics,
+  type Randomness,
+  type RateLimiter,
+  recordFrom,
+  Unavailable,
+} from "@oip/server";
+
+import type { Host } from "./host.ts";
+
+/** The subprotocol a client asks for (13.4). */
+export const SUBPROTOCOL = "oip.v1";
+
+/** The close codes the binding uses. Those from 4000 are an application's own (RFC 6455, 7.4.2). */
+export const CLOSE = {
+  /** The service is stopping. */
+  goingAway: 1001,
+  /** A message was refused. */
+  refused: 1008,
+  /** Something failed that nobody expected. */
+  failed: 1011,
+  /** The host cannot do it just now: ask again. */
+  later: 1013,
+  /** 13.4: the client did not authenticate. */
+  unauthenticated: 4401,
+} as const;
+
+/** A connection, as the binding uses one. */
+export interface Wire {
+  /** Sends a text message. */
+  send(text: string): void;
+  /** Closes the connection. Nothing is sent after it. */
+  close(code: number, reason: string): void;
+  /** How many bytes have been handed over and not yet sent. */
+  readonly buffered: number;
+}
+
+/** What the binding is told of a connection. */
+export interface Connection {
+  /** A text message arrived. */
+  message(text: string): void;
+  /** What was buffered has been sent. */
+  drained(): void;
+  /** The connection closed, whoever closed it. */
+  closed(): void;
+}
+
+/** What the binding is made with. */
+export interface SocketsOptions {
+  readonly host: Host;
+  /** The identity logs the host holds: the same archive the host was made with. */
+  readonly archive: LogArchive;
+  readonly clock: Clock;
+  readonly randomness: Randomness;
+  readonly log: Log;
+  readonly metrics: Metrics;
+  /** The origin clients reach the host at, as it is configured. A `Hello` names it (13.3). */
+  readonly origin: string;
+  /** The limit on what one address may deliver: the same as for the inbox. */
+  readonly deliver: RateLimiter;
+  /** The most connections open at once. 1,024 by default. */
+  readonly maxSockets?: number;
+  /** How long a client has to answer the challenge, in milliseconds. 10,000 by default. */
+  readonly helloMs?: number;
+  /** The most bytes of a message that are read. `MAX_TEXT_LENGTH` of `@oip/core` by default. */
+  readonly maxRecordBytes?: number;
+  /** The host stops sending a mind its mail while this many bytes wait to be sent. 1 MiB by default. */
+  readonly maxBuffered?: number;
+}
+
+/** How many records of a mailbox are read at a time to be sent. */
+const BATCH = 16;
+
+/** Layer 1, 13.4: the host's WebSocket binding. */
+export class Sockets {
+  readonly #options: SocketsOptions;
+  readonly #challenges = new Challenges();
+  readonly #open = new Set<() => void>();
+  readonly #gauge;
+  readonly #messages;
+
+  constructor(options: SocketsOptions) {
+    this.#options = options;
+    this.#gauge = options.metrics.gauge("oip_host_sockets_open", "WebSocket connections open.");
+    this.#messages = options.metrics.counter(
+      "oip_host_socket_messages_total",
+      "Messages received over WebSocket connections, by what became of each.",
+      ["outcome"],
+    );
+  }
+
+  /** How many connections are open. */
+  get open(): number {
+    return this.#open.size;
+  }
+
+  /** Whether there is room for one more connection. */
+  get room(): boolean {
+    return this.#open.size < (this.#options.maxSockets ?? 1024);
+  }
+
+  /** Closes every connection: the service is stopping. */
+  closeAll(): void {
+    for (const end of [...this.#open]) end();
+  }
+
+  /**
+   * A connection that was opened at a mind's WebSocket URL. The challenge
+   * is sent at once.
+   *
+   * @param mind - The mind the URL names, which the host serves.
+   * @param address - The client's IP address, for the limit on what it delivers.
+   */
+  connect(mind: string, wire: Wire, address: string | undefined): Connection {
+    const { host, archive, clock, log, origin } = this.#options;
+    const maxRecordBytes = this.#options.maxRecordBytes ?? MAX_TEXT_LENGTH;
+    const maxBuffered = this.#options.maxBuffered ?? 1024 * 1024;
+    const client = addressKey(address ?? "") ?? "unknown";
+    /** The mind that authenticated, once one has. */
+    let who: string | undefined;
+    let over = false;
+    let stopMail: (() => void) | undefined;
+    /** The cursor of the last item of the mailbox that was sent. */
+    let cursor = 0;
+
+    // 13.4: at least 16 random bytes. A challenge is good for 300 seconds and for one Hello.
+    const now = clock.now();
+    this.#challenges.forget(now);
+    const nonce = bytesToBase64url(this.#options.randomness.bytes(24));
+    this.#challenges.issue(nonce, now);
+    const timer = setTimeout(() => {
+      close(CLOSE.unauthenticated, "no Hello in time");
+    }, this.#options.helloMs ?? 10_000);
+
+    const finish = (): void => {
+      if (over) return;
+      over = true;
+      clearTimeout(timer);
+      stopMail?.();
+      this.#open.delete(end);
+      this.#gauge.set(this.#open.size);
+    };
+    const close = (code: number, reason: string): void => {
+      if (over) return;
+      finish();
+      wire.close(code, reason);
+    };
+    const end = (): void => {
+      close(CLOSE.goingAway, "the host is stopping");
+    };
+    this.#open.add(end);
+    this.#gauge.set(this.#open.size);
+
+    wire.send(JSON.stringify({ type: "Challenge", nonce, domain: origin }));
+
+    /** Sends the mind what waits in its mailbox, as far as the connection takes it. */
+    const mail = (): void => {
+      while (!over && wire.buffered < maxBuffered) {
+        const { items } = host.drain(mind, cursor, BATCH);
+        if (items.length === 0) return;
+        for (const item of items) {
+          cursor = item.cursor;
+          wire.send(JSON.stringify(item.record));
+        }
+      }
+    };
+
+    /** Whatever was thrown, as the end of the connection. */
+    const failed = (error: unknown, outcome: string): void => {
+      this.#messages.add({ outcome });
+      if (error instanceof OipError) close(CLOSE.refused, error.code);
+      else if (error instanceof HttpFailure) {
+        close(error.status === 507 ? CLOSE.later : CLOSE.refused, error.message);
+      } else if (error instanceof Unavailable) close(CLOSE.later, "ask again");
+      else {
+        log.failure("socket failed", error, {});
+        close(CLOSE.failed, "internal error");
+      }
+    };
+
+    const hello = (text: string, at: Instant): void => {
+      let value: unknown;
+      try {
+        value = JSON.parse(text);
+      } catch {
+        close(CLOSE.unauthenticated, "no Hello");
+        return;
+      }
+      // Judged as first seen now: the proof answers a challenge made a moment ago. The
+      // host is no witness of it, and keeps no record of that.
+      const seen = new FirstSeen();
+      const view = archive.view(at);
+      const judged = verifyHello(value, {
+        origin,
+        now: at,
+        challenges: this.#challenges,
+        seen,
+        view: {
+          log: (other) => view.log(other),
+          evidence: {
+            eventSeen: (id) => view.evidence.eventSeen(id),
+            proofSeen: (digest) => view.evidence.proofSeen(digest) ?? seen.proofSeen(digest),
+          },
+        },
+      });
+      if (!judged.ok) {
+        this.#messages.add({ outcome: "unauthenticated" });
+        if (judged === cutShort()) close(CLOSE.later, "ask again");
+        else close(CLOSE.unauthenticated, "the Hello does not authenticate a mind");
+        return;
+      }
+      clearTimeout(timer);
+      who = judged.value.mind;
+      this.#messages.add({ outcome: "welcomed" });
+      wire.send(JSON.stringify({ type: "Welcome", mind: who }));
+      if (who !== mind) return;
+      // The mind's own instance: it is sent its mail, and what arrives from now on.
+      stopMail = host.subscribe(mind, () => {
+        try {
+          mail();
+        } catch (error) {
+          failed(error, "failed");
+        }
+      });
+      mail();
+    };
+
+    const record = (text: string): void => {
+      const taken = this.#options.deliver.take(client);
+      if (!taken.ok) {
+        this.#messages.add({ outcome: "rate-limited" });
+        close(CLOSE.later, "rate-limited");
+        return;
+      }
+      const read = recordFrom(utf8(text), maxRecordBytes);
+      if (read.type === "Ack") {
+        if (who !== mind) throw new OipError("forbidden", "only the mind itself acknowledges here");
+        host.acknowledge(mind, read);
+        this.#messages.add({ outcome: "acknowledged" });
+        return;
+      }
+      if (read.type !== "Packet" && read.type !== "Sealed") {
+        throw new OipError("invalid-record", "a message is a Packet, a Sealed record or an Ack", {
+          clause: "L1 13.4",
+        });
+      }
+      const answer = host.deliver(mind, read);
+      this.#messages.add({ outcome: "delivered" });
+      if (answer["type"] === "Ack") wire.send(JSON.stringify(answer));
+    };
+
+    return {
+      message: (text) => {
+        if (over) return;
+        try {
+          if (who === undefined) hello(text, clock.now());
+          else record(text);
+        } catch (error) {
+          failed(error, who === undefined ? "unauthenticated" : "refused");
+        }
+      },
+      drained: () => {
+        if (over || who !== mind) return;
+        try {
+          mail();
+        } catch (error) {
+          failed(error, "failed");
+        }
+      },
+      closed: finish,
+    };
+  }
+}

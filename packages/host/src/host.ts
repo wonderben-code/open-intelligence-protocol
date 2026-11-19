@@ -39,6 +39,7 @@ import {
   withProofs,
 } from "@oip/core";
 import {
+  FirstSeen,
   type IdentityView,
   type JudgedRecord,
   judgeRecord,
@@ -46,7 +47,7 @@ import {
   ownSignedTime,
   witnessRecord,
 } from "@oip/identity";
-import { draftAck, receivePacket } from "@oip/net";
+import { draftAck, receivePacket, verifyAck } from "@oip/net";
 import {
   cutShort,
   cutShortCount,
@@ -381,6 +382,53 @@ export class Host {
   remove(mind: string, cursor: number): boolean {
     this.#served(mind);
     return this.#db.transaction(() => this.#store.remove(mind, cursor));
+  }
+
+  /**
+   * Layer 1, 13.2, 13.4: takes the mind's own acknowledgement of a record
+   * the host keeps for it. The mind has the record, so it goes from the
+   * mailbox. This is how a mind's instance that receives its mail over a
+   * socket says what it has: a record, as every message there is.
+   *
+   * @param record - An `Ack`, already read.
+   * @returns Whether the mailbox held the record the `Ack` names: the
+   *   `Sealed` record if it names one, and the packet if not.
+   * @throws OipError `not-found` if the host does not serve the mind;
+   *   `invalid-record` for what is no `Ack`; `invalid-proof` for one its
+   *   author did not sign; `forbidden` for another mind's.
+   */
+  acknowledge(mind: string, record: OipRecord): boolean {
+    this.#served(mind);
+    return this.#archive.witnessing((_seen, now) => {
+      // Judged as first seen now. The host is no witness of it, and keeps no record of that.
+      const seen = new FirstSeen();
+      const view = this.#archive.view(now);
+      const verified = verifyAck(record, {
+        now,
+        seen,
+        view: {
+          log: (other) => view.log(other),
+          evidence: {
+            eventSeen: (id) => view.evidence.eventSeen(id),
+            proofSeen: (digest) => view.evidence.proofSeen(digest) ?? seen.proofSeen(digest),
+          },
+        },
+      });
+      if (!verified.ok) {
+        if (verified === cutShort()) throw new Unavailable("the Ack could not be judged just now");
+        const [first] = verified.issues;
+        throw new OipError(
+          first.path === "/proof" ? "invalid-proof" : "invalid-record",
+          first.message,
+          { clause: first.clause, issues: verified.issues },
+        );
+      }
+      if (verified.value.recipient !== mind) {
+        throw new OipError("forbidden", "the Ack is another mind's", { clause: "L1 13.2" });
+      }
+      const { packet, sealed } = verified.value.ack;
+      return this.#store.removeById(mind, sealed ?? packet);
+    });
   }
 
   /**

@@ -141,6 +141,15 @@ export class HostStore {
     );
   }
 
+  /** Removes the item with a content ID from a mind's mailbox. Whether it was there. */
+  removeById(mind: string, id: string): boolean {
+    return (
+      Number(
+        this.#db.prepare("DELETE FROM mailbox WHERE mind = ? AND id = ?").run(mind, id).changes,
+      ) > 0
+    );
+  }
+
   /**
    * Lets go of what is kept only for a time: mailbox items received before
    * `kept`, and accepted packets that can no longer be accepted at `now`.

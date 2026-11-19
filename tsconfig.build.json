@@ -26,6 +26,9 @@
       "path": "packages/resolver/tsconfig.build.json"
     },
     {
+      "path": "packages/host/tsconfig.build.json"
+    },
+    {
       "path": "packages/conformance/tsconfig.build.json"
     }
   ]

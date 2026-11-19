@@ -396,6 +396,37 @@ export class LogArchive {
     return { oip: "1", type: "DuplicityEvidence", mind, pairs };
   }
 
+  /**
+   * Runs work that judges with the archive's record of first sight, and
+   * stores what the work caused to be recorded in the same transaction as
+   * whatever the work itself stores: a packet received and the first sight
+   * of its proofs stand or fall together (core 9.4).
+   *
+   * @param work - Given the record to pass as a receiver's `seen`, and the
+   *   reading of the clock it is made at, which is later than every time
+   *   recorded so far.
+   * @throws What `work` throws. Nothing is stored then, and if anything had
+   *   been recorded, what the archive holds in memory is made again from
+   *   the database. Work that refuses does so before it records.
+   */
+  witnessing<T>(work: (seen: FirstSeen, now: Instant) => T): T {
+    const now = this.#reading();
+    try {
+      const result = this.#db.transaction(() => {
+        this.#seen.fresh.length = 0;
+        const worked = work(this.#seen, now);
+        this.#store.add("", [], this.#seen.fresh);
+        return worked;
+      });
+      if (now > this.#latest) this.#latest = now;
+      return result;
+    } catch (error) {
+      // Only if the memory has moved: work that refuses before it records has changed nothing.
+      if (this.#seen.fresh.length > 0) this.#rebuild();
+      throw error;
+    }
+  }
+
   /** Layer 1, 17.1: what was taken in after a cursor, in the order it came. */
   stream(after: number, limit: number): Streamed[] {
     return this.#store.streamAfter(after, limit);

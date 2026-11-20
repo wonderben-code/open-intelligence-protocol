@@ -3,15 +3,16 @@
 
 /** The Resolver profile over the wire, run against the reference resolver on a socket of this machine. */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { formatTimestamp, proofDigest } from "@oip/core";
 import { type Running, start } from "@oip/resolver";
-import { clause } from "@oip/testkit";
+import { clause, repoRoot } from "@oip/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { report } from "../examples/run-wire.ts";
 import { resolverProfile, type WireReport } from "../src/index.ts";
 import {
   answered,
@@ -101,6 +102,34 @@ describe("the Resolver profile over the wire", () => {
         "resolver/publication-unknown-key",
         "resolver/publication-digest",
       ]),
+    );
+  });
+});
+
+describe("the README", () => {
+  const packageRoot = join(repoRoot, "packages", "conformance");
+  const readme = readFileSync(join(packageRoot, "README.md"), "utf8");
+
+  it("shows examples/run-wire.ts unchanged", () => {
+    const example = readFileSync(join(packageRoot, "examples", "run-wire.ts"), "utf8");
+    // The file's licence header is not part of what the README shows.
+    const code = example.replace(/^(\/\/ SPDX[^\n]*\n)+\n/, "");
+    expect(readme).toContain(`\`\`\`ts\n${code}\`\`\``);
+  });
+
+  it("shows the output the example really gives against the reference resolver", async () => {
+    const output = await report("resolver", { target: open, origin: ORIGIN });
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+    expect(output).toHaveLength(1);
+  });
+
+  it("reports each check that failed, with its clauses", async () => {
+    const output = await report("resolver", { target: "http://127.0.0.1:9", timeoutMs: 500 });
+    expect(output[0]).toMatch(
+      /^the resolver at http:\/\/127\.0\.0\.1:9: 0 passed, \d+ failed, \d+ skipped, 0 not applicable: not shown to conform$/u,
+    );
+    expect(output[1]).toMatch(
+      /^FAIL resolver\/unknown-mind \[L1 17\.1\]: the check could not be completed: /u,
     );
   });
 });

@@ -4,6 +4,14 @@
 
 ```ts
 
+import { GenesisFields } from '@oip/identity';
+import type { IdentityEvent } from '@oip/schema';
+import { Instant } from '@oip/core';
+import { JsonObject as JsonObject_2 } from '@oip/core';
+import type { Proof } from '@oip/schema';
+import { SyncSigner } from '@oip/core';
+import { UpdateFields } from '@oip/identity';
+
 // @public
 export interface AckCase extends CaseBase {
     // (undocumented)
@@ -99,6 +107,12 @@ export function claimHolds(adapter: ConformanceAdapter, vectors: Vectors, vector
 export function claimMustHold(section: Section, kind: CaseKind): boolean;
 
 // @public
+export function command(args: readonly string[], write: {
+    readonly out: (text: string) => void;
+    readonly err: (text: string) => void;
+}, run?: typeof runWire): Promise<number>;
+
+// @public
 export function compareVerdicts(adapter: ConformanceAdapter, judge: Judge, vectors: Vectors, vectorCase: VectorCase, agreement?: Agreement): Promise<Disagreement | undefined>;
 
 // @public
@@ -180,6 +194,9 @@ export interface FeedReading {
 }
 
 // @public
+export function formatReport(report: WireReport): string;
+
+// @public
 export interface HelloCase extends CaseBase {
     // (undocumented)
     readonly at: string;
@@ -192,6 +209,33 @@ export interface HelloCase extends CaseBase {
     // (undocumented)
     readonly origin: string;
 }
+
+// @public
+export interface HostOptions extends WireOptions {
+    readonly setup?: (client: WireClient) => HostSetup;
+}
+
+// @public
+export function hostProfile(options: HostOptions): Promise<WireReport>;
+
+// @public
+export interface HostSetup {
+    adopt(mind: WireMind, bundle: object): Promise<void>;
+    append(mind: WireMind, entries: readonly object[]): Promise<void>;
+    endpoint(mind: WireMind): string;
+    keep(mind: WireMind, record: object): Promise<void>;
+    mailbox(mind: WireMind): string | undefined;
+}
+
+// @public
+export interface IndexerOptions extends WireOptions {
+    readonly bundle?: (address: string) => Promise<unknown>;
+    readonly endpoint?: string;
+    readonly inbox?: WatchedInbox;
+}
+
+// @public
+export function indexerProfile(options: IndexerOptions): Promise<WireReport>;
 
 // @public
 export interface JsonCase extends CaseBase {
@@ -356,6 +400,12 @@ export interface PythonJudgeOptions {
 export function pythonJudgeUnavailable(options?: PythonJudgeOptions): string | undefined;
 
 // @public
+export type Randomness = (bytes: number) => Uint8Array;
+
+// @public
+export function readArguments(args: readonly string[]): WireCommand | string;
+
+// @public
 export interface ReceiveCase extends CaseBase {
     // (undocumented)
     readonly arrived: JsonObject;
@@ -387,6 +437,12 @@ export interface RecordCase extends CaseBase {
 export const referenceAdapter: ConformanceAdapter;
 
 // @public
+export function referenceHostSetup(client: WireClient): HostSetup;
+
+// @public
+export function resolverProfile(options: WireOptions): Promise<WireReport>;
+
+// @public
 export function runCase(adapter: ConformanceAdapter, vectors: Vectors, section: Section, vectorCase: VectorCase): CaseResult;
 
 // @public
@@ -394,6 +450,9 @@ export function runPositiveCheck(check: PositiveCheck, adapter: ConformanceAdapt
 
 // @public
 export function runVectors(adapter: ConformanceAdapter, vectors: Vectors): CaseResult[];
+
+// @public
+export function runWire(profile: WireProfile, options: WireOptions & HostOptions & IndexerOptions): Promise<WireReport>;
 
 // @public (undocumented)
 export type Section = (typeof SECTIONS)[number];
@@ -413,6 +472,11 @@ export interface SentForCase extends CaseBase {
     // (undocumented)
     readonly record: JsonObject;
 }
+
+// @public
+export type SignedEvent = IdentityEvent & {
+    proof: Proof[];
+};
 
 // @public
 export interface StatusCase extends CaseBase {
@@ -440,6 +504,9 @@ export interface TestKey {
     // (undocumented)
     readonly type?: string;
 }
+
+// @public
+export const USAGE: string;
 
 // @public (undocumented)
 export type VectorCase = LogCase | CountsForCase | SentForCase | StatusCase | AssuranceCase | RecordCase | JsonCase | NetworkCase;
@@ -488,5 +555,178 @@ export interface VerifierView {
 
 // @public
 export function viewFor(vectors: Vectors, vectorCase: VectorCase): VerifierView;
+
+// @public
+export interface WatchedInbox {
+    readonly endpoint: string;
+    taken(): readonly unknown[] | Promise<readonly unknown[]>;
+}
+
+// @public
+export const WIRE_PROFILES: readonly WireProfile[];
+
+// @public
+export interface WireAnswer {
+    // (undocumented)
+    readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly headers: Headers;
+    readonly json: unknown;
+    // (undocumented)
+    readonly status: number;
+    // (undocumented)
+    readonly text: string;
+}
+
+// @public
+export interface WireAsking {
+    readonly body?: unknown;
+    // (undocumented)
+    readonly headers?: Readonly<Record<string, string>>;
+    readonly signature?: {
+        readonly created?: Instant;
+        readonly expires?: Instant;
+    };
+    readonly signedBy?: WireMind;
+    readonly type?: string;
+}
+
+// @public
+export interface WireCheck {
+    readonly clauses: readonly string[];
+    readonly detail?: string;
+    readonly id: string;
+    readonly level: "MUST" | "SHOULD";
+    readonly outcome: WireOutcome;
+    readonly title: string;
+}
+
+// @public
+export class WireClient {
+    constructor(options: WireOptions);
+    ask(method: string, path: string, asking?: WireAsking): Promise<WireAnswer>;
+    readonly now: () => Instant;
+    readonly origin: string;
+    pathOf(url: string): string | undefined;
+    prepare(method: string, path: string, asking?: WireAsking): Promise<WireRequest>;
+    readonly random: Randomness;
+    send(prepared: WireRequest): Promise<WireAnswer>;
+    socket(path: string, protocol: string): Promise<WireSocket>;
+    stream(path: string, headers?: Readonly<Record<string, string>>): Promise<WireStream>;
+    readonly target: string;
+    readonly timeoutMs: number;
+}
+
+// @public
+export interface WireCommand {
+    readonly json: boolean;
+    readonly options: WireOptions;
+    readonly profile: WireProfile;
+}
+
+// @public
+export type WireFrame = {
+    readonly message: string;
+} | {
+    readonly closed: number;
+    readonly reason: string;
+};
+
+// @public
+export class WireMind {
+    get address(): string;
+    get agreementKey(): string;
+    agreementSecret(key: string): Uint8Array | undefined;
+    branch(events: number): WireMind;
+    bundle(more?: {
+        location?: object;
+        participant?: object;
+        log?: readonly object[];
+    }): JsonObject_2;
+    static create(random: Randomness, created: string, fields?: Partial<GenesisFields>): WireMind;
+    readonly events: SignedEvent[];
+    get genesis(): SignedEvent;
+    get id(): string;
+    get keyRef(): string;
+    sign<T extends object>(record: T, more?: {
+        created?: string;
+        challenge?: string;
+        domain?: string;
+    }): T & {
+        proof: Proof[];
+    };
+    get signer(): SyncSigner;
+    strayProof(event: SignedEvent): Proof;
+    update(created: string, fields?: UpdateFields): SignedEvent;
+    get versionId(): string;
+}
+
+// @public
+export interface WireOptions {
+    readonly clock?: () => Instant;
+    readonly fetch?: typeof fetch;
+    readonly origin?: string;
+    readonly randomness?: Randomness;
+    readonly target: string;
+    readonly timeoutMs?: number;
+    readonly webSocket?: typeof WebSocket;
+}
+
+// @public
+export type WireOutcome = "pass" | "fail" | "not-applicable" | "skipped";
+
+// @public
+export type WireProfile = "resolver" | "host" | "indexer";
+
+// @public
+export interface WireReport {
+    readonly checks: readonly WireCheck[];
+    readonly conforms: boolean;
+    readonly finished: string;
+    readonly oip: "1";
+    readonly profile: WireProfile;
+    readonly started: string;
+    readonly suite: "oip-conformance-wire";
+    readonly summary: Readonly<Record<WireOutcome, number>>;
+    readonly target: string;
+}
+
+// @public
+export interface WireRequest {
+    // (undocumented)
+    readonly body?: Uint8Array;
+    // (undocumented)
+    readonly headers: readonly (readonly [string, string])[];
+    // (undocumented)
+    readonly method: string;
+    readonly path: string;
+}
+
+// @public
+export interface WireSocket {
+    // (undocumented)
+    close(): void;
+    next(timeoutMs?: number): Promise<WireFrame | undefined>;
+    readonly protocol: string;
+    // (undocumented)
+    send(text: string): void;
+}
+
+// @public
+export interface WireStream {
+    // (undocumented)
+    close(): void;
+    // (undocumented)
+    readonly headers: Headers;
+    next(timeoutMs?: number): Promise<WireStreamEvent | undefined>;
+    // (undocumented)
+    readonly status: number;
+}
+
+// @public
+export interface WireStreamEvent {
+    readonly data: string;
+    readonly id: string | undefined;
+}
 
 ```

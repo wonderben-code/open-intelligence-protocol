@@ -29,7 +29,9 @@ export interface WireCheck {
   readonly clauses: readonly string[];
   /** Whether the clauses require it (`MUST`) or recommend it (`SHOULD`). */
   readonly level: "MUST" | "SHOULD";
+  /** What the check requires, in a sentence. */
   readonly title: string;
+  /** How the check ended. */
   readonly outcome: WireOutcome;
   /** For any outcome but `pass`: what was required and what happened, or why the check was not made. */
   readonly detail?: string;
@@ -37,14 +39,21 @@ export interface WireCheck {
 
 /** The report of one profile against one implementation. It is JSON as it stands. */
 export interface WireReport {
+  /** What made the report: this suite. */
   readonly suite: "oip-conformance-wire";
+  /** The major version of the protocol the checks are of. */
   readonly oip: "1";
+  /** The profile that was run. */
   readonly profile: WireProfile;
   /** Where the suite connected. */
   readonly target: string;
+  /** When the run began, by the suite's clock. */
   readonly started: string;
+  /** When the run ended, by the suite's clock. */
   readonly finished: string;
+  /** The checks, in the order they were run. */
   readonly checks: readonly WireCheck[];
+  /** How many checks ended in each way. */
   readonly summary: Readonly<Record<WireOutcome, number>>;
   /**
    * Whether every `MUST` check passed or did not apply. A check that was

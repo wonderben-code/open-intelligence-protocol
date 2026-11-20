@@ -1,6 +1,6 @@
 # @oip/conformance
 
-The conformance suite of the [Open Intelligence Protocol](../../README.md): the golden test vectors, run against any implementation through an adapter.
+The conformance suite of the [Open Intelligence Protocol](../../README.md): the golden test vectors, run against any implementation through an adapter, and the service profiles, run against any implementation [over the wire](#over-the-wire).
 
 The specification says what a conforming implementation must do with the vectors ([spec/README.md](../../spec/README.md)): reproduce every value, accept every must-accept case and every control, and reject every negative case. This package checks exactly that.
 
@@ -8,7 +8,7 @@ The specification says what a conforming implementation must do with the vectors
 - A runner for each kind of case: `log`, `countsFor`, `sentFor`, `status`, `assurance`, `record` and `json`, and the eight kinds of the Mind Network: `feed`, `checkpoint`, `receive`, `chain`, `hello`, `ack`, `location` and `participant`.
 - Differential testing against the independent Python checker, [`oip_vectors.py`](../../spec/test-vectors/oip_vectors.py).
 
-From M5 it will also run over the wire, by profile, against any implementation's endpoints.
+- The Resolver, Host and Indexer profiles as checks over HTTP, server-sent events and WebSocket, with a report that is JSON, and the command `oip-conformance`.
 
 ## Use
 
@@ -139,6 +139,75 @@ From M4 they are also cases of the Mind Network, under the rule "same":
 Both implementations also say what they found, and that is compared: how many entries verify and which equivocate, which proofs a checkpoint or an `Ack` covers, the chain a receiver holds and how many packets wait behind a gap, the record that is current. A receiver that takes packets as they come names the first two links it finds at one place of a chain. The checker gives the links at every place, and the two the receiver names must be among them.
 
 `pnpm run ci` runs this campaign at 500: 6,000 cases. The nightly workflow runs 240,000.
+
+## Over the wire
+
+A resolver, a host and an indexer are services, so their profiles ([spec/README.md](../../spec/README.md)) are tested by asking one as its clients do. The suite needs nothing of the implementation but its URL.
+
+```
+npx oip-conformance resolver https://resolver.example
+npx oip-conformance host http://127.0.0.1:8080 --origin https://host.example --json > report.json
+```
+
+The suite makes minds of its own for each run, with fresh keys, and publishes them to the implementation. So run it against a deployment that may hold them. Nothing a run makes is shared with another run: its minds, its words and its tags are its own.
+
+Each check cites the clauses it holds the implementation to, and ends in one of four ways:
+
+| Outcome          | Meaning                                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `pass`           | The implementation did what the clauses ask.                                                                                   |
+| `fail`           | It did not. `detail` says what was required and what happened.                                                                 |
+| `not-applicable` | The clauses ask it only of an implementation that offers something this one does not, such as a mailbox.                       |
+| `skipped`        | The check could not be made: a check it builds on did not pass, or the suite was not given what it needs. `detail` says which. |
+
+A report says that an implementation `conforms` only if every check of level `MUST` passed or did not apply. A check that was skipped proves nothing, so a report with one does not say it. Checks of level `SHOULD` are reported and do not decide.
+
+| Profile    | What is checked                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolver` | Layer 1, Section 17: publication; the `Bundle` and its `firstSeen` times, which are kept; a location record, and one that the mind did not sign; what is taken of a log with an event that does not verify or cannot be read; duplicity, the log that is served after it, and the evidence; the stream, from a cursor and live; signed publication where the resolver requires it (13.3); what is refused as malformed (core 1 and 10.2). |
+| `host`     | Layer 1, Section 13: the well-known `Bundle`, `LogPage`, `FeedPage` and records; the inbox, with what it takes, what it refuses, a duplicate and a `Sealed` record; the `Ack` of a host that signs for a mind; the mailbox, drained and emptied by its owner alone (13.3, 13.5); the WebSocket binding, from the challenge to the mail a mind's own instance is sent (13.4).                                                              |
+| `indexer`  | Layer 1, Section 18: submission; the capability query and its `QueryResult`, whose signature is judged by the indexer's own log; what a query finds by word, kind and tag; that nothing is listed which its author did not sign; no result for constraints or evidence nobody can have checked; the limit; brokered delivery, where the indexer offers it (18.5).                                                                         |
+
+The specification leaves some things to an implementation, and the suite is told of them:
+
+- **Another origin.** A signed request and a `Hello` name the origin the implementation knows itself by (13.3). Where the suite reaches a test deployment by another address, give that origin as `origin`.
+- **A host's own interface.** How a mind comes to be served by a host, and how it brings the host its feed and its records, is the host's business ([OEP-0005](../../oeps/oep-0005-service-clarifications.md), open question 3). `hostProfile` takes a `setup` that does it for the host under test. Unless one is given, it is `referenceHostSetup`: the interface of `@oip/host`, which must then run with `OIP_HOST_OPEN` set.
+- **An indexer's own log.** `indexerProfile` asks the indexer for the `Bundle` of its own mind at the well-known path, as the reference indexer serves it. Give `bundle` where it is found another way.
+- **An inbox to watch.** What an indexer forwards arrives at other minds' inboxes. Give `inbox`, an endpoint the indexer can reach and the suite can read, and the suite checks what arrives there. Without one those checks are skipped, and the report says so. The command cannot be given one: use the library.
+
+From a program:
+
+```ts
+import { runWire, type WireOptions, type WireProfile } from "@oip/conformance";
+
+/**
+ * Runs a profile against an implementation over the wire, and reports how
+ * it did: a line with the sum, and a line for each check that failed.
+ */
+export async function report(profile: WireProfile, options: WireOptions): Promise<string[]> {
+  const { checks, summary, conforms } = await runWire(profile, options);
+  return [
+    `the ${profile} at ${options.origin ?? options.target}: ${summary.pass} passed, ${summary.fail} failed, ` +
+      `${summary.skipped} skipped, ${summary["not-applicable"]} not applicable: ` +
+      (conforms ? "it conforms" : "not shown to conform"),
+    ...checks
+      .filter((check) => check.outcome === "fail")
+      .map((check) => `FAIL ${check.id} [${check.clauses.join(", ")}]: ${check.detail ?? ""}`),
+  ];
+}
+```
+
+Against the reference resolver, with its defaults, it gives:
+
+```
+the resolver at https://resolver.example: 26 passed, 0 failed, 0 skipped, 1 not applicable: it conforms
+```
+
+The one check that does not apply is of a resolver that requires signed publication, which this one does not unless it is told to (17.3).
+
+What the suite does not check is what only time or the operator can show: that a mailbox keeps an item for 30 days, that a rate limit holds, that a first-seen time survives a restart. The reference services have tests of their own for those.
+
+The suite is tested against itself. In this repository each profile is run against the reference service, and then against that service with a fault planted between the two: a proxy that changes one thing the service is asked or answers, as an implementation with that fault would. Each fault must fail the checks it breaks. A check that no fault can make fail checks nothing.
 
 ## In this repository
 

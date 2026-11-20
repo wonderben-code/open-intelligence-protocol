@@ -76,8 +76,11 @@ it was not used as above.
 
 /** What the command was asked to do. */
 export interface WireCommand {
+  /** The profile to run. */
   readonly profile: WireProfile;
+  /** Where the implementation is reached, and the options that were given. */
   readonly options: WireOptions;
+  /** Whether the report is written as JSON. */
   readonly json: boolean;
 }
 

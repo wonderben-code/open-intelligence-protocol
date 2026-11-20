@@ -77,7 +77,9 @@ export interface WireAnswer {
 
 /** An event of a server-sent event stream. */
 export interface WireStreamEvent {
+  /** The event's `id` field, if it has one. */
   readonly id: string | undefined;
+  /** The event's `data` lines, joined by line feeds. */
   readonly data: string;
 }
 
@@ -115,8 +117,11 @@ export class WireClient {
   readonly target: string;
   /** The origin the implementation knows itself by. */
   readonly origin: string;
+  /** The clock: nanoseconds since the Unix epoch. */
   readonly now: () => Instant;
+  /** Where keys, nonces and the words of a run come from. */
   readonly random: Randomness;
+  /** How long the implementation may take over one answer, in milliseconds. */
   readonly timeoutMs: number;
   readonly #fetch: typeof fetch;
   readonly #webSocket: typeof WebSocket;

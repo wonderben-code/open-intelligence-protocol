@@ -152,6 +152,18 @@ describe(`${clause("L0 3.1")} an Agent Card`, () => {
     expect(read({ ...SAMPLE, skills: many.slice(1) }).card?.skills).toHaveLength(MAX_CARD_ITEMS);
   });
 
+  it("has no tenant where its interface names an empty one: that is how A2A writes none", () => {
+    const { card } = read({
+      ...SAMPLE,
+      supportedInterfaces: [{ ...SAMPLE.supportedInterfaces[0], tenant: "" }],
+    });
+    expect(card?.supportedInterfaces[0]).not.toHaveProperty("tenant");
+    expect(
+      read({ ...SAMPLE, supportedInterfaces: [{ ...SAMPLE.supportedInterfaces[0], tenant: 7 }] })
+        .refused,
+    ).toStrictEqual(["/supportedInterfaces/0/tenant (L0 3.1)"]);
+  });
+
   it("may leave out what A2A lets it leave out", () => {
     const { card } = read({ ...SAMPLE, capabilities: {}, skills: [], defaultInputModes: [] });
     expect(card).toMatchObject({

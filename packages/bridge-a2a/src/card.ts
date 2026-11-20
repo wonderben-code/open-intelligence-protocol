@@ -125,13 +125,13 @@ class Reader {
     return value;
   }
 
-  /** A text that may be there. */
+  /** A text that may be there. An empty one says nothing, and is none. */
   optional(
     from: Readonly<Record<string, unknown>>,
     name: string,
     path: string,
   ): string | undefined {
-    return from[name] === undefined ? undefined : this.text(from, name, path);
+    return from[name] === undefined || from[name] === "" ? undefined : this.text(from, name, path);
   }
 
   /** A list that may be absent, of no more items than are read. */

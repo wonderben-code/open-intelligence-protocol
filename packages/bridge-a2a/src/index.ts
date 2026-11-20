@@ -42,3 +42,9 @@ export {
   TASK_STATES,
   type TaskState,
 } from "./mapping.ts";
+export {
+  type CardSignatures,
+  type KeySource,
+  type PublicJwk,
+  verifySignatures,
+} from "./signature.ts";

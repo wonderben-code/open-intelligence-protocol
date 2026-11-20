@@ -61,7 +61,7 @@ export function delivered(delivery: Delivery): JsonObject {
     to,
     delivered: stored,
     sealed,
-    ...(queued === true ? { waiting: "kept, and tried again when oip_inbox next reads" } : {}),
+    ...(queued === true ? { waiting: "kept, and tried again later, when oip_inbox reads" } : {}),
     ...(failure === undefined ? {} : { failure }),
   };
 }

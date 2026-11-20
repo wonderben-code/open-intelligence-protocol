@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { LOCAL, type Network, startNetwork } from "@oip/cli";
-import { Mind, type ProfileFields } from "@oip/client";
+import { type Fetch, Mind, type ProfileFields } from "@oip/client";
 import type { JsonObject } from "@oip/core";
 import { type Keychain, Keystore, SCRYPT_MIN_N } from "@oip/keystore";
 import { fileStorage } from "@oip/keystore/node";
@@ -87,6 +87,19 @@ export class Place {
       network: directory,
     };
     return this;
+  }
+
+  /**
+   * A way of asking services on which some cannot be reached: those of the
+   * origins named, as `https://host.oip.localhost`.
+   */
+  failing(...origins: readonly string[]): Fetch {
+    const routes = this.#network?.routes ?? {};
+    const lost = origins.map((origin) => routes[origin] ?? origin);
+    return (request) =>
+      lost.some((address) => request.url.startsWith(address))
+        ? Promise.reject(new TypeError("fetch failed"))
+        : fetch(request);
   }
 
   /** The directory of the network, for a process that is started apart. */

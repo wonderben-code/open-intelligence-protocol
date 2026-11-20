@@ -99,7 +99,7 @@ export function main(
     const edges: Machine = {
       env: host.env,
       home: homedir(),
-      keychain: () => systemKeychain(),
+      keychain: systemKeychain,
     };
     const dir = directoryOf(values.dir, edges);
     // A policy that cannot be read is not guessed at: the server does not start.

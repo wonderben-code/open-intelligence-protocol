@@ -84,6 +84,13 @@ export async function example(
   const late = await junior.offer(offerOf("60"), { chain });
   output.push(`a later offer is the firm's: ${String(await amina.countsFor(late, firm.address))}`);
   output.push(`the first still is: ${String(await amina.countsFor(offer, firm.address))}`);
+
+  // A program that stops keeps what matters: the record, and when it first obtained each of
+  // its proofs. Held again with that in a later run, the offer is judged as it was then,
+  // and not as if it had only now arrived, after the revocation.
+  const kept = { record: offer, seen: amina.sightings(amina.hold(offer)) };
+  amina.hold(kept.record, kept.seen);
+  output.push(`kept with the offer: when ${String(Object.keys(kept.seen).length)} proofs came`);
   for (const mind of [firm, agent, junior, amina]) mind.close();
   return output;
 }

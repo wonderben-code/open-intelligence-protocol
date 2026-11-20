@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { contentId, formatRecordRef } from "@oip/core";
+import { contentId, formatRecordRef, proofDigest } from "@oip/core";
 import type { Delegation } from "@oip/schema";
 import { clause } from "@oip/testkit";
 import { at, T } from "@oip/testkit/minds";
@@ -306,6 +306,111 @@ describe(`${clause("L1 11.5")} a delegation that is taken back`, () => {
     expect(await amina.statusOf(before)).toBe("accepted");
     // Only the mind that made a delegation takes it back.
     expect(await refusal(() => agent.revoke(mandate))).toBe("oip: forbidden");
+  });
+});
+
+describe(`${clause("core 9.4")} the client's own record of when it first obtained a proof`, () => {
+  /** Amina's client, started again: the same mind, opened from what its keystore holds. */
+  const again = async (amina: Awaited<ReturnType<typeof mindOf>>): Promise<Mind> => {
+    amina.mind.close();
+    return Mind.open(amina.options);
+  };
+
+  it(`${clause("core 9.3")} is evidence a program keeps between runs: what was signed under a delegation that has since expired still counts`, async () => {
+    const amina = await mindOf("human");
+    const lexis = (await mindOf("institution")).mind;
+    const agent = (await mindOf("agent")).mind;
+    world.clock.at = at(1010);
+    const mandate = await lexis.delegate({
+      delegate: agent.address,
+      command: "/oip/sign/Commitment",
+      expires: T(3000),
+    });
+    const accepted = await amina.mind.cosign(
+      await agent.commitment(deal(lexis, amina.mind, "120"), { chain: [mandate] }),
+    );
+    expect(await amina.mind.statusOf(accepted)).toBe("accepted");
+    // What the program keeps: the record, and when each of its proofs was first obtained.
+    const id = contentId(accepted);
+    const kept = amina.mind.sightings(id);
+    expect(Object.keys(kept).sort()).toStrictEqual(
+      [...accepted.proof.map((proof) => proofDigest(proof)), proofDigest(mandate.proof[0])].sort(),
+    );
+    for (const time of Object.values(kept)) expect(time).toBe(at(1010));
+    // Long after the delegation has expired, the program runs again.
+    world.clock.at = at(10_000);
+    const later = await again(amina);
+    expect(later.records()).toStrictEqual([]);
+    expect(later.hold(accepted, kept)).toBe(id);
+    expect(await later.countsFor(accepted, lexis.address)).toBe(true);
+    expect(await later.statusOf(accepted)).toBe("accepted");
+    expect(later.sightings(id)).toStrictEqual(kept);
+    // Held with no such record, the agent's proof is first seen now: after the delegation
+    // expired (core 9.6, Layer 1, 11.4), so the firm is not shown to be bound.
+    const forgetful = await again({ ...amina, mind: later });
+    forgetful.hold(accepted);
+    expect(await forgetful.countsFor(accepted, lexis.address)).toBe(false);
+    expect(await forgetful.statusOf(accepted)).toBe("proposed");
+    expect(Object.values(forgetful.sightings(id))).toStrictEqual(
+      Object.values(kept).map(() => at(10_000)),
+    );
+  });
+
+  it(`${clause("L1 11.5")} keeps what came before a revocation before it, and what came after it after`, async () => {
+    const amina = await mindOf("human");
+    const lexis = (await mindOf("institution")).mind;
+    const agent = (await mindOf("agent")).mind;
+    world.clock.at = at(1010);
+    const mandate = await mandateOf(lexis, agent);
+    const before = await amina.mind.cosign(
+      await agent.commitment(deal(lexis, amina.mind, "120"), { chain: [mandate] }),
+    );
+    world.clock.at = at(2000);
+    const revocation = await lexis.revoke(mandate);
+    amina.mind.hold(revocation);
+    world.clock.at = at(2100);
+    const after = await amina.mind.cosign(
+      await agent.commitment(deal(lexis, amina.mind, "130"), { chain: [mandate] }),
+    );
+    expect(await amina.mind.countsFor(before, lexis.address)).toBe(true);
+    expect(await amina.mind.countsFor(after, lexis.address)).toBe(false);
+    const kept = [before, revocation, after].map((record) => ({
+      record,
+      seen: amina.mind.sightings(contentId(record)),
+    }));
+    // Run again, with the records held in an order that says nothing of when they came.
+    world.clock.at = at(5000);
+    const later = await again(amina);
+    for (const { record, seen } of [...kept].reverse()) later.hold(record, seen);
+    expect(await later.countsFor(before, lexis.address)).toBe(true);
+    expect(await later.countsFor(after, lexis.address)).toBe(false);
+  });
+
+  it("is not believed where it says a proof was obtained later than now, or is of another proof", async () => {
+    const amina = await mindOf("human");
+    world.clock.at = at(1010);
+    const intent = await amina.mind.intent({ want: "A hall for the spring meeting." });
+    const id = contentId(intent);
+    const [digest = ""] = Object.keys(amina.mind.sightings(id));
+    expect(digest).toBe(proofDigest(intent.proof[0]));
+    world.clock.at = at(2000);
+    const later = await again(amina);
+    later.hold(intent, {
+      [digest]: at(9000),
+      "sha256:another": at(5),
+      constructor: at(5),
+    });
+    expect(later.sightings(id)).toStrictEqual({ [digest]: at(2000) });
+    // What is no time says nothing, and the proof is first seen now.
+    const careless = await again({ ...amina, mind: later });
+    careless.hold(intent, { [digest]: "1010" } as never);
+    expect(careless.sightings(id)).toStrictEqual({ [digest]: at(2000) });
+    // A record that says nothing of a proof says nothing: the proof is first seen now.
+    const silent = await again({ ...amina, mind: careless });
+    silent.hold(intent, {});
+    expect(silent.sightings(id)).toStrictEqual({ [digest]: at(2000) });
+    // A record the mind does not hold has no such record.
+    expect(silent.sightings("bciqnothing")).toStrictEqual({});
   });
 });
 

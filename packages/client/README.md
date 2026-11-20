@@ -992,6 +992,13 @@ export async function example(
   const late = await junior.offer(offerOf("60"), { chain });
   output.push(`a later offer is the firm's: ${String(await amina.countsFor(late, firm.address))}`);
   output.push(`the first still is: ${String(await amina.countsFor(offer, firm.address))}`);
+
+  // A program that stops keeps what matters: the record, and when it first obtained each of
+  // its proofs. Held again with that in a later run, the offer is judged as it was then,
+  // and not as if it had only now arrived, after the revocation.
+  const kept = { record: offer, seen: amina.sightings(amina.hold(offer)) };
+  amina.hold(kept.record, kept.seen);
+  output.push(`kept with the offer: when ${String(Object.keys(kept.seen).length)} proofs came`);
   for (const mind of [firm, agent, junior, amina]) mind.close();
   return output;
 }
@@ -1007,6 +1014,7 @@ the firm's feed has a Revocation
 it is the record the firm signed: true
 a later offer is the firm's: false
 the first still is: true
+kept with the offer: when 3 proofs came
 ```
 
 ## A collective
@@ -1177,7 +1185,7 @@ now a collective of 4, of whom 3 act
 | `Queued`, `Retried`, `MAX_QUEUED`                                                                                                                        | The outbox: a packet that did not reach a recipient, for a reason that may pass, is kept and tried again. `Mind.outbox` lists what waits, `retry` tries it now, `abandon` gives one up                                                                                                         |
 | `Listening`, `ListenOptions`, `SocketState`, `OpenSocket`, `SocketLike`                                                                                  | `Mind.listen` holds a socket open to the mind's own host (Layer 1, 13.4): what the host keeps and what arrives is judged as `receive` judges it, and a connection that ends is opened again                                                                                                    |
 | `SessionView`, `ChainView`, `SessionEvent`                                                                                                               | Sessions (Layer 1, Section 14): `Mind.openSession` names one, `send` with `session` sends in it, `receive` returns its packets in order and says in `sessions` what it found and did, `resume` asks for what is missing, `sessions` lists them, and `leaveSession` forgets one                 |
-| `Grant`, `Acting`, `Fields`, `carried`                                                                                                                   | Delegation and the records of the Mind Web: `Mind.delegate`, `subDelegate` and `revoke` (Layer 1, Section 11); `intent`, `offer`, `commitment`, `receipt` and `cosign` (Layer 2, Sections 4 to 6); `countsFor` and `statusOf` (7 and 8); `hold` and `records`                                  |
+| `Grant`, `Acting`, `Fields`, `carried`, `Sightings`                                                                                                      | Delegation and the records of the Mind Web: `Mind.delegate`, `subDelegate` and `revoke` (Layer 1, Section 11); `intent`, `offer`, `commitment`, `receipt` and `cosign` (Layer 2, Sections 4 to 6); `countsFor` and `statusOf` (7 and 8); `hold`, `records` and `sightings`                     |
 | `NewCollective`, `CollectiveChanges`, `MemberOptions`                                                                                                    | Collectives (Layer 1, Section 9): `Mind.foundCollective`, `changeCollective` and `signEvent` for a collective's identity events, which its members sign; `publishLog`; and `charter` for the roles its members may act in (Layer 2, 6.2)                                                       |
 | `Clock`, `systemClock`                                                                                                                                   | The present, behind an interface: a test gives its own                                                                                                                                                                                                                                         |
 | `exchange`, `askRecord`, `askJson`, `Asking`, `Answer`, `Fetch`, `TransportOptions`, `recordBody`, `refusalOf`, `httpsOrigin`                            | One request to a service over HTTPS, bounded in size and in time, and its answer read as a record or as JSON                                                                                                                                                                                   |
@@ -1222,6 +1230,7 @@ now a collective of 4, of whom 3 act
 
 - **A record binds whoever it counts for, and nobody else** (Layer 2, Section 7): a mind by its own key, or by the proof of a delegate that names a chain of delegations covering the record. `countsFor` says whether, and `statusOf` computes the status of an Intent, an Offer or a Commitment as Section 8 defines it.
 - **Both are computed from what the mind holds.** `hold` takes a record: a delegation, a Receipt, a record that supersedes another. What the mind signs is held, and so are the records carried by packets it accepts. Another verifier, holding other records, may compute another status. Records are held while the mind is open: `records()` gives them, to keep and to hold again.
+- **Keep when each proof came, with the record.** A rule that depends on when a proof was made is judged by when a verifier can show it existed, and never by the date it carries (core 9.3). For most proofs the only evidence is the client's own record of when it first obtained them (core 9.4). `sightings(id)` gives that record for a record the mind holds, and `hold(record, sightings)` takes it back in a later run. Held again without it, a proof is first seen then: one that was signed under a delegation which has since expired, or was since revoked, counts no longer. A time later than the present is not believed.
 - **Each time, the logs of the minds a record names are fetched afresh**, after its proofs were first seen (core 9.4). A key that was removed, or a mind that retired, does not count from then on.
 - **`delegate` grants part of the mind's authority** (Layer 1, Section 11): a command, such as `/oip/sign/Commitment`, a policy that must hold of each record, and an expiry. A policy constrains only what it selects: constrain every term that matters, and exclude the delegate as a party. It bounds each record by itself, not a total.
 - **A delegate signs for its principal by passing the chain**: `agent.commitment(fields, { chain: [mandate] })`. The proof carries the delegations, so any verifier can judge it. `as: "references"` names them only, and then the proof counts only for a verifier that already held them when it first saw the proof (11.4, item 1).

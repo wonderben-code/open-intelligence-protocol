@@ -46,12 +46,14 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
   - delegate, pass a delegation on and revoke one; make Intents, Offers, Commitments and Receipts, for itself or for the mind it acts for; co-sign; and say whether a record counts for a mind and what its status is.
   - found a collective with other minds, change it, and sign for it: by the threshold of its members, or alone by a role of its charter.
 - **The scenario of the papers runs through the client** against the real resolver, host and indexer in one process (`packages/client/test/dealings.test.ts`, `examples/deal.ts`).
+- **It runs in a browser too** ([ADR-0022](docs/adr/0022-the-client-in-a-browser.md)): a page of Chromium runs the README's examples against the same services, with its keys sealed in IndexedDB, and the test checks that each service would have let a browser make every request the page made (`packages/client/test/browser.real.test.ts`, the `browser` job of CI).
 
-**Not built yet in M6:** sessions with resume, the WebSocket binding with a client that reconnects, an outbox for when nobody answers, and the scenario in a browser.
+**Not built yet in M6:** sessions with resume, the WebSocket binding with a client that reconnects, and an outbox for when nobody answers.
 
 **What M6 found:**
 
 - **A mind could not publish its own retirement to a resolver that asks for signed requests**, nor the event that removes the key it signs with. The archive judged a mind's own request by the log in its bundle alone, where Layer 1, 17.3 also takes a key that is valid by the logs the resolver holds. Fixed in `@oip/server`, and 17.3 now says it in so many words ([OEP-0005](oeps/oep-0005-service-clarifications.md), item 5).
+- **A page could not list a mind at the indexer.** The indexer's answer to a browser's preflight did not allow the headers of a signed request, which submitting needs. Found by the run in a browser, and fixed in `@oip/indexer`.
 - **A rate limiter kept a client out for as long as the clock had been set back.** It now keeps it out for no longer than its own tolerance.
 - **How a mind brings a host its records is not in Layer 1.** The client speaks the reference host's own interface. A second host would have to offer the same, which is a matter for an OEP when one exists.
 - **A host learns that a mind it serves has retired only if the mind brings it the event.** A host that follows the resolvers for the minds it serves would close this. It is noted in the client's threat model, and is for a later milestone.

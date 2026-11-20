@@ -144,6 +144,33 @@ jobs:
       - name: Both tests ran
         run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('keychain.json', 'utf8')); if (numPassedTests !== 2) { console.error(numPassedTests + ' tests passed, and 2 were to'); process.exit(1); }"
 
+  browser:
+    name: The client in a browser (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The tests in a browser are skipped without this. `installed`: the one Playwright installs.
+      OIP_CHROMIUM: installed
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install with a frozen lockfile
+        run: pnpm install --frozen-lockfile
+      # The browser of the version of Playwright the lockfile pins, and what it needs of the system (ADR-0022).
+      - name: A Chromium to test in
+        run: pnpm --filter @oip/client exec playwright-core install --with-deps --only-shell chromium
+      - name: The scenario of the papers runs in a page
+        run: pnpm exec vitest run --project @oip/client test/browser.real.test.ts --reporter=default --reporter=json --outputFile.json=browser.json
+      # A run in which the tests were skipped would be green too.
+      - name: All three tests ran
+        run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('browser.json', 'utf8')); if (numPassedTests !== 3) { console.error(numPassedTests + ' tests passed, and 3 were to'); process.exit(1); }"
+
   test:
     name: Test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest

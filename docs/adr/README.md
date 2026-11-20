@@ -25,6 +25,7 @@ An ADR records a decision that is hard to reverse: what was decided, why, and wh
 | [0019](0019-the-system-keychain.md)               | The keychain of the operating system                                          |
 | [0020](0020-ratios-turn-about.md)                 | Benchmark ratios are measured turn about                                      |
 | [0021](0021-the-client.md)                        | The client                                                                    |
+| [0022](0022-the-client-in-a-browser.md)           | The client's test in a browser                                                |
 
 ## Writing one
 

@@ -58,6 +58,8 @@
     "@oip/indexer": "workspace:*",
     "@oip/resolver": "workspace:*",
     "@oip/server": "workspace:*",
-    "@oip/testkit": "workspace:*"
+    "@oip/testkit": "workspace:*",
+    "playwright-core": "1.63.0",
+    "vite": "8.3.7"
   }
 }

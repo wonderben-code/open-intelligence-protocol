@@ -649,6 +649,13 @@ signed by two: the collective's? true
 - **A mind that publishes is listed.** `publishProfile` and `publishLocation` submit the mind's bundle and its profile to the indexers the client names, and `publications` says which took them.
 - **A client that fetches for strangers is asked to fetch from where they say.** The homes of a mind are URLs its controller chose. In a browser that is as any link. On a server inside a private network, give the client a `fetch` that reaches only public addresses.
 
+### In a browser
+
+- **The client runs in a page as it is.** It uses the browser's own `fetch`, randomness and clock, and nothing of Node.js. Give the keystore `indexedDbStorage` of [`@oip/keystore`](../keystore/README.md), and the mind's keys are kept sealed in the browser's IndexedDB.
+- **A service must let the page's origin ask.** A browser asks a service of another origin for leave before it sends a signed request, which carries `Content-Digest`, `Signature` and `Signature-Input`. The reference resolver, host and indexer give leave to every origin: they trust no request for where it comes from, only for what it proves.
+- **A page that holds keys loads no script it does not control.** Whatever runs in the page can use the keys while they are unlocked (see the keystore's README).
+- **It is tested in Chromium** ([ADR-0022](../../docs/adr/0022-the-client-in-a-browser.md)): the examples above run in a page, against the same services. `OIP_CHROMIUM=installed pnpm exec vitest run --project @oip/client test/browser.real.test.ts` runs it with the browser Playwright installed, and a path in place of `installed` with another.
+
 ### Failures
 
 - **A keystore's own failures are `KeystoreError`s**: a lock that does not open, a role that is unlocked already. They pass through as they are.

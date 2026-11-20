@@ -84,6 +84,75 @@ export function restreamed(response: Response, change: (text: string) => string)
   return new Response(body ?? null, { status: response.status, headers: response.headers });
 }
 
+/** What a fault does to a WebSocket. Each part is left out where the fault changes nothing there. */
+export interface SocketFault {
+  /** Changes a message from the server. `undefined` drops it. */
+  readonly incoming?: (text: string) => string | undefined;
+  /**
+   * Changes a message to the server. `undefined` drops it. `reply` gives the
+   * client a message as if the server had sent it.
+   */
+  readonly outgoing?: (text: string, reply: (text: string) => void) => string | undefined;
+  /** Changes the close the client is told of. */
+  readonly closed?: (code: number, reason: string) => { code: number; reason: string };
+  /** The subprotocol the client is told the server chose. */
+  readonly protocol?: string;
+}
+
+/** The `WebSocket` class with a fault in the way: as much of it as the suite uses. */
+export function faultySocket(fault: SocketFault): typeof WebSocket {
+  class Faulty {
+    readonly #real: WebSocket;
+    readonly #listeners = new Map<string, ((event: unknown) => void)[]>();
+
+    constructor(url: string, protocol: string) {
+      this.#real = new WebSocket(url, protocol);
+      this.#real.addEventListener("open", (event) => {
+        this.#tell("open", event);
+      });
+      this.#real.addEventListener("error", (event) => {
+        this.#tell("error", event);
+      });
+      this.#real.addEventListener("message", (event: MessageEvent) => {
+        const text = String(event.data);
+        const changed = fault.incoming === undefined ? text : fault.incoming(text);
+        if (changed !== undefined) this.#tell("message", { data: changed });
+      });
+      this.#real.addEventListener("close", (event: CloseEvent) => {
+        const { code, reason } = event;
+        this.#tell("close", fault.closed?.(code, reason) ?? { code, reason });
+      });
+    }
+
+    #tell(type: string, event: unknown): void {
+      for (const listener of this.#listeners.get(type) ?? []) listener(event);
+    }
+
+    get protocol(): string {
+      return fault.protocol ?? this.#real.protocol;
+    }
+
+    addEventListener(type: string, listener: (event: unknown) => void): void {
+      this.#listeners.set(type, [...(this.#listeners.get(type) ?? []), listener]);
+    }
+
+    send(text: string): void {
+      const changed =
+        fault.outgoing === undefined
+          ? text
+          : fault.outgoing(text, (reply) => {
+              this.#tell("message", { data: reply });
+            });
+      if (changed !== undefined) this.#real.send(changed);
+    }
+
+    close(): void {
+      this.#real.close();
+    }
+  }
+  return Faulty as unknown as typeof WebSocket;
+}
+
 /** The checks of a report that failed, by the part of their name after the profile. */
 export function failed(report: WireReport): string[] {
   return report.checks

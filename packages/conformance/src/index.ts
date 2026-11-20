@@ -101,3 +101,4 @@ export {
   type WireReport,
 } from "./wire/report.ts";
 export { resolverProfile } from "./wire/resolver.ts";
+export { type HostOptions, hostProfile, type HostSetup, referenceHostSetup } from "./wire/host.ts";

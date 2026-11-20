@@ -300,7 +300,11 @@ describe.concurrent("a resolver with a fault fails the checks that the fault bre
         for (;;) {
           const chunk = await Promise.race([
             reader?.read(),
-            new Promise<undefined>((resolve) => setTimeout(resolve, 150)),
+            new Promise<undefined>((resolve) => {
+              setTimeout(() => {
+                resolve(undefined);
+              }, 150);
+            }),
           ]);
           if (chunk === undefined || chunk.done) break;
           chunks.push(chunk.value as Uint8Array);

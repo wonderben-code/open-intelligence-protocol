@@ -88,6 +88,7 @@ export const SETTINGS: {
     MAX_STREAMS: Setting<number>;
     TRUSTED_PROXIES: Setting<number>;
     UNDERSTOOD: Setting<readonly string[]>;
+    ED25519: Setting<"native" | "portable">;
     LOG_LEVEL: Setting<"debug" | "info" | "warn" | "error">;
     SHUTDOWN_GRACE_MS: Setting<number>;
 };

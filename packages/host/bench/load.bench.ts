@@ -98,6 +98,10 @@ beforeAll(async () => {
     OIP_HOST_DELIVER_BURST: "100000",
     OIP_HOST_DELIVER_PER_MINUTE: "1000000",
     OIP_HOST_MAILBOX_ITEMS: "100000",
+    // `OIP_LOAD_ED25519=portable` measures the service without OpenSSL (ADR-0015, ADR-0016).
+    ...(process.env["OIP_LOAD_ED25519"] === undefined
+      ? {}
+      : { OIP_HOST_ED25519: process.env["OIP_LOAD_ED25519"] }),
   });
   // The host takes both minds on: Bob to serve, Ada so that her packets can be judged.
   for (const mind of [ada, bob]) {

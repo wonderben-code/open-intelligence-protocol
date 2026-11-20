@@ -12,20 +12,21 @@ OIP_RESOLVER_ORIGIN=https://resolver.example OIP_RESOLVER_DATABASE=/data/resolve
 
 Every setting is a variable that starts with `OIP_RESOLVER_`. A resolver that is misconfigured says everything that is wrong and does not start.
 
-| Variable                              | Default              | What it is                                                                                      |
-| ------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------- |
-| `ORIGIN`                              | none: it must be set | The origin clients reach the resolver at. A signed request names it                             |
-| `HOST`, `PORT`                        | `0.0.0.0`, `8080`    | Where it listens                                                                                |
-| `DATABASE`                            | `./resolver.db`      | Its database file                                                                               |
-| `AUTHENTICATED_PUBLICATION`           | `false`              | Whether a bundle may be published only by a request a mind has signed (17.3)                    |
-| `MAX_BUNDLE_BYTES`                    | `8388608`            | The most bytes of a published bundle that are read                                              |
-| `READ_BURST`, `READ_PER_MINUTE`       | `120`, `600`         | What one address may read                                                                       |
-| `PUBLISH_BURST`, `PUBLISH_PER_MINUTE` | `20`, `60`           | What one address may publish                                                                    |
-| `MAX_STREAMS`                         | `256`                | The most streams open at once                                                                   |
-| `TRUSTED_PROXIES`                     | `0`                  | How many proxies stand in front, each adding the address it was asked from to `X-Forwarded-For` |
-| `UNDERSTOOD`                          | none                 | The extension namespaces it implements (core 8.3), separated by commas                          |
-| `LOG_LEVEL`                           | `info`               | `debug`, `info`, `warn` or `error`                                                              |
-| `SHUTDOWN_GRACE_MS`                   | `10000`              | How long it may take to stop                                                                    |
+| Variable                              | Default              | What it is                                                                                                                                                                |
+| ------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ORIGIN`                              | none: it must be set | The origin clients reach the resolver at. A signed request names it                                                                                                       |
+| `HOST`, `PORT`                        | `0.0.0.0`, `8080`    | Where it listens                                                                                                                                                          |
+| `DATABASE`                            | `./resolver.db`      | Its database file                                                                                                                                                         |
+| `AUTHENTICATED_PUBLICATION`           | `false`              | Whether a bundle may be published only by a request a mind has signed (17.3)                                                                                              |
+| `MAX_BUNDLE_BYTES`                    | `8388608`            | The most bytes of a published bundle that are read                                                                                                                        |
+| `READ_BURST`, `READ_PER_MINUTE`       | `120`, `600`         | What one address may read                                                                                                                                                 |
+| `PUBLISH_BURST`, `PUBLISH_PER_MINUTE` | `20`, `60`           | What one address may publish                                                                                                                                              |
+| `MAX_STREAMS`                         | `256`                | The most streams open at once                                                                                                                                             |
+| `TRUSTED_PROXIES`                     | `0`                  | How many proxies stand in front, each adding the address it was asked from to `X-Forwarded-For`                                                                           |
+| `UNDERSTOOD`                          | none                 | The extension namespaces it implements (core 8.3), separated by commas                                                                                                    |
+| `ED25519`                             | `native`             | What does the arithmetic of a signature: `native` is OpenSSL, `portable` the library. The rule is core 4.4 either way ([ADR-0016](../../docs/adr/0016-native-ed25519.md)) |
+| `LOG_LEVEL`                           | `info`               | `debug`, `info`, `warn` or `error`                                                                                                                                        |
+| `SHUTDOWN_GRACE_MS`                   | `10000`              | How long it may take to stop                                                                                                                                              |
 
 It stops in order on `SIGTERM` or `SIGINT`: its streams end, what is in flight is answered, and the database is closed last.
 

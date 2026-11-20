@@ -7,12 +7,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { MEDIA_TYPE, mindId } from "@oip/core";
-import { ConfigError } from "@oip/server";
+import { type Ed25519Engine, MEDIA_TYPE, mindId, useEd25519Engine } from "@oip/core";
+import { ConfigError, nativeEd25519 } from "@oip/server";
 import { clause } from "@oip/testkit";
 import { KeyMind, type Mind } from "@oip/testkit/minds";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { usePortableEd25519 } from "../../core/src/ed25519.ts";
 import { clientAddress, type Running, start } from "../src/index.ts";
 
 let directory: string;
@@ -228,5 +229,44 @@ describe("the address a request came from", () => {
     expect(clientAddress(arrived("203.0.113.7"), 2)).toBe("10.0.0.2");
     expect(clientAddress(arrived(), 1)).toBe("10.0.0.2");
     expect(clientAddress(arrived(" , "), 1)).toBe("10.0.0.2");
+  });
+});
+
+describe("what does the arithmetic of a signature", () => {
+  /** An engine of the test's own: OpenSSL, under another name. */
+  const other: Ed25519Engine = (signature, message, publicKey) =>
+    nativeEd25519(signature, message, publicKey);
+  beforeEach(() => {
+    usePortableEd25519();
+  });
+  afterEach(() => {
+    usePortableEd25519();
+  });
+
+  it("is OpenSSL, unless the resolver is told otherwise", async () => {
+    await started();
+    expect(lines[0]).toMatchObject({ event: "starting", ed25519: '"native"' });
+    expect(lines.map((line) => line["event"])).not.toContain("OpenSSL is not in use");
+    // OpenSSL has the place: another engine is refused.
+    expect(() => {
+      useEd25519Engine(other);
+    }).toThrow(new TypeError("another Ed25519 engine is in use"));
+  });
+
+  it("is the library where the resolver is told so", async () => {
+    await started({ OIP_RESOLVER_ED25519: "portable" });
+    expect(lines[0]).toMatchObject({ event: "starting", ed25519: '"portable"' });
+    // No engine was taken: one can be.
+    expect(() => {
+      useEd25519Engine(other);
+    }).not.toThrow();
+  });
+
+  it("says so, and runs, where OpenSSL cannot have the place", async () => {
+    useEd25519Engine(other);
+    const { at } = await started();
+    const said = lines.find((line) => line["event"] === "OpenSSL is not in use");
+    expect(said).toMatchObject({ level: "warn" });
+    expect((await fetch(`${at}/healthz`)).status).toBe(200);
   });
 });

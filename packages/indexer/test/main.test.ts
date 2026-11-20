@@ -8,13 +8,22 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { bytesToBase64url, type JsonObject, MEDIA_TYPE, mindId, utf8 } from "@oip/core";
+import {
+  bytesToBase64url,
+  type Ed25519Engine,
+  type JsonObject,
+  MEDIA_TYPE,
+  mindId,
+  useEd25519Engine,
+  utf8,
+} from "@oip/core";
 import { judgeRecord } from "@oip/identity";
-import { ConfigError } from "@oip/server";
+import { ConfigError, nativeEd25519 } from "@oip/server";
 import { clause } from "@oip/testkit";
 import { at, KeyMind, locationBy, type Mind, T } from "@oip/testkit/minds";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { usePortableEd25519 } from "../../core/src/ed25519.ts";
 import { readKey, type Running, start } from "../src/index.ts";
 
 let directory: string;
@@ -334,5 +343,44 @@ describe("the mind and the key an indexer is started with", () => {
     }
     expect(message).toContain("does not hold the 32 bytes");
     expect(message).not.toContain(keyOf(ian));
+  });
+});
+
+describe("what does the arithmetic of a signature", () => {
+  /** An engine of the test's own: OpenSSL, under another name. */
+  const other: Ed25519Engine = (signature, message, publicKey) =>
+    nativeEd25519(signature, message, publicKey);
+  beforeEach(() => {
+    usePortableEd25519();
+  });
+  afterEach(() => {
+    usePortableEd25519();
+  });
+
+  it("is OpenSSL, unless the indexer is told otherwise", async () => {
+    await started();
+    expect(lines[0]).toMatchObject({ event: "starting", ed25519: '"native"' });
+    expect(lines.map((line) => line["event"])).not.toContain("OpenSSL is not in use");
+    // OpenSSL has the place: another engine is refused.
+    expect(() => {
+      useEd25519Engine(other);
+    }).toThrow(new TypeError("another Ed25519 engine is in use"));
+  });
+
+  it("is the library where the indexer is told so", async () => {
+    await started({ OIP_INDEXER_ED25519: "portable" });
+    expect(lines[0]).toMatchObject({ event: "starting", ed25519: '"portable"' });
+    // No engine was taken: one can be.
+    expect(() => {
+      useEd25519Engine(other);
+    }).not.toThrow();
+  });
+
+  it("says so, and runs, where OpenSSL cannot have the place", async () => {
+    useEd25519Engine(other);
+    const { http } = await started();
+    const said = lines.find((line) => line["event"] === "OpenSSL is not in use");
+    expect(said).toMatchObject({ level: "warn" });
+    expect((await fetch(`${http}/healthz`)).status).toBe(200);
   });
 });

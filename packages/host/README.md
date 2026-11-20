@@ -12,27 +12,28 @@ OIP_HOST_ORIGIN=https://host.example OIP_HOST_DATABASE=/data/host.db OIP_HOST_MI
 
 Every setting is a variable that starts with `OIP_HOST_`. A host that is misconfigured says everything that is wrong and does not start.
 
-| Variable                              | Default                | What it is                                                                                                             |
-| ------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `ORIGIN`                              | none: it must be set   | The origin clients reach the host at. A `Hello` and a signed request name it                                           |
-| `HOST`, `PORT`                        | `0.0.0.0`, `8080`      | Where it listens                                                                                                       |
-| `DATABASE`                            | `./host.db`            | Its database file                                                                                                      |
-| `MINDS`                               | none                   | The addresses of the minds it takes on when they bring their bundle, separated by commas                               |
-| `OPEN`, `MAX_MINDS`                   | `false`, `1000`        | Whether it takes on any mind that brings its bundle, and the most it then serves                                       |
-| `RESOLVERS`                           | none                   | The origins of the resolvers it asks for the log of a sender it has not met, separated by commas                       |
-| `FETCH_ALLOW`                         | none                   | Address ranges it may fetch from besides the public ones, as `address/bits`: a test network, and nothing in production |
-| `MAX_RECORD_BYTES`                    | `8388608`              | The most bytes of a record, or of a message on a socket, that are read                                                 |
-| `READ_BURST`, `READ_PER_MINUTE`       | `120`, `600`           | What one address may read                                                                                              |
-| `DELIVER_BURST`, `DELIVER_PER_MINUTE` | `60`, `600`            | What one address may deliver, over HTTP and over sockets together                                                      |
-| `OWNER_BURST`, `OWNER_PER_MINUTE`     | `60`, `600`            | How many signed requests one address may make, and how many sockets it may open                                        |
-| `MAILBOX_ITEMS`, `MAILBOX_BYTES`      | `1000`, `67108864`     | The most a mailbox holds                                                                                               |
-| `RETENTION_DAYS`                      | `30`                   | How long an item stays in a mailbox. Layer 1, 13.5 asks for 30 days at least, and the host takes no less               |
-| `OBJECT_BYTES`, `FEED_ENTRIES`        | `268435456`, `1000000` | The most records, in bytes, and feed entries it serves for one mind                                                    |
-| `MAX_SOCKETS`                         | `1024`                 | The most WebSocket connections open at once                                                                            |
-| `TRUSTED_PROXIES`                     | `0`                    | How many proxies stand in front, each adding the address it was asked from to `X-Forwarded-For`                        |
-| `UNDERSTOOD`                          | none                   | The extension namespaces it implements (core 8.3), separated by commas                                                 |
-| `LOG_LEVEL`                           | `info`                 | `debug`, `info`, `warn` or `error`                                                                                     |
-| `SHUTDOWN_GRACE_MS`                   | `10000`                | How long it may take to stop                                                                                           |
+| Variable                              | Default                | What it is                                                                                                                                                                |
+| ------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ORIGIN`                              | none: it must be set   | The origin clients reach the host at. A `Hello` and a signed request name it                                                                                              |
+| `HOST`, `PORT`                        | `0.0.0.0`, `8080`      | Where it listens                                                                                                                                                          |
+| `DATABASE`                            | `./host.db`            | Its database file                                                                                                                                                         |
+| `MINDS`                               | none                   | The addresses of the minds it takes on when they bring their bundle, separated by commas                                                                                  |
+| `OPEN`, `MAX_MINDS`                   | `false`, `1000`        | Whether it takes on any mind that brings its bundle, and the most it then serves                                                                                          |
+| `RESOLVERS`                           | none                   | The origins of the resolvers it asks for the log of a sender it has not met, separated by commas                                                                          |
+| `FETCH_ALLOW`                         | none                   | Address ranges it may fetch from besides the public ones, as `address/bits`: a test network, and nothing in production                                                    |
+| `MAX_RECORD_BYTES`                    | `8388608`              | The most bytes of a record, or of a message on a socket, that are read                                                                                                    |
+| `READ_BURST`, `READ_PER_MINUTE`       | `120`, `600`           | What one address may read                                                                                                                                                 |
+| `DELIVER_BURST`, `DELIVER_PER_MINUTE` | `60`, `600`            | What one address may deliver, over HTTP and over sockets together                                                                                                         |
+| `OWNER_BURST`, `OWNER_PER_MINUTE`     | `60`, `600`            | How many signed requests one address may make, and how many sockets it may open                                                                                           |
+| `MAILBOX_ITEMS`, `MAILBOX_BYTES`      | `1000`, `67108864`     | The most a mailbox holds                                                                                                                                                  |
+| `RETENTION_DAYS`                      | `30`                   | How long an item stays in a mailbox. Layer 1, 13.5 asks for 30 days at least, and the host takes no less                                                                  |
+| `OBJECT_BYTES`, `FEED_ENTRIES`        | `268435456`, `1000000` | The most records, in bytes, and feed entries it serves for one mind                                                                                                       |
+| `MAX_SOCKETS`                         | `1024`                 | The most WebSocket connections open at once                                                                                                                               |
+| `TRUSTED_PROXIES`                     | `0`                    | How many proxies stand in front, each adding the address it was asked from to `X-Forwarded-For`                                                                           |
+| `UNDERSTOOD`                          | none                   | The extension namespaces it implements (core 8.3), separated by commas                                                                                                    |
+| `ED25519`                             | `native`               | What does the arithmetic of a signature: `native` is OpenSSL, `portable` the library. The rule is core 4.4 either way ([ADR-0016](../../docs/adr/0016-native-ed25519.md)) |
+| `LOG_LEVEL`                           | `info`                 | `debug`, `info`, `warn` or `error`                                                                                                                                        |
+| `SHUTDOWN_GRACE_MS`                   | `10000`                | How long it may take to stop                                                                                                                                              |
 
 It stops in order on `SIGTERM` or `SIGINT`: its sockets close with code 1001, what is in flight is answered, and the database is closed last.
 

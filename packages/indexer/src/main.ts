@@ -49,6 +49,7 @@ import {
   Shutdown,
   systemClock,
   text,
+  useNativeEd25519,
 } from "@oip/server";
 
 import { indexerApp } from "./app.ts";
@@ -159,6 +160,11 @@ export const SETTINGS = {
     text("a namespace"),
     [],
   ),
+  ED25519: choice(
+    "what does the arithmetic of a signature: OpenSSL, or the portable library",
+    ["native", "portable"],
+    "native",
+  ),
   LOG_LEVEL: choice("the least level that is logged", ["debug", "info", "warn", "error"], "info"),
   SHUTDOWN_GRACE_MS: integer("how long the indexer may take to stop, in milliseconds", {
     min: 0,
@@ -258,6 +264,14 @@ export async function start(
       ]),
     ),
   );
+
+  // The rule for a signature is core 4.4 either way. OpenSSL does its arithmetic in a tenth
+  // of the time, where it answers as the rule needs (ADR-0016).
+  if (config.ED25519 === "native" && !useNativeEd25519()) {
+    log.event("warn", "OpenSSL is not in use", {
+      why: "it does not answer here as core 4.4 needs, or another engine has its place",
+    });
+  }
 
   const shutdown = new Shutdown({ log, graceMs: config.SHUTDOWN_GRACE_MS });
   const db = Database.open({ path: config.DATABASE }, INDEXER_MIGRATIONS, clock);

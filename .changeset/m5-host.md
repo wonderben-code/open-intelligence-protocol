@@ -10,3 +10,4 @@ First version: the host of Layer 1, Section 13.
 - How a mind brings what the host serves is this host's own: signed `PUT`s of its `Bundle` and of records, and a signed `POST` of feed entries. The host holds one feed entry at each position (10.3), and lets the feed go on from the last valid entry after a key is declared compromised (10.4).
 - `Sockets`, `attachSockets`: the WebSocket binding of 13.4. The host challenges, a `Hello` authenticates, and each message after is one record. A mind's own instance is sent its mail, which stays in the mailbox until the mind acknowledges it.
 - `Lookup`: the host asks the resolvers it is given for the log of a sender it has not met, and judges the packet again.
+- The setting `ED25519`: `native`, the default, has OpenSSL do the arithmetic of each signature; `portable` leaves it to the library. The service says in its log if OpenSSL was asked for and could not be used.

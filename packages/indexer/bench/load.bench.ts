@@ -98,6 +98,10 @@ beforeAll(async () => {
     // The load comes from one address. What is measured is the work, not the limit on it.
     OIP_INDEXER_QUERY_BURST: "100000",
     OIP_INDEXER_QUERY_PER_MINUTE: "1000000",
+    // `OIP_LOAD_ED25519=portable` measures the service without OpenSSL (ADR-0015, ADR-0016).
+    ...(process.env["OIP_LOAD_ED25519"] === undefined
+      ? {}
+      : { OIP_INDEXER_ED25519: process.env["OIP_LOAD_ED25519"] }),
   });
 }, 300_000);
 afterAll(async () => {

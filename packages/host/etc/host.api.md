@@ -229,6 +229,7 @@ export const SETTINGS: {
     MAX_SOCKETS: Setting<number>;
     TRUSTED_PROXIES: Setting<number>;
     UNDERSTOOD: Setting<readonly string[]>;
+    ED25519: Setting<"native" | "portable">;
     LOG_LEVEL: Setting<"error" | "debug" | "info" | "warn">;
     SHUTDOWN_GRACE_MS: Setting<number>;
 };

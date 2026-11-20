@@ -20,27 +20,28 @@ An indexer signs what it answers, so it is a mind. It is started with the `Bundl
 
 Every setting is a variable that starts with `OIP_INDEXER_`. An indexer that is misconfigured says everything that is wrong and does not start.
 
-| Variable                              | Default              | What it is                                                                                                        |
-| ------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `ORIGIN`                              | none: it must be set | The origin clients reach the indexer at                                                                           |
-| `HOST`, `PORT`                        | `0.0.0.0`, `8080`    | Where it listens                                                                                                  |
-| `DATABASE`                            | `./indexer.db`       | Its database file                                                                                                 |
-| `BUNDLE_FILE`                         | none: it must be set | A file with the `Bundle` of the indexer's own mind, as JSON                                                       |
-| `KEY_FILE`                            | none: it must be set | A file only its owner can read, with an operational key of that mind                                              |
-| `RESOLVERS`                           | none                 | The origins of the resolvers it asks for the log of a sender it has not met, separated by commas                  |
-| `FETCH_ALLOW`                         | none                 | Address ranges it may reach besides the public ones, as `address/bits`: a test network, and nothing in production |
-| `MAX_BODY_BYTES`                      | `8388608`            | The most bytes of a body that are read                                                                            |
-| `MAX_RECORDS`                         | `100`                | The most records in one submission                                                                                |
-| `QUERY_BURST`, `QUERY_PER_MINUTE`     | `120`, `600`         | How many queries one address may ask                                                                              |
-| `SUBMIT_BURST`, `SUBMIT_PER_MINUTE`   | `20`, `60`           | How many submissions one address may make                                                                         |
-| `DELIVER_BURST`, `DELIVER_PER_MINUTE` | `30`, `120`          | How many packets one address may send to be forwarded                                                             |
-| `SENDER_BURST`, `SENDER_PER_MINUTE`   | `10`, `30`           | How many packets of one sender are forwarded, whatever address they come from                                     |
-| `FANOUT`                              | `10`                 | How many minds a packet goes to where it does not say. Never more than 50                                         |
-| `OFFERS`, `INTENTS`                   | `1000`, `1000`       | The most Offers and Intents listed for one mind                                                                   |
-| `TRUSTED_PROXIES`                     | `0`                  | How many proxies stand in front, each adding the address it was asked from to `X-Forwarded-For`                   |
-| `UNDERSTOOD`                          | none                 | The extension namespaces it implements (core 8.3), separated by commas                                            |
-| `LOG_LEVEL`                           | `info`               | `debug`, `info`, `warn` or `error`                                                                                |
-| `SHUTDOWN_GRACE_MS`                   | `10000`              | How long it may take to stop                                                                                      |
+| Variable                              | Default              | What it is                                                                                                                                                                |
+| ------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ORIGIN`                              | none: it must be set | The origin clients reach the indexer at                                                                                                                                   |
+| `HOST`, `PORT`                        | `0.0.0.0`, `8080`    | Where it listens                                                                                                                                                          |
+| `DATABASE`                            | `./indexer.db`       | Its database file                                                                                                                                                         |
+| `BUNDLE_FILE`                         | none: it must be set | A file with the `Bundle` of the indexer's own mind, as JSON                                                                                                               |
+| `KEY_FILE`                            | none: it must be set | A file only its owner can read, with an operational key of that mind                                                                                                      |
+| `RESOLVERS`                           | none                 | The origins of the resolvers it asks for the log of a sender it has not met, separated by commas                                                                          |
+| `FETCH_ALLOW`                         | none                 | Address ranges it may reach besides the public ones, as `address/bits`: a test network, and nothing in production                                                         |
+| `MAX_BODY_BYTES`                      | `8388608`            | The most bytes of a body that are read                                                                                                                                    |
+| `MAX_RECORDS`                         | `100`                | The most records in one submission                                                                                                                                        |
+| `QUERY_BURST`, `QUERY_PER_MINUTE`     | `120`, `600`         | How many queries one address may ask                                                                                                                                      |
+| `SUBMIT_BURST`, `SUBMIT_PER_MINUTE`   | `20`, `60`           | How many submissions one address may make                                                                                                                                 |
+| `DELIVER_BURST`, `DELIVER_PER_MINUTE` | `30`, `120`          | How many packets one address may send to be forwarded                                                                                                                     |
+| `SENDER_BURST`, `SENDER_PER_MINUTE`   | `10`, `30`           | How many packets of one sender are forwarded, whatever address they come from                                                                                             |
+| `FANOUT`                              | `10`                 | How many minds a packet goes to where it does not say. Never more than 50                                                                                                 |
+| `OFFERS`, `INTENTS`                   | `1000`, `1000`       | The most Offers and Intents listed for one mind                                                                                                                           |
+| `TRUSTED_PROXIES`                     | `0`                  | How many proxies stand in front, each adding the address it was asked from to `X-Forwarded-For`                                                                           |
+| `UNDERSTOOD`                          | none                 | The extension namespaces it implements (core 8.3), separated by commas                                                                                                    |
+| `ED25519`                             | `native`             | What does the arithmetic of a signature: `native` is OpenSSL, `portable` the library. The rule is core 4.4 either way ([ADR-0016](../../docs/adr/0016-native-ed25519.md)) |
+| `LOG_LEVEL`                           | `info`               | `debug`, `info`, `warn` or `error`                                                                                                                                        |
+| `SHUTDOWN_GRACE_MS`                   | `10000`              | How long it may take to stop                                                                                                                                              |
 
 It stops in order on `SIGTERM` or `SIGINT`: what it took to forward is sent, what is in flight is answered, and the database is closed last.
 

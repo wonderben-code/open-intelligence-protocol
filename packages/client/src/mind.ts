@@ -30,6 +30,7 @@ import {
   keyHash,
   mindAddress,
   OipError,
+  type OipRecord,
   parseTimestamp,
 } from "@oip/core";
 import {
@@ -56,10 +57,25 @@ import {
   type Randomness,
   systemRandomness,
 } from "@oip/keystore";
-import type { Entry, IdentityEvent, Location, Participant, Proof } from "@oip/schema";
+import type {
+  AuthorityItem,
+  Commitment,
+  Delegation,
+  Entry,
+  IdentityEvent,
+  Intent,
+  Location,
+  Offer,
+  Participant,
+  Proof,
+  Receipt,
+  Revocation,
+} from "@oip/schema";
+import type { Status } from "@oip/web";
 
 import { type Clock, Lookup, type LookupOptions, type Resolved, systemClock } from "./lookup.ts";
 import { Memory } from "./memory.ts";
+import { type Acting, Dealings, type Fields, type Grant } from "./dealings.ts";
 import { type Inbox, type Message, Messaging, type Sent } from "./messages.ts";
 import {
   homeEndpoints,
@@ -158,6 +174,7 @@ export class Mind {
   readonly #agreement: AgreementKeys;
   readonly #publishing: Publishing;
   readonly #messaging: Messaging;
+  readonly #dealings: Dealings;
   #resolved: Resolved;
   #published: readonly Publication[] = [];
 
@@ -185,7 +202,7 @@ export class Mind {
         await this.refresh();
         return this.#resolved;
       },
-      sign: (record) => this.sign(record),
+      sign: (record, authority) => this.sign(record, authority),
       signed: (asking) => this.#signed(asking),
       signedForLog: (asking) => this.#signedForLog(asking),
       told: (publications) => {
@@ -194,6 +211,7 @@ export class Mind {
     };
     this.#publishing = new Publishing(own);
     this.#messaging = new Messaging(own);
+    this.#dealings = new Dealings(own);
   }
 
   /**
@@ -391,9 +409,16 @@ export class Mind {
    * latest version of its identity that it has resolved (core 5; Layer 1, 6.1).
    *
    * @param record - The record without proofs, or with those of others.
+   * @param authority - What lets the proof count for another mind besides
+   *   this one (core 5.2): one chain of delegations, root first, or one
+   *   charter. `cosign` and the makers of records take a chain and write
+   *   this for you.
    * @returns The record with the mind's proof after any it had.
    */
-  async sign<T extends object>(record: T): Promise<T & { proof: Proof[] }> {
+  async sign<T extends object>(
+    record: T,
+    authority?: readonly AuthorityItem[],
+  ): Promise<T & { proof: Proof[] }> {
     const key = this.signingKey();
     const created = this.#clock.now();
     const said = parseTimestamp((record as { created?: unknown }).created);
@@ -403,6 +428,7 @@ export class Mind {
         verificationMethod: formatKeyRef(this.address, this.state.versionId, key),
         // A proof is not dated before its record (core 5.7), whatever this clock says.
         created: formatTimestamp(said !== undefined && said > created ? said : created),
+        ...(authority === undefined ? {} : { authority }),
       },
       this.#operational.signer(key),
     );
@@ -526,8 +552,151 @@ export class Mind {
    *
    * @returns The packets accepted, what was refused, and what waits.
    */
-  receive(): Promise<Inbox> {
-    return this.#messaging.receive();
+  async receive(): Promise<Inbox> {
+    const inbox = await this.#messaging.receive();
+    const received = [];
+    for (const arrived of inbox.received) {
+      // The records the packets carry are held, to be judged when they are asked about.
+      this.#dealings.holdCarried(arrived.packet.content);
+      const sentFor = await this.#dealings.sentFor(arrived.packet);
+      received.push(sentFor === undefined ? arrived : { ...arrived, sentFor });
+    }
+    return { ...inbox, received };
+  }
+
+  /**
+   * Holds a record, for the client to judge others by: a delegation a
+   * proof names, a Receipt about a Commitment, a record that supersedes
+   * another. A record held in several copies is one record, with the
+   * proofs of them all (Layer 2, Section 2).
+   *
+   * What the mind signs is held, and so are the records carried by the
+   * packets it accepts. They are kept while the mind is open: keep what
+   * matters yourself, and hold it again.
+   *
+   * @returns The record's content ID.
+   * @throws OipError `invalid-record` for what is no record.
+   */
+  hold(record: unknown): string {
+    return this.#dealings.hold(record);
+  }
+
+  /** The records the mind holds, each as the copy with every proof seen of it. */
+  records(): OipRecord[] {
+    return this.#dealings.held();
+  }
+
+  /**
+   * Grants another mind part of this mind's authority (Layer 1, Section
+   * 11): signs a `Delegation`. The delegate then signs records for this
+   * mind by naming the delegation in its proof.
+   *
+   * Give it to the delegate, in a packet or by publishing it. Nothing
+   * else needs it until a proof names it.
+   *
+   * @returns The delegation, signed.
+   * @throws OipError `invalid-record` if the grant makes no delegation:
+   *   a command that is reserved, a policy that is none, the mind itself
+   *   as its delegate.
+   */
+  delegate(grant: Grant): Promise<Delegation> {
+    return this.#dealings.delegate(grant);
+  }
+
+  /**
+   * Passes on to another mind what this mind was delegated, or less
+   * (Layer 1, 11.4): signs the next delegation of a chain.
+   *
+   * @param chain - The chain that ends with a delegation to this mind.
+   * @throws OipError `forbidden` if the chain does not end so, or the
+   *   grant asks for more than the chain gives: a command it does not
+   *   cover, or a later expiry.
+   */
+  subDelegate(chain: readonly Delegation[], grant: Grant): Promise<Delegation> {
+    return this.#dealings.subDelegate(chain, grant);
+  }
+
+  /**
+   * Takes a delegation back (Layer 1, 11.5): signs a `Revocation`, and
+   * puts it on the mind's feed if the mind has a home. It takes effect
+   * from when a verifier first sees it: what the delegate signed before
+   * stands.
+   *
+   * @returns The revocation, signed.
+   * @throws OipError `forbidden` if the delegation is another mind's.
+   */
+  async revoke(delegation: Delegation): Promise<Revocation> {
+    const revocation = await this.#dealings.revoke(delegation);
+    if (this.state.homes.length > 0) await this.publishRecord(revocation);
+    return revocation;
+  }
+
+  /**
+   * States what the mind wants (Layer 2, 4.1): signs an `Intent`.
+   *
+   * @param acting - The chain of delegations by which this mind signs it
+   *   for another, named in `fields.author`.
+   */
+  intent(fields: Fields<Intent>, acting?: Acting): Promise<Intent> {
+    return this.#dealings.make<Intent>("Intent", fields, acting);
+  }
+
+  /** States what the mind offers (Layer 2, 4.2): signs an `Offer`. */
+  offer(fields: Fields<Offer>, acting?: Acting): Promise<Offer> {
+    return this.#dealings.make<Offer>("Offer", fields, acting);
+  }
+
+  /**
+   * Writes a `Commitment` (Layer 2, Section 5) and signs it. It is
+   * accepted once it counts for its author and for every party that is
+   * required (7.3): the others add their proofs with `cosign`.
+   *
+   * The author is a party, or signs for one: a delegate that writes a
+   * Commitment for its principal is its author, and need not be a party.
+   */
+  commitment(fields: Fields<Commitment>, acting?: Acting): Promise<Commitment> {
+    return this.#dealings.make<Commitment>("Commitment", fields, acting);
+  }
+
+  /** Says what became of a record, usually a Commitment (Layer 2, 6.1): signs a `Receipt`. */
+  receipt(fields: Fields<Receipt>, acting?: Acting): Promise<Receipt> {
+    return this.#dealings.make<Receipt>("Receipt", fields, acting);
+  }
+
+  /**
+   * Adds the mind's proof to a record another mind made: a Commitment it
+   * is a party to. The record's content ID does not change (core 3.1).
+   *
+   * Read what you sign. A record binds whoever it counts for.
+   *
+   * @param acting - The chain of delegations by which this mind signs it for another.
+   * @returns The record with the proofs it had and this mind's.
+   */
+  cosign<T extends object>(record: T, acting?: Acting): Promise<T> {
+    return this.#dealings.cosign(record, acting);
+  }
+
+  /**
+   * Whether a record counts for a mind (Layer 2, Section 7): by the mind's
+   * own key, or by a delegate's proof whose chain of delegations covers
+   * the record. The logs of the minds the record names are fetched afresh
+   * first.
+   *
+   * @param mind - Default: this mind.
+   */
+  countsFor(record: unknown, mind: string = this.address): Promise<boolean> {
+    return this.#dealings.countsFor(record, mind);
+  }
+
+  /**
+   * The status of an Intent, an Offer, a Commitment or a charter (Layer 2,
+   * Section 8), from the records the mind holds and the present time.
+   * Another verifier, holding other records, may compute another.
+   *
+   * @throws OipError `invalid-record` for a record that has no status.
+   */
+  statusOf(record: unknown): Promise<Status> {
+    return this.#dealings.status(record);
   }
 
   /**

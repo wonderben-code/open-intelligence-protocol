@@ -29,6 +29,7 @@ import { judgeRecord } from "@oip/identity";
 import type { Randomness } from "@oip/keystore";
 import type { SealedOpener } from "@oip/net";
 import {
+  type AuthorityItem,
   type Entry,
   type JsonValue,
   type Location,
@@ -146,8 +147,11 @@ export interface Own {
   resolved(): Resolved;
   /** Resolves the mind afresh. */
   refresh(): Promise<Resolved>;
-  /** Signs a record as the mind. */
-  sign<T extends object>(record: T): Promise<T & { proof: Proof[] }>;
+  /** Signs a record as the mind: for another mind too, where `authority` names what lets it. */
+  sign<T extends object>(
+    record: T,
+    authority?: readonly AuthorityItem[],
+  ): Promise<T & { proof: Proof[] }>;
   /** Signs a request as the mind (Layer 1, 13.3). */
   signed(asking: Asking): Promise<Asking>;
   /**

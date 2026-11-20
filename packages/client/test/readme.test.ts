@@ -8,6 +8,7 @@ import { type Keychain, keychainLock } from "@oip/keystore";
 import { repoRoot } from "@oip/testkit";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { example as dealing } from "../examples/deal.ts";
 import { example as finding } from "../examples/find.ts";
 import { example } from "../examples/first-mind.ts";
 import { example as messaging } from "../examples/messages.ts";
@@ -44,7 +45,14 @@ function memoryKeychain(): Keychain {
 
 describe("the README", () => {
   it("shows its examples unchanged", () => {
-    for (const name of ["first-mind.ts", "publish.ts", "find.ts", "messages.ts", "move.ts"]) {
+    for (const name of [
+      "first-mind.ts",
+      "publish.ts",
+      "find.ts",
+      "messages.ts",
+      "move.ts",
+      "deal.ts",
+    ]) {
       const source = readFileSync(join(packageRoot, "examples", name), "utf8");
       // The file's licence header is not part of what the README shows.
       const code = source.replace(/^(\/\/ SPDX[^\n]*\n)+\n/, "");
@@ -154,6 +162,29 @@ describe("the README", () => {
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });
 
+  it("shows the output the example of a deal really gives, against a resolver and a host", async () => {
+    world.resolver("https://resolver.example");
+    world.host("https://home.example");
+    // A clock that moves, as clocks do: a millisecond each time the client reads it.
+    const clock = { now: () => (world.clock.at += 1_000_000n) };
+    const output = await dealing(
+      ["https://resolver.example"],
+      "https://home.example",
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock },
+    );
+    expect(output).toStrictEqual([
+      "Amina's Intent is open",
+      "the Commitment is proposed",
+      "it binds the firm: true",
+      "with her proof it is accepted",
+      "and her Intent is satisfied",
+      "the firm says it delivered: claimed-fulfilled",
+      "Amina confirms: fulfilled",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+  });
+
   it("names only things the package exports, and every value it exports", () => {
     const table = readme.slice(
       readme.indexOf("## What it exports"),
@@ -171,6 +202,7 @@ describe("the README", () => {
     for (const value of values) expect(named, value).toContain(value);
     expect(named.filter((name) => !values.includes(name)).sort()).toStrictEqual(
       [
+        "Acting",
         "AliasCheck",
         "AliasOptions",
         "Answer",
@@ -181,8 +213,10 @@ describe("the README", () => {
         "DidLike",
         "Endpoint",
         "Fetch",
+        "Fields",
         "Finding",
         "Found",
+        "Grant",
         "HomeAnswer",
         "IdentityChanges",
         "Inbox",

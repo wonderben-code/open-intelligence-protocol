@@ -6,8 +6,11 @@
 
 import { Ack } from '@oip/schema';
 import { AgreementKeys } from '@oip/keystore';
+import type { AuthorityItem } from '@oip/schema';
 import { Capability } from '@oip/schema';
 import { CapabilityQuery } from '@oip/schema';
+import type { Commitment } from '@oip/schema';
+import { Delegation } from '@oip/schema';
 import { DidResolution } from '@oip/identity';
 import type { Entry } from '@oip/schema';
 import { FirstSeen } from '@oip/identity';
@@ -30,8 +33,17 @@ import { Packet } from '@oip/schema';
 import { Participant } from '@oip/schema';
 import type { Proof } from '@oip/schema';
 import { Randomness } from '@oip/keystore';
+import type { Receipt } from '@oip/schema';
+import type { Revocation } from '@oip/schema';
+import type { Status } from '@oip/web';
 import { VerifiedFeed } from '@oip/net';
 import { VerifiedLog } from '@oip/identity';
+
+// @public
+export interface Acting {
+    readonly as?: "records" | "references";
+    readonly chain: readonly Delegation[];
+}
 
 // @public
 export interface AliasCheck {
@@ -71,6 +83,12 @@ export function askJson(asking: Asking, options?: TransportOptions): Promise<Jso
 
 // @public
 export function askRecord(asking: Asking, options?: TransportOptions): Promise<OipRecord>;
+
+// @public
+export function carried(record: object): {
+    mediaType: string;
+    body: JsonObject;
+};
 
 // @public
 export interface Clock {
@@ -126,6 +144,13 @@ export function exchange(asking: Asking, options?: TransportOptions): Promise<An
 export type Fetch = (request: Request) => Promise<Response>;
 
 // @public
+export type Fields<T extends {
+    author: string;
+}> = Omit<T, "oip" | "type" | "created" | "proof" | "author"> & {
+    readonly author?: string;
+};
+
+// @public
 export interface Finding {
     readonly found: readonly Found[];
     readonly refused: readonly NotFound[];
@@ -140,6 +165,15 @@ export interface Found {
     readonly id: string;
     readonly mind: string;
     readonly record: Listed;
+}
+
+// @public
+export interface Grant {
+    readonly command: string;
+    readonly delegate: string;
+    readonly expires: string;
+    readonly notBefore?: string;
+    readonly policy?: Delegation["policy"];
 }
 
 // @public
@@ -257,6 +291,10 @@ export interface Message {
     readonly context?: Packet["context"];
     readonly expiresIn?: number;
     readonly goal?: string;
+    readonly onBehalfOf?: {
+        readonly mind: string;
+        readonly chain: readonly Delegation[];
+    };
     readonly replyTo?: string;
     readonly seal?: boolean;
     readonly thread?: string;
@@ -273,36 +311,48 @@ export class Mind {
     get agreement(): AgreementKeys;
     bringHomes(): Promise<readonly Publication[]>;
     close(): void;
+    commitment(fields: Fields<Commitment>, acting?: Acting): Promise<Commitment>;
+    cosign<T extends object>(record: T, acting?: Acting): Promise<T>;
+    countsFor(record: unknown, mind?: string): Promise<boolean>;
     static create(options: MindOptions, fields: NewMind): Promise<Mind>;
+    delegate(grant: Grant): Promise<Delegation>;
     fork(child: string, options: ControlOptions & {
         readonly terms?: JsonObject;
         readonly changes?: IdentityChanges;
     }): Promise<IdentityState>;
+    hold(record: unknown): string;
+    intent(fields: Fields<Intent>, acting?: Acting): Promise<Intent>;
     get lookup(): Lookup;
     moveHomes(homes: readonly string[], options: ControlOptions & {
         readonly revoke?: readonly string[];
     }): Promise<IdentityState>;
+    offer(fields: Fields<Offer>, acting?: Acting): Promise<Offer>;
     static open(options: MindOptions): Promise<Mind>;
     get publications(): readonly Publication[];
     publishLocation(fields?: LocationFields): Promise<Location>;
     publishProfile(fields: ProfileFields): Promise<Participant>;
     publishRecord(record: object): Promise<Entry>;
+    receipt(fields: Fields<Receipt>, acting?: Acting): Promise<Receipt>;
     receive(): Promise<Inbox>;
+    records(): OipRecord[];
     refresh(): Promise<IdentityState>;
     get resolved(): Resolved;
     retire(options: ControlOptions & {
         readonly successor?: string;
         readonly reason?: string;
     }): Promise<IdentityState>;
+    revoke(delegation: Delegation): Promise<Revocation>;
     revokeKey(key: string, options: ControlOptions & {
         readonly compromisedSince?: string;
     }): Promise<IdentityState>;
     send(message: Message): Promise<Sent>;
-    sign<T extends object>(record: T): Promise<T & {
+    sign<T extends object>(record: T, authority?: readonly AuthorityItem[]): Promise<T & {
         proof: Proof[];
     }>;
     signingKey(): string;
     get state(): IdentityState;
+    statusOf(record: unknown): Promise<Status>;
+    subDelegate(chain: readonly Delegation[], grant: Grant): Promise<Delegation>;
     update(changes: IdentityChanges, options: ControlOptions): Promise<IdentityState>;
 }
 
@@ -370,6 +420,7 @@ export interface Received {
     readonly id: string;
     readonly packet: Packet;
     readonly sealed: boolean;
+    readonly sentFor?: string;
     readonly time: Instant;
 }
 

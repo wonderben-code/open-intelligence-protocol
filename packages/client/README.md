@@ -364,6 +364,122 @@ its endpoints are at host-two.example
 its feed is read from 1 home: 1 entry
 ```
 
+## A deal
+
+[`examples/deal.ts`](examples/deal.ts) is the scenario of the papers: an Intent, a Commitment an agent signs for its firm under a delegation, the other party's signature, and the Receipts that say it was done:
+
+```ts
+import { carried, type Clock, type Fetch, Mind, systemClock } from "@oip/client";
+import { contentId, formatRecordRef, formatTimestamp } from "@oip/core";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * A deal, as the papers tell it: Amina wants a lease translated, and the
+ * agent of Lexis Ltd commits the firm to it, within what the firm lets it.
+ *
+ * @param resolvers - The HTTPS origins of the resolvers they trust.
+ * @param home - The HTTPS origin of a host that takes them on.
+ * @param lock - What their keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  home: string,
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const clock = edges.clock ?? systemClock;
+  const mindOf = async (kind: string): Promise<Mind> => {
+    const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+    const mind = await Mind.create(
+      { keystore, lock, resolvers, memory: memoryStorage(), ...edges },
+      { kind, homes: [home] },
+    );
+    await mind.publishLocation();
+    return mind;
+  };
+  const amina = await mindOf("human");
+  const lexis = await mindOf("institution");
+  const agent = await mindOf("agent");
+  /** Brings a record from one of them to another, sealed. The other reads its mailbox, and holds it. */
+  const pass = async (from: Mind, to: Mind, record: object): Promise<void> => {
+    await from.send({ to: [to.address], verb: "inform", content: carried(record) });
+    await to.receive();
+  };
+  const day = 86_400_000_000_000n;
+
+  // The firm lets its agent commit it: paid in US dollars, at most 500, the agent no party.
+  const mandate = await lexis.delegate({
+    delegate: agent.address,
+    command: "/oip/sign/Commitment",
+    policy: [
+      ["==", ".terms.price.currency", "USD"],
+      ["<=", ".terms.price.amount", "500"],
+      ["==", ".terms.price.payee", lexis.address],
+      ["all", ".parties", ["!=", ".mind", agent.address]],
+    ],
+    expires: formatTimestamp(clock.now() + 30n * day),
+  });
+  await pass(lexis, agent, mandate);
+
+  // Amina says what she wants.
+  const intent = await amina.intent({
+    want: "A Swahili commercial lease translated into English.",
+  });
+  await pass(amina, agent, intent);
+  output.push(`Amina's Intent is ${await amina.statusOf(intent)}`);
+
+  // The agent writes the Commitment and signs it for the firm.
+  const proposed = await agent.commitment(
+    {
+      parties: [
+        { mind: lexis.address, role: "debtor", required: true },
+        { mind: amina.address, role: "creditor", required: true },
+      ],
+      promise: "Lexis Ltd will deliver the translation; Amina will pay 120 USD on delivery.",
+      terms: {
+        deadline: formatTimestamp(clock.now() + 2n * day),
+        price: { amount: "120", currency: "USD", payer: amina.address, payee: lexis.address },
+      },
+      resolves: [formatRecordRef(amina.address, contentId(intent))],
+      closesIntent: true,
+    },
+    { chain: [mandate] },
+  );
+  await pass(agent, amina, proposed);
+  output.push(`the Commitment is ${await amina.statusOf(proposed)}`);
+  output.push(`it binds the firm: ${String(await amina.countsFor(proposed, lexis.address))}`);
+
+  // Amina reads it, and signs. Nothing of the record changes but its proofs.
+  const accepted = await amina.cosign(proposed);
+  output.push(`with her proof it is ${await amina.statusOf(accepted)}`);
+  output.push(`and her Intent is ${await amina.statusOf(intent)}`);
+
+  // The firm delivers and says so. Amina, who is owed it, confirms.
+  await pass(amina, lexis, accepted);
+  const ref = formatRecordRef(agent.address, contentId(accepted));
+  await pass(lexis, amina, await lexis.receipt({ about: ref, outcome: "fulfilled" }));
+  output.push(`the firm says it delivered: ${await amina.statusOf(accepted)}`);
+  await amina.receipt({ about: ref, outcome: "fulfilled" });
+  output.push(`Amina confirms: ${await amina.statusOf(accepted)}`);
+  for (const mind of [amina, lexis, agent]) mind.close();
+  return output;
+}
+```
+
+It gives:
+
+```
+Amina's Intent is open
+the Commitment is proposed
+it binds the firm: true
+with her proof it is accepted
+and her Intent is satisfied
+the firm says it delivered: claimed-fulfilled
+Amina confirms: fulfilled
+```
+
 ## What it exports
 
 | Export                                                                                                                                                   | What it does                                                                                                                                                                                                                                                                                   |
@@ -376,6 +492,7 @@ its feed is read from 1 home: 1 entry
 | `Finding`, `Found`, `Listed`, `Ranking`, `NotFound`, `IndexerAnswer`, `MAX_RESULTS`                                                                      | `Lookup.find` asks the indexers the client names a capability query, and fetches and verifies every record they name before it returns it (Layer 1, 18.4). `Lookup.record` fetches a record a mind's homes serve, by its content ID                                                            |
 | `AliasCheck`, `AliasOptions`, `DidLike`                                                                                                                  | `Lookup.aliases` checks the other names a mind gives itself: each is the mind's only if it points back (Layer 1, 5.3; Layer 0, Section 4)                                                                                                                                                      |
 | `Message`, `Sent`, `Delivery`, `Inbox`, `Received`, `MailboxAnswer`, `DEFAULT_EXPIRES_IN`, `MAX_EXPIRES_IN`, `MAX_QUERY_EXPIRES_IN`, `MAX_MAILBOX_ITEMS` | `Mind.send` signs a packet, seals it to each recipient and posts it where the recipient takes packets (Layer 1, Section 12; 15.3). `Mind.receive` reads the mind's mailboxes and returns what was judged to be a packet for it (12.4, 13.5)                                                    |
+| `Grant`, `Acting`, `Fields`, `carried`                                                                                                                   | Delegation and the records of the Mind Web: `Mind.delegate`, `subDelegate` and `revoke` (Layer 1, Section 11); `intent`, `offer`, `commitment`, `receipt` and `cosign` (Layer 2, Sections 4 to 6); `countsFor` and `statusOf` (7 and 8); `hold` and `records`                                  |
 | `Clock`, `systemClock`                                                                                                                                   | The present, behind an interface: a test gives its own                                                                                                                                                                                                                                         |
 | `exchange`, `askRecord`, `askJson`, `Asking`, `Answer`, `Fetch`, `TransportOptions`, `recordBody`, `refusalOf`, `httpsOrigin`                            | One request to a service over HTTPS, bounded in size and in time, and its answer read as a record or as JSON                                                                                                                                                                                   |
 | `TransportError`, `TransportFailure`                                                                                                                     | Thrown when a service cannot be reached or does not speak the protocol                                                                                                                                                                                                                         |
@@ -414,6 +531,19 @@ its feed is read from 1 home: 1 entry
 - **Two processes must not write one feed.** They find each other out in the memory, if they share it: the second to write is told `changed`, before its entry has left. If they do not share it, a home that holds another entry at the position answers `duplicity`. The client then forgets where it thought the feed stood, and the next call reads it afresh.
 - **A location record says where the feed stood when it was signed.** Publish one after the entries that matter. A reader that finds less at a home than the record says knows the home is behind.
 - **`Lookup.feed` reads every home and judges what they served together.** A home that withholds the end of a feed is made up for by one that serves it. It reads 10 000 entries of a feed from one home at most. An entry counts from when this client first saw it.
+
+### Dealing
+
+- **A record binds whoever it counts for, and nobody else** (Layer 2, Section 7): a mind by its own key, or by the proof of a delegate that names a chain of delegations covering the record. `countsFor` says whether, and `statusOf` computes the status of an Intent, an Offer or a Commitment as Section 8 defines it.
+- **Both are computed from what the mind holds.** `hold` takes a record: a delegation, a Receipt, a record that supersedes another. What the mind signs is held, and so are the records carried by packets it accepts. Another verifier, holding other records, may compute another status. Records are held while the mind is open: `records()` gives them, to keep and to hold again.
+- **Each time, the logs of the minds a record names are fetched afresh**, after its proofs were first seen (core 9.4). A key that was removed, or a mind that retired, does not count from then on.
+- **`delegate` grants part of the mind's authority** (Layer 1, Section 11): a command, such as `/oip/sign/Commitment`, a policy that must hold of each record, and an expiry. A policy constrains only what it selects: constrain every term that matters, and exclude the delegate as a party. It bounds each record by itself, not a total.
+- **A delegate signs for its principal by passing the chain**: `agent.commitment(fields, { chain: [mandate] })`. The proof carries the delegations, so any verifier can judge it. `as: "references"` names them only, and then the proof counts only for a verifier that already held them when it first saw the proof (11.4, item 1).
+- **Where a promise says more than the terms, the terms bind a party signed for** (Layer 2, 5.4): a policy can check only them. Show such a party's commitment with the policy it was made under.
+- **`cosign` adds this mind's proof to a record another made.** The content ID does not change. Read what you sign.
+- **`revoke` takes a delegation back** from when a verifier first sees the revocation, and puts it on the mind's feed. What the delegate signed before stands. A verifier that relies on a delegate checks the principal's feed when the value warrants it (11.5).
+- **`carried(record)`** is a record as the content of a packet. `send` it, and the recipient's `receive` holds it.
+- **A packet sent for another mind** says so in `onBehalfOf`, with a chain that covers `/oip/send`. `receive` marks it `sentFor` only if that chain holds: a packet that merely says it is sent for someone is its sender's alone.
 
 ### Changing hosts
 

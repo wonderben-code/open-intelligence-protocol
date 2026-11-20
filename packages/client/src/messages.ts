@@ -25,6 +25,7 @@ import {
   OipError,
   parseRecord,
 } from "@oip/core";
+import { authorityOf } from "@oip/delegation";
 import { judgeRecord } from "@oip/identity";
 import {
   acknowledges,
@@ -39,6 +40,7 @@ import {
 } from "@oip/net";
 import {
   type Ack,
+  type Delegation,
   type JsonValue,
   type Packet,
   type Sealed,
@@ -86,6 +88,12 @@ export interface Message {
   readonly constraints?: Packet["constraints"];
   /** What helps to read it: references, a summary, a language. */
   readonly context?: Packet["context"];
+  /**
+   * The mind it is sent for, with the chain of delegations that lets this
+   * mind send on its behalf: one that covers `/oip/send` (Layer 1, 11.2).
+   * The packet is still this mind's own, signed by it.
+   */
+  readonly onBehalfOf?: { readonly mind: string; readonly chain: readonly Delegation[] };
 }
 
 /** What became of a packet for one recipient. */
@@ -133,6 +141,13 @@ export interface Received {
   readonly broker?: string;
   /** The evaluation time of the sender's signature. */
   readonly time: Instant;
+  /**
+   * The mind it was sent for, if its sender's proof carries a chain of
+   * delegations from that mind that covers `/oip/send` and holds (Layer 1,
+   * 11.2). A packet that only says it is sent for another has no such
+   * member: it is its sender's, and nobody else's.
+   */
+  readonly sentFor?: string;
 }
 
 /** What a mind found in its mailboxes. */
@@ -245,7 +260,8 @@ export class Messaging {
     }
     await own.refresh();
     const now = own.clock.now();
-    const signed = await own.sign({
+    const behalf = message.onBehalfOf;
+    const draft = {
       oip: "1",
       type: "Packet",
       from: own.address,
@@ -262,7 +278,12 @@ export class Messaging {
       ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
       ...(message.context === undefined ? {} : { context: message.context }),
       ...(message.constraints === undefined ? {} : { constraints: message.constraints }),
-    });
+      ...(behalf === undefined ? {} : { provenance: { onBehalfOf: behalf.mind } }),
+    };
+    const signed = await own.sign(
+      draft,
+      behalf === undefined ? undefined : authorityOf(behalf.chain, "records"),
+    );
     const packet = accepted(
       validateRecordOfType("Packet", signed),
       "invalid-record",

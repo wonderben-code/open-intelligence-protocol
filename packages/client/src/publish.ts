@@ -611,10 +611,20 @@ export class Publishing {
       );
     }
     const judged = accepted(judgeRecord(record), "invalid-record", "that is no record");
+    const proofs = judged.proofs.map((proof) => proof.digest);
     let state = await this.#feed(resolved);
     // An entry that was signed and may not have been taken comes first: its position has no other.
     if (state.value.pending !== undefined) {
+      const waited = state.value.pending.entry;
       state = await this.#finish(state.value.pending, state.version, resolved);
+      // The call that signed that entry failed, and this one asks for the same record with the
+      // same proofs: the entry that waited is the entry of both, and no second one is signed.
+      if (
+        waited.object === contentId(judged.record) &&
+        JSON.stringify(waited.proofs ?? []) === JSON.stringify(proofs)
+      ) {
+        return waited;
+      }
     }
     const { head } = state.value;
     const signed = await own.sign({
@@ -627,7 +637,7 @@ export class Publishing {
       object: contentId(judged.record),
       objectType: judged.record.type,
       // The proofs the record has now, so that evidence for the entry is evidence for them (10.1).
-      ...(judged.proofs.length === 0 ? {} : { proofs: judged.proofs.map((proof) => proof.digest) }),
+      ...(proofs.length === 0 ? {} : { proofs }),
     });
     const entry = accepted(
       validateRecordOfType("Entry", signed),

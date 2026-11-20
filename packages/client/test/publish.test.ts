@@ -538,6 +538,36 @@ describe("a mind's public feed", () => {
     expect(await served(ONE, mind.address, `/obj/${contentId(location)}`)).toStrictEqual(location);
   });
 
+  it(`${clause("L1 10.3")} a call for the record of the entry that waited brings that entry, and signs no second one for the record`, async () => {
+    const { mind } = await atHome();
+    const profile = await mind.publishProfile({ name: "Ada" });
+    const location = mind.resolved.location?.record as OipRecord;
+    await mind.publishRecord(location);
+    world.down(ONE);
+    world.down(TWO);
+    // The entry at 1 is signed for the profile, and reaches no home.
+    expect(await refusal(() => mind.publishRecord(profile))).toBe("transport: unreachable");
+    world.up(ONE);
+    world.up(TWO);
+    world.clock.at = at(200);
+    // Asked for again: the entry that was signed for it is brought, and is the answer.
+    const entry = await mind.publishRecord(profile);
+    expect(entry).toMatchObject({ seq: 1, created: T(100), object: contentId(profile) });
+    const listed = async () =>
+      (await reader().feed(mind.address)).feed.entries.map(({ entry: one }) => [
+        one.seq,
+        one.objectType,
+        one.created,
+      ]);
+    expect(await listed()).toStrictEqual([
+      [0, "Location", T(100)],
+      [1, "Participant", T(100)],
+    ]);
+    // With nothing waiting, to list a record again is the caller's to decide.
+    expect(await mind.publishRecord(profile)).toMatchObject({ seq: 2, created: T(200) });
+    expect(await listed()).toHaveLength(3);
+  });
+
   it(`${clause("L1 10.3")} one home is enough for an entry, and the other is told which it lacks`, async () => {
     const { mind } = await atHome();
     const profile = await mind.publishProfile({ name: "Ada" });

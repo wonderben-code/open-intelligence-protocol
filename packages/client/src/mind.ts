@@ -616,7 +616,10 @@ export class Mind {
    * A feed has one entry at each position, and two are equivocation, which
    * cannot be taken back (10.3). So the entry is remembered before it
    * leaves (`memory`), and a call that failed is finished by the next one
-   * with the same entry. Calls are taken one after another.
+   * with the same entry. If the next call asks for the same record, with
+   * the proofs it had then, that entry is its entry too: a record is not
+   * listed twice for being asked for again after a failure. Calls are taken
+   * one after another.
    *
    * The record may be another mind's: a commitment the mind is a party to,
    * say (10.2).

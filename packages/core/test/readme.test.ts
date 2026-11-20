@@ -54,6 +54,7 @@ describe("the README", () => {
       "HpkeSealInput",
       "HpkeOpenInput",
       "HpkeSealed",
+      "Ed25519Engine",
     ];
     for (const name of names) {
       if (name === undefined || typesOnly.includes(name)) continue;

@@ -38,6 +38,7 @@ export {
 } from "./content-id.ts";
 export { compareDecimals, isAmount, isDecimal, MAX_DECIMAL_LENGTH } from "./decimal.ts";
 export {
+  type Ed25519Engine,
   ed25519PublicKey,
   forgetVerifiedSignatures,
   isEd25519PublicKey,
@@ -47,6 +48,7 @@ export {
   SIGNATURE_CACHE_SIZE,
   SIGNATURE_LENGTH,
   signEd25519,
+  useEd25519Engine,
   verifyEd25519,
 } from "./ed25519.ts";
 export {

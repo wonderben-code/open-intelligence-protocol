@@ -88,6 +88,9 @@ export function digestOfContentId(contentId: unknown): Uint8Array | undefined;
 export function documentHash(record: unknown, limits?: Limits): Uint8Array;
 
 // @public
+export type Ed25519Engine = (signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array) => boolean;
+
+// @public
 export function ed25519PublicKey(privateKey: Uint8Array): Uint8Array;
 
 // @public
@@ -477,6 +480,9 @@ export function understandsCritical(record: Readonly<Record<string, unknown>>, u
 
 // @public
 export function unsupportedCritical(record: Readonly<Record<string, unknown>>, understood?: Iterable<string>): string[];
+
+// @public
+export function useEd25519Engine(candidate: Ed25519Engine): void;
 
 // @public
 export function utf8(text: string): Uint8Array;

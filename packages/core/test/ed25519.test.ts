@@ -4,12 +4,13 @@
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { clause, readVectors, withAmbientTrapped } from "@oip/testkit";
 import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { BoundedCache } from "../src/cache.ts";
-import { verifiedOnce } from "../src/ed25519.ts";
+import { useEd25519Engine, usePortableEd25519, verifiedOnce } from "../src/ed25519.ts";
 import {
   bytesToHex,
+  type Ed25519Engine,
   ed25519PublicKey,
   forgetVerifiedSignatures,
   hexToBytes,
@@ -22,6 +23,7 @@ import {
   signEd25519,
   verifyEd25519,
 } from "../src/index.ts";
+import { cofactorless, ENGINES, openssl, usingEngine } from "./engines.ts";
 import {
   craftSignature,
   expand,
@@ -95,7 +97,9 @@ const libraryAccepts = (signature: Uint8Array, text: Uint8Array, key: Uint8Array
   }
 };
 
-describe("Ed25519, as RFC 8032 defines it", () => {
+describe.each(ENGINES)("Ed25519, as RFC 8032 defines it, checked by %s", (_name, engine) => {
+  usingEngine(engine);
+
   it.each(RFC8032)("reproduces $name", (vector) => {
     const key = hexToBytes(vector.privateKey);
     const text = hexToBytes(vector.message);
@@ -226,212 +230,220 @@ describe("Ed25519, as RFC 8032 defines it", () => {
   });
 });
 
-describe(`${clause("core 4.4")} one verification rule for every implementation`, () => {
-  it("has exactly eight points of small order to guard against", () => {
-    expect(torsion.map(orderOf).sort()).toEqual([1, 2, 4, 4, 8, 8, 8, 8]);
-    expect(orderOf(order8)).toBe(8);
-  });
+describe.each(ENGINES)(
+  `${clause("core 4.4")} one verification rule for every implementation, checked by %s`,
+  (_name, engine) => {
+    usingEngine(engine);
 
-  it("item 1: rejects a signature whose S is not less than L", () => {
-    const notReduced = unreduced(honest);
-    expect(fromLittleEndian(notReduced.subarray(32))).toBe(
-      fromLittleEndian(honest.subarray(32)) + L,
-    );
-    expect(verifyEd25519(honest, message, publicKey)).toBe(true);
-    expect(verifyEd25519(notReduced, message, publicKey)).toBe(false);
-    // S = L itself, and the largest S that fits.
-    const atL = Uint8Array.from([...honest.subarray(0, 32), ...littleEndian(L)]);
-    const largest = Uint8Array.from([...honest.subarray(0, 32), ...new Uint8Array(32).fill(0xff)]);
-    expect(verifyEd25519(atL, message, publicKey)).toBe(false);
-    expect(verifyEd25519(largest, message, publicKey)).toBe(false);
-  });
+    it("has exactly eight points of small order to guard against", () => {
+      expect(torsion.map(orderOf).sort()).toEqual([1, 2, 4, 4, 8, 8, 8, 8]);
+      expect(orderOf(order8)).toBe(8);
+    });
 
-  it("item 2: rejects every non-canonical encoding of a point, as a key and as R", () => {
-    const nonCanonical = [
-      // The identity and the point of order 2, with the sign bit set on x = 0.
-      "0100000000000000000000000000000000000000000000000000000000000080",
-      "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-      // y = p and y = p + 1: the y-coordinate is not less than 2^255 - 19.
-      "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
-      "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
-      "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-      // The largest y that 255 bits hold.
-      "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
-    ];
-    for (const hex of nonCanonical) {
-      const encoded = hexToBytes(hex);
-      expect(isEd25519PublicKey(encoded), hex).toBe(false);
-      const asR = Uint8Array.from([...encoded, ...honest.subarray(32)]);
-      expect(verifyEd25519(asR, message, publicKey), hex).toBe(false);
-      expect(verifyEd25519(honest, message, encoded), hex).toBe(false);
-    }
-    // No point of order L has a second encoding: one needs y below 19, and no such point has order L.
-    for (let y = 0n; y < 19n; y++) {
-      for (const sign of [0, 0x80]) {
-        const canonical = littleEndian(y);
-        canonical[31] = (canonical[31] ?? 0) | sign;
-        const second = littleEndian(y + P);
-        second[31] = (second[31] ?? 0) | sign;
-        expect(isEd25519PublicKey(canonical), `y = ${y}`).toBe(false);
-        expect(isEd25519PublicKey(second), `y = ${y} + p`).toBe(false);
+    it("item 1: rejects a signature whose S is not less than L", () => {
+      const notReduced = unreduced(honest);
+      expect(fromLittleEndian(notReduced.subarray(32))).toBe(
+        fromLittleEndian(honest.subarray(32)) + L,
+      );
+      expect(verifyEd25519(honest, message, publicKey)).toBe(true);
+      expect(verifyEd25519(notReduced, message, publicKey)).toBe(false);
+      // S = L itself, and the largest S that fits.
+      const atL = Uint8Array.from([...honest.subarray(0, 32), ...littleEndian(L)]);
+      const largest = Uint8Array.from([
+        ...honest.subarray(0, 32),
+        ...new Uint8Array(32).fill(0xff),
+      ]);
+      expect(verifyEd25519(atL, message, publicKey)).toBe(false);
+      expect(verifyEd25519(largest, message, publicKey)).toBe(false);
+    });
+
+    it("item 2: rejects every non-canonical encoding of a point, as a key and as R", () => {
+      const nonCanonical = [
+        // The identity and the point of order 2, with the sign bit set on x = 0.
+        "0100000000000000000000000000000000000000000000000000000000000080",
+        "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        // y = p and y = p + 1: the y-coordinate is not less than 2^255 - 19.
+        "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        // The largest y that 255 bits hold.
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+      ];
+      for (const hex of nonCanonical) {
+        const encoded = hexToBytes(hex);
+        expect(isEd25519PublicKey(encoded), hex).toBe(false);
+        const asR = Uint8Array.from([...encoded, ...honest.subarray(32)]);
+        expect(verifyEd25519(asR, message, publicKey), hex).toBe(false);
+        expect(verifyEd25519(honest, message, encoded), hex).toBe(false);
       }
-    }
-  });
+      // No point of order L has a second encoding: one needs y below 19, and no such point has order L.
+      for (let y = 0n; y < 19n; y++) {
+        for (const sign of [0, 0x80]) {
+          const canonical = littleEndian(y);
+          canonical[31] = (canonical[31] ?? 0) | sign;
+          const second = littleEndian(y + P);
+          second[31] = (second[31] ?? 0) | sign;
+          expect(isEd25519PublicKey(canonical), `y = ${y}`).toBe(false);
+          expect(isEd25519PublicKey(second), `y = ${y} + p`).toBe(false);
+        }
+      }
+    });
 
-  it("rejects bytes that are no point at all", () => {
-    // y = 2 is on no point of the curve.
-    expect(isEd25519PublicKey(littleEndian(2n))).toBe(false);
-    expect(verifyEd25519(honest, message, littleEndian(2n))).toBe(false);
-    const asR = Uint8Array.from([...littleEndian(2n), ...honest.subarray(32)]);
-    expect(verifyEd25519(asR, message, publicKey)).toBe(false);
-  });
+    it("rejects bytes that are no point at all", () => {
+      // y = 2 is on no point of the curve.
+      expect(isEd25519PublicKey(littleEndian(2n))).toBe(false);
+      expect(verifyEd25519(honest, message, littleEndian(2n))).toBe(false);
+      const asR = Uint8Array.from([...littleEndian(2n), ...honest.subarray(32)]);
+      expect(verifyEd25519(asR, message, publicKey)).toBe(false);
+    });
 
-  it("item 3: rejects the identity point as a key, for which anyone can sign anything", () => {
-    const identity = Point.ZERO.toBytes();
-    // With A the identity, [S]B = R + [k]A holds for S = nonce and R = [nonce]B: no secret is needed.
-    const forged = craftSignature(0n, identity, message, 12345n);
-    expect(isEd25519PublicKey(identity)).toBe(false);
-    expect(verifyEd25519(forged, message, identity)).toBe(false);
-  });
+    it("item 3: rejects the identity point as a key, for which anyone can sign anything", () => {
+      const identity = Point.ZERO.toBytes();
+      // With A the identity, [S]B = R + [k]A holds for S = nonce and R = [nonce]B: no secret is needed.
+      const forged = craftSignature(0n, identity, message, 12345n);
+      expect(isEd25519PublicKey(identity)).toBe(false);
+      expect(verifyEd25519(forged, message, identity)).toBe(false);
+    });
 
-  it("item 3: rejects every small-order point as a key", () => {
-    for (const point of torsion) {
-      const key = point.toBytes();
-      // The forgery satisfies the cofactored equation: [8][k]A is the identity for any k.
-      const forged = craftSignature(0n, key, message, 777n);
-      expect(isEd25519PublicKey(key), point.toHex()).toBe(false);
-      expect(verifyEd25519(forged, message, key), point.toHex()).toBe(false);
-    }
-  });
+    it("item 3: rejects every small-order point as a key", () => {
+      for (const point of torsion) {
+        const key = point.toBytes();
+        // The forgery satisfies the cofactored equation: [8][k]A is the identity for any k.
+        const forged = craftSignature(0n, key, message, 777n);
+        expect(isEd25519PublicKey(key), point.toHex()).toBe(false);
+        expect(verifyEd25519(forged, message, key), point.toHex()).toBe(false);
+      }
+    });
 
-  it("item 3: rejects a key with a small-order component, though the library accepts its signatures", () => {
-    for (const point of torsion.filter((candidate) => !candidate.is0())) {
-      const mixed = Point.fromBytes(publicKey, false).add(point).toBytes();
-      const signature = craftSignature(scalar, mixed, message, 4242n);
-      expect(libraryAccepts(signature, message, mixed), point.toHex()).toBe(true);
-      expect(isEd25519PublicKey(mixed), point.toHex()).toBe(false);
-      expect(verifyEd25519(signature, message, mixed), point.toHex()).toBe(false);
-    }
-  });
+    it("item 3: rejects a key with a small-order component, though the library accepts its signatures", () => {
+      for (const point of torsion.filter((candidate) => !candidate.is0())) {
+        const mixed = Point.fromBytes(publicKey, false).add(point).toBytes();
+        const signature = craftSignature(scalar, mixed, message, 4242n);
+        expect(libraryAccepts(signature, message, mixed), point.toHex()).toBe(true);
+        expect(isEd25519PublicKey(mixed), point.toHex()).toBe(false);
+        expect(verifyEd25519(signature, message, mixed), point.toHex()).toBe(false);
+      }
+    });
 
-  it("item 3: rejects a signature whose R is the identity point", () => {
-    const signature = craftSignature(scalar, publicKey, message, 0n);
-    expect(bytesToHex(signature.subarray(0, 32))).toBe(Point.ZERO.toHex());
-    expect(libraryAccepts(signature, message, publicKey)).toBe(true);
-    expect(verifyEd25519(signature, message, publicKey)).toBe(false);
-  });
+    it("item 3: rejects a signature whose R is the identity point", () => {
+      const signature = craftSignature(scalar, publicKey, message, 0n);
+      expect(bytesToHex(signature.subarray(0, 32))).toBe(Point.ZERO.toHex());
+      expect(libraryAccepts(signature, message, publicKey)).toBe(true);
+      expect(verifyEd25519(signature, message, publicKey)).toBe(false);
+    });
 
-  it("item 3: rejects a signature whose R has a small-order component", () => {
-    for (const point of torsion.filter((candidate) => !candidate.is0())) {
-      const signature = craftSignature(scalar, publicKey, message, 987654321n, point);
-      expect(libraryAccepts(signature, message, publicKey), point.toHex()).toBe(true);
-      expect(verifyEd25519(signature, message, publicKey), point.toHex()).toBe(false);
-    }
-    // R of small order alone: the nonce is zero and only the offset remains.
-    for (const point of torsion) {
-      const signature = craftSignature(scalar, publicKey, message, 0n, point);
-      expect(verifyEd25519(signature, message, publicKey), point.toHex()).toBe(false);
-    }
-  });
+    it("item 3: rejects a signature whose R has a small-order component", () => {
+      for (const point of torsion.filter((candidate) => !candidate.is0())) {
+        const signature = craftSignature(scalar, publicKey, message, 987654321n, point);
+        expect(libraryAccepts(signature, message, publicKey), point.toHex()).toBe(true);
+        expect(verifyEd25519(signature, message, publicKey), point.toHex()).toBe(false);
+      }
+      // R of small order alone: the nonce is zero and only the offset remains.
+      for (const point of torsion) {
+        const signature = craftSignature(scalar, publicKey, message, 0n, point);
+        expect(verifyEd25519(signature, message, publicKey), point.toHex()).toBe(false);
+      }
+    });
 
-  it("accepts the honest signature beside each of those: the control", () => {
-    const control = craftSignature(scalar, publicKey, message, 987654321n);
-    expect(verifyEd25519(control, message, publicKey)).toBe(true);
-    expect(verifyEd25519(honest, message, publicKey)).toBe(true);
-    expect(isEd25519PublicKey(publicKey)).toBe(true);
-    expect(isEd25519PublicKey(Point.BASE.toBytes())).toBe(true);
-  });
+    it("accepts the honest signature beside each of those: the control", () => {
+      const control = craftSignature(scalar, publicKey, message, 987654321n);
+      expect(verifyEd25519(control, message, publicKey)).toBe(true);
+      expect(verifyEd25519(honest, message, publicKey)).toBe(true);
+      expect(isEd25519PublicKey(publicKey)).toBe(true);
+      expect(isEd25519PublicKey(Point.BASE.toBytes())).toBe(true);
+    });
 
-  it("item 4: rejects a signature that does not satisfy the equation", () => {
-    const other = signEd25519(utf8("another message"), privateKey);
-    expect(verifyEd25519(other, message, publicKey)).toBe(false);
-    const swapped = Uint8Array.from([...honest.subarray(0, 32), ...other.subarray(32)]);
-    expect(verifyEd25519(swapped, message, publicKey)).toBe(false);
-    const otherKey = ed25519PublicKey(new Uint8Array(32).fill(7));
-    expect(verifyEd25519(honest, message, otherKey)).toBe(false);
-  });
+    it("item 4: rejects a signature that does not satisfy the equation", () => {
+      const other = signEd25519(utf8("another message"), privateKey);
+      expect(verifyEd25519(other, message, publicKey)).toBe(false);
+      const swapped = Uint8Array.from([...honest.subarray(0, 32), ...other.subarray(32)]);
+      expect(verifyEd25519(swapped, message, publicKey)).toBe(false);
+      const otherKey = ed25519PublicKey(new Uint8Array(32).fill(7));
+      expect(verifyEd25519(honest, message, otherKey)).toBe(false);
+    });
 
-  it("gives the same answer for a key whether or not its order check is remembered", () => {
-    const mixed = Point.fromBytes(publicKey, false).add(order8).toBytes();
-    for (let round = 0; round < 3; round++) {
+    it("gives the same answer for a key whether or not its order check is remembered", () => {
+      const mixed = Point.fromBytes(publicKey, false).add(order8).toBytes();
+      for (let round = 0; round < 3; round++) {
+        expect(isEd25519PublicKey(publicKey)).toBe(true);
+        expect(isEd25519PublicKey(mixed)).toBe(false);
+        expect(verifyEd25519(honest, message, publicKey)).toBe(true);
+      }
+      // A flood of distinct keys does not change the answer for one seen before.
+      for (let i = 0; i < ORDER_CHECK_CACHE_SIZE + 10; i++) {
+        isEd25519PublicKey(littleEndian(BigInt(i) + 1000n));
+      }
       expect(isEd25519PublicKey(publicKey)).toBe(true);
       expect(isEd25519PublicKey(mixed)).toBe(false);
-      expect(verifyEd25519(honest, message, publicKey)).toBe(true);
-    }
-    // A flood of distinct keys does not change the answer for one seen before.
-    for (let i = 0; i < ORDER_CHECK_CACHE_SIZE + 10; i++) {
-      isEd25519PublicKey(littleEndian(BigInt(i) + 1000n));
-    }
-    expect(isEd25519PublicKey(publicKey)).toBe(true);
-    expect(isEd25519PublicKey(mixed)).toBe(false);
-  });
+    });
 
-  it("does not mistake one key for another that shares all but one of its bytes", () => {
-    // What a key's order check is remembered under is the whole key. For each
-    // position, a key of order L and its neighbour that differs in that byte
-    // alone and is no such key: each keeps its own answer, whichever was seen first.
-    const isKey = (bytes: Uint8Array): boolean => {
-      try {
-        const point = Point.fromBytes(bytes, false);
-        // [L]P is the identity, worked out as [L-1]P + P: the library takes no scalar of L itself.
-        return (
-          !point.is0() &&
-          point
-            .multiplyUnsafe(L - 1n)
-            .add(point)
-            .is0()
-        );
-      } catch {
-        return false;
+    it("does not mistake one key for another that shares all but one of its bytes", () => {
+      // What a key's order check is remembered under is the whole key. For each
+      // position, a key of order L and its neighbour that differs in that byte
+      // alone and is no such key: each keeps its own answer, whichever was seen first.
+      const isKey = (bytes: Uint8Array): boolean => {
+        try {
+          const point = Point.fromBytes(bytes, false);
+          // [L]P is the identity, worked out as [L-1]P + P: the library takes no scalar of L itself.
+          return (
+            !point.is0() &&
+            point
+              .multiplyUnsafe(L - 1n)
+              .add(point)
+              .is0()
+          );
+        } catch {
+          return false;
+        }
+      };
+      let pairs = 0;
+      for (const position of [0, 1, 15, 16, 30, 31]) {
+        for (const validFirst of [true, false]) {
+          const key = ed25519PublicKey(new Uint8Array(32).fill(100 + pairs));
+          const neighbour = Uint8Array.from(key);
+          do neighbour[position] = ((neighbour[position] ?? 0) + 1) & 0xff;
+          while (isKey(neighbour));
+          expect(isKey(key)).toBe(true);
+          expect(neighbour.filter((byte, i) => byte !== key[i])).toHaveLength(1);
+          const [first, second] = validFirst ? [key, neighbour] : [neighbour, key];
+          expect(isEd25519PublicKey(first), `position ${position}`).toBe(validFirst);
+          expect(isEd25519PublicKey(second), `position ${position}`).toBe(!validFirst);
+          // And both again, now that both are remembered.
+          expect(isEd25519PublicKey(key), `position ${position}`).toBe(true);
+          expect(isEd25519PublicKey(neighbour), `position ${position}`).toBe(false);
+          // Verification uses the same memory: a mixed-order key next to a good one stays rejected.
+          const { scalar: secret, publicKey: honestKey } = expand(
+            new Uint8Array(32).fill(200 + pairs),
+          );
+          const good = craftSignature(secret, honestKey, message, 31337n);
+          expect(verifyEd25519(good, message, honestKey)).toBe(true);
+          pairs++;
+        }
       }
-    };
-    let pairs = 0;
-    for (const position of [0, 1, 15, 16, 30, 31]) {
-      for (const validFirst of [true, false]) {
-        const key = ed25519PublicKey(new Uint8Array(32).fill(100 + pairs));
-        const neighbour = Uint8Array.from(key);
-        do neighbour[position] = ((neighbour[position] ?? 0) + 1) & 0xff;
-        while (isKey(neighbour));
-        expect(isKey(key)).toBe(true);
-        expect(neighbour.filter((byte, i) => byte !== key[i])).toHaveLength(1);
-        const [first, second] = validFirst ? [key, neighbour] : [neighbour, key];
-        expect(isEd25519PublicKey(first), `position ${position}`).toBe(validFirst);
-        expect(isEd25519PublicKey(second), `position ${position}`).toBe(!validFirst);
-        // And both again, now that both are remembered.
-        expect(isEd25519PublicKey(key), `position ${position}`).toBe(true);
-        expect(isEd25519PublicKey(neighbour), `position ${position}`).toBe(false);
-        // Verification uses the same memory: a mixed-order key next to a good one stays rejected.
-        const { scalar: secret, publicKey: honestKey } = expand(
-          new Uint8Array(32).fill(200 + pairs),
-        );
-        const good = craftSignature(secret, honestKey, message, 31337n);
-        expect(verifyEd25519(good, message, honestKey)).toBe(true);
-        pairs++;
-      }
-    }
-    expect(pairs).toBe(12);
-  });
+      expect(pairs).toBe(12);
+    });
 
-  it("remembers a mixed-order key apart from the honest key it was made from, in either order", () => {
-    // The two differ in many bytes, but the same rule holds: one answer per key.
-    for (const [seed, mixedFirst] of [
-      [51, true],
-      [52, false],
-    ] as const) {
-      const { scalar: secret, publicKey: honestKey } = expand(new Uint8Array(32).fill(seed));
-      const mixed = Point.fromBytes(honestKey, false).add(order8).toBytes();
-      const onMixed = craftSignature(secret, mixed, message, 99n);
-      const onHonest = craftSignature(secret, honestKey, message, 99n);
-      expect(libraryAccepts(onMixed, message, mixed)).toBe(true);
-      const checks = [
-        () => expect(verifyEd25519(onMixed, message, mixed)).toBe(false),
-        () => expect(verifyEd25519(onHonest, message, honestKey)).toBe(true),
-      ];
-      for (const check of mixedFirst ? checks : checks.toReversed()) check();
-      for (const check of checks) check();
-    }
-  });
-});
+    it("remembers a mixed-order key apart from the honest key it was made from, in either order", () => {
+      // The two differ in many bytes, but the same rule holds: one answer per key.
+      for (const [seed, mixedFirst] of [
+        [51, true],
+        [52, false],
+      ] as const) {
+        const { scalar: secret, publicKey: honestKey } = expand(new Uint8Array(32).fill(seed));
+        const mixed = Point.fromBytes(honestKey, false).add(order8).toBytes();
+        const onMixed = craftSignature(secret, mixed, message, 99n);
+        const onHonest = craftSignature(secret, honestKey, message, 99n);
+        expect(libraryAccepts(onMixed, message, mixed)).toBe(true);
+        const checks = [
+          () => expect(verifyEd25519(onMixed, message, mixed)).toBe(false),
+          () => expect(verifyEd25519(onHonest, message, honestKey)).toBe(true),
+        ];
+        for (const check of mixedFirst ? checks : checks.toReversed()) check();
+        for (const check of checks) check();
+      }
+    });
+  },
+);
 
 describe("a key that fails the order check", () => {
   it("works a no out again each time, and gives the same no", () => {
@@ -444,98 +456,329 @@ describe("a key that fails the order check", () => {
   });
 });
 
-describe("the bytes that are verified are the bytes that were checked", () => {
-  const privateKey = new Uint8Array(32).fill(9);
-  const { scalar, publicKey } = expand(privateKey);
-  const message = utf8("one reading");
+describe.each(ENGINES)(
+  "the bytes that are verified are the bytes that were checked, by %s",
+  (_name, engine) => {
+    usingEngine(engine);
+
+    const privateKey = new Uint8Array(32).fill(9);
+    const { scalar, publicKey } = expand(privateKey);
+    const message = utf8("one reading");
+    const honest = signEd25519(message, privateKey);
+    const order8 = smallOrderPoints().find((point) => orderOf(point) === 8)!;
+    // The library alone accepts this one: its R has a small-order component.
+    const mixedR = craftSignature(scalar, publicKey, message, 2468n, order8);
+
+    it("has a signature only the order check stands against", () => {
+      expect(ed25519.verify(mixedR, message, publicKey, { zip215: false })).toBe(true);
+      expect(verifyEd25519(mixedR, message, publicKey)).toBe(false);
+    });
+
+    it("is not told one thing by subarray and another by the bytes", () => {
+      // An array that shows an honest R to whoever asks for a part of it.
+      class TwoFaced extends Uint8Array {
+        override subarray(begin?: number, end?: number): Uint8Array<ArrayBuffer> {
+          return begin === 0 && end === 32
+            ? (honest.subarray(0, 32) as Uint8Array<ArrayBuffer>)
+            : super.subarray(begin, end);
+        }
+        override slice(begin?: number, end?: number): Uint8Array<ArrayBuffer> {
+          return begin === 0 && end === 32 ? honest.slice(0, 32) : super.slice(begin, end);
+        }
+      }
+      const twoFaced = new TwoFaced(mixedR);
+      expect(twoFaced.subarray(0, 32)).toEqual(honest.subarray(0, 32));
+      expect(verifyEd25519(twoFaced, message, publicKey)).toBe(false);
+      // The same array with an honest signature in it verifies: the class is not what is refused.
+      expect(verifyEd25519(new TwoFaced(honest), message, publicKey)).toBe(true);
+    });
+
+    it("is not told a length the bytes do not have", () => {
+      class Long extends Uint8Array {
+        override get length(): number {
+          return 64;
+        }
+      }
+      expect(verifyEd25519(new Long(63), message, publicKey)).toBe(false);
+      expect(verifyEd25519(new Long(honest.subarray(0, 63)), message, publicKey)).toBe(false);
+      class Short extends Uint8Array {
+        override get length(): number {
+          return 32;
+        }
+      }
+      expect(isEd25519PublicKey(new Short(33))).toBe(false);
+      expect(verifyEd25519(honest, message, new Short(Uint8Array.from([...publicKey, 0])))).toBe(
+        false,
+      );
+    });
+
+    it("reads each input once, so a change made afterwards changes nothing", () => {
+      // A key whose bytes are swapped for a mixed-order key's as soon as they have been read.
+      const mixedKey = Point.fromBytes(publicKey, false).add(order8).toBytes();
+      const onMixed = craftSignature(scalar, mixedKey, message, 1357n);
+      expect(ed25519.verify(onMixed, message, mixedKey, { zip215: false })).toBe(true);
+      let reads = 0;
+      class Changing extends Uint8Array {
+        override get buffer(): ArrayBuffer {
+          reads++;
+          return super.buffer;
+        }
+      }
+      const key = new Changing(publicKey);
+      expect(verifyEd25519(honest, message, key)).toBe(true);
+      key.set(mixedKey);
+      expect(verifyEd25519(onMixed, message, key)).toBe(false);
+      expect(verifyEd25519(honest, message, key)).toBe(false);
+      expect(reads).toBe(0);
+    });
+
+    it("answers false, and does not throw, for something that only looks like bytes", () => {
+      const boom = () => {
+        throw new Error("boom");
+      };
+      const revoked = Proxy.revocable(new Uint8Array(32), {});
+      revoked.revoke();
+      for (const fake of [
+        new Proxy(Uint8Array.from(publicKey), {}),
+        new Proxy(Uint8Array.from(publicKey), { get: boom }),
+        revoked.proxy,
+        Object.create(Uint8Array.prototype) as Uint8Array,
+        Array.from(publicKey) as unknown as Uint8Array,
+        new Uint16Array(32) as unknown as Uint8Array,
+        publicKey.buffer as unknown as Uint8Array,
+      ]) {
+        expect(isEd25519PublicKey(fake)).toBe(false);
+        expect(verifyEd25519(honest, message, fake)).toBe(false);
+        expect(verifyEd25519(fake, message, publicKey)).toBe(false);
+        expect(verifyEd25519(honest, fake, publicKey)).toBe(false);
+      }
+    });
+  },
+);
+
+describe("an engine for the arithmetic of a signature", () => {
+  const privateKey = new Uint8Array(32).fill(21);
+  const publicKey = ed25519PublicKey(privateKey);
+  const message = utf8("checked by an engine");
   const honest = signEd25519(message, privateKey);
-  const order8 = smallOrderPoints().find((point) => orderOf(point) === 8)!;
-  // The library alone accepts this one: its R has a small-order component.
-  const mixedR = craftSignature(scalar, publicKey, message, 2468n, order8);
+  /** An engine that counts how often it is asked, and answers as `inner` does. */
+  const counting = (inner: Ed25519Engine) => {
+    const engine = ((signature, text, key) => {
+      engine.calls++;
+      return inner(signature, text, key);
+    }) as Ed25519Engine & { calls: number };
+    engine.calls = 0;
+    return engine;
+  };
+  const fresh = (): void => {
+    usePortableEd25519();
+    forgetVerifiedSignatures();
+  };
+  beforeEach(fresh);
+  afterAll(fresh);
 
-  it("has a signature only the order check stands against", () => {
-    expect(ed25519.verify(mixedR, message, publicKey, { zip215: false })).toBe(true);
-    expect(verifyEd25519(mixedR, message, publicKey)).toBe(false);
+  it("is tried on signatures whose answers are known, and not used if it gives another", () => {
+    const refused: [string, Ed25519Engine][] = [
+      ["refuses an honest signature", () => false],
+      ["accepts a signature for another message", () => true],
+      // The library's strict mode checks the equation with the cofactor.
+      [
+        "accepts an R with a small-order component",
+        (signature, text, key) => ed25519.verify(signature, text, key, { zip215: false }),
+      ],
+      // An engine that reduces S before it looks at it.
+      [
+        "accepts an S that is not below L",
+        (signature, text, key) => {
+          const s = fromLittleEndian(signature.subarray(32)) % L;
+          return cofactorless(
+            Uint8Array.from([...signature.subarray(0, 32), ...littleEndian(s)]),
+            text,
+            key,
+          );
+        },
+      ],
+      [
+        "refuses an honest signature",
+        () => {
+          throw new Error("no arithmetic today");
+        },
+      ],
+      ["refuses an honest signature", (() => 1) as unknown as Ed25519Engine],
+      ["refuses an honest signature", (() => "true") as unknown as Ed25519Engine],
+    ];
+    for (const [what, engine] of refused) {
+      const asked = counting(engine);
+      expect(() => {
+        useEd25519Engine(asked);
+      }).toThrow(new TypeError(`the Ed25519 engine ${what}: it is not used`));
+      expect(asked.calls).toBeGreaterThan(0);
+      // Nothing was changed: the library does the arithmetic, and the engine is not asked.
+      asked.calls = 0;
+      expect(verifyEd25519(honest, message, publicKey)).toBe(true);
+      expect(asked.calls).toBe(0);
+      forgetVerifiedSignatures();
+    }
+    const notFunctions: unknown[] = [undefined, null, "openssl", {}];
+    for (const none of notFunctions) {
+      expect(() => {
+        useEd25519Engine(none as Ed25519Engine);
+      }).toThrow(new TypeError("an engine is a function"));
+    }
   });
 
-  it("is not told one thing by subarray and another by the bytes", () => {
-    // An array that shows an honest R to whoever asks for a part of it.
-    class TwoFaced extends Uint8Array {
-      override subarray(begin?: number, end?: number): Uint8Array<ArrayBuffer> {
-        return begin === 0 && end === 32
-          ? (honest.subarray(0, 32) as Uint8Array<ArrayBuffer>)
-          : super.subarray(begin, end);
-      }
-      override slice(begin?: number, end?: number): Uint8Array<ArrayBuffer> {
-        return begin === 0 && end === 32 ? honest.slice(0, 32) : super.slice(begin, end);
-      }
-    }
-    const twoFaced = new TwoFaced(mixedR);
-    expect(twoFaced.subarray(0, 32)).toEqual(honest.subarray(0, 32));
-    expect(verifyEd25519(twoFaced, message, publicKey)).toBe(false);
-    // The same array with an honest signature in it verifies: the class is not what is refused.
-    expect(verifyEd25519(new TwoFaced(honest), message, publicKey)).toBe(true);
+  it("is the one engine of its process", () => {
+    const first = counting(cofactorless);
+    useEd25519Engine(first);
+    // Given again, it is there already.
+    useEd25519Engine(first);
+    expect(() => {
+      useEd25519Engine(openssl);
+    }).toThrow(new TypeError("another Ed25519 engine is in use"));
+    first.calls = 0;
+    expect(verifyEd25519(honest, message, publicKey)).toBe(true);
+    expect(first.calls).toBe(1);
+    // Without it, the library does the arithmetic again.
+    usePortableEd25519();
+    forgetVerifiedSignatures();
+    expect(verifyEd25519(honest, message, publicKey)).toBe(true);
+    expect(first.calls).toBe(1);
   });
 
-  it("is not told a length the bytes do not have", () => {
-    class Long extends Uint8Array {
-      override get length(): number {
-        return 64;
-      }
-    }
-    expect(verifyEd25519(new Long(63), message, publicKey)).toBe(false);
-    expect(verifyEd25519(new Long(honest.subarray(0, 63)), message, publicKey)).toBe(false);
-    class Short extends Uint8Array {
-      override get length(): number {
-        return 32;
-      }
-    }
-    expect(isEd25519PublicKey(new Short(33))).toBe(false);
-    expect(verifyEd25519(honest, message, new Short(Uint8Array.from([...publicKey, 0])))).toBe(
-      false,
-    );
+  it("is asked only what is left once this package has checked the key and R", () => {
+    const engine = counting(cofactorless);
+    useEd25519Engine(engine);
+    engine.calls = 0;
+    const { scalar: secret, publicKey: honestKey } = expand(new Uint8Array(32).fill(23));
+    // A key with a small-order component: OpenSSL accepts signatures by some such keys.
+    const mixed = Point.fromBytes(honestKey, false).add(order8).toBytes();
+    expect(verifyEd25519(craftSignature(secret, mixed, message, 5n), message, mixed)).toBe(false);
+    // The identity as R, for which S = k·a satisfies the equation.
+    const identityR = craftSignature(secret, honestKey, message, 0n);
+    expect(cofactorless(identityR, message, honestKey)).toBe(true);
+    expect(verifyEd25519(identityR, message, honestKey)).toBe(false);
+    // What has not the lengths of a signature and a key.
+    expect(verifyEd25519(honest.subarray(1), message, publicKey)).toBe(false);
+    expect(verifyEd25519(honest, message, publicKey.subarray(1))).toBe(false);
+    expect(engine.calls).toBe(0);
+    expect(verifyEd25519(honest, message, publicKey)).toBe(true);
+    expect(engine.calls).toBe(1);
   });
 
-  it("reads each input once, so a change made afterwards changes nothing", () => {
-    // A key whose bytes are swapped for a mixed-order key's as soon as they have been read.
-    const mixedKey = Point.fromBytes(publicKey, false).add(order8).toBytes();
-    const onMixed = craftSignature(scalar, mixedKey, message, 1357n);
-    expect(ed25519.verify(onMixed, message, mixedKey, { zip215: false })).toBe(true);
-    let reads = 0;
-    class Changing extends Uint8Array {
-      override get buffer(): ArrayBuffer {
-        reads++;
-        return super.buffer;
-      }
-    }
-    const key = new Changing(publicKey);
-    expect(verifyEd25519(honest, message, key)).toBe(true);
-    key.set(mixedKey);
-    expect(verifyEd25519(onMixed, message, key)).toBe(false);
-    expect(verifyEd25519(honest, message, key)).toBe(false);
-    expect(reads).toBe(0);
-  });
-
-  it("answers false, and does not throw, for something that only looks like bytes", () => {
-    const boom = () => {
-      throw new Error("boom");
+  it("counts for a yes only when it answers true, and is taken for a no when it throws", () => {
+    let answer: unknown = true;
+    let trials = 0;
+    // An engine that passes its trials, and then answers what the test tells it to.
+    const engine: Ed25519Engine = (signature, text, key) => {
+      if (trials++ < 7) return cofactorless(signature, text, key);
+      if (answer instanceof Error) throw answer;
+      return answer as boolean;
     };
-    const revoked = Proxy.revocable(new Uint8Array(32), {});
-    revoked.revoke();
-    for (const fake of [
-      new Proxy(Uint8Array.from(publicKey), {}),
-      new Proxy(Uint8Array.from(publicKey), { get: boom }),
-      revoked.proxy,
-      Object.create(Uint8Array.prototype) as Uint8Array,
-      Array.from(publicKey) as unknown as Uint8Array,
-      new Uint16Array(32) as unknown as Uint8Array,
-      publicKey.buffer as unknown as Uint8Array,
-    ]) {
-      expect(isEd25519PublicKey(fake)).toBe(false);
-      expect(verifyEd25519(honest, message, fake)).toBe(false);
-      expect(verifyEd25519(fake, message, publicKey)).toBe(false);
-      expect(verifyEd25519(honest, fake, publicKey)).toBe(false);
+    useEd25519Engine(engine);
+    expect(trials).toBe(7);
+    for (const other of [1, "true", {}, [], undefined, null, false, 0, new Error("spent")]) {
+      answer = other;
+      expect(verifyEd25519(honest, message, publicKey)).toBe(false);
     }
+    // None of those was remembered as a yes.
+    answer = true;
+    expect(verifyEd25519(honest, message, publicKey)).toBe(true);
+  });
+
+  it("shares what is remembered with the library: a signature is one or the other, whoever checked it", () => {
+    expect(verifyEd25519(honest, message, publicKey)).toBe(true);
+    const engine = counting(cofactorless);
+    useEd25519Engine(engine);
+    engine.calls = 0;
+    expect(verifyEd25519(honest, message, publicKey)).toBe(true);
+    expect(engine.calls).toBe(0);
+  });
+
+  it("gives the answer the library gives, for signatures of every kind", () => {
+    const { scalar: secret, publicKey: key } = expand(new Uint8Array(32).fill(29));
+    const mixedKey = Point.fromBytes(key, false).add(order8).toBytes();
+    const small = torsion.filter((point) => !point.is0());
+    const flipped = (bytes: Uint8Array, bit: number): Uint8Array => {
+      const copy = Uint8Array.from(bytes);
+      const at = (bit >> 3) % copy.length;
+      copy[at] = (copy[at] ?? 0) ^ (1 << (bit & 7));
+      return copy;
+    };
+    const cases = fc.record({
+      text: fc.uint8Array({ maxLength: 48 }),
+      nonce: fc.bigInt({ min: 0n, max: L - 1n }),
+      kind: fc.constantFrom(
+        "honest",
+        "S not reduced",
+        "R with a small-order part",
+        "R of small order",
+        "a mixed-order key",
+        "a bit of R",
+        "a bit of S",
+        "a bit of the key",
+        "a bit of the message",
+        "random bytes",
+      ),
+      which: fc.nat(),
+      random: fc.uint8Array({ minLength: 96, maxLength: 96 }),
+    });
+    const answers = (
+      engine: Ed25519Engine | undefined,
+      triple: readonly [Uint8Array, Uint8Array, Uint8Array],
+    ) => {
+      fresh();
+      if (engine !== undefined) useEd25519Engine(engine);
+      return verifyEd25519(...triple);
+    };
+    let accepted = 0;
+    fc.assert(
+      fc.property(cases, ({ text, nonce, kind, which, random }) => {
+        const offset = small[which % small.length] ?? Point.ZERO;
+        const good = craftSignature(secret, key, text, nonce);
+        const triple: [Uint8Array, Uint8Array, Uint8Array] =
+          kind === "honest"
+            ? [good, text, key]
+            : kind === "S not reduced"
+              ? [unreduced(good), text, key]
+              : kind === "R with a small-order part"
+                ? [craftSignature(secret, key, text, nonce, offset), text, key]
+                : kind === "R of small order"
+                  ? [craftSignature(secret, key, text, 0n, offset), text, key]
+                  : kind === "a mixed-order key"
+                    ? [craftSignature(secret, mixedKey, text, nonce), text, mixedKey]
+                    : kind === "a bit of R"
+                      ? [
+                          Uint8Array.from([
+                            ...flipped(good.subarray(0, 32), which),
+                            ...good.subarray(32),
+                          ]),
+                          text,
+                          key,
+                        ]
+                      : kind === "a bit of S"
+                        ? [
+                            Uint8Array.from([
+                              ...good.subarray(0, 32),
+                              ...flipped(good.subarray(32), which),
+                            ]),
+                            text,
+                            key,
+                          ]
+                        : kind === "a bit of the key"
+                          ? [good, text, flipped(key, which)]
+                          : kind === "a bit of the message"
+                            ? [good, flipped(Uint8Array.from([...text, 0]), which), key]
+                            : [random.subarray(0, 64), text, random.subarray(64)];
+        const byLibrary = answers(undefined, triple);
+        expect(answers(cofactorless, triple), kind).toBe(byLibrary);
+        expect(answers(openssl, triple), kind).toBe(byLibrary);
+        // A nonce of 0 makes R the identity: the one honest-looking signature that is none.
+        expect(byLibrary, kind).toBe(kind === "honest" && nonce !== 0n);
+        if (byLibrary) accepted++;
+      }),
+      { numRuns: Number(process.env["OIP_ED25519_RUNS"] ?? 300) },
+    );
+    expect(accepted).toBeGreaterThan(0);
   });
 });
 

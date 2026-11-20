@@ -12,7 +12,7 @@ import { ed25519 } from "@noble/curves/ed25519.js";
 import { bytesToNumberLE } from "@noble/curves/utils.js";
 import { noteCutShort } from "@oip/schema";
 
-import { bytesToHex } from "./bytes.ts";
+import { bytesEqual, bytesToHex, hexToBytes } from "./bytes.ts";
 import { BoundedCache } from "./cache.ts";
 import { sha256 } from "./hash.ts";
 
@@ -132,18 +132,160 @@ export function isEd25519PublicKey(publicKey: Uint8Array): boolean {
 }
 
 /**
- * core 4.4 for one signature, with nothing remembered of it: the order
- * checks of `A` and `R`, and the library's strict verification. The three
+ * An engine that checks one signature as RFC 8032, 5.1.7 allows it to be
+ * checked, without the cofactor. It answers `true` if, and only if, `S` is
+ * below L and the encoding of `[S]B - [k]A` is `R`, byte for byte, where
+ * `k` is SHA-512(`R` ‖ `A` ‖ message) as an integer. OpenSSL's Ed25519 is
+ * such an engine. It is given the verifier's own copies of the bytes, and
+ * may throw for what it cannot read.
+ */
+export type Ed25519Engine = (
+  signature: Uint8Array,
+  message: Uint8Array,
+  publicKey: Uint8Array,
+) => boolean;
+
+/** The engine in use, if one is: the library's arithmetic otherwise. */
+let engine: Ed25519Engine | undefined;
+
+/** The encoding of the identity point, which is the `R` of no signature (core 4.4, item 3). */
+const IDENTITY = Uint8Array.of(1, ...new Uint8Array(PUBLIC_KEY_LENGTH - 1));
+
+/**
+ * Signatures an engine is tried on before it is used, with the answer it
+ * must give. The first is test 2 of RFC 8032, 7.1, and the two after it
+ * are made from it. The rest are by a key whose secret is known: an honest
+ * one, and three that satisfy the equation with the cofactor and not the
+ * one without, which is how an engine that multiplies by 8 would accept them.
+ */
+const ENGINE_TRIALS: readonly {
+  readonly what: string;
+  readonly valid: boolean;
+  readonly publicKey: string;
+  readonly message: string;
+  readonly signature: string;
+}[] = [
+  {
+    what: "refuses an honest signature",
+    valid: true,
+    publicKey: "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+    message: "72",
+    signature:
+      "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00",
+  },
+  {
+    what: "accepts a signature for another message",
+    valid: false,
+    publicKey: "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+    message: "73",
+    signature:
+      "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00",
+  },
+  {
+    what: "accepts an S that is not below L",
+    valid: false,
+    publicKey: "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+    message: "72",
+    signature:
+      "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69daf52db7415978abc61b2c2eb6aeebfca0387b2eaeb4302aeeb00d291612bb0c10",
+  },
+  {
+    what: "refuses a second honest signature",
+    valid: true,
+    publicKey: "6e7a1cdd29b0b78fd13af4c5598feff4ef2a97166e3ca6f2e4fbfccd80505bf1",
+    message: "6f6970",
+    signature:
+      "65e379cccc9104d9755d200089bf82bf3fa26e870e2656e35e7f0b22b5348d935c9f1542c6d80c933606be3d42153a68f7daa7fc35129e025b3bfcc513c25a0d",
+  },
+  ...[
+    "881c8633336efb268aa2dfff76407d40c05d9178f1d9a91ca180f4dd4acb726c3c16c7f1da820c64093c879bf454b2c31204f7ce2a46c846c9cf1c2cbb9b2f0d",
+    "15004d4ef3f83b1e7d412b45dbcba368220136e710d02df0c6053487168547c2c959ccecba6e9a93d4b974949070838fa7720275b69cec7ce592234b58244c0d",
+    "8d1d32347c5b56f5850b934211aeaa46f0a4812b31dafd2d6e2945a2e251dd658fce18cb3d81d929363578fbcf08479d6924347a5740e5db0a2257de2752a502",
+  ].map((signature) => ({
+    what: "accepts an R with a small-order component",
+    valid: false,
+    publicKey: "6e7a1cdd29b0b78fd13af4c5598feff4ef2a97166e3ca6f2e4fbfccd80505bf1",
+    message: "6f6970",
+    signature,
+  })),
+];
+
+/**
+ * Has `verifyEd25519` use an engine for the arithmetic of a signature, in
+ * place of the library's. A process that has OpenSSL gives it here, and
+ * checks a signature in a tenth of the time.
+ *
+ * The rule stays core 4.4, and stays here. This module still checks that
+ * `A` is the canonical encoding of a point of order L, and that `R` is not
+ * the identity. With `A` of order L, `[S]B - [k]A` is in the subgroup of
+ * prime order, so an `R` that is its encoding is canonical and has order L
+ * or is the identity. What an engine answers `true` for is then exactly
+ * what the four items of core 4.4 allow, and nothing else.
+ *
+ * The engine is tried first on signatures whose answers are known. One
+ * that gives another answer is not used. A process has one engine: the
+ * same one given again changes nothing, and another is refused.
+ *
+ * @throws TypeError if the engine fails a trial, or another engine is in use.
+ */
+export function useEd25519Engine(candidate: Ed25519Engine): void {
+  if (typeof candidate !== "function") throw new TypeError("an engine is a function");
+  if (engine === candidate) return;
+  if (engine !== undefined) throw new TypeError("another Ed25519 engine is in use");
+  for (const trial of ENGINE_TRIALS) {
+    let answer: unknown;
+    try {
+      answer = candidate(
+        hexToBytes(trial.signature),
+        hexToBytes(trial.message),
+        hexToBytes(trial.publicKey),
+      );
+    } catch {
+      answer = undefined;
+    }
+    if (answer !== trial.valid) {
+      throw new TypeError(`the Ed25519 engine ${trial.what}: it is not used`);
+    }
+  }
+  engine = candidate;
+}
+
+/**
+ * Goes back to the library's arithmetic. It is not part of the package's
+ * interface: a test that gave an engine takes it away again.
+ */
+export function usePortableEd25519(): void {
+  engine = undefined;
+}
+
+/**
+ * core 4.4 for one signature, with nothing remembered of it. The three
  * arrays are the verifier's own copies.
+ *
+ * Without an engine: the order checks of `A` and `R`, and the library's
+ * strict verification, which checks the equation with the cofactor. With
+ * one: the order check of `A`, that `R` is not the identity, and the
+ * engine's answer, which is to the equation without the cofactor. The two
+ * agree on every signature: `useEd25519Engine` says why.
  */
 function checked(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): boolean {
   if (!hasOrderL(publicKey)) return false;
-  if (!encodesPointOfOrderL(signature.subarray(0, PUBLIC_KEY_LENGTH))) return false;
+  const r = signature.subarray(0, PUBLIC_KEY_LENGTH);
+  if (engine !== undefined) {
+    if (bytesEqual(r, IDENTITY)) return false;
+    // The engine is someone else's code: only the one answer it is asked for counts as a yes.
+    const answer: unknown = engine(signature, message, publicKey);
+    return answer === true;
+  }
+  if (!encodesPointOfOrderL(r)) return false;
   const valid = ed25519.verify(signature, message, publicKey, { zip215: false });
   // A `false` may be the library's answer to a failure of its own: see `retraced`.
   if (!valid) retraced(signature, publicKey, RETRACE_DEPTH);
   return valid;
 }
+
+/** What is remembered of a signature: that it verified. */
+const verified = (): true => true;
 
 /**
  * Whether a signature verifies, checked once: a yes is remembered under the
@@ -163,8 +305,8 @@ export function verifiedOnce(
 ): boolean {
   const name = nameOf(signature, publicKey, message);
   // Asking marks it as used, so that what is verified often is what is kept.
-  if (signaturesVerified.has(name)) return signaturesVerified.get(name, () => true);
-  return check(signature, message, publicKey) && signaturesVerified.get(name, () => true);
+  if (signaturesVerified.has(name)) return signaturesVerified.get(name, verified);
+  return check(signature, message, publicKey) && signaturesVerified.get(name, verified);
 }
 
 /**

@@ -47,6 +47,7 @@ Each image:
 - listens on port 8080;
 - is set up by the variables its package documents: [`OIP_RESOLVER_`](../../packages/resolver/README.md), [`OIP_HOST_`](../../packages/host/README.md), [`OIP_INDEXER_`](../../packages/indexer/README.md). The origin has no default: a service does not start until it is told what it is called;
 - stops on `SIGTERM`, finishing what it has begun within `SHUTDOWN_GRACE_MS`;
+- is ready within two seconds of its start (BUILD.md 3.8). With the stack up, `node scripts/container-start.ts` stops and starts each service three times and says how long each took, and CI runs it on every push;
 - has a health check that asks its own `/healthz`. `/readyz` says whether it can do its work, and `/metrics` gives its counts.
 
 The indexer needs its own mind before it starts:

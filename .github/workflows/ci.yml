@@ -90,6 +90,9 @@ jobs:
       # tests of @oip/conformance give it. Here those checks are skipped, and nothing may fail.
       - name: The Indexer profile
         run: node --conditions=@oip/source packages/conformance/src/bin.ts indexer http://127.0.0.1:8083 --origin https://indexer.localhost --allow-skipped
+      # BUILD.md 3.8: a server container starts within two seconds (ADR-0015).
+      - name: Each service is ready within two seconds of its start
+        run: node scripts/container-start.ts
       - name: What the services logged, if a step failed
         if: failure()
         run: docker compose logs --no-color

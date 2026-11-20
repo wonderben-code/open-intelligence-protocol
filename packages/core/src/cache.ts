@@ -23,6 +23,11 @@ export class BoundedCache<V> {
     return this.#entries.size;
   }
 
+  /** Forgets every result. */
+  clear(): void {
+    this.#entries.clear();
+  }
+
   /** Whether a result for the key is remembered. It does not count as a use. */
   has(key: string): boolean {
     return this.#entries.has(key);

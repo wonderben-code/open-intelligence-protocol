@@ -7,14 +7,17 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { BoundedCache } from "../src/cache.ts";
+import { verifiedOnce } from "../src/ed25519.ts";
 import {
   bytesToHex,
   ed25519PublicKey,
+  forgetVerifiedSignatures,
   hexToBytes,
   isEd25519PublicKey,
   ORDER_CHECK_CACHE_SIZE,
   PRIVATE_KEY_LENGTH,
   PUBLIC_KEY_LENGTH,
+  SIGNATURE_CACHE_SIZE,
   SIGNATURE_LENGTH,
   signEd25519,
   verifyEd25519,
@@ -536,7 +539,183 @@ describe("the bytes that are verified are the bytes that were checked", () => {
   });
 });
 
+describe("a signature that verified is remembered", () => {
+  const privateKey = new Uint8Array(32).fill(11);
+  const publicKey = ed25519PublicKey(privateKey);
+  const message = utf8("checked once");
+  const honest = signEd25519(message, privateKey);
+  /** A check that counts how often it is asked, and answers what it is told to. */
+  const counting = (answer: boolean) => {
+    const check = (): boolean => {
+      check.calls++;
+      return answer;
+    };
+    check.calls = 0;
+    return check;
+  };
+  const never = (): boolean => {
+    throw new Error("the signature was checked again");
+  };
+
+  it("is checked once, and verifies at once when the same three come again", () => {
+    forgetVerifiedSignatures();
+    const yes = counting(true);
+    expect(verifiedOnce(honest, message, publicKey, yes)).toBe(true);
+    expect(verifiedOnce(honest, message, publicKey, yes)).toBe(true);
+    expect(verifiedOnce(honest, message, publicKey, never)).toBe(true);
+    expect(yes.calls).toBe(1);
+    // Copies of the same bytes are the same three.
+    expect(
+      verifiedOnce(
+        Uint8Array.from(honest),
+        Uint8Array.from(message),
+        Uint8Array.from(publicKey),
+        never,
+      ),
+    ).toBe(true);
+    // Forgotten, it is checked again.
+    forgetVerifiedSignatures();
+    expect(verifiedOnce(honest, message, publicKey, yes)).toBe(true);
+    expect(yes.calls).toBe(2);
+  });
+
+  it("is what the verification of core 4.4 remembers, and nothing else is", () => {
+    forgetVerifiedSignatures();
+    expect(verifyEd25519(honest, message, publicKey)).toBe(true);
+    expect(verifiedOnce(honest, message, publicKey, never)).toBe(true);
+    // A signature that does not verify is not remembered: it is checked each time.
+    const other = signEd25519(utf8("another message"), privateKey);
+    const no = counting(false);
+    for (let round = 0; round < 3; round++) {
+      expect(verifyEd25519(other, message, publicKey)).toBe(false);
+      expect(verifiedOnce(other, message, publicKey, no)).toBe(false);
+    }
+    expect(no.calls).toBe(3);
+    // Nor is what is no signature at all.
+    expect(verifyEd25519(honest.subarray(1), message, publicKey)).toBe(false);
+    expect(verifyEd25519(honest, message, publicKey.subarray(1))).toBe(false);
+    expect(verifyEd25519(honest, "a message" as unknown as Uint8Array, publicKey)).toBe(false);
+  });
+
+  it("never remembers a no, so a check that failed once can pass the next time", () => {
+    forgetVerifiedSignatures();
+    const no = counting(false);
+    expect(verifiedOnce(honest, message, publicKey, no)).toBe(false);
+    expect(verifiedOnce(honest, message, publicKey, no)).toBe(false);
+    expect(no.calls).toBe(2);
+    const yes = counting(true);
+    expect(verifiedOnce(honest, message, publicKey, yes)).toBe(true);
+    expect(yes.calls).toBe(1);
+    // A check that throws leaves nothing remembered either.
+    forgetVerifiedSignatures();
+    expect(() => verifiedOnce(honest, message, publicKey, never)).toThrow(
+      "the signature was checked again",
+    );
+    expect(verifiedOnce(honest, message, publicKey, yes)).toBe(true);
+    expect(yes.calls).toBe(2);
+  });
+
+  it("is remembered under the signature, the message and the key together", () => {
+    forgetVerifiedSignatures();
+    expect(verifiedOnce(honest, message, publicKey, () => true)).toBe(true);
+    const flipped = (bytes: Uint8Array, at: number): Uint8Array => {
+      const copy = Uint8Array.from(bytes);
+      copy[at] = (copy[at] ?? 0) ^ 1;
+      return copy;
+    };
+    const others: [Uint8Array, Uint8Array, Uint8Array][] = [
+      [flipped(honest, 0), message, publicKey],
+      [flipped(honest, 31), message, publicKey],
+      [flipped(honest, 32), message, publicKey],
+      [flipped(honest, 63), message, publicKey],
+      [honest, flipped(message, 0), publicKey],
+      [honest, flipped(message, message.length - 1), publicKey],
+      [honest, message.subarray(0, message.length - 1), publicKey],
+      [honest, Uint8Array.from([...message, 0]), publicKey],
+      [honest, new Uint8Array(0), publicKey],
+      [honest, message, flipped(publicKey, 0)],
+      [honest, message, flipped(publicKey, 31)],
+      // The key and the message change places at their border: the same bytes in a row, another three.
+      [
+        honest,
+        Uint8Array.from([publicKey[31] ?? 0, ...message]),
+        Uint8Array.from([0, ...publicKey.subarray(0, 31)]),
+      ],
+    ];
+    for (const [signature, text, key] of others) {
+      const no = counting(false);
+      expect(verifiedOnce(signature, text, key, no)).toBe(false);
+      expect(no.calls).toBe(1);
+    }
+    expect(verifiedOnce(honest, message, publicKey, never)).toBe(true);
+  });
+
+  it("forgets the least recently used when a flood of signatures comes", () => {
+    forgetVerifiedSignatures();
+    const signature = (n: number): Uint8Array => littleEndian(BigInt(n) + 1n, SIGNATURE_LENGTH);
+    expect(verifiedOnce(honest, message, publicKey, () => true)).toBe(true);
+    expect(verifiedOnce(signature(-1), message, publicKey, () => true)).toBe(true);
+    // One fewer than fill it: both are still remembered. The first is used, the second is not.
+    for (let n = 0; n < SIGNATURE_CACHE_SIZE - 2; n++) {
+      verifiedOnce(signature(n), message, publicKey, () => true);
+    }
+    expect(verifiedOnce(honest, message, publicKey, never)).toBe(true);
+    verifiedOnce(signature(SIGNATURE_CACHE_SIZE), message, publicKey, () => true);
+    // The one that was not used since has gone, and the one that was used has not.
+    const again = counting(true);
+    expect(verifiedOnce(signature(-1), message, publicKey, again)).toBe(true);
+    expect(again.calls).toBe(1);
+    expect(verifiedOnce(honest, message, publicKey, never)).toBe(true);
+    forgetVerifiedSignatures();
+  });
+
+  it("gives the same answer for a signature whether or not it is remembered", () => {
+    const { scalar: secret, publicKey: key } = expand(new Uint8Array(32).fill(77));
+    const mixed = Point.fromBytes(key, false).add(order8).toBytes();
+    fc.assert(
+      fc.property(
+        fc.uint8Array({ maxLength: 64 }),
+        fc.constantFrom("honest", "other message", "other key", "mixed key", "torn"),
+        (text, kind) => {
+          const good = craftSignature(secret, key, text, 4242n);
+          const [signature, signed, by] =
+            kind === "honest"
+              ? [good, text, key]
+              : kind === "other message"
+                ? [good, Uint8Array.from([...text, 1]), key]
+                : kind === "other key"
+                  ? [good, text, publicKey]
+                  : kind === "mixed key"
+                    ? [good, text, mixed]
+                    : [good.subarray(0, 63), text, key];
+          forgetVerifiedSignatures();
+          const first = verifyEd25519(signature, signed, by);
+          const second = verifyEd25519(signature, signed, by);
+          forgetVerifiedSignatures();
+          expect(first).toBe(kind === "honest");
+          expect(second).toBe(first);
+          expect(verifyEd25519(signature, signed, by)).toBe(first);
+        },
+      ),
+      { numRuns: 60 },
+    );
+  });
+});
+
 describe("the memo that remembers order checks", () => {
+  it("forgets everything when it is cleared", () => {
+    const cache = new BoundedCache<number>(3);
+    cache.get("a", () => 1);
+    cache.get("b", () => 2);
+    cache.clear();
+    expect(cache.size).toBe(0);
+    expect(cache.has("a")).toBe(false);
+    expect(cache.get("a", () => 3)).toBe(3);
+    cache.clear();
+    cache.clear();
+    expect(cache.size).toBe(0);
+  });
+
   it("computes once per key", () => {
     const cache = new BoundedCache<number>(3);
     let calls = 0;

@@ -14,6 +14,7 @@ import { noteCutShort } from "@oip/schema";
 
 import { bytesToHex } from "./bytes.ts";
 import { BoundedCache } from "./cache.ts";
+import { sha256 } from "./hash.ts";
 
 /** The length of an Ed25519 public key, and of an X25519 one: 32 bytes. */
 export const PUBLIC_KEY_LENGTH = 32;
@@ -50,6 +51,40 @@ function encodesPointOfOrderL(encoded: Uint8Array): boolean {
 export const ORDER_CHECK_CACHE_SIZE = 4096;
 
 const keysOfOrderL = new BoundedCache<true>(ORDER_CHECK_CACHE_SIZE);
+
+/**
+ * How many signatures are remembered as having verified. A signature costs
+ * three scalar multiplications to check, and the same signature is checked
+ * again whenever what carries it is read again: a log that is published a
+ * second time, a record that a verifier judges once when it arrives and
+ * once more when it is asked about it. The bound keeps a flood of distinct
+ * signatures from growing the memory.
+ */
+export const SIGNATURE_CACHE_SIZE = 16_384;
+
+const signaturesVerified = new BoundedCache<true>(SIGNATURE_CACHE_SIZE);
+
+/**
+ * What a signature is remembered under: a hash of every byte its verdict
+ * depends on. The signature and the key have fixed lengths, so the three
+ * are told apart wherever the message ends.
+ */
+function nameOf(signature: Uint8Array, publicKey: Uint8Array, message: Uint8Array): string {
+  const all = new Uint8Array(SIGNATURE_LENGTH + PUBLIC_KEY_LENGTH + message.length);
+  all.set(signature);
+  all.set(publicKey, SIGNATURE_LENGTH);
+  all.set(message, SIGNATURE_LENGTH + PUBLIC_KEY_LENGTH);
+  return bytesToHex(sha256(all));
+}
+
+/**
+ * Forgets every signature that is remembered as verified. Nothing but time
+ * depends on what is remembered, so only a measurement needs this: one that
+ * means to time the checking of a signature forgets it first.
+ */
+export function forgetVerifiedSignatures(): void {
+  signaturesVerified.clear();
+}
 
 /**
  * A private copy of some bytes, or `undefined` if the value is not a byte
@@ -97,6 +132,42 @@ export function isEd25519PublicKey(publicKey: Uint8Array): boolean {
 }
 
 /**
+ * core 4.4 for one signature, with nothing remembered of it: the order
+ * checks of `A` and `R`, and the library's strict verification. The three
+ * arrays are the verifier's own copies.
+ */
+function checked(signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array): boolean {
+  if (!hasOrderL(publicKey)) return false;
+  if (!encodesPointOfOrderL(signature.subarray(0, PUBLIC_KEY_LENGTH))) return false;
+  const valid = ed25519.verify(signature, message, publicKey, { zip215: false });
+  // A `false` may be the library's answer to a failure of its own: see `retraced`.
+  if (!valid) retraced(signature, publicKey, RETRACE_DEPTH);
+  return valid;
+}
+
+/**
+ * Whether a signature verifies, checked once: a yes is remembered under the
+ * signature, the message and the key together, and given at once when the
+ * same three come again. A no is worked out again each time, as for a key,
+ * so a check that was cut short can never leave an honest signature marked
+ * as bad.
+ *
+ * It is not part of the package's interface. `check` is the verification; a
+ * test passes another to show what is remembered.
+ */
+export function verifiedOnce(
+  signature: Uint8Array,
+  message: Uint8Array,
+  publicKey: Uint8Array,
+  check: (signature: Uint8Array, message: Uint8Array, publicKey: Uint8Array) => boolean = checked,
+): boolean {
+  const name = nameOf(signature, publicKey, message);
+  // Asking marks it as used, so that what is verified often is what is kept.
+  if (signaturesVerified.has(name)) return signaturesVerified.get(name, () => true);
+  return check(signature, message, publicKey) && signaturesVerified.get(name, () => true);
+}
+
+/**
  * Verifies an Ed25519 signature under core 4.4. A signature (`R`, `S`) by
  * public key `A` is valid only if:
  *
@@ -107,6 +178,9 @@ export function isEd25519PublicKey(publicKey: Uint8Array): boolean {
  *
  * The library checks 1, 2 and 4 in its strict mode. It accepts points with a
  * small-order component, so 3 is checked here, for `A` and for `R`.
+ *
+ * A signature that verifies is remembered, with its message and its key, and
+ * verifies at once when the same three come again (`SIGNATURE_CACHE_SIZE`).
  *
  * It never throws: anything that is not a valid signature gives `false`.
  */
@@ -122,12 +196,7 @@ export function verifyEd25519(
     const text = snapshot(message);
     const key = snapshot(publicKey, PUBLIC_KEY_LENGTH);
     if (sig === undefined || text === undefined || key === undefined) return false;
-    if (!hasOrderL(key)) return false;
-    if (!encodesPointOfOrderL(sig.subarray(0, PUBLIC_KEY_LENGTH))) return false;
-    const valid = ed25519.verify(sig, text, key, { zip215: false });
-    // A `false` may be the library's answer to a failure of its own: see `retraced`.
-    if (!valid) retraced(sig, key, RETRACE_DEPTH);
-    return valid;
+    return verifiedOnce(sig, text, key);
   } catch (error) {
     noteCutShort(error);
     return false;
@@ -138,15 +207,15 @@ export function verifyEd25519(
  * How many frames of `retraced` lie above the steps taken again.
  *
  * Depth is what matters. The library takes the steps one frame below
- * `verifyEd25519`, the frame of its own `verify`. Taken again from no
+ * `checked`, the frame of its own `verify`. Taken again from no
  * deeper than that, they have room wherever the library had, and a failure
  * of the library's goes unseen: with the steps one frame of `retraced`
  * down, a process that had verified often answered `false` for a valid
  * signature, with nothing noted, at one depth in some hundreds. One frame
  * more was enough there. How large a frame is belongs to the engine and to
  * how it has compiled each function, so the margin is wide: sixteen frames
- * more, where one was enough. A spent stack on the way down is thrown to
- * `verifyEd25519`, which notes it. The steps are taken only after a
+ * more, where one was enough. A spent stack on the way down is thrown
+ * through `checked` to `verifyEd25519`, which notes it. The steps are taken only after a
  * `false`: a signature that verifies pays nothing for the depth.
  */
 const RETRACE_DEPTH = 16;

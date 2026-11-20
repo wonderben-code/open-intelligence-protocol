@@ -12,7 +12,7 @@
  * (ADR-0006).
  */
 
-import { contentId, formatRecordRef, proofDigest } from "@oip/core";
+import { contentId, forgetVerifiedSignatures, formatRecordRef, proofDigest } from "@oip/core";
 import { FirstSeen, judgeRecord, LogBook } from "@oip/identity";
 import type { JsonObject } from "@oip/testkit";
 import { at, intentBy, KeyMind, LATER, T } from "@oip/testkit/minds";
@@ -133,8 +133,14 @@ describe("a record signed through a delegation chain", () => {
     const ratios = { whole: [] as number[], named: [] as number[], policy: [] as number[] };
     const [first] = chain;
     for (let round = 1; round <= ROUNDS; round++) {
+      // What is timed is the checking of signatures: none is remembered from the call before.
       const measure = async (name: string, run: () => unknown): Promise<number> =>
-        (await bench(`${name} (round ${round})`, run).run()).latency.p50;
+        (
+          await bench(`${name} (round ${round})`, () => {
+            forgetVerifiedSignatures();
+            return run();
+          }).run()
+        ).latency.p50;
       const one = await measure("judgeRecord: one delegation, one proof", () => judgeRecord(first));
       ratios.whole.push(
         (await measure("judgeRecord + delegatedTime: a chain of eight, given whole", () =>

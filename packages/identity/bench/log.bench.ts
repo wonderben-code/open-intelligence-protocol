@@ -12,7 +12,7 @@
  * whole log against a thousand times the signature check of one event.
  */
 
-import { parseRecord, verifyProofs } from "@oip/core";
+import { forgetVerifiedSignatures, parseRecord, verifyProofs } from "@oip/core";
 import { KeyMind, LATER, witness } from "@oip/testkit/minds";
 import { describe, expect, test } from "vitest";
 
@@ -27,6 +27,12 @@ export const BUDGETS = {
    * event's signature. It measures at about 1.1.
    */
   overTheSignatures: 1.4,
+  /**
+   * How many times faster a log is verified again, once its signatures have
+   * verified: a verifier that is sent a copy of a log it has read pays for
+   * the reading and the hashing, and not again for the signatures.
+   */
+  againOverFirst: 5,
 } as const;
 
 const EVENTS = 1000;
@@ -49,14 +55,17 @@ describe("the budgets of BUILD.md 3.8", () => {
     const one = async (when: string): Promise<number> =>
       (
         await bench(`parseRecord + verifyProofs: one event of the log (${when})`, () => {
+          // What is timed is the checking of a signature: none is remembered from the call before.
+          forgetVerifiedSignatures();
           const parsed = parseRecord(oneEvent);
           return parsed.ok && verifyProofs(parsed.value).verified.length;
         }).run()
       ).latency.p50;
     const before = await one("before");
-    const whole = await bench("verifyLog: 1,000 events", () =>
-      verifyLog(events, { evidence, asOf: LATER }),
-    )
+    const whole = await bench("verifyLog: 1,000 events", () => {
+      forgetVerifiedSignatures();
+      return verifyLog(events, { evidence, asOf: LATER });
+    })
       // A few runs of some seconds each say enough; the default would take minutes.
       .run({ iterations: 3, time: 0, warmupIterations: 1, warmupTime: 0 });
     expect(whole.latency.min).toBeLessThan(BUDGETS.logOfAThousandEvents);
@@ -70,6 +79,21 @@ describe("the budgets of BUILD.md 3.8", () => {
     expect(whole.latency.p50 / (EVENTS * Math.min(before, after))).toBeLessThan(
       BUDGETS.overTheSignatures,
     );
+  });
+
+  test("verify again a log whose signatures verified before, for a fraction of the first time", async ({
+    bench,
+  }) => {
+    const options = { iterations: 3, time: 0, warmupIterations: 1, warmupTime: 0 };
+    const first = await bench("verifyLog: 1,000 events, none verified before", () => {
+      forgetVerifiedSignatures();
+      return verifyLog(events, { evidence, asOf: LATER });
+    }).run(options);
+    // The same log, read again: by a verifier that was sent a longer copy of it, or the same one.
+    const again = await bench("verifyLog: 1,000 events, all verified before", () =>
+      verifyLog(events, { evidence, asOf: LATER }),
+    ).run(options);
+    expect(again.latency.p50 * BUDGETS.againOverFirst).toBeLessThan(first.latency.p50);
   });
 
   test("answer at once for a log a book has verified", async ({ bench }) => {

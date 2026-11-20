@@ -39,10 +39,12 @@ export {
 export { compareDecimals, isAmount, isDecimal, MAX_DECIMAL_LENGTH } from "./decimal.ts";
 export {
   ed25519PublicKey,
+  forgetVerifiedSignatures,
   isEd25519PublicKey,
   ORDER_CHECK_CACHE_SIZE,
   PRIVATE_KEY_LENGTH,
   PUBLIC_KEY_LENGTH,
+  SIGNATURE_CACHE_SIZE,
   SIGNATURE_LENGTH,
   signEd25519,
   verifyEd25519,

@@ -12,7 +12,7 @@
  * signature: the records it reads were judged when they were taken in.
  */
 
-import { contentId, formatRecordRef, proofDigest } from "@oip/core";
+import { contentId, forgetVerifiedSignatures, formatRecordRef, proofDigest } from "@oip/core";
 import { FirstSeen, judgeRecord, LogBook } from "@oip/identity";
 import type { JsonObject } from "@oip/testkit";
 import { at, Collective, intentBy, KeyMind, LATER, type Mind, T } from "@oip/testkit/minds";
@@ -164,8 +164,14 @@ describe("a record among those a verifier holds", () => {
     expect(status(intent, at(100), context)).toStrictEqual({ ok: true, value: "satisfied" });
     const ratios = { role: [] as number[], commitment: [] as number[], intent: [] as number[] };
     for (let round = 1; round <= ROUNDS; round++) {
+      // What is timed is the checking of signatures: none is remembered from the call before.
       const measure = async (name: string, run: () => unknown): Promise<number> =>
-        (await bench(`${name} (round ${round})`, run).run()).latency.p50;
+        (
+          await bench(`${name} (round ${round})`, () => {
+            forgetVerifiedSignatures();
+            return run();
+          }).run()
+        ).latency.p50;
       const one = await measure("judgeRecord: one Intent, one proof", () => judgeRecord(asked));
       ratios.role.push(
         (await measure("judgeRecord + signedTime: for a collective, through a role", byRole)) / one,

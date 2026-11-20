@@ -23,6 +23,7 @@ import {
   contentId,
   createProofSync,
   ed25519PublicKey,
+  forgetVerifiedSignatures,
   hexToBytes,
   isEd25519PublicKey,
   parseJson,
@@ -67,6 +68,8 @@ export const BUDGETS = {
   recordOverLibrary: 4.6,
   /** One identity event with one proof, from text, likewise: about 2.0. */
   eventOverLibrary: 2.3,
+  /** A signature that verified before, verified again: one hash, and no arithmetic on the curve. */
+  verifiedBefore: 0.05,
 } as const;
 
 // A benchmark that reads an import on every call measures the module loader as well.
@@ -87,8 +90,21 @@ const genesis = pick("amina_log[0]");
 const genesisText = JSON.stringify(genesis);
 const intent = pick("intent");
 
-/** Verifies every proof of a record, read from text as a receiver reads it. */
+/**
+ * Runs `run` with no signature remembered as verified. What is timed here is
+ * the checking of a signature, and a signature that verified is remembered:
+ * a benchmark that verifies the same one again and again would time the memory.
+ */
+function afresh<T>(run: () => T): () => T {
+  return () => {
+    forgetVerifiedSignatures();
+    return run();
+  };
+}
+
+/** Verifies every proof of a record, read from text as a receiver reads it, as if for the first time. */
 function receive(text: string): number {
+  forgetVerifiedSignatures();
   const parsed = parseRecord(text);
   if (!parsed.ok) throw new Error("the record did not parse");
   const verdicts = verifyProofs(parsed.value);
@@ -142,6 +158,15 @@ describe("the budgets of BUILD.md 3.8", () => {
     expect(result.latency.p50).toBeLessThan(0.05);
   });
 
+  test("remember a signature that verified", async ({ bench }) => {
+    expect(verify(signature, message, publicKey)).toBe(true);
+    const result = await bench("verifyEd25519: a signature verified before", () =>
+      verify(signature, message, publicKey),
+    ).run();
+    // Three scalar multiplications take about two milliseconds; a remembered answer is one hash.
+    expect(result.latency.p50).toBeLessThan(BUDGETS.verifiedBefore);
+  });
+
   test("stay close to the bare library: the regression check that does not depend on the machine", async ({
     bench,
   }) => {
@@ -155,8 +180,9 @@ describe("the budgets of BUILD.md 3.8", () => {
         libraryVerify(signature, message, publicKey, { zip215: false }),
       );
       ratios.overLibrary.push(
-        (await measure("verifyEd25519: one signature, public key seen before", () =>
-          verify(signature, message, publicKey),
+        (await measure(
+          "verifyEd25519: one signature, public key seen before",
+          afresh(() => verify(signature, message, publicKey)),
         )) / bare,
       );
       ratios.record.push(
@@ -177,9 +203,16 @@ describe("the budgets of BUILD.md 3.8", () => {
 });
 
 const parts: [name: string, run: () => unknown][] = [
-  ["verifyProofs: a Commitment with two proofs, already parsed", () => verifyProofs(commitment)],
+  [
+    "verifyProofs: a Commitment with two proofs, already parsed",
+    afresh(() => verifyProofs(commitment)),
+  ],
   [
     "verifyEd25519: one signature, public key seen before",
+    afresh(() => verifyEd25519(signature, message, publicKey)),
+  ],
+  [
+    "verifyEd25519: the same signature, verified before",
     () => verifyEd25519(signature, message, publicKey),
   ],
   [
@@ -197,12 +230,13 @@ const parts: [name: string, run: () => unknown][] = [
   ["contentId: a Commitment with two proofs", () => contentId(commitment)],
   [
     "createProofSync: sign an Intent and verify the result",
-    () =>
+    afresh(() =>
       createProofSync(
         intent,
         { verificationMethod: selfMethod, created: method?.created ?? "" },
         signer,
       ),
+    ),
   ],
 ];
 

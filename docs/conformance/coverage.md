@@ -187,11 +187,11 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 3.4 | MUST | M2 | 21 | tested | Controllers. A mind is either key-controlled or member-controlled, fixed at genesis: every late… |
 | L1 3.5 | MUST | M2 | 11 | tested | Key entries. Three key sets appear at the top level of events, each as an array of objects `{ "… |
 | L1 3.6 | MUST | M2 | 17 | tested | `Genesis`. \| Member \| Required \| Value \| \|---\|---\|---\| \| `oip`, `type`, `created`, `proof` \| ye… |
-| L1 3.7 | MUST | M2 | 9 | tested | `Update`. In addition to the common fields of 3.2: `controller` (REQUIRED for key-controlled mi… |
-| L1 3.8 | MUST | M2 | 4 | tested | `Fork`. In addition to the common fields: `child` (REQUIRED, the address of the child mind), `c… |
+| L1 3.7 | MUST | M2 | 16 | tested | `Update`. In addition to the common fields of 3.2: `controller` (REQUIRED for key-controlled mi… |
+| L1 3.8 | MUST | M2 | 5 | tested | `Fork`. In addition to the common fields: `child` (REQUIRED, the address of the child mind), `c… |
 | L1 3.9 | MUST | M2 | 6 | tested | `Merge` is reserved. A verifier of this revision MUST reject a log that contains a `Merge` even… |
-| L1 3.10 | MAY | M2 | 8 | tested | `Retire`. In addition to the common fields: `controller` (as in 3.7, with `next` empty for key-… |
-| L1 3.11 | MUST | M6 | 17 | tested | Identity events are signed with `proofPurpose` `capabilityInvocation`. Proofs by control keys u… |
+| L1 3.10 | MAY | M2 | 9 | tested | `Retire`. In addition to the common fields: `controller` (as in 3.7, with `next` empty for key-… |
+| L1 3.11 | MUST | M6 | 24 | tested | Identity events are signed with `proofPurpose` `capabilityInvocation`. Proofs by control keys u… |
 | L1 3.12 | MUST | M2 | 3 | tested | Reserved names. The member name `recovery` is reserved in identity events for key recovery in a… |
 | L1 3.13 |  | M2 | 1 | tested | HTTPS origins. An HTTPS origin is a string that matches `^https://[A-Za-z0-9.:\[\]-]+$` from it… |
 | L1 4 | MUST | M2 | 9 | tested | A verifier MUST reject a log unless all of the following hold. |
@@ -208,13 +208,13 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 5.2 |  | M2 | 7 | tested | DID document. Resolving a `did:oip` address produces a DID Core document: - `id`: the address.… |
 | L1 5.3 | MUST | M6 | 0 | pending M6 | Aliases. An entry in `alsoKnownAs` is verified only when the alias points back to the mind: ano… |
 | L1 6.1 |  | M2 | 24 | tested | A proof `p` on a record of type `T`, whose verification method is `did:oip:X?versionId=V#K`, is… |
-| L1 6.2 |  | M2 | 5 | tested | Removing a key stops it signing anything new while leaving what it signed earlier valid, provid… |
+| L1 6.2 |  | M2 | 6 | tested | Removing a key stops it signing anything new while leaving what it signed earlier valid, provid… |
 | L1 6.3 | MUST | M2 | 1 | tested | When a verifier encounters a `versionId` it does not have, it SHOULD fetch the missing events f… |
 | L1 6.4 |  | M2 | 11 | tested | Member proofs on identity events. A proof `p` by member `M` on another mind's identity event `e… |
 | L1 7.1 |  | M2 | 120 | tested | Two events with different content IDs in logs with the same genesis, at the same `seq`, each va… |
-| L1 7.2 | MUST | M5 | 10 | tested | Resolvers MUST retain the first valid event they saw at each position of each log, MUST record… |
+| L1 7.2 | MUST | M5 | 12 | tested | Resolvers MUST retain the first valid event they saw at each position of each log, MUST record… |
 | L1 7.3 | MUST | M2 | 35 | tested | Resolution. A verifier MUST NOT choose between conflicting branches by their length or by which… |
-| L1 7.4 | MUST | M6 | 8 | tested | Protecting the log. Implementations MUST destroy a control key's private part once the event it… |
+| L1 7.4 | MUST | M6 | 17 | tested | Protecting the log. Implementations MUST destroy a control key's private part once the event it… |
 | L1 8.1 |  | M2 | 4 | tested | A fork is a new mind whose genesis lists a parent in `parents`, with `at` naming the version of… |
 | L1 8.2 |  | M2 | 6 | tested | Lineage is acknowledged when the child's `at` names a version of the parent and either the pare… |
 | L1 8.3 |  | M2 | 3 | tested | A `Lineage` record acknowledges a child without using the parent's control keys: \| Member \| Req… |

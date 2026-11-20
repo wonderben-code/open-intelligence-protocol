@@ -81,3 +81,23 @@ export {
   type VectorCase,
   type Vectors,
 } from "./vectors.ts";
+export {
+  WireClient,
+  type WireAnswer,
+  type WireAsking,
+  type WireFrame,
+  type WireOptions,
+  type WireRequest,
+  type WireSocket,
+  type WireStream,
+  type WireStreamEvent,
+} from "./wire/client.ts";
+export { type Randomness, type SignedEvent, WireMind } from "./wire/minds.ts";
+export {
+  WIRE_PROFILES,
+  type WireCheck,
+  type WireOutcome,
+  type WireProfile,
+  type WireReport,
+} from "./wire/report.ts";
+export { resolverProfile } from "./wire/resolver.ts";

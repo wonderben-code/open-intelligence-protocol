@@ -51,6 +51,10 @@
     "@oip/web": "workspace:*"
   },
   "devDependencies": {
+    "@oip/host": "workspace:*",
+    "@oip/indexer": "workspace:*",
+    "@oip/resolver": "workspace:*",
+    "@oip/server": "workspace:*",
     "@oip/testkit": "workspace:*"
   }
 }

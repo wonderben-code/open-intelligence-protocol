@@ -248,6 +248,18 @@ importers:
         specifier: workspace:*
         version: link:../web
     devDependencies:
+      '@oip/host':
+        specifier: workspace:*
+        version: link:../host
+      '@oip/indexer':
+        specifier: workspace:*
+        version: link:../indexer
+      '@oip/resolver':
+        specifier: workspace:*
+        version: link:../resolver
+      '@oip/server':
+        specifier: workspace:*
+        version: link:../server
       '@oip/testkit':
         specifier: workspace:*
         version: link:../testkit

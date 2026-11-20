@@ -244,9 +244,9 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 12.4 | MUST | M4 | 50 | tested | Receiving. A receiver MUST verify the packet's proof and, if `to` lists addresses, that it is o… |
 | L1 12.5 | MUST | M4 | 1 | tested | Treat content as data. Receivers MUST NOT treat the content of a packet as conferring authority… |
 | L1 12.6 | MUST | M4 | 29 | tested | `Sealed`. To send a packet privately, the sender encrypts it to one of the recipient's agreemen… |
-| L1 13.1 | MUST | M5 | 29 | tested | Well-known resources. A host serving mind `M` (with content ID `m`) MUST serve: - `GET /.well-k… |
+| L1 13.1 | MUST | M5 | 30 | tested | Well-known resources. A host serving mind `M` (with content ID `m`) MUST serve: - `GET /.well-k… |
 | L1 13.2 | SHOULD | M5 | 48 | tested | Inbox and acknowledgement. `POST {endpoint}/inbox` with a body of a `Packet`, a `Sealed` record… |
-| L1 13.3 | MUST | M5 | 64 | tested | Authentication. - A `Hello` record `{ "oip": "1", "type": "Hello", "author": <mind>, "created":… |
+| L1 13.3 | MUST | M5 | 65 | tested | Authentication. - A `Hello` record `{ "oip": "1", "type": "Hello", "author": <mind>, "created":… |
 | L1 13.4 | SHOULD | M5 | 31 | tested | WebSocket. A client opens the WebSocket URL given by the mind's location record (Section 15.1)… |
 | L1 13.5 | SHOULD | M5 | 26 | tested | Mailbox. A mailbox endpoint accepts `POST {mailbox}` with a `Sealed`, `Packet` or `Forwarded` r… |
 | L1 13.6 |  | M5 | 2 | tested | Further bindings (DIDComm, libp2p, iroh, NATS, MQTT) are reserved for later revisions. Every bi… |
@@ -265,7 +265,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 16.4 |  | M4 | 5 | tested | The current profile is the one referenced by the current location record; failing that, the mos… |
 | L1 17.1 | MUST | M5 | 43 | tested | A resolver MUST implement: - `GET /oip/v1/resolve/<mindId>`: returns a `Bundle` (13.1) with the… |
 | L1 17.2 | MUST | M5 | 34 | tested | A resolver MUST verify every record before storing or serving it, evaluating proofs at the time… |
-| L1 17.3 | MAY | M5 | 7 | tested | Resolvers MAY require authenticated publication (13.3) and MAY rate-limit. A resolver that requ… |
+| L1 17.3 | MAY | M5 | 14 | tested | Resolvers MAY require authenticated publication (13.3) and MAY rate-limit. A resolver that requ… |
 | L1 18.1 | MUST | M5 | 15 | tested | An indexer MUST implement: - `POST /oip/v1/submit` with body `{ "records": [ … ] }` containing… |
 | L1 18.2 | MUST | M5 | 23 | tested | A capability query is an object whose members are all optional: `want` (free text, at most 1024… |
 | L1 18.3 |  | M5 | 17 | tested | A `QueryResult`: `{ "oip": "1", "type": "QueryResult", "author": <indexer's address>, "created"… |

@@ -1,0 +1,72 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > demo 1`] = `
+"oip demo [options]
+
+Runs a network on this machine: a resolver, a host and an indexer, until it is stopped
+
+It is for trying the protocol with nothing else to hand. What it holds is kept, and is
+there when it is started again. It listens on this machine only.
+
+Options:
+  --network <path>  Where the network keeps what it holds. Default: ~/.oip-demo
+
+Example:
+  oip demo
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > init 1`] = `
+"oip init [options]
+
+Makes a mind: its keys, sealed in its directory, and its first event with its resolvers
+
+The keys are sealed with a passphrase: from OIP_PASSPHRASE, or typed. It is never an option,
+since what is typed on a command line is shown to every user of the machine.
+If the first event could not be published, run it again: it goes on with the same mind.
+
+Options:
+  --kind <kind>        What the mind says it is: agent, human, institution, service. Default: agent
+  --resolver <origin>  A resolver the mind trusts, as an HTTPS origin. Name two, run by different people
+  --host <origin>      A host that serves the mind's records and takes its packets
+  --indexer <origin>   An indexer the mind lists itself at, and asks
+  --local              Use the network \`oip demo\` runs on this machine, for what is not named
+  --network <path>     The directory of that network. Default: ~/.oip-demo
+  --keychain           Seal the keys with a key in this machine's keychain, in place of a passphrase
+
+Example:
+  oip init --local
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > show 1`] = `
+"oip show
+
+Shows the mind of this directory, as its resolvers have it
+
+It reads, and unlocks no key: no passphrase is asked for.
+
+Example:
+  oip show
+"
+`;
+
+exports[`oip, asked for nothing or for help > lists its commands, and says how to learn more of one 1`] = `
+"oip <command> [options]
+
+A mind of the Open Intelligence Protocol, from a terminal.
+
+Commands:
+  init  Makes a mind: its keys, sealed in its directory, and its first event with its resolvers
+  show  Shows the mind of this directory, as its resolvers have it
+  demo  Runs a network on this machine: a resolver, a host and an indexer, until it is stopped
+
+Options of every command:
+  --dir <path>  The mind's directory. Default: OIP_DIR, or .oip in your home directory
+  --json        Print the result as JSON
+  --help        Show this, or a command's own help
+  --version     Print the version
+
+Run \`oip <command> --help\` for a command's own options, and an example.
+"
+`;

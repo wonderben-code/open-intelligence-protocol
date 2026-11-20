@@ -39,6 +39,9 @@
     },
     {
       "path": "packages/conformance/tsconfig.build.json"
+    },
+    {
+      "path": "packages/cli/tsconfig.build.json"
     }
   ]
 }

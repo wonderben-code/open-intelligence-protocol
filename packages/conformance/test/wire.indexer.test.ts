@@ -23,6 +23,7 @@ import {
   faulty,
   notPassed,
   rewritten,
+  FAULT_TIMEOUT_MS,
 } from "./wire-faults.ts";
 
 const ORIGIN = "https://indexer.example";
@@ -90,7 +91,7 @@ const against = (
     target,
     origin: ORIGIN,
     fetch: faulty(fault),
-    timeoutMs: 1500,
+    timeoutMs: FAULT_TIMEOUT_MS,
     inbox: { endpoint: INBOX, taken: () => seen(posted) },
   });
 
@@ -520,8 +521,7 @@ describe.concurrent("an indexer with a fault fails the checks that the fault bre
         records.flatMap((record) =>
           [...times].some(
             ([body, count]) =>
-              count > 1 &&
-              contentId(JSON.parse(body) as object) === contentId(record["packet"]),
+              count > 1 && contentId(JSON.parse(body) as object) === contentId(record["packet"]),
           )
             ? [record, record]
             : [record],

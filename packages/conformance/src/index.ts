@@ -103,3 +103,11 @@ export {
 export { resolverProfile } from "./wire/resolver.ts";
 export { type HostOptions, hostProfile, type HostSetup, referenceHostSetup } from "./wire/host.ts";
 export { type IndexerOptions, indexerProfile, type WatchedInbox } from "./wire/indexer.ts";
+export {
+  command,
+  formatReport,
+  readArguments,
+  runWire,
+  USAGE,
+  type WireCommand,
+} from "./wire/run.ts";

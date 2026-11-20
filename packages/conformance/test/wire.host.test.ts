@@ -29,6 +29,7 @@ import {
   notPassed,
   rewritten,
   type SocketFault,
+  FAULT_TIMEOUT_MS,
 } from "./wire-faults.ts";
 
 const ORIGIN = "https://host.example";
@@ -94,7 +95,7 @@ const against = (
     origin: ORIGIN,
     fetch: faulty(fault),
     webSocket: faultySocket(socket),
-    timeoutMs: 1500,
+    timeoutMs: FAULT_TIMEOUT_MS,
     ...(setup === undefined ? {} : { setup }),
   });
 

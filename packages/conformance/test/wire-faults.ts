@@ -10,6 +10,12 @@
 
 import type { WireReport } from "../src/index.ts";
 
+/**
+ * How long one answer may take in a run with a fault. It is long enough for a busy machine
+ * to answer a megabyte, and short enough for the few checks that wait for what a fault withholds.
+ */
+export const FAULT_TIMEOUT_MS = 5000;
+
 /** A request as a fault sees it. */
 export interface Asked {
   readonly method: string;

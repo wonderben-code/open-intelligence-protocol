@@ -1,7 +1,7 @@
 {
   "name": "@oip/conformance",
   "version": "0.0.0",
-  "description": "The Open Intelligence Protocol conformance suite: the golden test vectors, run against any implementation through an adapter.",
+  "description": "The Open Intelligence Protocol conformance suite: the golden test vectors, run against any implementation through an adapter, and the service profiles, run against any implementation over the wire.",
   "license": "Apache-2.0",
   "author": "Ekram Alam",
   "repository": {
@@ -56,5 +56,8 @@
     "@oip/resolver": "workspace:*",
     "@oip/server": "workspace:*",
     "@oip/testkit": "workspace:*"
+  },
+  "bin": {
+    "oip-conformance": "./dist/bin.js"
   }
 }

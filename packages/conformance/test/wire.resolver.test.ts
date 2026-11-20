@@ -21,6 +21,7 @@ import {
   notPassed,
   restreamed,
   rewritten,
+  FAULT_TIMEOUT_MS,
 } from "./wire-faults.ts";
 
 const ORIGIN = "https://resolver.example";
@@ -63,7 +64,7 @@ afterAll(async () => {
 
 /** The profile run against a resolver with a fault in the way. */
 const against = (target: string, fault: Fault): Promise<WireReport> =>
-  resolverProfile({ target, origin: ORIGIN, fetch: faulty(fault), timeoutMs: 1500 });
+  resolverProfile({ target, origin: ORIGIN, fetch: faulty(fault), timeoutMs: FAULT_TIMEOUT_MS });
 
 const isResolve = (path: string): boolean => path.startsWith("/oip/v1/resolve/");
 

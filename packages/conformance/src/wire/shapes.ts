@@ -82,10 +82,18 @@ export function expectLog(served: unknown, events: readonly object[], when: stri
   );
 }
 
-/** Whether a log verifies by itself, first seen at `now` (Layer 1, Section 4). */
+/**
+ * Whether a log verifies by itself, every event of it, first seen at `now`
+ * (Layer 1, Section 4).
+ */
 export function verifies(log: unknown, now: Instant): boolean {
   const seen = new FirstSeen();
-  return new LogBook(seen).witness(log, now, seen).ok;
+  const book = new LogBook(seen);
+  // A book takes a copy as it comes, and judges it when it is asked for the log.
+  const held = book.witness(log, now, seen);
+  if (!held.ok || !Array.isArray(log)) return false;
+  const judged = book.log(held.value);
+  return judged.ok && judged.value.entries.length === log.length;
 }
 
 /**

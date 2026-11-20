@@ -28,14 +28,23 @@ export class Verifier {
     for (const event of mind.events) {
       this.seen.sawEvent(contentId(event), present(parseTimestamp(event.created)));
     }
-    if (!this.book.hold(mind.events, now).ok) {
+    // A book takes a copy as it comes, and judges it when it is asked for the log.
+    const held = this.book.hold(mind.events, now);
+    const judged = held.ok ? this.book.log(mind.address) : held;
+    if (!judged.ok || judged.value.entries.length !== mind.events.length) {
       throw new TypeError("the suite made a log that does not verify");
     }
   }
 
-  /** Takes in a log that an implementation served, first seen at `now`. Whether it verified. */
+  /**
+   * Takes in a log that an implementation served, first seen at `now`.
+   * Whether it verified, every event of it.
+   */
   learns(events: unknown, now: Instant): boolean {
-    return this.book.witness(events, now, this.seen).ok;
+    const held = this.book.witness(events, now, this.seen);
+    if (!held.ok || !Array.isArray(events)) return false;
+    const judged = this.book.log(held.value);
+    return judged.ok && judged.value.entries.length >= events.length;
   }
 
   /**

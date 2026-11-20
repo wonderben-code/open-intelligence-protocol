@@ -191,6 +191,26 @@ jobs:
       - name: From nothing to an accepted Commitment between two minds
         run: node scripts/newcomer.ts
 
+  mcp-inspector:
+    name: The MCP server under the MCP Inspector
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      # Builds, starts `oip demo`, makes two minds, and has the Inspector's command line list
+      # the tools of `oip-mcp` (with its strict check of their schemas), call three of them,
+      # and get no signature for a Commitment it cannot ask the person about (BUILD.md, M8).
+      # The Inspector is fetched by npx at the version the script pins. This job holds no secret.
+      - name: The Inspector lists the tools, calls them, and gets no signature unasked
+        run: node scripts/mcp-inspector.ts
+
   test:
     name: Test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest

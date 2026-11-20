@@ -34,6 +34,7 @@
     "docs": "typedoc",
     "changeset": "changeset",
     "newcomer": "node scripts/newcomer.ts",
+    "mcp:inspector": "node scripts/mcp-inspector.ts",
     "ci": "node scripts/ci.ts"
   },
   "devDependencies": {

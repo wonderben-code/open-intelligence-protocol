@@ -55,9 +55,10 @@ const HELP = [
   "The mind is made first, with `oip init`. Its keys are opened by OIP_PASSPHRASE, or by the",
   "machine's keychain if the mind was made with `oip init --keychain`.",
   "",
-  "Before a Commitment is signed the person is asked to confirm it. A file policy.json in the",
-  "mind's directory says which Commitments need not be asked about:",
-  '  { "commit": [["==", ".terms.price.currency", "USD"], ["<=", ".terms.price.amount", "50"]] }',
+  "Before a Commitment or a Receipt is signed the person is asked to confirm it. A file",
+  "policy.json in the mind's directory says which need not be asked about:",
+  '  { "commit": [["==", ".terms.price.currency", "USD"], ["<=", ".terms.price.amount", "50"]],',
+  '    "receipt": [["==", ".outcome", "progress"]] }',
   "",
 ].join("\n");
 
@@ -115,9 +116,9 @@ export function main(
     host.once("SIGTERM", stop);
     log(
       `oip-mcp ${VERSION}: serving the mind of ${dir}. ${
-        policy.commit === undefined
-          ? "Every Commitment is confirmed by the person."
-          : "A Commitment is confirmed by the person unless policy.json permits it."
+        policy.commit === undefined && policy.receipt === undefined
+          ? "Every Commitment and every Receipt is confirmed by the person."
+          : "A Commitment or a Receipt is confirmed by the person unless policy.json permits it."
       }`,
     );
     return undefined;

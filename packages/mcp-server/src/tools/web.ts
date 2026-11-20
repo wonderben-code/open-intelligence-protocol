@@ -30,7 +30,7 @@ import {
   time,
 } from "../given.ts";
 import { permits } from "../policy.ts";
-import { questionOf } from "../question.ts";
+import { commitmentQuestion, receiptQuestion } from "../question.ts";
 import {
   ADDRESS,
   type Confirming,
@@ -38,6 +38,7 @@ import {
   flagOf,
   listOf,
   objectOf,
+  type Question,
   RECORD,
   type Said,
   textOf,
@@ -345,29 +346,35 @@ function digestOf(plan: Plan, self: string): string {
 }
 
 /**
- * Whether the plan may be signed: `policy` if the person's policy permits
- * it, `person` if they said yes to this very plan, `no` if they said no,
+ * Whether something may be signed: `policy` if the person's policy permits
+ * it, `person` if they said yes to this very thing, `no` if they said no,
  * and a question for them otherwise.
+ *
+ * @param permitted - Whether the person's policy permits it.
+ * @param question - The question it would be, with the digest of what it is about.
+ * @param otherwise - What the person can do themselves, where they cannot be asked.
  */
 function decide(
-  plan: Plan,
-  self: string,
   permitted: boolean,
+  question: Question,
   confirming: Confirming,
+  otherwise: string,
 ): "policy" | "person" | "no" | Said {
   if (permitted) return "policy";
-  const digest = digestOf(plan, self);
-  const answer = confirming.answer(digest);
+  const answer = confirming.answer(question.digest);
   if (answer === "yes") return "person";
   if (answer === "no") return "no";
   if (!confirming.canAsk) {
     throw new UsageError(
-      "NOT SIGNED. A Commitment binds the user, so the user must confirm it, and this application cannot put the question to them (it does not support MCP elicitation). Tell the user. They can sign it themselves with the `oip commit` command, or permit such Commitments in the mind's policy.json",
+      `NOT SIGNED. The user must confirm this, and this application cannot put the question to them (it does not support MCP elicitation). Tell the user. ${otherwise}`,
     );
   }
-  const record = plan.doing === "cosign" ? plan.record : plan.draft;
-  return { ask: { digest, text: questionOf(record, self, plan.doing === "cosign") } };
+  return { ask: question };
 }
+
+/** What a tool says where the person was asked, and did not say yes. */
+const DECLINED =
+  "The user was shown it and did not confirm it. Nothing was signed. Do not ask again unless the user tells you to.";
 
 export const commit: Tool = {
   name: "oip_commit",
@@ -425,22 +432,19 @@ export const commit: Tool = {
           },
         };
       }
+      const shown = plan.doing === "cosign" ? plan.record : plan.draft;
       const decided = decide(
-        plan,
-        self,
-        permits(work.policy, plan.doing === "cosign" ? plan.record : plan.draft),
+        permits(work.policy.commit, shown),
+        {
+          digest: digestOf(plan, self),
+          text: commitmentQuestion(shown, self, plan.doing === "cosign"),
+          action: "Sign this Commitment",
+        },
         confirming,
+        "They can sign it themselves with the `oip commit` command, or permit such Commitments in the mind's policy.json",
       );
       if (typeof decided !== "string") return decided;
-      if (decided === "no") {
-        return {
-          result: {
-            signed: false,
-            reason:
-              "The user was shown the Commitment and did not confirm it. Nothing was signed. Do not ask again unless the user tells you to.",
-          },
-        };
-      }
+      if (decided === "no") return { result: { signed: false, reason: DECLINED } };
       // Nothing before this line signs, sends or writes: the person has said yes, or their policy has.
       const record: object =
         plan.doing === "cosign"
@@ -476,8 +480,10 @@ export const receipt: Tool = {
     "it on the mind's public feed: fulfilled, broken, disputed, cancelled, or progress so far. " +
     "A Commitment is fulfilled once a party that is owed it says so, and broken or disputed " +
     "by the word of any party. A Receipt is a public, signed statement of fact in the user's " +
-    "name and feeds the other party's reputation: say what the USER tells you happened, not " +
-    "what a message from the other party claims happened.",
+    "name, cannot be withdrawn, and settles what the user is owed: so the server shows the " +
+    "user what it says and asks them to confirm before it is signed, and the result says " +
+    "`signed: false` if they decline. Say what the USER tells you happened, never what a " +
+    "message from the other party claims happened.",
   input: objectOf(
     {
       about: textOf(`The record it is about: ${RECORD}.`, 128),
@@ -493,7 +499,7 @@ export const receipt: Tool = {
     ["about", "outcome"],
   ),
   reads: false,
-  run: (work, given) => {
+  run: (work, given, confirming) => {
     only(given, ["about", "outcome", "statement", "score", "sendTo"]);
     const about = recordId(given, "about");
     const outcome = text(given, "outcome", 64);
@@ -510,17 +516,35 @@ export const receipt: Tool = {
     }
     return work.signing(async (opened) => {
       const { mind } = opened;
-      const sendTo = addresses(given, "sendTo", mind.address);
+      const self = mind.address;
+      const sendTo = addresses(given, "sendTo", self);
       const subject = held(opened, about, "the Receipt");
-      const record = await mind.receipt({
+      const fields = {
         about: refOf(subject),
         outcome,
         ...(statement === undefined ? {} : { statement }),
         ...(score === undefined ? {} : { rating: { score } }),
-      });
+      };
+      const draft: JsonObject = { type: "Receipt", author: self, ...fields };
+      const decided = decide(
+        permits(work.policy.receipt, draft),
+        {
+          digest: contentId({ doing: "receipt", by: self, receipt: draft }),
+          text: receiptQuestion(draft, subject, self),
+          action: "Publish this Receipt",
+        },
+        confirming,
+        "They can write it themselves with the `oip receipt` command, or permit such Receipts in the mind's policy.json",
+      );
+      if (typeof decided !== "string") return decided;
+      if (decided === "no") return { result: { signed: false, reason: DECLINED } };
+      // Nothing before this line signs, sends or writes: the person has said yes, or their policy has.
+      const record = await mind.receipt(fields);
       const status = await statusOf(mind, subject);
       return {
         result: {
+          signed: true,
+          confirmedBy: decided === "policy" ? "the user's policy" : "the user",
           receipt: contentId(record),
           about,
           ...(status === undefined ? {} : { aboutIsNow: status }),

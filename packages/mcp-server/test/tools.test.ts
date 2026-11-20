@@ -83,7 +83,7 @@ describe("oip_whoami", () => {
       homes: ["https://host.oip.localhost"],
       resolvers: ["https://resolver.oip.localhost"],
       indexers: ["https://indexer.oip.localhost"],
-      signing: "A Commitment is signed only after the user confirms it.",
+      signing: "A Commitment or a Receipt is signed only after the user confirms it.",
       warnings: ["No profile is published, so others cannot find this mind by what it does."],
     });
     const said = await call(bobs, "oip_whoami");
@@ -341,19 +341,48 @@ describe("a deal, from an Offer to a Receipt", () => {
     );
   });
 
-  it(`${clause("L0 2.2")} oip_receipt creates and publishes a Receipt`, async () => {
+  it(`${clause("L0 2.2")} oip_receipt creates and publishes a Receipt, once the person has said yes to what it says`, async () => {
     expect(await call(adas, "oip_inbox")).toMatchObject({ new: 1 });
     expect(await call(adas, "oip_status", { record: commitment })).toMatchObject({
       status: "accepted",
     });
-    const said = await call(adas, "oip_receipt", {
+    const given = {
       about: commitment,
       outcome: "fulfilled",
       statement: "The translation arrived, and reads well.",
       score: "0.9",
       sendTo: [bob],
+    };
+    // A Receipt is the person's word, in public and for good: they are asked.
+    await expect(call(adas, "oip_receipt", given, SILENT)).rejects.toThrow(/^NOT SIGNED\./u);
+    const question = await asked(adas, "oip_receipt", given);
+    expect(question.action).toBe("Publish this Receipt");
+    expect(question.text).toContain("PUBLISH A RECEIPT in your name");
+    expect(question.text).toContain("is now FULFILLED: what was promised has been done.");
+    expect(question.text).toContain("  The translation arrived, and reads well.");
+    expect(question.text).toContain("Your rating: 0.9 out of 1");
+    expect(question.text).toContain(`  creditor: ${ada} (YOU)`);
+    expect(question.text).toContain("  An English translation of a Swahili lease");
+    expect(question.text).toContain(
+      "You are owed what it promises. Saying it is fulfilled says you have received it.",
+    );
+    expect(await call(adas, "oip_receipt", given, answering(question.digest, "no"))).toMatchObject({
+      signed: false,
     });
+    // A yes to "fulfilled" is no yes to "broken".
+    const other = await toolOf("oip_receipt").run(
+      adas,
+      { ...given, outcome: "broken" },
+      answering(question.digest, "yes"),
+    );
+    expect(other).toHaveProperty("ask");
+    expect(await call(adas, "oip_status", { record: commitment })).toMatchObject({
+      status: "accepted",
+    });
+    const said = await call(adas, "oip_receipt", given, answering(question.digest, "yes"));
     expect(said).toMatchObject({
+      signed: true,
+      confirmedBy: "the user",
       about: commitment,
       aboutIsNow: "fulfilled",
       says: { type: "Receipt", author: ada, outcome: "fulfilled", rating: { score: "0.9" } },
@@ -366,6 +395,20 @@ describe("a deal, from an Offer to a Receipt", () => {
     await expect(
       call(adas, "oip_receipt", { about: commitment, outcome: "fulfilled", score: "9" }),
     ).rejects.toThrow("a rating from 0 to 1");
+  });
+
+  it(`${clause("L0 2.2")} oip_receipt signs unasked what the person's policy permits of Receipts, and no more`, async () => {
+    const permitted = place.work("bob", { receipt: [["==", ".outcome", "progress"]] });
+    expect(
+      await call(permitted, "oip_receipt", { about: commitment, outcome: "progress" }, SILENT),
+    ).toMatchObject({ signed: true, confirmedBy: "the user's policy" });
+    await expect(
+      call(permitted, "oip_receipt", { about: commitment, outcome: "disputed" }, SILENT),
+    ).rejects.toThrow(/^NOT SIGNED\./u);
+    // What permits a Receipt permits no Commitment.
+    await expect(
+      call(permitted, "oip_commit", { debtors: ["me"], creditors: [ada], promise: "More" }, SILENT),
+    ).rejects.toThrow(/^NOT SIGNED\./u);
   });
 });
 

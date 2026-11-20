@@ -51,9 +51,9 @@ export const whoami: Tool = {
           resolvers: [...config.resolvers],
           indexers: [...config.indexers],
           signing:
-            work.policy.commit === undefined
-              ? "A Commitment is signed only after the user confirms it."
-              : "A Commitment is signed after the user confirms it, or unasked where the user's policy permits it.",
+            work.policy.commit === undefined && work.policy.receipt === undefined
+              ? "A Commitment or a Receipt is signed only after the user confirms it."
+              : "A Commitment or a Receipt is signed after the user confirms it, or unasked where the user's policy permits it.",
           ...(warnings.length === 0 ? {} : { warnings }),
         },
       };
@@ -235,7 +235,7 @@ export const status: Tool = {
               ? { author, signedByAuthor: await mind.countsFor(record, author) }
               : {}),
           ...(type === "Commitment"
-            ? { policyPermitsSigningUnasked: permits(work.policy, record) }
+            ? { policyPermitsSigningUnasked: permits(work.policy.commit, record) }
             : {}),
         },
       };

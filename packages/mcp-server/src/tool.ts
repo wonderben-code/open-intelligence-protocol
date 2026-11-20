@@ -20,6 +20,8 @@ export interface Question {
   readonly digest: string;
   /** The question, in words written by this server from what would be signed. */
   readonly text: string;
+  /** What saying yes does, in a few words: the name of the box the person ticks. */
+  readonly action: string;
 }
 
 /** How a tool learns what the person said, where it has to ask them. */

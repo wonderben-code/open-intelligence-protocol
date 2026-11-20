@@ -26,7 +26,7 @@ export { ANSWER_SECONDS } from "./confirm.ts";
 export type { Given } from "./given.ts";
 export { type Host, main, type Serve } from "./main.ts";
 export { permits, type Policy, POLICY_FILE, readPolicy } from "./policy.ts";
-export { questionOf } from "./question.ts";
+export { commitmentQuestion, receiptQuestion } from "./question.ts";
 export { INSTRUCTIONS, NAME, serverFactory, type ServerOptions, VERSION } from "./server.ts";
 export type { Confirming, Question, Said, Tool } from "./tool.ts";
 export { TOOLS } from "./tools/index.ts";

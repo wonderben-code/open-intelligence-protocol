@@ -28,6 +28,8 @@ import {
   type ServerContext,
 } from "@modelcontextprotocol/server";
 
+import type { Question } from "./tool.ts";
+
 /** How long an answer may take, in seconds. A person is not hurried. */
 export const ANSWER_SECONDS = 600;
 
@@ -63,10 +65,9 @@ export class Confirmations {
     this.#codec.verify(state, context);
 
   /** What a tool's question goes to the host as: the question, and the state to bring back. */
-  async asking(question: {
-    readonly digest: string;
-    readonly text: string;
-  }): Promise<{ inputRequests: Record<string, InputRequest>; requestState: string }> {
+  async asking(
+    question: Question,
+  ): Promise<{ inputRequests: Record<string, InputRequest>; requestState: string }> {
     const nonce = hex(globalThis.crypto.getRandomValues(new Uint8Array(16)));
     return {
       inputRequests: {
@@ -77,7 +78,7 @@ export class Confirmations {
             properties: {
               sign: {
                 type: "boolean",
-                title: "Sign this Commitment",
+                title: question.action,
                 description: "Yes signs it in your name. It cannot be taken back.",
               },
             },

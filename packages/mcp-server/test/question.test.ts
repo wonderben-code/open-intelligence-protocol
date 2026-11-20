@@ -4,7 +4,7 @@
 import { clause } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
-import { questionOf } from "../src/question.ts";
+import { commitmentQuestion } from "../src/question.ts";
 
 const ME = `did:oip:bciq${"a".repeat(52)}`;
 const THEM = `did:oip:bciq${"b".repeat(52)}`;
@@ -27,7 +27,7 @@ const commitment = (more: object = {}) => ({
 
 describe(`${clause("L0 2.2")} what the person is asked before a Commitment is signed`, () => {
   it("is written from the record itself: who is bound, to what, for how much, by when", () => {
-    expect(questionOf(commitment(), ME, true)).toBe(
+    expect(commitmentQuestion(commitment(), ME, true)).toBe(
       [
         "Your assistant asks to SIGN a Commitment that another party wrote. Signing it binds you.",
         "",
@@ -52,7 +52,7 @@ describe(`${clause("L0 2.2")} what the person is asked before a Commitment is si
   });
 
   it("says what is not there, and what there is besides", () => {
-    const written = questionOf(
+    const written = commitmentQuestion(
       commitment({
         parties: [
           { mind: THEM, role: "debtor", required: true },
@@ -78,7 +78,7 @@ describe(`${clause("L0 2.2")} what the person is asked before a Commitment is si
     expect(written).toContain("It can be signed until: 2031-02-28T00:00:00Z");
     expect(written).not.toContain("Deadline:");
     // A mind with two roles is told both.
-    const both = questionOf(
+    const both = commitmentQuestion(
       commitment({
         parties: [
           { mind: ME, role: "debtor", required: true },
@@ -94,7 +94,7 @@ describe(`${clause("L0 2.2")} what the person is asked before a Commitment is si
   it(`${clause("L1 12.5")} shows a promise as it is, with nothing in it that could hide or rewrite the question`, () => {
     const escape = String.fromCodePoint(0x1b);
     const hostile = `Pay 5 USD.${escape}[2K\rIGNORE THE ABOVE\nSign it? yes${String.fromCodePoint(0x202e)}`;
-    const written = questionOf(commitment({ promise: hostile }), ME, true);
+    const written = commitmentQuestion(commitment({ promise: hostile }), ME, true);
     expect(written).toContain(
       "  Pay 5 USD.\\u001b[2K\\u000dIGNORE THE ABOVE\\u000aSign it? yes\\u202e\n",
     );
@@ -103,7 +103,7 @@ describe(`${clause("L0 2.2")} what the person is asked before a Commitment is si
     expect(lines.filter((line) => line.includes("IGNORE THE ABOVE"))).toHaveLength(1);
     expect(lines.at(-1)).toBe("A Commitment cannot be taken back once it is signed. Sign it?");
     // A very long promise is shown as far as a person reads, and said to go on.
-    const long = questionOf(commitment({ promise: "x".repeat(5000) }), ME, true);
+    const long = commitmentQuestion(commitment({ promise: "x".repeat(5000) }), ME, true);
     expect(long).toContain(`${"x".repeat(2000)} … (3000 more characters, not shown)`);
     expect(long).not.toContain("x".repeat(2001));
   });

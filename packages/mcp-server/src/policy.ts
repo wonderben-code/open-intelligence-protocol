@@ -5,19 +5,27 @@
  * What the assistant may sign without asking.
  *
  * A Commitment binds the mind, so the person the mind belongs to is asked
- * before one is signed (Layer 0, 2.2). They may say beforehand what need
- * not be asked about: a policy, in the language a delegation limits a
- * delegate with (Layer 1, 11.3). A Commitment for which every statement
- * holds is signed without a question. Any other is asked about.
+ * before one is signed (Layer 0, 2.2). A Receipt is asked about as well:
+ * it binds nobody, but it is the person's word on what became of a
+ * promise, in public and for good, and a party that is owed something
+ * gives its claim up by saying it was fulfilled.
+ *
+ * The person may say beforehand what need not be asked about: a policy,
+ * in the language a delegation limits a delegate with (Layer 1, 11.3). A
+ * record for which every statement holds is signed without a question.
+ * Any other is asked about.
  *
  * The policy is a file in the mind's directory, `policy.json`, written by
  * the person and never by this server:
  *
  * ```json
- * { "commit": [["==", ".terms.price.currency", "USD"], ["<=", ".terms.price.amount", "50"]] }
+ * {
+ *   "commit": [["==", ".terms.price.currency", "USD"], ["<=", ".terms.price.amount", "50"]],
+ *   "receipt": [["==", ".outcome", "progress"]]
+ * }
  * ```
  *
- * A statement that selects what a Commitment does not have does not hold:
+ * A statement that selects what a record does not have does not hold:
  * with the policy above, a Commitment that names no price is asked about.
  */
 
@@ -31,10 +39,15 @@ import { UsageError } from "@oip/local";
 /** The name of the file, in the mind's directory. */
 export const POLICY_FILE = "policy.json";
 
+/** The kinds of record a policy speaks of: each is a member of the file. */
+const KINDS = ["commit", "receipt"] as const;
+
 /** What a mind's directory says may be signed without asking. */
 export interface Policy {
   /** The statements a Commitment must meet to be signed unasked. Absent: every one is asked about. */
   readonly commit?: readonly JsonValue[];
+  /** The statements a Receipt must meet to be signed unasked. Absent: every one is asked about. */
+  readonly receipt?: readonly JsonValue[];
 }
 
 /**
@@ -57,35 +70,42 @@ export function readPolicy(dir: string): Policy {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new UsageError(`${file} is no policy: it holds a JSON object, as { "commit": [ … ] }`);
   }
-  const { commit, ...others } = value as JsonObject;
-  const unknown = Object.keys(others);
+  const said = value as JsonObject;
+  const unknown = Object.keys(said).filter((name) => !KINDS.some((kind) => kind === name));
   if (unknown.length > 0) {
     throw new UsageError(
-      `${file} says something of ${unknown.join(", ")}: a policy has \`commit\` alone`,
+      `${file} says something of ${unknown.join(", ")}: a policy has ${KINDS.join(" and ")} alone`,
     );
   }
-  if (commit === undefined) return {};
-  if (!Array.isArray(commit) || commit.length === 0) {
-    // No statement holds for every record: that would let any Commitment be signed unasked.
-    throw new UsageError(
-      `${file} has no statement under \`commit\`: say what may be signed unasked, or remove the file`,
-    );
+  const policy: { commit?: readonly JsonValue[]; receipt?: readonly JsonValue[] } = {};
+  for (const kind of KINDS) {
+    const statements = said[kind];
+    if (statements === undefined) continue;
+    if (!Array.isArray(statements) || statements.length === 0) {
+      // No statement holds for every record: that would let any one be signed unasked.
+      throw new UsageError(
+        `${file} has no statement under \`${kind}\`: say what may be signed unasked, or remove it`,
+      );
+    }
+    // A policy that is none would hold for nothing, silently. It is said now, and not found out later.
+    const checked = checkPolicy(statements);
+    if (!checked.ok) {
+      const [{ message, clause, path }] = checked.issues;
+      throw new UsageError(
+        `${file} is no policy: under \`${kind}\`, ${message}, at ${path === "" ? "its top" : path} (${clause})`,
+      );
+    }
+    policy[kind] = statements;
   }
-  // A policy that is none would hold for nothing, silently. It is said now, and not found out later.
-  const checked = checkPolicy(commit);
-  if (!checked.ok) {
-    const [{ message, clause, path }] = checked.issues;
-    throw new UsageError(
-      `${file} is no policy: ${message}, at ${path === "" ? "its top" : path} (${clause})`,
-    );
-  }
-  return { commit };
+  return policy;
 }
 
 /**
- * Whether a record may be signed without asking: there is a policy for it,
- * and every statement of the policy holds for the record.
+ * Whether a record may be signed without asking: there are statements for
+ * its kind, and every one of them holds for the record.
+ *
+ * @param statements - What the policy says of records of this kind.
  */
-export function permits(policy: Policy, record: JsonValue): boolean {
-  return policy.commit !== undefined && evaluatePolicy(policy.commit, record).ok;
+export function permits(statements: readonly JsonValue[] | undefined, record: JsonValue): boolean {
+  return statements !== undefined && evaluatePolicy(statements, record).ok;
 }

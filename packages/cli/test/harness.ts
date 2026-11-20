@@ -116,13 +116,14 @@ export class Place {
 
   /**
    * What was printed, with what differs from run to run made the same: the
-   * addresses of minds, content IDs, ports, and this place's own path.
+   * addresses of minds, content IDs, ports, times, and this place's own path.
    */
   plain(text: string): string {
     return text
       .replaceAll(this.home, "<home>")
       .replace(/did:oip:[a-z2-7]{56}/gu, "did:oip:<mind>")
       .replace(/\bbciq[a-z2-7]{52}\b/gu, "<id>")
-      .replace(/127\.0\.0\.1:[0-9]+/gu, "127.0.0.1:<port>");
+      .replace(/127\.0\.0\.1:[0-9]+/gu, "127.0.0.1:<port>")
+      .replace(/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z/gu, "<time>");
   }
 }

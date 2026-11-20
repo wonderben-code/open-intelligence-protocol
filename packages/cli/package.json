@@ -46,6 +46,7 @@
     "@oip/client": "workspace:*",
     "@oip/core": "workspace:*",
     "@oip/host": "workspace:*",
+    "@oip/identity": "workspace:*",
     "@oip/indexer": "workspace:*",
     "@oip/keystore": "workspace:*",
     "@oip/resolver": "workspace:*",

@@ -17,6 +17,7 @@ import { type Arguments, type Command, type Flag, type Result, UsageError } from
 import { COMMANDS } from "./commands/index.ts";
 import type { Edges } from "./edges.ts";
 import { directoryOf } from "./home.ts";
+import { printable, printableJson } from "./text.ts";
 
 /** What a run ends with: 0 if it did what was asked, 1 if it could not, 2 if it was asked wrongly. */
 export type ExitCode = 0 | 1 | 2;
@@ -142,8 +143,11 @@ function failureOf(error: unknown): { code: string; message: string; exit: ExitC
 export async function run(argv: readonly string[], edges: Edges): Promise<ExitCode> {
   const json = argv.includes("--json");
   const print = (result: Result): void => {
+    // Much of what is printed is a stranger's words: nothing of it reaches the terminal as a control.
     edges.out(
-      json ? `${JSON.stringify(result.json, undefined, 2)}\n` : `${result.lines.join("\n")}\n`,
+      json
+        ? `${printableJson(result.json)}\n`
+        : `${result.lines.map((line) => printable(line)).join("\n")}\n`,
     );
   };
   const { command, rest } = find(argv);
@@ -186,11 +190,10 @@ export async function run(argv: readonly string[], edges: Edges): Promise<ExitCo
     const failure = failureOf(error);
     if (failure === undefined) throw error;
     if (json) {
-      edges.out(
-        `${JSON.stringify({ error: { code: failure.code, message: failure.message } }, undefined, 2)}\n`,
-      );
+      edges.out(`${printableJson({ error: { code: failure.code, message: failure.message } })}\n`);
     } else {
-      edges.err(`oip: ${failure.message}\n`);
+      // A problem's words may be a service's own.
+      edges.err(`oip: ${printable(failure.message)}\n`);
       if (failure.exit === 2) {
         edges.err(
           `Run \`oip ${command === undefined ? "" : `${command.name} `}--help\` for how it is used.\n`,

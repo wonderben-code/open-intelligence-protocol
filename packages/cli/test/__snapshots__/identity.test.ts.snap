@@ -1,0 +1,15 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`oip fork > [L1 8.1] makes a child that names its parent, and [L1 8.2] the parent's log acknowledges it 1`] = `
+"The child is did:oip:<mind>
+Its keys are in <home>/child/keys.
+This mind's log acknowledges it.
+This mind's log has 10 events. Resolvers that have the new one: 1 of 1.
+"
+`;
+
+exports[`oip rotate > is of a mind: a directory that holds none says how to make one 1`] = `
+"oip: there is no mind in <home>/nobody: make one with \`oip init\`
+Run \`oip rotate --help\` for how it is used.
+"
+`;

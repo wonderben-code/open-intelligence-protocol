@@ -1,0 +1,76 @@
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+// SPDX-License-Identifier: Apache-2.0
+
+import { Lookup } from "@oip/client";
+
+import { type Command, has, one, UsageError } from "../command.ts";
+import { lookupOptions, servicesOf } from "../mind.ts";
+import { counted } from "../text.ts";
+import { describe, described, lineageOf, row } from "./describe.ts";
+import { networkDirectory } from "./init.ts";
+
+export const resolve: Command = {
+  name: "resolve",
+  summary: "Resolves any mind by its address: fetches its log from the resolvers, and verifies it",
+  positionals: "<address>",
+  flags: {
+    aliases: {
+      type: "boolean",
+      describes: "Check each other name the mind lists: it is the mind's only if it points back",
+    },
+    local: {
+      type: "boolean",
+      describes: "Ask the network `oip demo` runs on this machine, with no mind of your own",
+    },
+    network: {
+      type: "string",
+      value: "path",
+      describes: "The directory of that network. Default: ~/.oip-demo",
+    },
+  },
+  notes: [
+    "The resolvers asked are those of this directory's mind. What they serve is verified here,",
+    "every event of it: a resolver is trusted for when it first saw an event, and for nothing else.",
+  ],
+  example: "oip resolve did:oip:bciqexample --aliases",
+  async run(context, given) {
+    const [address, ...more] = given.positionals;
+    if (address === undefined || more.length > 0) {
+      throw new UsageError("resolve takes one address: did:oip:…");
+    }
+    const config = servicesOf(
+      context,
+      has(given, "local") ? networkDirectory(context.edges.home, one(given, "network")) : undefined,
+    );
+    const lookup = new Lookup(lookupOptions(context, config));
+    const resolved = await lookup.resolve(address);
+    const parents = await lineageOf(lookup, resolved);
+    const checks = has(given, "aliases") ? (await lookup.aliases(address)).checks : undefined;
+    return {
+      lines: [
+        ...describe(resolved, parents),
+        ...(checks ?? []).map((check) =>
+          row(
+            "name",
+            `${check.alias}: ${check.verified ? "its own" : `not shown to be (${String(check.reason)})`}`,
+          ),
+        ),
+        row(
+          "resolvers",
+          resolved.sources
+            .map(
+              ({ resolver, events }) =>
+                `${resolver} (${events === undefined ? "no answer" : counted(events, "event")})`,
+            )
+            .join(", "),
+        ),
+      ],
+      json: {
+        ...described(resolved, parents),
+        ...(checks === undefined ? {} : { aliases: checks }),
+        did: resolved.did,
+        sources: resolved.sources,
+      },
+    };
+  },
+};

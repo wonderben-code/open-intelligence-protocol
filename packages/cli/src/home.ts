@@ -134,6 +134,11 @@ export class Home {
     return join(this.dir, "records");
   }
 
+  /** Where the packets the mind has received are kept, each under its content ID. */
+  get inbox(): string {
+    return join(this.dir, "inbox");
+  }
+
   get #file(): string {
     return join(this.dir, "config.json");
   }

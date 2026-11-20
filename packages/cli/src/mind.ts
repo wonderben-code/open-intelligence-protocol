@@ -14,12 +14,14 @@ import {
   type OpenSocket,
   type SocketLike,
 } from "@oip/client";
+import { OipError } from "@oip/core";
 import { keychainLock, Keystore, type Lock, passphrase } from "@oip/keystore";
 import { fileStorage } from "@oip/keystore/node";
 
 import { type Context, UsageError } from "./command.ts";
 import { type Config, Home, readNetwork } from "./home.ts";
 import { routed, routedSocket } from "./network.ts";
+import { Kept } from "./records.ts";
 
 /** The name the command's keys are kept under in a keychain. */
 const SERVICE = "oip";
@@ -99,6 +101,10 @@ export interface Opened {
   readonly keystore: Keystore;
   /** What opens the keys of everyday work, and the control keys unless told otherwise. */
   readonly lock: Lock;
+  /** The records the mind held when the command before this one ended. It holds them again. */
+  readonly records: Kept;
+  /** The packets the mind has received. */
+  readonly inbox: Kept;
 }
 
 /**
@@ -112,5 +118,59 @@ export async function openMind(context: Context): Promise<Opened> {
   const keystore = await Keystore.open({ storage: fileStorage(home.keys) });
   const lock = await lockOf(context, config.lock);
   const mind = await Mind.open(optionsOf(context, home, config, keystore, lock));
-  return { mind, home, config, keystore, lock };
+  const records = new Kept(home.records);
+  for (const { value } of records.all()) {
+    try {
+      mind.hold(value);
+    } catch (error) {
+      // A file there that is no record is not one the mind holds. Nothing else is wrong.
+      if (!(error instanceof OipError)) {
+        mind.close();
+        throw error;
+      }
+    }
+  }
+  return { mind, home, config, keystore, lock, records, inbox: new Kept(home.inbox) };
+}
+
+/**
+ * Opens the mind of the command's directory for one piece of work. After
+ * it, the records the mind holds are written down, whether the work came
+ * to an end or failed part of the way: what the mind signed, it signed.
+ * Then its keys are locked.
+ */
+export async function withMind<T>(
+  context: Context,
+  work: (opened: Opened) => Promise<T>,
+): Promise<T> {
+  const opened = await openMind(context);
+  try {
+    return await work(opened);
+  } finally {
+    try {
+      opened.records.keep(opened.mind.records());
+    } finally {
+      opened.mind.close();
+    }
+  }
+}
+
+/**
+ * The services a command asks that reads and signs nothing: those of the
+ * directory's mind if there is one, or the local network's where `--local`
+ * says so.
+ *
+ * @throws UsageError if there is neither.
+ */
+export function servicesOf(context: Context, local: string | undefined): Config {
+  if (local !== undefined) {
+    const network = readNetwork(local);
+    return {
+      resolvers: [network.resolver],
+      indexers: [network.indexer],
+      lock: "passphrase",
+      network: local,
+    };
+  }
+  return new Home(context.dir).read();
 }

@@ -8,12 +8,12 @@ import { httpsOrigin, Mind } from "@oip/client";
 import { Keystore, KeystoreError } from "@oip/keystore";
 import { fileStorage } from "@oip/keystore/node";
 
-import { type Command, has, many, one, UsageError } from "../command.ts";
+import { type Command, type Context, has, many, one, UsageError } from "../command.ts";
 import { type Config, Home, readNetwork } from "../home.ts";
 import { lockOf, optionsOf } from "../mind.ts";
 
 /** Each of the origins given, or what is wrong with the first that is none. */
-function origins(given: readonly string[], what: string): string[] {
+export function origins(given: readonly string[], what: string): string[] {
   for (const origin of given) {
     if (httpsOrigin(origin) !== origin) {
       throw new UsageError(`${origin} is no HTTPS origin: ${what} is named as https://example.org`);
@@ -25,6 +25,66 @@ function origins(given: readonly string[], what: string): string[] {
 /** Where a local network keeps its files, unless told otherwise. */
 export const networkDirectory = (home: string, named?: string): string =>
   named ?? join(home, ".oip-demo");
+
+/** What a new mind is made with, besides its directory and its services. */
+export interface Making {
+  readonly kind: string;
+  /** The hosts that will serve it. With none, it takes no packets. */
+  readonly homes: readonly string[];
+  /** The minds it is forked from, each at a version (Layer 1, 8.1). */
+  readonly parents?: readonly { readonly mind: string; readonly at: string }[];
+}
+
+/**
+ * Makes a mind in a directory: its keys, sealed there, its first event with
+ * its resolvers, and where it takes packets.
+ *
+ * Nothing is written until there is a lock to seal with: a passphrase
+ * mistyped leaves no trace. Once the keys are there, a run that fails is
+ * gone on with by the next, with the same keys.
+ *
+ * @returns The mind, open: the caller closes it. And how many resolvers have its first event.
+ * @throws UsageError if a mind lives in the directory already.
+ */
+export async function makeMind(
+  context: Context,
+  home: Home,
+  config: Config,
+  making: Making,
+): Promise<{ mind: Mind; took: number }> {
+  const begun = existsSync(home.keys);
+  let keystore: Keystore | undefined;
+  if (begun) {
+    try {
+      keystore = await Keystore.open({ storage: fileStorage(home.keys) });
+    } catch (error) {
+      if (!(error instanceof KeystoreError && error.code === "not-found")) throw error;
+    }
+  }
+  if (keystore?.mind !== undefined) {
+    throw new UsageError(
+      `a mind lives in ${home.dir} already: \`oip show\` says which. Another needs a directory of its own (--dir)`,
+    );
+  }
+  const lock = await lockOf(context, config.lock, keystore === undefined);
+  keystore ??= await Keystore.create({ storage: fileStorage(home.keys), locks: lock });
+  // The keys are there. If what follows fails, the next run goes on from here.
+  home.write(config);
+  const mind = await Mind.create(optionsOf(context, home, config, keystore, lock), {
+    kind: making.kind,
+    ...(making.homes.length === 0 ? {} : { homes: making.homes }),
+    ...(making.parents === undefined ? {} : { parents: making.parents }),
+  });
+  try {
+    // Where it takes packets: an inbox and a mailbox at each of its homes.
+    if (making.homes.length > 0) await mind.publishLocation();
+  } catch (error) {
+    mind.close();
+    throw error;
+  }
+  const took = mind.publications.filter(({ service, taken }) => service === "resolver" && taken);
+  return { mind, took: took.length };
+}
 
 export const init: Command = {
   name: "init",
@@ -100,42 +160,18 @@ export const init: Command = {
       lock: has(given, "keychain") ? "keychain" : "passphrase",
       ...(network === undefined ? {} : { network }),
     };
-    // Nothing is written until there is a lock to seal with: a passphrase mistyped leaves no trace.
-    const begun = existsSync(home.keys);
-    let keystore: Keystore | undefined;
-    if (begun) {
-      try {
-        keystore = await Keystore.open({ storage: fileStorage(home.keys) });
-      } catch (error) {
-        if (!(error instanceof KeystoreError && error.code === "not-found")) throw error;
-      }
-    }
-    if (keystore?.mind !== undefined) {
-      throw new UsageError(
-        `a mind lives in ${home.dir} already: \`oip show\` says which. Another needs a directory of its own (--dir)`,
-      );
-    }
-    const lock = await lockOf(context, config.lock, keystore === undefined);
-    keystore ??= await Keystore.create({ storage: fileStorage(home.keys), locks: lock });
-    // The keys are there. If what follows fails, `oip init` goes on from here.
-    home.write(config);
-    const mind = await Mind.create(optionsOf(context, home, config, keystore, lock), {
+    const { mind, took } = await makeMind(context, home, config, {
       kind: one(given, "kind") ?? "agent",
-      ...(homes.length === 0 ? {} : { homes }),
+      homes,
     });
     try {
-      const took = mind.publications.filter(
-        ({ service, taken }) => service === "resolver" && taken,
-      );
-      // Where it takes packets: an inbox and a mailbox at each of its homes.
-      if (homes.length > 0) await mind.publishLocation();
       return {
         lines: [
           `Your mind is ${mind.address}`,
           `Its keys are in ${home.keys}, sealed with ${
             config.lock === "keychain" ? "a key in this machine's keychain" : "your passphrase"
           }.`,
-          `${String(took.length)} of ${String(resolvers.length)} resolvers have its first event.`,
+          `Resolvers that have its first event: ${String(took)} of ${String(resolvers.length)}.`,
           ...(homes.length === 0
             ? ["It names no host yet, so it takes no packets."]
             : [`It takes packets at ${homes.join(", ")}.`]),
@@ -148,7 +184,7 @@ export const init: Command = {
           homes,
           indexers,
           lock: config.lock,
-          published: took.length,
+          published: took,
         },
       };
     } finally {

@@ -238,6 +238,9 @@ importers:
       '@oip/host':
         specifier: workspace:*
         version: link:../host
+      '@oip/identity':
+        specifier: workspace:*
+        version: link:../identity
       '@oip/indexer':
         specifier: workspace:*
         version: link:../indexer

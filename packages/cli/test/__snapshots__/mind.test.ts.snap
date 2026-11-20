@@ -14,7 +14,7 @@ What it holds is kept in <home>/.oip-demo. Stop it with Ctrl-C.
 exports[`oip init > makes a mind on the local network: its keys sealed in its directory, and its first event published 1`] = `
 "Your mind is did:oip:<mind>
 Its keys are in <home>/ada/keys, sealed with your passphrase.
-1 of 1 resolvers have its first event.
+Resolvers that have its first event: 1 of 1.
 It takes packets at https://host.oip.localhost.
 Back the keys up before you rely on it: oip keys backup <file>
 "
@@ -23,13 +23,13 @@ Back the keys up before you rely on it: oip keys backup <file>
 exports[`oip show > shows the mind of a directory as its resolvers have it, and asks for no passphrase 1`] = `
 "did:oip:<mind>
   kind       agent
-  events     1
+  log        1 event
   keys       1 to sign with, 1 to be sealed to
   homes      https://host.oip.localhost
   names      none
-  resolvers  https://resolver.oip.localhost
-  indexers   https://indexer.oip.localhost
   location   active, 2 endpoints
   profile    none published
+  resolvers  https://resolver.oip.localhost
+  indexers   https://indexer.oip.localhost
 "
 `;

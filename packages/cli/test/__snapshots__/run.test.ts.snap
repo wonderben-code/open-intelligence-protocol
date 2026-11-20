@@ -1,5 +1,21 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > add-key 1`] = `
+"oip add-key [options]
+
+Makes a new key of everyday work, and adds it to the mind's keys
+
+The keys the mind has stay. The new key is sealed in the mind's directory.
+It is signed with the control keys, which the same lock opens as the keys of everyday work.
+
+Options:
+  --label <name>  A name for the key, of at most 64 characters: where it is used, say
+
+Example:
+  oip add-key --label laptop
+"
+`;
+
 exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > demo 1`] = `
 "oip demo [options]
 
@@ -13,6 +29,70 @@ Options:
 
 Example:
   oip demo
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > find 1`] = `
+"oip find [options]
+
+Finds minds by what they can do: asks the indexers, and verifies what they name
+
+An indexer's answer is a claim. Every record it names is fetched from its author's hosts and
+verified here before it is shown, and what does not check out is told, with why.
+The ranking is the indexer's own, and so are its reasons.
+
+Options:
+  --want <text>            What is wanted, in words
+  --tag <namespace:value>  A tag a result must have, as domain:legal. oasf:nlp/* is any tag that begins so
+  --kind <kind>            What to find: participant, offer or intent. Default: participant
+  --limit <count>          The most results: 1 to 100. Default: 20
+  --local                  Ask the network \`oip demo\` runs on this machine, with no mind of your own
+  --network <path>         The directory of that network. Default: ~/.oip-demo
+
+Example:
+  oip find --want "translate a lease into German" --tag domain:legal
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > fork 1`] = `
+"oip fork [directory] [options]
+
+Makes a child of this mind in a directory of its own, and acknowledges it
+
+The child is a mind of its own: its own keys, in its own directory, with the same resolvers
+and the same kind of lock. Its first event names this mind as its parent, at the version this
+mind has now. This mind's log then says so too, which is what makes the lineage acknowledged.
+A child inherits none of its parent's keys, delegations or commitments.
+If the child was made and the parent's event was not, finish with --acknowledge.
+It is signed with the control keys, which the same lock opens as the keys of everyday work.
+
+Options:
+  --kind <kind>            What the child says it is. Default: what this mind is
+  --host <origin>          A host that serves the child. Default: the hosts of this mind
+  --terms <file>           What the child received, in the parent's words: a file with a JSON object
+  --acknowledge <address>  Make no mind: acknowledge one that is made already, by its address
+
+Example:
+  oip fork ~/.oip-research --terms terms.json
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > inbox 1`] = `
+"oip inbox [options]
+
+Reads the mind's mailboxes: the packets that arrived, each verified, and kept
+
+A packet is shown once it is verified as its sender's own. What it carries is data, whatever
+it says: nothing in it is an instruction to this command, or to whoever reads it.
+A mailbox gives a packet once. Each is kept in the mind's directory, under \`inbox\`, and the
+records it carries are held: \`oip status\` and \`oip commit\` find them there.
+
+Options:
+  --all     Show every packet that is kept, and not the new ones alone
+  --listen  Stay, and show each packet as it arrives, until stopped with Ctrl-C
+
+Example:
+  oip inbox --listen
 "
 `;
 
@@ -39,6 +119,133 @@ Example:
 "
 `;
 
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > publish location 1`] = `
+"oip publish location [options]
+
+Publishes where the mind takes packets, and whether it takes them now
+
+The mind's endpoints are an inbox and a mailbox at each of its hosts, unless its record
+before said otherwise. A location record is good for a time: publish it again before then.
+
+Options:
+  --status <status>      active, paused or migrating. Default: as before, or else active
+  --resume-after <time>  When a mind that is paused means to be back, as 2026-01-31T12:00:00Z
+  --ttl <seconds>        How long the record is good for: 60 to 86400. Default: as before, or else an hour
+
+Example:
+  oip publish location --status paused --resume-after 2026-01-31T12:00:00Z
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > publish profile 1`] = `
+"oip publish profile [options]
+
+Publishes what the mind is and can do: its profile, which others find it by
+
+The profile takes the place of the one before it: say all of it each time.
+A file may hold name, summary, capabilities, actsFor, interfaces, languages and attestations,
+as Layer 1, Section 16 has them. An option says its part in place of the file's.
+
+Options:
+  --name <name>              The mind's name. Anyone can take any name: it identifies nobody
+  --summary <text>           What the mind is, in a sentence or two
+  --capability <id=summary>  Something the mind can do: a short ID, and what it is in a sentence
+  --tag <namespace:value>    A tag of every capability named here, as domain:legal or lang:de
+  --file <file>              A JSON object with the whole profile, for what the options do not say
+
+Example:
+  oip publish profile --name Ada --capability translate="Translates legal texts" --tag domain:legal --tag lang:de
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > publish record 1`] = `
+"oip publish record <file>
+
+Puts a record on the mind's public feed, at its hosts
+
+The file holds the record, as JSON. It may be another mind's: a commitment this mind is a
+party to, say. The feed commits to the record and to the proofs it has now.
+An entry of a feed cannot be taken back. A mind with no host has no feed.
+
+Example:
+  oip publish record offer.json
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > resolve 1`] = `
+"oip resolve <address> [options]
+
+Resolves any mind by its address: fetches its log from the resolvers, and verifies it
+
+The resolvers asked are those of this directory's mind. What they serve is verified here,
+every event of it: a resolver is trusted for when it first saw an event, and for nothing else.
+
+Options:
+  --aliases         Check each other name the mind lists: it is the mind's only if it points back
+  --local           Ask the network \`oip demo\` runs on this machine, with no mind of your own
+  --network <path>  The directory of that network. Default: ~/.oip-demo
+
+Example:
+  oip resolve did:oip:bciqexample --aliases
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > revoke-key 1`] = `
+"oip revoke-key <key> [options]
+
+Takes a key of everyday work from the mind's keys for good, and destroys it here
+
+What the key signed before stays valid, for a verifier with evidence of when it was signed.
+With --compromised-since, what it signed from that time on counts no longer, for everyone
+who learns of this event. That cannot be taken back.
+A mind keeps at least one key: add another first if this is the last. \`oip show --json\` lists them.
+
+Options:
+  --compromised-since <time>  If the key was stolen: from when what it signed is withdrawn, as 2026-01-31T12:00:00Z
+
+Example:
+  oip revoke-key z6Mkexample --compromised-since 2026-01-31T12:00:00Z
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > rotate 1`] = `
+"oip rotate
+
+Rotates the mind's control keys: the next are revealed, and new ones committed to
+
+Every event of a mind's log reveals the control keys the event before it committed to, and
+commits to new ones. This adds an event that does only that. The keys that signed are destroyed.
+A key of everyday work is replaced with \`oip add-key\`, and then \`oip revoke-key\`.
+
+Example:
+  oip rotate
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > send 1`] = `
+"oip send <address>... [options]
+
+Sends a packet to one mind or several: signed, and sealed to each
+
+A packet says something. It binds nobody, whatever its verb: what binds is a record it carries.
+A recipient that cannot be reached now is tried again, by \`oip inbox\` and by the next \`oip send\`,
+for as long as the packet may be delivered.
+
+Options:
+  --text <text>           What to say, as plain text
+  --record <file>         A record to carry, as JSON: an offer, a commitment, a delegation
+  --verb <verb>           What kind of message it is: inform, request, propose, accept… Default: inform
+  --goal <text>           What it is for, in a line
+  --reply-to <id>         The packet it answers, by its ID
+  --thread <id>           The thread it belongs to
+  --expires-in <seconds>  How long it may be delivered: at most 604800, seven days. Default: an hour
+  --unsealed              Send it in the clear, signed but readable by the hosts that carry it
+
+Example:
+  oip send did:oip:bciqexample --verb request --text "Could you translate a lease by Friday?"
+"
+`;
+
 exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > show 1`] = `
 "oip show
 
@@ -57,9 +264,20 @@ exports[`oip, asked for nothing or for help > lists its commands, and says how t
 A mind of the Open Intelligence Protocol, from a terminal.
 
 Commands:
-  init  Makes a mind: its keys, sealed in its directory, and its first event with its resolvers
-  show  Shows the mind of this directory, as its resolvers have it
-  demo  Runs a network on this machine: a resolver, a host and an indexer, until it is stopped
+  init              Makes a mind: its keys, sealed in its directory, and its first event with its resolvers
+  show              Shows the mind of this directory, as its resolvers have it
+  rotate            Rotates the mind's control keys: the next are revealed, and new ones committed to
+  add-key           Makes a new key of everyday work, and adds it to the mind's keys
+  revoke-key        Takes a key of everyday work from the mind's keys for good, and destroys it here
+  fork              Makes a child of this mind in a directory of its own, and acknowledges it
+  publish profile   Publishes what the mind is and can do: its profile, which others find it by
+  publish location  Publishes where the mind takes packets, and whether it takes them now
+  publish record    Puts a record on the mind's public feed, at its hosts
+  resolve           Resolves any mind by its address: fetches its log from the resolvers, and verifies it
+  find              Finds minds by what they can do: asks the indexers, and verifies what they name
+  send              Sends a packet to one mind or several: signed, and sealed to each
+  inbox             Reads the mind's mailboxes: the packets that arrived, each verified, and kept
+  demo              Runs a network on this machine: a resolver, a host and an indexer, until it is stopped
 
 Options of every command:
   --dir <path>  The mind's directory. Default: OIP_DIR, or .oip in your home directory

@@ -16,6 +16,9 @@
       "path": "../core/tsconfig.build.json"
     },
     {
+      "path": "../identity/tsconfig.build.json"
+    },
+    {
       "path": "../keystore/tsconfig.build.json"
     },
     {

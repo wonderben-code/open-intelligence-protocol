@@ -8,6 +8,7 @@ import { fileStorage } from "@oip/keystore/node";
 import { type Command, UsageError } from "../command.ts";
 import { Home } from "../home.ts";
 import { lookupOptions } from "../mind.ts";
+import { describe, described, lineageOf, row } from "./describe.ts";
 
 export const show: Command = {
   name: "show",
@@ -25,53 +26,22 @@ export const show: Command = {
         `the mind of ${home.dir} was never published: run \`oip init\` again to finish making it`,
       );
     }
-    const resolved = await new Lookup(lookupOptions(context, config)).resolve(address);
-    const { state, location, participant } = resolved;
-    const row = (name: string, value: string): string => `  ${name.padEnd(10)} ${value}`;
+    const lookup = new Lookup(lookupOptions(context, config));
+    const resolved = await lookup.resolve(address);
+    const parents = await lineageOf(lookup, resolved);
     const listed = (values: readonly string[]): string =>
       values.length === 0 ? "none" : values.join(", ");
     return {
       lines: [
-        address,
-        row("kind", state.kind),
-        row("events", String(state.seq + 1) + (state.retired ? ", and retired" : "")),
-        row(
-          "keys",
-          `${String(state.keys.length)} to sign with, ${String(state.agreement.length)} to be sealed to`,
-        ),
-        row("homes", listed(state.homes)),
-        row("names", listed(state.alsoKnownAs)),
+        ...describe(resolved, parents),
         row("resolvers", listed(config.resolvers)),
         row("indexers", listed(config.indexers)),
-        row(
-          "location",
-          location === undefined
-            ? "none published"
-            : `${location.record.status}, ${String(location.record.endpoints.length)} endpoints${
-                resolved.stale ? ", out of date" : ""
-              }`,
-        ),
-        row(
-          "profile",
-          participant === undefined
-            ? "none published"
-            : `${participant.record.name}, ${String(participant.record.capabilities?.length ?? 0)} capabilities`,
-        ),
       ],
       json: {
-        mind: address,
+        ...described(resolved, parents),
         directory: home.dir,
-        kind: state.kind,
-        seq: state.seq,
-        retired: state.retired,
-        keys: [...state.keys],
-        agreement: [...state.agreement],
-        homes: [...state.homes],
-        alsoKnownAs: [...state.alsoKnownAs],
         resolvers: [...config.resolvers],
         indexers: [...config.indexers],
-        location: location?.record ?? null,
-        participant: participant?.record ?? null,
       },
     };
   },

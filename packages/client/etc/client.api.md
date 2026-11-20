@@ -32,6 +32,19 @@ import { VerifiedFeed } from '@oip/net';
 import { VerifiedLog } from '@oip/identity';
 
 // @public
+export interface AliasCheck {
+    readonly alias: string;
+    readonly reason?: "not-pointing-back" | "unreachable" | "unsupported";
+    readonly verified: boolean;
+}
+
+// @public
+export interface AliasOptions {
+    readonly dnsTxt?: (name: string) => Promise<readonly (readonly string[])[]>;
+    readonly resolveDid?: (did: string) => Promise<DidLike | undefined>;
+}
+
+// @public
 export interface Answer {
     readonly body: Uint8Array;
     readonly mediaType: string;
@@ -81,6 +94,12 @@ export const DEFAULT_TIMEOUT_MS = 10000;
 
 // @public
 export const DEFAULT_TTL = 3600;
+
+// @public
+export interface DidLike {
+    readonly alsoKnownAs?: unknown;
+    readonly id?: unknown;
+}
 
 // @public
 export type Endpoint = Location["endpoints"][number];
@@ -162,6 +181,10 @@ export interface LocationFields {
 // @public
 export class Lookup {
     constructor(options: LookupOptions);
+    aliases(mind: string): Promise<{
+        checks: AliasCheck[];
+        did: DidResolution;
+    }>;
     feed(mind: string): Promise<ReadFeed>;
     find(query: CapabilityQuery): Promise<Finding>;
     record(mind: string, id: string): Promise<JudgedRecord>;
@@ -171,7 +194,7 @@ export class Lookup {
 }
 
 // @public
-export interface LookupOptions extends TransportOptions {
+export interface LookupOptions extends TransportOptions, AliasOptions {
     readonly clock?: Clock;
     readonly indexers?: readonly string[];
     readonly maxFeedEntries?: number;

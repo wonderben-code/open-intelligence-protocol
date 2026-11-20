@@ -589,7 +589,8 @@ export class Mind {
    * the lineage in this mind's own log.
    *
    * @param child - The child's address.
-   * @param terms - What the child received, in the parent's words.
+   * @param options.terms - What the child received, in the parent's words.
+   * @param options.changes - What else changes with the event, as for `update`.
    */
   fork(
     child: string,

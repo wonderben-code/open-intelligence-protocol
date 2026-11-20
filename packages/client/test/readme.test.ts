@@ -129,10 +129,13 @@ describe("the README", () => {
     for (const value of values) expect(named, value).toContain(value);
     expect(named.filter((name) => !values.includes(name)).sort()).toStrictEqual(
       [
+        "AliasCheck",
+        "AliasOptions",
         "Answer",
         "Asking",
         "Clock",
         "ControlOptions",
+        "DidLike",
         "Endpoint",
         "Fetch",
         "Finding",

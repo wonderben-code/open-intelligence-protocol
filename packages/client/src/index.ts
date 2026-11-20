@@ -26,6 +26,7 @@ export {
   type TransportFailure,
   type TransportOptions,
 } from "./transport.ts";
+export { type AliasCheck, type AliasOptions, type DidLike } from "./aliases.ts";
 export {
   type Clock,
   DEFAULT_MAX_FEED_ENTRIES,

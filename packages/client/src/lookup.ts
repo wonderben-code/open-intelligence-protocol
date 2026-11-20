@@ -53,6 +53,7 @@ import {
 import { type Bundle, type CapabilityQuery, type Entry, validateRecordOfType } from "@oip/schema";
 
 import { accepted } from "./accepted.ts";
+import { type AliasCheck, type AliasOptions, checkAlias } from "./aliases.ts";
 import { find, type Finding } from "./find.ts";
 import { askRecord, httpsOrigin, TransportError, type TransportOptions } from "./transport.ts";
 
@@ -69,7 +70,7 @@ export const systemClock: Clock = { now: () => BigInt(Date.now()) * 1_000_000n }
 const SKEW = 300_000_000_000n;
 
 /** What a `Lookup` takes. */
-export interface LookupOptions extends TransportOptions {
+export interface LookupOptions extends TransportOptions, AliasOptions {
   /**
    * The resolvers the client trusts as witnesses (Layer 1, Section 17), as
    * HTTPS origins: `https://resolver.example`. Their first-seen times are
@@ -251,9 +252,15 @@ export class Lookup {
       "invalid-proof",
       `the log of ${mind} does not verify`,
     );
-    const did = accepted(didDocument(log), "invalid-record", `${mind} has no DID document`);
     const others = [...(this.#others.get(mind)?.values() ?? [])];
     const location = currentLocation(others, mind, this.#book);
+    // With an endpoint for each of the current location record's (Layer 1, 5.2).
+    const endpoints = location?.record.endpoints.map((endpoint) => endpoint.url);
+    const did = accepted(
+      didDocument(log, endpoints === undefined ? {} : { endpoints }),
+      "invalid-record",
+      `${mind} has no DID document`,
+    );
     return {
       mind,
       log,
@@ -313,6 +320,48 @@ export class Lookup {
           : { home: answer.home, entries: undefined, failure: codeOf(answer.failure) },
       ),
     };
+  }
+
+  /**
+   * Checks the other names a mind gives itself (Layer 1, 5.3; Layer 0,
+   * Section 4): each alias its identity log lists is verified if it points
+   * back to the mind, and only then is it the mind's to be shown as.
+   *
+   * - An HTTPS origin serves the address, alone, as `text/plain` at
+   *   `/.well-known/oip/did`.
+   * - `dns:<name>` has a TXT record at `_oip.<name>` with `did=<address>`.
+   *   The client asks the DNS with `dnsTxt` of its options.
+   * - Another DID lists the address in its own `alsoKnownAs`. The client
+   *   resolves `did:oip` and `did:web` itself, and others with `resolveDid`
+   *   of its options.
+   * - `at://<handle>` is a handle whose DID lists the address.
+   *
+   * @returns Each alias with whether it is verified, and the mind's DID
+   *   document with the verified ones as its `alsoKnownAs` (5.2).
+   * @throws What `resolve` throws. What answers for an alias, or does not,
+   *   never throws: the alias is then not verified, with why.
+   */
+  async aliases(mind: string): Promise<{ checks: AliasCheck[]; did: DidResolution }> {
+    const resolved = await this.resolve(mind);
+    const environment = {
+      transport: this.#options,
+      ...(this.#options.dnsTxt === undefined ? {} : { dnsTxt: this.#options.dnsTxt }),
+      ...(this.#options.resolveDid === undefined ? {} : { resolveDid: this.#options.resolveDid }),
+      aliasesOf: async (other: string) => (await this.resolve(other)).state.alsoKnownAs,
+    };
+    const checks = await Promise.all(
+      resolved.state.alsoKnownAs.map((alias) => checkAlias(alias, mind, environment)),
+    );
+    const endpoints = resolved.location?.record.endpoints.map((endpoint) => endpoint.url);
+    const did = accepted(
+      didDocument(resolved.log, {
+        ...(endpoints === undefined ? {} : { endpoints }),
+        verifiedAliases: checks.filter((check) => check.verified).map((check) => check.alias),
+      }),
+      "invalid-record",
+      `${mind} has no DID document`,
+    );
+    return { checks, did };
   }
 
   /**

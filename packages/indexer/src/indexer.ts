@@ -467,9 +467,25 @@ export class Indexer {
     return [...new Set(found.map((item) => item.mind))].slice(0, most);
   }
 
-  /** Takes out what has expired. An indexer calls it now and then. How many items went. */
+  /**
+   * A record of the indexer's own, signed with its key: the wrapper a broker
+   * puts around a packet it forwards (18.5).
+   *
+   * @param draft - The record without its proof. Its `created` is the time it is signed at.
+   */
+  signed(draft: JsonObject, now: Instant): JsonObject {
+    const proof = createProofSync(draft, this.#method(now), this.#signer);
+    return withProofs(draft, [proof]);
+  }
+
+  /**
+   * Takes out what has expired, and forgets the packets it forwarded that
+   * can no longer be accepted. An indexer calls it now and then.
+   *
+   * @returns How many things went.
+   */
   prune(now: Instant): number {
-    return this.#db.transaction(() => this.#store.expire(now));
+    return this.#db.transaction(() => this.#store.expire(now) + this.#store.forget(now));
   }
 
   /** @internal The indexer's own tables, for its broker. */

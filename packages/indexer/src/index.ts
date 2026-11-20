@@ -8,6 +8,7 @@
  * @packageDocumentation
  */
 
+export { Broker, type BrokerOptions, type Forwarding } from "./broker.ts";
 export {
   DEFAULT_INDEXER_LIMITS,
   Indexer,

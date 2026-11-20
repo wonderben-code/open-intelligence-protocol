@@ -37,6 +37,7 @@ A host and an indexer must work with hosts, indexers and clients that others wro
 10. **What does `/*` match?** 18.2: "a value ending in `/*` matches any value with that prefix". The prefix of `oasf:nlp/*` could be `oasf:nlp` or `oasf:nlp/`.
 11. **What of a query whose `constraints` or `evidence` an indexer cannot weigh?** 18.4 says ranking is the indexer's own policy. A filter is not a ranking.
 12. **What does a broker owe the sender and the recipients?** 18.5 says to how many minds a packet goes, and not whether the same packet is forwarded again when it is sent again, whether it may go back to its sender, where it is posted, or what the broker answers.
+13. **What media type has a submission, or a query?** core 10.1 names the media type of a record. A submission and a capability query are JSON and not records, and 18.1 names no media type for them.
 
 ## Specification
 
@@ -54,6 +55,7 @@ Each item is a change to `spec/layer-1-mind-network.md`, made in the same commit
 10. **Tag prefixes (18.2).** A value ending in `/*` matches any tag that begins with the value without its final `*`. `oasf:nlp/*` matches `oasf:nlp/translation`, and neither `oasf:nlp` nor `oasf:nlpx`.
 11. **Unweighed constraints and evidence (18.2).** An indexer MUST NOT return a result for a query whose `constraints` or `evidence` it has not checked against that result. One that weighs neither returns no result for a query that states either.
 12. **A broker (18.5).** It forwards a packet once: the same packet again is answered as before and forwarded no second time. It does not forward a packet to its own sender. It posts each `Forwarded` record to an inbox of the mind's current location record, or to a mailbox where no inbox accepts it (15.3). It answers `202` with `{ "stored": true }`, and MAY add `forwarding`, the number of minds the packet goes to.
+13. **Submissions and queries (18.1).** Both are sent as `application/json`. A `QueryResult` is a record, and is served as one (core 10.1).
 
 ## Rationale and alternatives
 

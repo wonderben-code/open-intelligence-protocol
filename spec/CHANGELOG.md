@@ -116,6 +116,7 @@ Two independent reviews of `@oip/delegation` and `@oip/web` found eight more (OE
 - **Tag prefixes (18.2).** `oasf:nlp/*` matches a tag that begins with `oasf:nlp/`. "Any value with that prefix" did not say whether the slash is part of the prefix.
 - **Constraints and evidence an indexer does not weigh (18.2).** It returns no result for a query that states them, where it would otherwise return results it had not checked.
 - **A broker's duties and its answer (18.5).** It forwards a packet once, not to its sender, to an inbox or else a mailbox, and answers `202` with `{ "stored": true }`.
+- **Submissions and queries are `application/json` (18.1).** They are JSON and not records, and core 10.1 names a media type for records only. A `QueryResult` is a record and is served as one.
 
 ## Revision 2026-11-17 (Draft)
 

@@ -5,14 +5,22 @@
 
 import {
   bytesToHex as toHex,
-  concatBytes,
+  concatBytes as concat,
   hexToBytes as fromHex,
   utf8ToBytes,
 } from "@noble/hashes/utils.js";
 import { noteCutShort } from "@oip/schema";
 import { base64, base64urlnopad } from "@scure/base";
 
-export { concatBytes };
+/**
+ * The bytes of each array, one after another, in a new array.
+ *
+ * @throws If one of them is not a `Uint8Array`.
+ */
+export function concatBytes(...arrays: Uint8Array[]): Uint8Array {
+  // Written here and not re-exported, so that the package's interface is its own.
+  return concat(...arrays);
+}
 
 /**
  * Bytes as base64 text with padding (RFC 4648, Section 4), as HTTP's

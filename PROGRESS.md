@@ -2,9 +2,40 @@
 
 This file is the live status of the Open Intelligence Protocol project, so that any session can resume exactly where the last one stopped.
 
-**Last updated:** 17 November 2026 (UTC+7)
+**Last updated:** 20 November 2026 (UTC)
 
-## Where the v1 build stands
+## Where the build stands on this branch (20 November)
+
+This branch is `m5-servers`. It is stacked on `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
+
+| Milestone | Branch | Built | `pnpm run ci` | Still owed before its pull request |
+|---|---|---|---|---|
+| M2. Identity | `m2-identity`, pushed | Yes | Green | The sixteenth review round (fifteen are done and fixed), the mutation score, the review record |
+| M3. Delegation and Layer 2 | `m3-delegation-web`, pushed | Yes | Green | Two more reviews, the mutation score, the review record. [OEP-0003](oeps/oep-0003-delegation-and-mind-web-clarifications.md) needs Eks |
+| M4. Network records and sealing | `m4-network`, pushed | Yes | Green | Two reviews, the mutation score, the review record |
+| M5. Servers | `m5-servers` | Yes, see below | Next | Reviews, the mutation score, the review record |
+
+Reviews are made by fresh agents, which were not to be had between 19 and 21 November (a usage limit). The build went on with what does not need them.
+
+**What M5 has so far:**
+
+- **`@oip/server`**, what the three services share ([ADR-0013](docs/adr/0013-the-server-package.md)), and **`@oip/resolver`**, **`@oip/host`** and **`@oip/indexer`**: Layer 1, Sections 13, 17 and 18, each a library and a command, with its README, threat model, changeset and API report.
+- **The conformance suite over the wire** ([README](packages/conformance/README.md#over-the-wire)): the Resolver, Host and Indexer profiles as checks that need nothing of an implementation but its URL, a report that is JSON, and the command `oip-conformance`. The three reference services pass. Some eighty planted faults fail the checks they should.
+- **Container images and a stack for one machine** ([ADR-0014](docs/adr/0014-containers.md), [guide](docs/guides/containers.md)): distroless, not root, read-only. Each is ready within 0.5 to 1.2 s of its start, and the three pass the conformance suite from their containers. A CI job does that on every push.
+- **Fuzz targets** for the three HTTP interfaces (`pnpm test:fuzz`, 200,000 requests each night), and **planted faults** under services that run as processes: a kill while publishing and while a client reads the stream, a severed socket, a locked database. Nothing a service answered for is lost, or first seen at another time.
+- **Load tests** against the budgets of BUILD.md 3.8, each service a process of its own (`packages/*/bench/load.bench.ts`).
+- **`oip-indexer init`**, which makes the indexer's own mind.
+
+**What M5 found:**
+
+- **A resolver verified each published log four to five times over**, and all of it again when the same bundle was published once more. `@oip/core` now remembers a signature that verified: publishing a new log of two events takes 9 ms where it took 19, and the same bundle again 3 ms where it took 22. With that the five budgets of the services are met by the portable Ed25519 ([ADR-0015](docs/adr/0015-server-budgets.md)).
+- **OpenSSL does the arithmetic of a signature in the services** ([ADR-0016](docs/adr/0016-native-ed25519.md)), as ADR-0006 planned: a signature is checked in a tenth of a millisecond where the library takes two. The rule stays core 4.4 and stays in `@oip/core`, whose tests of it run unchanged with the library, with an engine written out from RFC 8032 and with OpenSSL. The first two rows of BUILD.md 3.8 are met in the services.
+- **Two gaps in the specification, which the conformance suite showed** ([OEP-0005](oeps/oep-0005-service-clarifications.md), items 4 and 13): what "no two events first seen at one time" asks of a resolver, and what media type a submission and a query have.
+- **A signed request was judged at two readings of the clock**, and failed on a clock that moves. Fixed in the host and the resolver.
+
+**For Eks, besides what is listed further down:** OEP-0002, OEP-0003, OEP-0004 and OEP-0005 each change normative text and wait for your word, as OEP-0001 does (E13). Nothing else in M2 to M5 needs you yet.
+
+## Where the v1 build stands on `main`
 
 | Milestone | Status |
 |---|---|

@@ -116,7 +116,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 4.1 |  | M1 | 7 | tested | Public keys are written as Multikey strings: `"z"` followed by the base58btc encoding of a mult… |
 | core 4.2 | MUST | M1 | 6 | tested | Implementations MUST check the prefix and length of every Multikey they use and reject any that… |
 | core 4.3 |  | M1 | 2 | tested | This revision requires Ed25519 for signatures and X25519 for encryption. Other key types are re… |
-| core 4.4 | MUST | M1 | 79 | tested | Ed25519 verification. Every implementation MUST apply the same rule, so that all verifiers agre… |
+| core 4.4 | MUST | M1 | 111 | tested | Ed25519 verification. Every implementation MUST apply the same rule, so that all verifiers agre… |
 | core 5.1 | MUST | M1 | 6 | tested | A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 p… |
 | core 5.2 | MUST | M1 | 13 | tested | Each proof object MUST conform to W3C Data Integrity 1.0 with the `eddsa-jcs-2022` cryptosuite,… |
 | core 5.3 |  | M1 | 15 | tested | Creating a proof. Let `options` be the proof object without `proofValue`. Compute ``` hashData… |

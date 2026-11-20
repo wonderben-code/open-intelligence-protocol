@@ -3,7 +3,7 @@
 
 /** DID documents for `did:oip` addresses (Layer 1, Section 5). */
 
-import type { Validation } from "@oip/schema";
+import { judging, type Validation } from "@oip/schema";
 
 import { no, ok, own } from "./result.ts";
 import {
@@ -150,6 +150,12 @@ export function didDocument(
   log: VerifiedLog,
   options?: DidDocumentOptions,
 ): Validation<DidResolution> {
+  // An option that could not be read for want of room reads as one not given: the document
+  // of the latest version is not the answer to a question about an earlier one.
+  return judging(() => documentOf(log, options));
+}
+
+function documentOf(log: VerifiedLog, options?: DidDocumentOptions): Validation<DidResolution> {
   const versionId = own(options, "versionId");
   const endpoints = own(options, "endpoints");
   const verifiedAliases = own(options, "verifiedAliases");

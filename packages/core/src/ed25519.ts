@@ -126,13 +126,30 @@ export function verifyEd25519(
     if (!encodesPointOfOrderL(sig.subarray(0, PUBLIC_KEY_LENGTH))) return false;
     const valid = ed25519.verify(sig, text, key, { zip215: false });
     // A `false` may be the library's answer to a failure of its own: see `retraced`.
-    if (!valid) retraced(sig, key, 3);
+    if (!valid) retraced(sig, key, RETRACE_DEPTH);
     return valid;
   } catch (error) {
     noteCutShort(error);
     return false;
   }
 }
+
+/**
+ * How many frames of `retraced` lie above the steps taken again.
+ *
+ * Depth is what matters. The library takes the steps one frame below
+ * `verifyEd25519`, the frame of its own `verify`. Taken again from no
+ * deeper than that, they have room wherever the library had, and a failure
+ * of the library's goes unseen: with the steps one frame of `retraced`
+ * down, a process that had verified often answered `false` for a valid
+ * signature, with nothing noted, at one depth in some hundreds. One frame
+ * more was enough there. How large a frame is belongs to the engine and to
+ * how it has compiled each function, so the margin is wide: sixteen frames
+ * more, where one was enough. A spent stack on the way down is thrown to
+ * `verifyEd25519`, which notes it. The steps are taken only after a
+ * `false`: a signature that verifies pays nothing for the depth.
+ */
+const RETRACE_DEPTH = 16;
 
 /**
  * Takes again, and deeper, the steps the library takes inside a `catch` of
@@ -143,9 +160,9 @@ export function verifyEd25519(
  * a point that is none and for an `S` that is not below L, which is how it
  * applies those rules. It is also what it answers when the call stack is
  * spent at that moment, and then the `false` says nothing of the signature.
- * After a `false`, the same three steps are taken here from a few frames
- * further down, where a spent stack is not caught unseen. Their results are
- * not used: no part of the verification is done here.
+ * After a `false`, the same three steps are taken here from further down,
+ * where a spent stack is not caught unseen. Their results are not used: no
+ * part of the verification is done here.
  *
  * @param deeper - How many frames further down the steps are taken.
  */

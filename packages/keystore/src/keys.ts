@@ -176,6 +176,40 @@ function signerOf(handle: RoleKeys, key: HeldKey): SyncSigner {
   };
 }
 
+/** What a signer that is only asked whether it would be asked throws. */
+const ASKED = new Error("the signer was reached");
+
+/** A signer of a key that signs nothing: it says that everything before the signature passed. */
+const unsigning = (publicKey: string): SyncSigner => ({
+  publicKey,
+  sign: () => {
+    throw ASKED;
+  },
+});
+
+/**
+ * Whether an event can be signed as it stands: everything that is checked
+ * before a signer is asked (the event is well formed for its type, within
+ * the limits, and the proof's own members are valid). It is asked before a
+ * key is bound to an event, or remembers a position: an event that could
+ * never be signed would otherwise take the key with it.
+ *
+ * @throws KeystoreError `argument` if it cannot.
+ */
+async function signable(
+  event: Unsigned<IdentityEvent>,
+  signers: readonly EventSigner[],
+  created: string | undefined,
+): Promise<void> {
+  try {
+    await signEvent(event, signers, created);
+  } catch (error) {
+    if (error === ASKED) return;
+    const detail = error instanceof Error ? error.message : "it is not an identity event";
+    throw new KeystoreError("argument", `the event cannot be signed: ${detail}`);
+  }
+}
+
 /** Destroys keys: they are out of what is stored before their bytes are zeroed here. */
 async function destroy(state: Unlocked, gone: readonly HeldKey[]): Promise<void> {
   state.keys = state.keys.filter((key) => !gone.includes(key));
@@ -369,6 +403,12 @@ export class ControlKeys extends RoleKeys {
       if (held.length === 0) {
         throw new KeystoreError("not-found", "none of the control keys the event reveals is held");
       }
+      // Before a key is bound: an event that cannot be signed must not take a key with it.
+      await signable(
+        event,
+        held.map((key) => ({ control: unsigning(key.publicKey) })),
+        created,
+      );
       const id = contentId(event);
       for (const key of held) {
         if (key.signing !== undefined && contentId(key.signing) !== id) {
@@ -435,7 +475,12 @@ function revealed(event: object): readonly string[] {
 /** The keys marked as signing an event. */
 function signedBy(state: Unlocked, event: object): HeldKey[] {
   const { proof: _, ...unsigned } = event as { proof?: unknown };
-  const id = contentId(unsigned);
+  let id: string;
+  try {
+    id = contentId(unsigned);
+  } catch {
+    throw new KeystoreError("argument", "that is not an identity event");
+  }
   const keys = state.keys.filter(
     (key) => key.signing !== undefined && contentId(key.signing) === id,
   );
@@ -497,6 +542,11 @@ export class InvocationKeys extends RoleKeys {
       const key = found(state, as.publicKey);
       const { proof: _, ...unsigned } = event as T & { proof?: unknown };
       const position = positionOf(unsigned);
+      await signable(
+        unsigned as unknown as T,
+        [{ member: as.member, versionId: as.versionId, invocation: unsigning(key.publicKey) }],
+        created,
+      );
       if (position !== undefined) {
         const id = contentId(unsigned);
         const before = key.signed.get(position);

@@ -475,6 +475,39 @@ describe(`${clause("L1 3.11", "L1 7.4")} a control key`, () => {
     expect(keys.control.has(first.publicKey)).toBe(false);
   });
 
+  it("is bound to no event that cannot be signed", async () => {
+    const { keystore, lock } = await made();
+    const keys = await all(keystore, lock);
+    const { genesis, first } = await founding(keys);
+    const unsignable: [string, object, string?][] = [
+      ["a home that is no origin", { ...genesis, homes: ["not an origin"] }],
+      ["no kind", (({ kind: _, ...rest }) => rest)(genesis)],
+      ["a type that is none", { ...genesis, type: "Birth" }],
+      ["a date that is none", { ...genesis, created: "yesterday" }],
+      ["a number that is no integer", { ...genesis, ext: { "ext.example": { share: 0.5 } } }],
+      ["a proof dated by no clock", genesis, "not a time"],
+    ];
+    for (const [what, event, created] of unsignable) {
+      expect(await refusal(() => keys.control.sign(event as never, created)), what).toBe(
+        "argument",
+      );
+      // The key is as it was: bound to nothing.
+      expect(keys.control.pending(), what).toStrictEqual([]);
+      expect(keys.control.keys()[0], what).toStrictEqual({
+        publicKey: first.publicKey,
+        label: "first",
+      });
+    }
+    // And it signs the event that can be signed.
+    expect(verified([await keys.control.sign(genesis)])).toBe(1);
+    // What is no event at all is nothing a key signed, and nothing that was published.
+    for (const none of [{ share: 0.5 }, { at: new Date() }, { nested: { n: Number.NaN } }]) {
+      expect(await refusal(() => keys.control.published(none))).toBe("argument");
+      expect(await refusal(() => keys.control.unsent(none))).toBe("argument");
+    }
+    expect(keys.control.pending()).toStrictEqual([genesis]);
+  });
+
   it("may sign another event only if its owner says the first was never sent", async () => {
     const { keystore, lock } = await made();
     const keys = await all(keystore, lock);
@@ -568,6 +601,28 @@ describe("an invocation key", () => {
     expect(await refusal(() => again.sign(event, { ...as, publicKey: "z6Mkother" }))).toBe(
       "not-found",
     );
+  });
+
+  it("remembers no position for an event that cannot be signed", async () => {
+    const { keystore, lock } = await made();
+    const invocation = await keystore.unlock("invocation", lock);
+    const { publicKey } = await invocation.generate();
+    const as = { publicKey, member: MEMBER, versionId: formatVersionId(0, HEAD) };
+    const event = update(1, 10);
+    const unsignable: [string, object, object][] = [
+      ["a member that is no address", event, { ...as, member: "did:web:example.com" }],
+      ["a version that is none", event, { ...as, versionId: "latest" }],
+      ["an event with a member that is no part of it", { ...event, recovery: {} }, as],
+      ["a date that is none", { ...event, created: "yesterday" }, as],
+    ];
+    for (const [what, wrong, signing] of unsignable) {
+      expect(await refusal(() => invocation.sign(wrong as never, signing as never)), what).toBe(
+        "argument",
+      );
+    }
+    // The position is free: the event that can be signed is signed for it.
+    expect((await invocation.sign(event, as)).proof).toHaveLength(1);
+    expect(await refusal(() => invocation.sign(update(1, 11), as))).toBe("already-signed");
   });
 
   it("signs any genesis: a different genesis is a different mind", async () => {

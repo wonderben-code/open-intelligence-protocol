@@ -63,6 +63,7 @@ Options:
   --origin <origin>    the origin the implementation knows itself by, if it is not that of <url>
   --timeout <ms>       how long one answer may take, in milliseconds (10000)
   --json               write the report as JSON
+  --allow-skipped      end with 0 if no required check failed, though some were skipped
 
 The suite makes minds of its own and publishes them to the implementation, so run it against
 a deployment that may hold them. A host is asked through the reference host's own interface
@@ -71,7 +72,8 @@ checked only by a run that is given an inbox to watch, which the command is not:
 library for that.
 
 The command ends with 0 if every required check passed or did not apply, 1 if not, and 2 if
-it was not used as above.
+it was not used as above. A check that was skipped proves nothing, so a run with one ends
+with 1 unless --allow-skipped is given: the report still says that it does not show conformance.
 `;
 
 /** What the command was asked to do. */
@@ -82,6 +84,8 @@ export interface WireCommand {
   readonly options: WireOptions;
   /** Whether the report is written as JSON. */
   readonly json: boolean;
+  /** Whether the command ends with 0 where no required check failed, though some were skipped. */
+  readonly allowSkipped: boolean;
 }
 
 /**
@@ -94,9 +98,11 @@ export function readArguments(args: readonly string[]): WireCommand | string {
   let origin: string | undefined;
   let timeoutMs: number | undefined;
   let json = false;
+  let allowSkipped = false;
   for (let at = 0; at < args.length; at++) {
     const arg = args[at] ?? "";
     if (arg === "--json") json = true;
+    else if (arg === "--allow-skipped") allowSkipped = true;
     else if (arg === "--origin" || arg === "--timeout") {
       const value = args[++at];
       if (value === undefined) return `${arg} takes a value`;
@@ -131,6 +137,7 @@ export function readArguments(args: readonly string[]): WireCommand | string {
       ...(timeoutMs === undefined ? {} : { timeoutMs }),
     },
     json,
+    allowSkipped,
   };
 }
 
@@ -140,7 +147,8 @@ export function readArguments(args: readonly string[]): WireCommand | string {
  * @param args - The arguments after the command's name.
  * @param write - Writes to the standard output, and to the standard error.
  * @param run - Runs a profile. `runWire` unless given.
- * @returns The exit code: 0 if the implementation conforms, 1 if the run does not show that, 2 for wrong arguments.
+ * @returns The exit code: 0 if the implementation conforms, 1 if the run does not show that, 2
+ *   for wrong arguments. With `--allow-skipped`, 0 also where no required check failed.
  */
 export async function command(
   args: readonly string[],
@@ -158,5 +166,6 @@ export async function command(
   }
   const report = await run(asked.profile, asked.options);
   write.out(asked.json ? `${JSON.stringify(report, undefined, 2)}\n` : formatReport(report));
-  return report.conforms ? 0 : 1;
+  const failed = report.checks.some((check) => check.level === "MUST" && check.outcome === "fail");
+  return report.conforms || (asked.allowSkipped && !failed) ? 0 : 1;
 }

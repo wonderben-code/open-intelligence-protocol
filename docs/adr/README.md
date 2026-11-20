@@ -17,6 +17,7 @@ An ADR records a decision that is hard to reverse: what was decided, why, and wh
 | [0011](0011-hpke.md)                              | HPKE as adopted in `@oip/core`                                        |
 | [0012](0012-service-stack.md)                     | The service stack: what is taken, and what is written here instead    |
 | [0013](0013-the-server-package.md)                | A package the three services share                                    |
+| [0014](0014-containers.md)                        | The service images                                                    |
 
 ## Writing one
 

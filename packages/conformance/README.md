@@ -173,7 +173,7 @@ The specification leaves some things to an implementation, and the suite is told
 - **Another origin.** A signed request and a `Hello` name the origin the implementation knows itself by (13.3). Where the suite reaches a test deployment by another address, give that origin as `origin`.
 - **A host's own interface.** How a mind comes to be served by a host, and how it brings the host its feed and its records, is the host's business ([OEP-0005](../../oeps/oep-0005-service-clarifications.md), open question 3). `hostProfile` takes a `setup` that does it for the host under test. Unless one is given, it is `referenceHostSetup`: the interface of `@oip/host`, which must then run with `OIP_HOST_OPEN` set.
 - **An indexer's own log.** `indexerProfile` asks the indexer for the `Bundle` of its own mind at the well-known path, as the reference indexer serves it. Give `bundle` where it is found another way.
-- **An inbox to watch.** What an indexer forwards arrives at other minds' inboxes. Give `inbox`, an endpoint the indexer can reach and the suite can read, and the suite checks what arrives there. Without one those checks are skipped, and the report says so. The command cannot be given one: use the library.
+- **An inbox to watch.** What an indexer forwards arrives at other minds' inboxes. Give `inbox`, an endpoint the indexer can reach and the suite can read, and the suite checks what arrives there. Without one those checks are skipped, and the report says so. The command cannot be given one: use the library, or give the command `--allow-skipped`, with which it ends with 0 where no required check failed.
 
 From a program:
 

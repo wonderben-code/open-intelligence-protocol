@@ -113,6 +113,7 @@ describe("the arguments of the command", () => {
       profile: "resolver",
       options: { target: "https://resolver.example" },
       json: false,
+      allowSkipped: false,
     });
     expect(
       readArguments([
@@ -128,6 +129,10 @@ describe("the arguments of the command", () => {
       profile: "host",
       options: { target: "http://127.0.0.1:8080", origin: "https://host.example", timeoutMs: 2500 },
       json: true,
+      allowSkipped: false,
+    });
+    expect(readArguments(["indexer", "https://indexer.example", "--allow-skipped"])).toMatchObject({
+      allowSkipped: true,
     });
   });
 
@@ -191,6 +196,30 @@ describe("the command oip-conformance", () => {
       ["resolver", { target: "https://resolver.example" }],
       ["resolver", { target: "https://resolver.example" }],
     ]);
+  });
+
+  it("ends with 0 for a run with skipped checks only where it is told that it may", async () => {
+    const check = (
+      outcome: WireReport["checks"][number]["outcome"],
+      level: "MUST" | "SHOULD" = "MUST",
+    ): WireReport["checks"][number] => ({
+      id: `resolver/${outcome}`,
+      clauses: ["L1 17.1"],
+      level,
+      title: "A check",
+      outcome,
+    });
+    const ending = (checks: WireReport["checks"], args: string[] = []): Promise<number> =>
+      command(["resolver", "https://resolver.example", ...args], written().write, () =>
+        Promise.resolve({ ...report, checks, conforms: false }),
+      );
+    const skipped = [check("pass"), check("skipped")];
+    expect(await ending(skipped)).toBe(1);
+    expect(await ending(skipped, ["--allow-skipped"])).toBe(0);
+    // What failed has failed, whatever was skipped.
+    expect(await ending([...skipped, check("fail")], ["--allow-skipped"])).toBe(1);
+    // A recommended check that failed does not decide.
+    expect(await ending([...skipped, check("fail", "SHOULD")], ["--allow-skipped"])).toBe(0);
   });
 
   it("says how it is used when asked, and when it is used wrongly", async () => {

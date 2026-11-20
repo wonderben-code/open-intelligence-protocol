@@ -1,0 +1,88 @@
+# SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+# SPDX-License-Identifier: Apache-2.0
+
+# A resolver, a host and an indexer on this machine, for trying them out and for running
+# the conformance suite against them:
+#
+#   docker compose up --build --wait
+#   npx oip-conformance resolver http://127.0.0.1:8081 --origin https://resolver.localhost
+#   npx oip-conformance host     http://127.0.0.1:8082 --origin https://host.localhost
+#   npx oip-conformance indexer  http://127.0.0.1:8083 --origin https://indexer.localhost
+#
+# This is not a deployment. The services speak plain HTTP here, on this machine only, and
+# the host takes on any mind that brings its bundle. In production each stands behind a
+# proxy that ends TLS, is given the origin it is reached at, and the host is told which
+# minds it serves (OIP_HOST_MINDS). docs/guides/containers.md says more.
+
+name: oip
+
+# What every service is run with: nothing of the image can be written, and nothing more
+# can be gained than the process starts with.
+x-locked-down: &locked-down
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+
+services:
+  resolver:
+    <<: *locked-down
+    build:
+      context: .
+      target: resolver
+    image: oip-resolver:dev
+    environment:
+      OIP_RESOLVER_ORIGIN: ${OIP_RESOLVER_ORIGIN:-https://resolver.localhost}
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - resolver-data:/data
+
+  host:
+    <<: *locked-down
+    build:
+      context: .
+      target: host
+    image: oip-host:dev
+    environment:
+      OIP_HOST_ORIGIN: ${OIP_HOST_ORIGIN:-https://host.localhost}
+      # Any mind may bring its bundle: for this machine only.
+      OIP_HOST_OPEN: "true"
+    ports:
+      - "127.0.0.1:8082:8080"
+    volumes:
+      - host-data:/data
+
+  # Makes the indexer's own mind the first time, into the indexer's volume, and ends.
+  indexer-init:
+    <<: *locked-down
+    build:
+      context: .
+      target: indexer
+    image: oip-indexer:dev
+    command: ["dist/bin.js", "init", "/data/mind", "--if-missing"]
+    restart: "no"
+    volumes:
+      - indexer-data:/data
+
+  indexer:
+    <<: *locked-down
+    image: oip-indexer:dev
+    depends_on:
+      indexer-init:
+        condition: service_completed_successfully
+    environment:
+      OIP_INDEXER_ORIGIN: ${OIP_INDEXER_ORIGIN:-https://indexer.localhost}
+    ports:
+      - "127.0.0.1:8083:8080"
+    volumes:
+      - indexer-data:/data
+
+volumes:
+  resolver-data:
+  host-data:
+  indexer-data:

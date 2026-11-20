@@ -58,6 +58,45 @@ jobs:
       - name: Every check, in order
         run: pnpm run ci
 
+  containers:
+    name: The service images pass the conformance suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install with a frozen lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Build the images and start the three services (ADR-0014)
+        run: docker compose up --build --wait --wait-timeout 120
+      - name: Each service runs as a user that is not root, on a read-only file system
+        run: |
+          for service in resolver host indexer; do
+            id="$(docker compose ps --quiet "$service")"
+            test "$(docker inspect --format '{{.Config.User}} {{.HostConfig.ReadonlyRootfs}}' "$id")" = "65532:65532 true"
+          done
+      # A signed request and a Hello name the origin a service knows itself by (Layer 1, 13.3).
+      - name: The Resolver profile
+        run: node --conditions=@oip/source packages/conformance/src/bin.ts resolver http://127.0.0.1:8081 --origin https://resolver.localhost
+      - name: The Host profile
+        run: node --conditions=@oip/source packages/conformance/src/bin.ts host http://127.0.0.1:8082 --origin https://host.localhost
+      # What an indexer forwards is checked where the suite has an inbox to watch, which the
+      # tests of @oip/conformance give it. Here those checks are skipped, and nothing may fail.
+      - name: The Indexer profile
+        run: node --conditions=@oip/source packages/conformance/src/bin.ts indexer http://127.0.0.1:8083 --origin https://indexer.localhost --allow-skipped
+      - name: What the services logged, if a step failed
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop the services
+        if: always()
+        run: docker compose down --volumes
+
   test:
     name: Test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest

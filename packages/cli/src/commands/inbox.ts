@@ -4,7 +4,7 @@
 import type { Inbox, SessionEvent } from "@oip/client";
 
 import { type Command, has, type Result, UsageError } from "../command.ts";
-import { type Opened, withMind } from "../mind.ts";
+import { keepRecords, type Opened, withMind } from "../mind.ts";
 import { counted } from "../text.ts";
 import { row } from "./describe.ts";
 import { deliveryLine, keptFrom, keptOf, type KeptPacket, receivedLines } from "./packets.ts";
@@ -127,7 +127,7 @@ export const inbox: Command = {
       const listening = mind.listen({
         received: (arrived) => {
           // What is held now is written down now: the command may be stopped at any time.
-          opened.records.keep(mind.records());
+          keepRecords(opened);
           context.say(said(opened, arrived, false));
         },
       });

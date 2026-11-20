@@ -145,9 +145,19 @@ describe("oip send and oip inbox", () => {
     expect(arrived.out).toContain(`  record     Participant ${id}\n`);
     // Held by the mind, and so kept in its directory for the commands that come after.
     expect(readdirSync(join(bob, "records"))).toContain(`${id}.json`);
-    expect(JSON.parse(readFileSync(join(bob, "records", `${id}.json`), "utf8"))).toStrictEqual(
-      record,
-    );
+    const kept = JSON.parse(readFileSync(join(bob, "records", `${id}.json`), "utf8")) as {
+      record: object;
+      seen: Record<string, string>;
+    };
+    expect(kept.record).toStrictEqual(record);
+    // With when Bob first obtained its proof: his own record, which is evidence it existed then.
+    expect(Object.keys(kept.seen)).toHaveLength(1);
+    expect(Object.values(kept.seen)[0]).toMatch(/^[0-9]{19}$/u);
+    // The next command holds it again as first seen then, and writes down the same.
+    const before = readFileSync(join(bob, "records", `${id}.json`), "utf8");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect((await place.oip(["inbox", "--dir", bob])).code).toBe(0);
+    expect(readFileSync(join(bob, "records", `${id}.json`), "utf8")).toBe(before);
   });
 
   it(`${clause("L1 12.6")} sends in the clear when told to, and says so on both sides`, async () => {

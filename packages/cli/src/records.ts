@@ -17,7 +17,7 @@
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { canonicalize, contentId, type JsonObject, parseJsonBytes } from "@oip/core";
+import { canonicalize, contentId, type Instant, type JsonObject, parseJsonBytes } from "@oip/core";
 
 import { MAX_FILE_BYTES } from "./files.ts";
 
@@ -61,9 +61,7 @@ export class Kept {
     }
     const parsed = parseJsonBytes(bytes, { maxLength: MAX_FILE_BYTES });
     if (!parsed.ok) return undefined;
-    const { value } = parsed;
-    if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
-    return value as JsonObject;
+    return isObject(parsed.value) ? parsed.value : undefined;
   }
 
   /** Everything kept, each with the content ID it is kept under. */
@@ -94,9 +92,58 @@ export class Kept {
     writeFileSync(partial, text, { mode: 0o600 });
     renameSync(partial, file);
   }
+}
 
-  /** Keeps records, each under its own content ID. */
-  keep(records: readonly object[]): void {
-    for (const record of records) this.put(contentId(record), record);
+/** A record as it is kept: with when each of its proofs was first obtained (core 9.4, item 1). */
+export interface KeptRecord {
+  readonly record: JsonObject;
+  /** By the proof's digest, the time, in nanoseconds of the Unix epoch. */
+  readonly seen: Readonly<Record<string, Instant>>;
+}
+
+/**
+ * The records a mind holds, as its directory keeps them between runs.
+ *
+ * With each is kept when this mind first obtained each of its proofs. That
+ * is evidence the proof existed then, and for most proofs the only evidence
+ * there is: without it, a record held again by the next command would be
+ * judged as if it had only then arrived.
+ */
+export class KeptRecords {
+  readonly #kept: Kept;
+
+  constructor(dir: string) {
+    this.#kept = new Kept(dir);
+  }
+
+  /** Every record kept. A file that holds no such thing is passed over. */
+  all(): KeptRecord[] {
+    return this.#kept.all().flatMap(({ value }) => {
+      const { record, seen } = value;
+      if (!isObject(record) || !isObject(seen)) return [];
+      const times: Record<string, Instant> = {};
+      for (const [digest, time] of Object.entries(seen)) {
+        // What is no time says nothing, and the proof is then first seen when it is held again.
+        if (typeof time === "string" && /^[0-9]{1,30}$/u.test(time)) times[digest] = BigInt(time);
+      }
+      return [{ record, seen: times }];
+    });
+  }
+
+  /** The record kept under a content ID, if one is. */
+  get(id: string): JsonObject | undefined {
+    const record = this.#kept.get(id)?.["record"];
+    return isObject(record) ? record : undefined;
+  }
+
+  /** Keeps a record under its content ID, with when its proofs were first obtained. */
+  keep(record: object, seen: Readonly<Record<string, Instant>>): void {
+    const times = Object.fromEntries(
+      Object.entries(seen).map(([digest, time]) => [digest, String(time)]),
+    );
+    this.#kept.put(contentId(record), { record, seen: times });
   }
 }
+
+const isObject = (value: unknown): value is JsonObject =>
+  typeof value === "object" && value !== null && !Array.isArray(value);

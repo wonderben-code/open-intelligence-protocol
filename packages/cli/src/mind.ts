@@ -14,14 +14,14 @@ import {
   type OpenSocket,
   type SocketLike,
 } from "@oip/client";
-import { OipError } from "@oip/core";
+import { contentId, OipError } from "@oip/core";
 import { keychainLock, Keystore, type Lock, passphrase } from "@oip/keystore";
 import { fileStorage } from "@oip/keystore/node";
 
 import { type Context, UsageError } from "./command.ts";
 import { type Config, Home, readNetwork } from "./home.ts";
 import { routed, routedSocket } from "./network.ts";
-import { Kept } from "./records.ts";
+import { Kept, KeptRecords } from "./records.ts";
 
 /** The name the command's keys are kept under in a keychain. */
 const SERVICE = "oip";
@@ -102,7 +102,7 @@ export interface Opened {
   /** What opens the keys of everyday work, and the control keys unless told otherwise. */
   readonly lock: Lock;
   /** The records the mind held when the command before this one ended. It holds them again. */
-  readonly records: Kept;
+  readonly records: KeptRecords;
   /** The packets the mind has received. */
   readonly inbox: Kept;
 }
@@ -118,10 +118,10 @@ export async function openMind(context: Context): Promise<Opened> {
   const keystore = await Keystore.open({ storage: fileStorage(home.keys) });
   const lock = await lockOf(context, config.lock);
   const mind = await Mind.open(optionsOf(context, home, config, keystore, lock));
-  const records = new Kept(home.records);
-  for (const { value } of records.all()) {
+  const records = new KeptRecords(home.records);
+  for (const { record, seen } of records.all()) {
     try {
-      mind.hold(value);
+      mind.hold(record, seen);
     } catch (error) {
       // A file there that is no record is not one the mind holds. Nothing else is wrong.
       if (!(error instanceof OipError)) {
@@ -131,6 +131,11 @@ export async function openMind(context: Context): Promise<Opened> {
     }
   }
   return { mind, home, config, keystore, lock, records, inbox: new Kept(home.inbox) };
+}
+
+/** Writes down the records a mind holds, each with when its proofs were first obtained. */
+export function keepRecords({ mind, records }: Pick<Opened, "mind" | "records">): void {
+  for (const record of mind.records()) records.keep(record, mind.sightings(contentId(record)));
 }
 
 /**
@@ -148,7 +153,7 @@ export async function withMind<T>(
     return await work(opened);
   } finally {
     try {
-      opened.records.keep(opened.mind.records());
+      keepRecords(opened);
     } finally {
       opened.mind.close();
     }

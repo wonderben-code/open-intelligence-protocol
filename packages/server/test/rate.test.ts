@@ -45,6 +45,58 @@ describe("a rate limit", () => {
     expect(limiter.take("a").ok).toBe(false);
   });
 
+  it("keeps no client out for as long as its clock was set back", () => {
+    const clock = handClock();
+    const limiter = new RateLimiter({ burst: 3, perMinute: 60 }, clock);
+    for (let request = 0; request < 3; request++) expect(limiter.take("a").ok).toBe(true);
+    expect(limiter.take("a")).toStrictEqual({ ok: false, retryAfter: 1 });
+    // The clock is set back by ten minutes: an NTP correction, or a machine that was moved.
+    clock.at -= 600n * SECOND;
+    // The client has nothing left, as before. It does not wait ten minutes for more.
+    expect(limiter.take("a")).toStrictEqual({ ok: false, retryAfter: 1 });
+    expect(limiter.take("a")).toStrictEqual({ ok: false, retryAfter: 1 });
+    clock.at += SECOND;
+    expect(limiter.take("a").ok).toBe(true);
+    expect(limiter.take("a").ok).toBe(false);
+    // The step back won it nothing: one request a second from here, and the burst after a pause.
+    clock.at += 2n * SECOND;
+    expect(limiter.take("a").ok).toBe(true);
+    expect(limiter.take("a").ok).toBe(true);
+    expect(limiter.take("a").ok).toBe(false);
+    clock.at += 3_600n * SECOND;
+    for (let request = 0; request < 3; request++) expect(limiter.take("a").ok).toBe(true);
+    expect(limiter.take("a").ok).toBe(false);
+    // A client that was not heard from before the step is as new.
+    clock.at -= 600n * SECOND;
+    for (let request = 0; request < 3; request++) expect(limiter.take("b").ok).toBe(true);
+    expect(limiter.take("b").ok).toBe(false);
+  });
+
+  it("gives no more than the burst and the steady rate on a clock that goes back and forth", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 20 }),
+        fc.integer({ min: 1, max: 600 }),
+        fc.array(fc.integer({ min: -5_000, max: 5_000 }), { minLength: 1, maxLength: 200 }),
+        (burst, perMinute, steps) => {
+          const clock = handClock(1_000_000n * SECOND);
+          const limiter = new RateLimiter({ burst, perMinute }, clock);
+          const interval = 60_000_000_000n / BigInt(perMinute);
+          let allowed = 0;
+          let forward = 0n;
+          for (const milliseconds of steps) {
+            const step = BigInt(milliseconds) * 1_000_000n;
+            clock.at += step;
+            // Only time that passes fills an allowance: a step back gives nothing, and takes nothing.
+            if (step > 0n) forward += step;
+            if (limiter.take("a").ok) allowed++;
+          }
+          expect(BigInt(allowed)).toBeLessThanOrEqual(BigInt(burst) + forward / interval);
+        },
+      ),
+    );
+  });
+
   it("counts each client by itself", () => {
     const clock = handClock();
     const limiter = new RateLimiter({ burst: 1, perMinute: 1 }, clock);

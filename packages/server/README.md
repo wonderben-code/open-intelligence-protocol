@@ -133,6 +133,7 @@ The record sent again has the time it was first seen. What is no record is refus
 - **The fetcher refuses by default.** It fetches HTTPS only, from public addresses only, and connects to an address it has checked. `allow` is for your own test network. A name that resolves to a public address and a private one is refused whole.
 - **A service's origin comes from its configuration.** `authenticate` puts the signed URI together from `origin` and the path and query asked for. It reads no `Host`.
 - **A log line holds plain values.** Give `Log.event` text, numbers and booleans. Give `Log.failure` what was thrown: it logs the class, the code and the place, and the message only of an error of ours.
+- **A rate limit goes by the clock you give it**, which is the clock the service tells the time by. If that clock is set back, a client keeps what it had used and gains at the steady rate from then: it is not kept out for as long as the clock went back, and it is given nothing either.
 - **A label is a small set you chose.** A route as you name it, a status, a problem code. Never a path as it was asked for, or a mind's address.
 
 ## Tests

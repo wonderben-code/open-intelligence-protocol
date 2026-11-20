@@ -143,14 +143,15 @@ export function indexerApp(options: IndexerAppOptions): Hono<{ Bindings: Arrival
     }),
   );
 
-  // A browser asks before it sends JSON from another origin.
+  // A browser asks before it sends JSON from another origin, or a request a mind signed
+  // (Layer 1, 13.3): a client may sign what it submits, whether or not an indexer asks it to.
   const preflight = (): Response =>
     new Response(null, {
       status: 204,
       headers: {
         "access-control-allow-origin": "*",
         "access-control-allow-methods": "GET, POST",
-        "access-control-allow-headers": "content-type",
+        "access-control-allow-headers": "content-type, content-digest, signature, signature-input",
         "access-control-max-age": "86400",
       },
     });

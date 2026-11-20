@@ -338,7 +338,10 @@ describe("what an indexer serves besides", () => {
       const preflight = await ask(path, { method: "OPTIONS" });
       expect(preflight.status).toBe(204);
       expect(preflight.headers.get("access-control-allow-methods")).toBe("GET, POST");
-      expect(preflight.headers.get("access-control-allow-headers")).toBe("content-type");
+      // A submission may be signed (13.3): the headers of a signature are let through too.
+      expect(preflight.headers.get("access-control-allow-headers")).toBe(
+        "content-type, content-digest, signature, signature-input",
+      );
     }
     expect((await ask("/healthz")).status).toBe(200);
     expect((await ask("/readyz")).status).toBe(200);

@@ -10,3 +10,4 @@ First version: the indexer of Layer 1, Section 18.
 - `Broker`: a packet addressed to a query is forwarded once, to at most as many minds as it says and never more than fifty, each time in a `Forwarded` record the indexer signs (18.5). A packet that names its brokers and not this indexer is refused.
 - `init`, and the command `oip-indexer init <directory>`: makes the indexer's own mind, once. It writes the mind's `Bundle`, its operational key and the control key for its next event, the keys in files that only their owner can read, and writes over nothing.
 - The setting `ED25519`: `native`, the default, has OpenSSL do the arithmetic of each signature; `portable` leaves it to the library. The service says in its log if OpenSSL was asked for and could not be used.
+- A browser may send the indexer a request a mind signed: the answer to its preflight lets the headers of a signature through, as the resolver's and the host's do.

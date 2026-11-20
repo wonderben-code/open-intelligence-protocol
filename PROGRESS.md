@@ -45,12 +45,13 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
   - send packets, sealed unless told otherwise, and read its mailbox; send to whoever a query finds, through a broker; send for another mind under a delegation;
   - delegate, pass a delegation on and revoke one; make Intents, Offers, Commitments and Receipts, for itself or for the mind it acts for; co-sign; and say whether a record counts for a mind and what its status is.
   - found a collective with other minds, change it, and sign for it: by the threshold of its members, or alone by a role of its charter;
+  - keep a packet that did not arrive, and try it again ([ADR-0025](docs/adr/0025-the-clients-outbox.md));
   - listen at its host over a socket ([ADR-0024](docs/adr/0024-the-clients-socket.md)): what arrives is judged as a mailbox is, acknowledged over the socket, and a connection that ends is opened again;
   - talk in a session ([ADR-0023](docs/adr/0023-sessions-in-the-client.md)): each packet has its place in the mind's chain before it leaves, what arrives is returned in order, a gap is asked about with a `Resume`, and a participant's `Resume` is answered with what it lacks.
 - **The scenario of the papers runs through the client** against the real resolver, host and indexer in one process (`packages/client/test/dealings.test.ts`, `examples/deal.ts`).
 - **It runs in a browser too** ([ADR-0022](docs/adr/0022-the-client-in-a-browser.md)): a page of Chromium runs the README's examples against the same services, with its keys sealed in IndexedDB, and the test checks that each service would have let a browser make every request the page made (`packages/client/test/browser.real.test.ts`, the `browser` job of CI).
 
-**Not built yet in M6:** an outbox for when nobody answers.
+**Everything on M6's build list is built.** What remains before the milestone closes: a runnable example for each public method that has none yet, the API report frozen for 0.x, the independent reviews, and the mutation run.
 
 **What M6 found:**
 

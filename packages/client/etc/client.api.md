@@ -145,6 +145,7 @@ export interface Delivery {
     readonly ack?: Ack;
     readonly endpoint?: string;
     readonly failure?: string;
+    readonly queued?: true;
     readonly sealed: boolean;
     readonly stored: boolean;
     readonly to: string;
@@ -231,6 +232,7 @@ export interface Inbox {
         readonly clause: string;
         readonly message: string;
     }[];
+    readonly retried: readonly Retried<Delivery>[];
     readonly sessions: readonly SessionEvent[];
     readonly sources: readonly MailboxAnswer[];
     readonly waiting: number;
@@ -319,6 +321,9 @@ export const MAX_MAILBOX_ITEMS = 1000;
 export const MAX_QUERY_EXPIRES_IN = 3600;
 
 // @public
+export const MAX_QUEUED = 1000;
+
+// @public
 export const MAX_RESULTS = 100;
 
 // @public
@@ -337,6 +342,7 @@ export interface Message {
         readonly mind: string;
         readonly chain: readonly Delegation[];
     };
+    readonly queue?: boolean;
     readonly replyTo?: string;
     readonly seal?: boolean;
     readonly session?: string;
@@ -347,6 +353,7 @@ export interface Message {
 
 // @public
 export class Mind {
+    abandon(packet: string): Promise<boolean>;
     addKey(options: ControlOptions & {
         readonly label?: string;
     }): Promise<string>;
@@ -380,6 +387,7 @@ export class Mind {
         id: string;
         session: Session;
     }>;
+    outbox(): Promise<Queued[]>;
     get publications(): readonly Publication[];
     publishLocation(fields?: LocationFields): Promise<Location>;
     publishLog(events: readonly object[]): Promise<Resolved>;
@@ -395,6 +403,7 @@ export class Mind {
         readonly successor?: string;
         readonly reason?: string;
     }): Promise<IdentityState>;
+    retry(): Promise<Retried<Delivery>[]>;
     revoke(delegation: Delegation): Promise<Revocation>;
     revokeKey(key: string, options: ControlOptions & {
         readonly compromisedSince?: string;
@@ -471,6 +480,19 @@ export interface Publication {
 }
 
 // @public
+export interface Queued {
+    readonly id: string;
+    readonly next: Instant;
+    readonly packet: Packet;
+    readonly sealed: boolean;
+    readonly to: readonly {
+        readonly mind: string;
+        readonly failure: string;
+    }[];
+    readonly tries: number;
+}
+
+// @public
 export interface Ranking {
     readonly indexer: string;
     readonly score: string;
@@ -521,6 +543,16 @@ export interface ResolverAnswer {
     readonly events: number | undefined;
     readonly failure?: string;
     readonly resolver: string;
+}
+
+// Warning: (ae-forgotten-export) The symbol "Outcome" needs to be exported by the entry point index.d.ts
+//
+// @public
+export interface Retried<D extends Outcome = Outcome> {
+    readonly deliveries: readonly D[];
+    readonly expired: boolean;
+    readonly id: string;
+    readonly waiting: number;
 }
 
 // @public

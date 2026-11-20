@@ -15,6 +15,7 @@ import { example as hearing } from "../examples/listen.ts";
 import { example } from "../examples/first-mind.ts";
 import { example as messaging } from "../examples/messages.ts";
 import { example as moving } from "../examples/move.ts";
+import { example as keeping } from "../examples/outbox.ts";
 import { example as publishing } from "../examples/publish.ts";
 import { example as talking } from "../examples/session.ts";
 import * as client from "../src/index.ts";
@@ -54,6 +55,7 @@ describe("the README", () => {
       "find.ts",
       "messages.ts",
       "listen.ts",
+      "outbox.ts",
       "session.ts",
       "move.ts",
       "deal.ts",
@@ -165,6 +167,26 @@ describe("the README", () => {
       "Bob hears from Ada: Sent while you were away.",
       "Bob hears from Ada: Sent while you listen.",
       "Bob heard 2 packets, and listens no more",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+  });
+
+  it("shows the output the example of the outbox really gives, for a mind that is not there yet", async () => {
+    world.resolver("https://resolver.example");
+    world.host("https://home.example");
+    const output = await keeping(
+      ["https://resolver.example"],
+      "https://home.example",
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock: world.clock },
+    );
+    expect(output).toStrictEqual([
+      "not taken (not-found): kept to be tried again",
+      "the outbox holds a packet sent 1 time",
+      "tried again: taken, 0 waiting",
+      "Bob has 1 packet, the one that was signed: true",
+      "given up: true",
+      "the outbox holds 0 packets",
     ]);
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });

@@ -388,6 +388,88 @@ Bob hears from Ada: Sent while you listen.
 Bob heard 2 packets, and listens no more
 ```
 
+## The outbox
+
+A packet that does not reach a recipient is not lost. [`examples/outbox.ts`](examples/outbox.ts) sends to a mind that has not yet said where it takes packets:
+
+```ts
+import { type Clock, type Fetch, Mind } from "@oip/client";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * A packet for a mind that cannot be reached yet is kept, and sent when it
+ * can be.
+ *
+ * @param resolvers - The HTTPS origins of the resolvers all of them trust.
+ * @param home - The HTTPS origin of the host that takes them on.
+ * @param lock - What their keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  home: string,
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const mindAt = async (): Promise<Mind> => {
+    const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+    // The outbox is kept in the memory: give it a storage that lasts.
+    return Mind.create(
+      { keystore, lock, resolvers, memory: memoryStorage(), ...edges },
+      { kind: "agent", homes: [home] },
+    );
+  };
+  const ada = await mindAt();
+  const bob = await mindAt();
+  const cyd = await mindAt();
+  const write = (to: Mind, body: string) =>
+    ada.send({ to: [to.address], verb: "inform", content: { mediaType: "text/plain", body } });
+
+  // Bob has not yet said where he takes packets. The packet is signed, and kept.
+  const sent = await write(bob, "For when you are there.");
+  for (const delivery of sent.deliveries) {
+    const kept = delivery.queued === true ? "kept to be tried again" : "given up";
+    output.push(`not taken (${String(delivery.failure)}): ${kept}`);
+  }
+  const [waiting] = await ada.outbox();
+  output.push(`the outbox holds a packet sent ${String(waiting?.tries)} time`);
+
+  // He says where. `receive` and `listen` try what is due by themselves: `retry` tries now.
+  await bob.publishLocation();
+  for (const retried of await ada.retry()) {
+    const taken = retried.deliveries.every((delivery) => delivery.stored);
+    output.push(
+      `tried again: ${taken ? "taken" : "not taken"}, ${String(retried.waiting)} waiting`,
+    );
+  }
+  const { received } = await bob.receive();
+  output.push(
+    `Bob has ${String(received.length)} packet, the one that was signed: ${String(received[0]?.id === sent.id)}`,
+  );
+
+  // A packet nobody is expected to take any more can be given up.
+  const lost = await write(cyd, "Never mind.");
+  output.push(`given up: ${String(await ada.abandon(lost.id))}`);
+  output.push(`the outbox holds ${String((await ada.outbox()).length)} packets`);
+  ada.close();
+  bob.close();
+  cyd.close();
+  return output;
+}
+```
+
+It prints:
+
+```
+not taken (not-found): kept to be tried again
+the outbox holds a packet sent 1 time
+tried again: taken, 0 waiting
+Bob has 1 packet, the one that was signed: true
+given up: true
+the outbox holds 0 packets
+```
+
 ## A session
 
 A session puts the packets of each sender in order (Layer 1, Section 14). [`examples/session.ts`](examples/session.ts) sends three packets in one, and shows what happens to one that is lost on its way:
@@ -817,6 +899,15 @@ signed by two: the collective's? true
 - **A packet is returned once.** The client remembers what it accepted, in `memory`, for as long as the packet could arrive again. With a memory that does not last, a packet that was not removed from the mailbox before the process ended is returned again.
 - **What cannot be judged yet waits.** If no resolver can be asked for a sender's log, the item stays in the mailbox and is counted in `waiting`.
 - **A packet may be for whoever a query finds** (18.5): `to: { query }`. It goes in the clear to the indexers the client names, for an hour at most, and each forwards it to the minds that match if it is a broker of it. `receive` takes such a packet only inside the broker's `Forwarded` record, and says which broker it came by.
+
+### The outbox
+
+- **A packet that did not arrive is kept, where it may yet.** If no endpoint of a recipient took it because the host could not be reached, asked for patience (`rate-limited`), does not yet know its sender (`stale-version`), or the recipient has not said where it is (`not-found`), the packet is kept in the client's `memory` for that recipient, and `deliveries` says `queued`. A packet refused for what it is, is not kept: one that cannot be sealed, or that a host calls invalid.
+- **It is tried again by itself** when the mind next calls `receive`, and when a socket of `listen` opens: after 30 seconds the first time, then twice as long each time, up to an hour. `retry` tries everything now. What came of it is in `retried` of what `receive` returns.
+- **What is sent again is the packet that was signed.** It is sealed anew each time, to the recipient's agreement key as it then stands. A recipient that gets it twice returns it once.
+- **A packet is dropped once it has expired**: nobody would accept it (12.4). The default is an hour, so give a packet that should outlast a long silence a longer `expiresIn`, up to seven days. A packet of a session states no expiry, and waits until it arrives, the mind leaves the session, or `abandon` gives it up.
+- **`queue: false` sends once**, and keeps nothing. A packet for a query (18.5) is never kept: nobody knows whom it is for.
+- **The outbox holds 1,000 packets at most.** Past that, a packet that does not arrive is told so, without `queued`.
 
 ### Listening
 

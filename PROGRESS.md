@@ -44,11 +44,12 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
   - resolve any mind with the witness rule of core 9.4 applied, read a feed, check aliases (5.3), and find minds through indexers with every record they name verified (18.4);
   - send packets, sealed unless told otherwise, and read its mailbox; send to whoever a query finds, through a broker; send for another mind under a delegation;
   - delegate, pass a delegation on and revoke one; make Intents, Offers, Commitments and Receipts, for itself or for the mind it acts for; co-sign; and say whether a record counts for a mind and what its status is.
-  - found a collective with other minds, change it, and sign for it: by the threshold of its members, or alone by a role of its charter.
+  - found a collective with other minds, change it, and sign for it: by the threshold of its members, or alone by a role of its charter;
+  - talk in a session ([ADR-0023](docs/adr/0023-sessions-in-the-client.md)): each packet has its place in the mind's chain before it leaves, what arrives is returned in order, a gap is asked about with a `Resume`, and a participant's `Resume` is answered with what it lacks.
 - **The scenario of the papers runs through the client** against the real resolver, host and indexer in one process (`packages/client/test/dealings.test.ts`, `examples/deal.ts`).
 - **It runs in a browser too** ([ADR-0022](docs/adr/0022-the-client-in-a-browser.md)): a page of Chromium runs the README's examples against the same services, with its keys sealed in IndexedDB, and the test checks that each service would have let a browser make every request the page made (`packages/client/test/browser.real.test.ts`, the `browser` job of CI).
 
-**Not built yet in M6:** sessions with resume, the WebSocket binding with a client that reconnects, and an outbox for when nobody answers.
+**Not built yet in M6:** the WebSocket binding with a client that reconnects, and an outbox for when nobody answers.
 
 **What M6 found:**
 

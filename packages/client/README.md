@@ -303,6 +303,106 @@ a request, sealed
 refused: 0; left in the mailbox: 0
 ```
 
+## A session
+
+A session puts the packets of each sender in order (Layer 1, Section 14). [`examples/session.ts`](examples/session.ts) sends three packets in one, and shows what happens to one that is lost on its way:
+
+```ts
+import { type Clock, type Fetch, type Inbox, Mind } from "@oip/client";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * Two minds talk in a session: each packet has its place, and one that goes
+ * missing is asked for and sent again.
+ *
+ * @param resolvers - The HTTPS origins of the resolvers both trust.
+ * @param homes - The HTTPS origins of the hosts that take each of them on.
+ * @param lock - What their keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  homes: { readonly ada: string; readonly bob: string },
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const mindAt = async (home: string): Promise<Mind> => {
+    const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+    // The memory is where a session is kept between runs: give it a storage that lasts.
+    const mind = await Mind.create(
+      { keystore, lock, resolvers, memory: memoryStorage(), ...edges },
+      { kind: "agent", homes: [home] },
+    );
+    await mind.publishLocation();
+    return mind;
+  };
+  const ada = await mindAt(homes.ada);
+  const bob = await mindAt(homes.bob);
+
+  /** What a reading of a mailbox found: the packets in order, and what the session asked for. */
+  const tell = (who: string, inbox: Inbox): void => {
+    for (const { packet } of inbox.received) {
+      const parts = "parts" in packet.content ? packet.content.parts : [packet.content];
+      const text = parts.find((part) => part.mediaType === "text/plain");
+      const said = text !== undefined && "body" in text ? String(text.body) : packet.purpose.verb;
+      output.push(`${who} has packet ${String(packet.seq)}: ${said}`);
+    }
+    for (const event of inbox.sessions) {
+      if (event.kind === "gap") output.push(`${who} lacks the packets from ${String(event.next)}`);
+      if (event.kind === "asked") output.push(`${who} asks for them, in a Resume`);
+      if (event.kind === "sent-again") {
+        output.push(`${who} sends ${String(event.deliveries.length)} packets again`);
+      }
+    }
+  };
+
+  // Ada names the session, and sends three packets in it. Nothing is sent to open it:
+  // her first packet carries the Session record.
+  const { id } = await ada.openSession([bob.address]);
+  for (const body of ["One.", "Two.", "Three."]) {
+    const sent = await ada.send({
+      to: [bob.address],
+      verb: "inform",
+      content: { mediaType: "text/plain", body },
+      session: id,
+    });
+    const taken = sent.deliveries.every((delivery) => delivery.stored);
+    output.push(`Ada sends packet ${String(sent.packet.seq)}: ${taken ? "taken" : "not taken"}`);
+  }
+
+  // Bob reads his mailbox. A packet that is ahead of one he lacks waits there, and he asks.
+  tell("Bob", await bob.receive());
+  // Ada reads hers, finds what he asks for, and sends it again as it was.
+  tell("Ada", await ada.receive());
+  tell("Bob", await bob.receive());
+
+  const [session] = await bob.sessions();
+  output.push(`Bob holds ${String(session?.chains[0]?.received)} of Ada's packets, in order`);
+  ada.close();
+  bob.close();
+  return output;
+}
+```
+
+With the second packet lost between Ada and Bob's host, it prints:
+
+```
+Ada sends packet 0: taken
+Ada sends packet 1: not taken
+Ada sends packet 2: taken
+Bob has packet 0: One.
+Bob lacks the packets from 1
+Bob asks for them, in a Resume
+Ada has packet 0: resume
+Ada sends 2 packets again
+Bob has packet 1: Two.
+Bob has packet 2: Three.
+Bob holds 3 of Ada's packets, in order
+```
+
+With nothing lost, Bob has all three at his first reading, and nobody asks for anything.
+
 ## Changing hosts
 
 [`examples/move.ts`](examples/move.ts) moves a mind from one host to another:
@@ -547,6 +647,7 @@ signed by two: the collective's? true
 | `Finding`, `Found`, `Listed`, `Ranking`, `NotFound`, `IndexerAnswer`, `MAX_RESULTS`                                                                      | `Lookup.find` asks the indexers the client names a capability query, and fetches and verifies every record they name before it returns it (Layer 1, 18.4). `Lookup.record` fetches a record a mind's homes serve, by its content ID                                                            |
 | `AliasCheck`, `AliasOptions`, `DidLike`                                                                                                                  | `Lookup.aliases` checks the other names a mind gives itself: each is the mind's only if it points back (Layer 1, 5.3; Layer 0, Section 4)                                                                                                                                                      |
 | `Message`, `Sent`, `Delivery`, `Inbox`, `Received`, `MailboxAnswer`, `DEFAULT_EXPIRES_IN`, `MAX_EXPIRES_IN`, `MAX_QUERY_EXPIRES_IN`, `MAX_MAILBOX_ITEMS` | `Mind.send` signs a packet, seals it to each recipient and posts it where the recipient takes packets (Layer 1, Section 12; 15.3). `Mind.receive` reads the mind's mailboxes and returns what was judged to be a packet for it (12.4, 13.5)                                                    |
+| `SessionView`, `ChainView`, `SessionEvent`                                                                                                               | Sessions (Layer 1, Section 14): `Mind.openSession` names one, `send` with `session` sends in it, `receive` returns its packets in order and says in `sessions` what it found and did, `resume` asks for what is missing, `sessions` lists them, and `leaveSession` forgets one                 |
 | `Grant`, `Acting`, `Fields`, `carried`                                                                                                                   | Delegation and the records of the Mind Web: `Mind.delegate`, `subDelegate` and `revoke` (Layer 1, Section 11); `intent`, `offer`, `commitment`, `receipt` and `cosign` (Layer 2, Sections 4 to 6); `countsFor` and `statusOf` (7 and 8); `hold` and `records`                                  |
 | `NewCollective`, `CollectiveChanges`, `MemberOptions`                                                                                                    | Collectives (Layer 1, Section 9): `Mind.foundCollective`, `changeCollective` and `signEvent` for a collective's identity events, which its members sign; `publishLog`; and `charter` for the roles its members may act in (Layer 2, 6.2)                                                       |
 | `Clock`, `systemClock`                                                                                                                                   | The present, behind an interface: a test gives its own                                                                                                                                                                                                                                         |
@@ -623,12 +724,28 @@ signed by two: the collective's? true
 - **A packet is sealed unless you say otherwise** (Layer 1, 12.6): `seal: false` sends it in the clear. Sealed, it is encrypted to an agreement key of the recipient, and the hosts it passes through cannot read it. A packet is never sent in the clear because it could not be sealed: the delivery fails, and says so. Sealing gives no forward secrecy: whoever later has the recipient's agreement key reads what was sealed to it.
 - **`send` does not throw for a recipient it could not reach.** `deliveries` says, for each, whether an endpoint took the packet, which, and why not. The endpoints of the recipient's current location record are tried in its order, a mailbox last, and only mailboxes while the recipient is paused (15.3). A packet may be delivered for an hour unless you say, and for seven days at most.
 - **An acknowledgement is kept only if it is the recipient's own** (13.2): signed by the recipient for this packet, as it was sent. It is evidence of when the packet's proofs existed. An endpoint that holds no key of the recipient answers that the packet is stored, and `ack` is absent. The reference host acknowledges packets it can read, and stores sealed ones.
-- **`receive` reads the mind's mailboxes**: the `mailbox` endpoints of its current location record, or of its homes if it has published none. A request the mind signs drains each, and each item is removed once it is judged.
+- **`receive` reads the mind's mailboxes**: the `mailbox` endpoints of its current location record, or of its homes if it has published none. A request the mind signs drains each, and each item is removed once it is judged, but for a packet of a session that is ahead of one that is missing.
 - **What comes back was judged** (12.4): a packet addressed to this mind, in date, signed by its sender, and not accepted before. The sender's log is fetched afresh after the packet is first seen, so a key that was removed in the meantime does not count (core 9.4). What is no such packet is in `refused`, with the first reason, and is removed too.
 - **A packet's content is data, whatever it says** (12.5). A packet grants nothing. Authority comes from identity logs, delegations and the records of Layer 2.
 - **A packet is returned once.** The client remembers what it accepted, in `memory`, for as long as the packet could arrive again. With a memory that does not last, a packet that was not removed from the mailbox before the process ended is returned again.
 - **What cannot be judged yet waits.** If no resolver can be asked for a sender's log, the item stays in the mailbox and is counted in `waiting`.
 - **A packet may be for whoever a query finds** (18.5): `to: { query }`. It goes in the clear to the indexers the client names, for an hour at most, and each forwards it to the minds that match if it is a broker of it. `receive` takes such a packet only inside the broker's `Forwarded` record, and says which broker it came by.
+
+### Sessions
+
+- **A session is named by a record, and each sender's packets in it are a chain** (Layer 1, 14.1, 14.3): numbered from 0, each naming the one before. `openSession` makes the record and sends nothing. Your first packet in the session carries it, and the client adds it to the content as a part.
+- **You need not open a session someone else did.** The client follows it from the first packet of it that arrives. Send in it with its ID, which every packet of it has as `packet.session`.
+- **A packet of a session is addressed to every other participant** (14.3), so that nobody misses a link of anyone's chain. `send` refuses one that is not. It may be addressed to others as well.
+- **A packet has its place before it leaves.** It is written to the client's memory, with its place, before it is posted. A process that stops in between sends that packet again when asked, and never signs another for the same place. Give the client a `memory` that lasts: with one that is gone, the mind starts its chain again from 0, which every participant sees as two packets signed for one place.
+- **`receive` returns the packets of a chain in order.** One that arrives ahead of one that is missing stays in the mailbox, and is returned after it. Nothing is lost if the process stops while it waits.
+- **A gap is asked about once.** `receive` sends a `Resume` to the session's participants when it finds a gap: it says where each chain stands for this mind (14.4). Whoever lacks nothing ignores it, and whoever sent what is missing sends it again. `sessions` in what `receive` returns says so: `gap`, then `asked`. Call `resume` to ask again.
+- **A participant's `Resume` is answered by `receive`**: what it lacks of this mind's packets is sent to it again, as they were signed. That is in `sessions` too, as `sent-again`. A `Resume` that names a packet this mind did not send at that place is not answered (`invalid-resume`).
+- **Two packets signed for one place are told** (14.3): `equivocation`, with the content IDs of both. They are the evidence. Nothing of that chain is returned after it, since nothing tells which of the two its sender stands by.
+- **A packet of a session states no `expires`**, unless you give `expiresIn`: it can then be sent again for as long as the session lasts. One that has expired cannot, and whoever missed it has a gap for good.
+- **A session is taken up for seven days.** A packet that states no `expires` and belongs to no chain the client holds is refused once it is older than that (12.4). A mind that reads its mailbox less often than weekly misses the sessions opened with it in between.
+- **Leave the sessions that are over**, with `leaveSession`. A session's packets are kept, to be sent again, until then. Anyone whose packets you accept can name you in a session, and the client follows 1,024 at most: leave the ones you want no part of.
+- **A mind that runs several clients gives each an `instance`** (14.3), in the options: each then has a chain of its own in every session. Clients that share one `memory` are one instance, and are told `changed` when one of them is behind the other, before anything leaves.
+- **What a session asks for may fail after the packets are read.** The packets are returned all the same, and `sessions` has `failed`, with what was being done and why.
 
 ### Aliases
 

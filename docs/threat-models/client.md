@@ -37,6 +37,7 @@
 | An indexer names a record that is not its author's, or answers for another indexer | Its answer must be signed by a mind the resolvers hold, for the query asked. Each record it names is fetched from its author's homes and verified as its author's                                                       |
 | A mind lists a name that is not its own                                            | `aliases` verifies each alias by asking what answers for it. `resolve` presents none as verified                                                                                                                        |
 | A delegate signs for a principal beyond what it was granted                        | `countsFor` and `statusOf` are the judges of `@oip/delegation` and `@oip/web`: the chain is checked as given, link by link, and its policies against the record                                                         |
+| A mind that is no participant sends in a session                                   | A packet of a session is placed only if its sender is a participant by the `Session` record, which the session's ID is the hash of (Layer 1, 14.3)                                                                      |
 | A stolen operational key signs after the mind has removed it                       | The signer's log is fetched afresh after a proof is first seen. A proof first seen after the removal does not count. One seen before it does, as core 9.4 says: `revokeKey` with `compromisedSince` withdraws those too |
 | A service at a URL a stranger chose is taken for one the application trusts        | Trust is by what the application named: its resolvers and indexers, by origin. A home is trusted with nothing                                                                                                           |
 
@@ -49,6 +50,8 @@
 | A home withholds the end of a feed                                      | Another home that serves it makes up for it. A writer that remembers the feed is not misled. A writer that does not goes by its own last location record, and stops where the homes serve less than it says              |
 | A sealed packet is altered on its way                                   | HPKE authenticates it. A record that does not open, or opens to anything but one packet, is refused                                                                                                                      |
 | The client's memory is put back to an earlier state                     | The mind may then sign a second entry for a position. A home that holds the first refuses it, and the client reads the feed afresh. Where no home holds it, nothing stops it: keep the memory where the keystore is kept |
+| A participant signs two packets for one place of its chain              | Both are told, with their content IDs, and nothing of that chain is returned after (14.3). The client's own chain is written down before a packet leaves, so it does not do so itself                                    |
+| A packet of a session arrives out of order, twice, or not at all        | `receive` returns each chain in order and each packet once. One ahead of a gap waits in the mailbox, and a `Resume` asks for what is missing ([ADR-0023](../adr/0023-sessions-in-the-client.md))                         |
 | Two processes act as one mind                                           | Every write to the memory names the version it replaces: the second is told before its entry leaves. For identity events the keystore does the same, and a resolver refuses the second event                             |
 | A service answers with more than the client can hold, or never finishes | An answer is bounded in bytes and in time before it is read. A feed, a mailbox and an indexer's results are each read up to a stated number                                                                              |
 | A redirect sends a request, with its signature, elsewhere               | No redirect is followed. A signature covers the method and the URL it was made for                                                                                                                                       |
@@ -75,15 +78,18 @@
 
 ### Denial of service
 
-| Threat                                                       | What stops it                                                                                                                                                        |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A resolver, a host or an indexer does not answer, or refuses | Each of several is asked. A call succeeds when enough answered, and says which did not                                                                               |
-| A resolver serves logs whose members name each other         | A mind is fetched once in one resolution, and 64 logs at most are fetched for one mind                                                                               |
-| A home serves a page that says more follows, for ever        | A page that does not go forward ends the reading                                                                                                                     |
-| Junk fills a mailbox                                         | A host bounds a mailbox. The client judges each item, removes what is refused, and reads 1000 items in one call                                                      |
-| A packet is replayed                                         | A packet accepted is remembered, in the client's memory, for as long as it could arrive again, and is returned once                                                  |
-| A resolver cannot be asked for a sender's log                | The packet waits in the mailbox, and is judged when the resolver answers. It is not refused for a failure that is not its own                                        |
-| One lying resolver among several makes a mind unresolvable   | It does: a log one trusted resolver serves that does not verify fails the resolution, with that resolver named. The application decides whether to go on trusting it |
+| Threat                                                       | What stops it                                                                                                                                                               |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A resolver, a host or an indexer does not answer, or refuses | Each of several is asked. A call succeeds when enough answered, and says which did not                                                                                      |
+| A resolver serves logs whose members name each other         | A mind is fetched once in one resolution, and 64 logs at most are fetched for one mind                                                                                      |
+| A home serves a page that says more follows, for ever        | A page that does not go forward ends the reading                                                                                                                            |
+| Junk fills a mailbox                                         | A host bounds a mailbox. The client judges each item, removes what is refused, and reads 1000 items in one call                                                             |
+| A stranger names the mind in session after session           | The client follows 1,024 sessions at most, each a small document in its memory, and `leaveSession` forgets one. Only a mind whose packets are accepted can open one         |
+| A participant asks again and again for a whole chain         | A `Resume` is a packet of the session: signed by a participant, placed in its chain and taken once. Each costs its sender a packet, and the packets go to that sender alone |
+| A sender never sends a missing packet again                  | The packets after it wait in the mailbox, which the host bounds, until the mind leaves the session                                                                          |
+| A packet is replayed                                         | A packet accepted is remembered, in the client's memory, for as long as it could arrive again, and is returned once                                                         |
+| A resolver cannot be asked for a sender's log                | The packet waits in the mailbox, and is judged when the resolver answers. It is not refused for a failure that is not its own                                               |
+| One lying resolver among several makes a mind unresolvable   | It does: a log one trusted resolver serves that does not verify fails the resolution, with that resolver named. The application decides whether to go on trusting it        |
 
 ### Elevation of privilege
 
@@ -99,6 +105,7 @@
 ## Left open
 
 - **A client's memory that is lost or put back** lets the mind repeat itself where no service holds what it said. Keep it where the keystore is kept, and back it up no less often.
+- **A memory that is lost breaks the mind's sessions**: it would begin each chain again, which is two packets for one place to everyone else.
 - **Who talks to whom is visible** to the resolvers and hosts involved.
 - **Sealing gives no forward secrecy.**
 - **Records are held in the process only.** An application that does not keep an acknowledgement or a delegation has no evidence of it after it stops.

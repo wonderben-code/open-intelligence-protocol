@@ -156,6 +156,14 @@ export interface FeedEntry {
 }
 
 // @public
+export interface HeldChain {
+    readonly equivocation?: ChainEquivocation;
+    readonly from: string;
+    readonly ids: readonly string[];
+    readonly instance?: string;
+}
+
+// @public
 export interface HeldLocation {
     readonly id: string;
     readonly record: Location;
@@ -167,6 +175,12 @@ export interface HeldParticipant {
     readonly id: string;
     readonly record: Participant;
     readonly time: Instant;
+}
+
+// @public
+export interface HeldSession {
+    readonly chains: readonly HeldChain[];
+    readonly session: Session;
 }
 
 // @public
@@ -393,7 +407,9 @@ export class Sessions {
     against(resume: Resume, from: string): "level" | "behind" | "ahead" | "conflict" | undefined;
     drop(id: string): boolean;
     equivocation(chain: SendingChain): ChainEquivocation | undefined;
+    held(id: string): HeldSession | undefined;
     readonly holdsChain: (chain: SendingChain) => boolean;
+    restore(state: HeldSession): Validation<string>;
     resume(id: string, lastSent: Resume["lastSent"] | undefined, created: string): Resume | undefined;
     session(id: string): Session | undefined;
     get size(): number;

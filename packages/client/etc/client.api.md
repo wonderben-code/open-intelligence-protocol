@@ -9,6 +9,7 @@ import { AgreementKeys } from '@oip/keystore';
 import type { AuthorityItem } from '@oip/schema';
 import { Capability } from '@oip/schema';
 import { CapabilityQuery } from '@oip/schema';
+import { ChainEquivocation } from '@oip/net';
 import { Collective } from '@oip/schema';
 import type { Commitment } from '@oip/schema';
 import { Delegation } from '@oip/schema';
@@ -37,6 +38,7 @@ import type { Proof } from '@oip/schema';
 import { Randomness } from '@oip/keystore';
 import type { Receipt } from '@oip/schema';
 import type { Revocation } from '@oip/schema';
+import { Session } from '@oip/schema';
 import type { Status } from '@oip/web';
 import { Unsigned } from '@oip/identity';
 import { VerifiedFeed } from '@oip/net';
@@ -93,6 +95,14 @@ export function carried(record: object): {
     mediaType: string;
     body: JsonObject;
 };
+
+// @public
+export interface ChainView {
+    readonly equivocation?: ChainEquivocation;
+    readonly instance?: string;
+    readonly mind: string;
+    readonly received: number;
+}
 
 // @public
 export interface Clock {
@@ -221,6 +231,7 @@ export interface Inbox {
         readonly clause: string;
         readonly message: string;
     }[];
+    readonly sessions: readonly SessionEvent[];
     readonly sources: readonly MailboxAnswer[];
     readonly waiting: number;
 }
@@ -314,6 +325,7 @@ export interface Message {
     };
     readonly replyTo?: string;
     readonly seal?: boolean;
+    readonly session?: string;
     readonly thread?: string;
     readonly to: readonly string[] | Exclude<Packet["to"], readonly string[]>;
     readonly verb: string;
@@ -342,12 +354,17 @@ export class Mind {
     foundCollective(fields: NewCollective, options: MemberOptions): Promise<IdentityEvent>;
     hold(record: unknown): string;
     intent(fields: Fields<Intent>, acting?: Acting): Promise<Intent>;
+    leaveSession(session: string): Promise<boolean>;
     get lookup(): Lookup;
     moveHomes(homes: readonly string[], options: ControlOptions & {
         readonly revoke?: readonly string[];
     }): Promise<IdentityState>;
     offer(fields: Fields<Offer>, acting?: Acting): Promise<Offer>;
     static open(options: MindOptions): Promise<Mind>;
+    openSession(others: readonly string[]): Promise<{
+        id: string;
+        session: Session;
+    }>;
     get publications(): readonly Publication[];
     publishLocation(fields?: LocationFields): Promise<Location>;
     publishLog(events: readonly object[]): Promise<Resolved>;
@@ -358,6 +375,7 @@ export class Mind {
     records(): OipRecord[];
     refresh(): Promise<IdentityState>;
     get resolved(): Resolved;
+    resume(session: string): Promise<Sent>;
     retire(options: ControlOptions & {
         readonly successor?: string;
         readonly reason?: string;
@@ -367,6 +385,7 @@ export class Mind {
         readonly compromisedSince?: string;
     }): Promise<IdentityState>;
     send(message: Message): Promise<Sent>;
+    sessions(): Promise<SessionView[]>;
     sign<T extends object>(record: T, authority?: readonly AuthorityItem[]): Promise<T & {
         proof: Proof[];
     }>;
@@ -380,6 +399,7 @@ export class Mind {
 
 // @public
 export interface MindOptions extends LookupOptions {
+    readonly instance?: string;
     readonly keystore: Keystore;
     readonly lock: Lock;
     readonly memory?: KeyStorage;
@@ -488,6 +508,47 @@ export interface Sent {
     readonly deliveries: readonly Delivery[];
     readonly id: string;
     readonly packet: Packet;
+}
+
+// @public
+export type SessionEvent = {
+    readonly kind: "gap";
+    readonly session: string;
+    readonly mind: string;
+    readonly instance?: string;
+    readonly next: number;
+} | {
+    readonly kind: "asked";
+    readonly session: string;
+    readonly sent: Sent;
+} | {
+    readonly kind: "sent-again";
+    readonly session: string;
+    readonly to: string;
+    readonly from: number;
+    readonly deliveries: readonly Delivery[];
+} | {
+    readonly kind: "invalid-resume";
+    readonly session: string;
+    readonly mind: string;
+    readonly packet: string;
+} | {
+    readonly kind: "failed";
+    readonly session: string;
+    readonly doing: "asked" | "sent-again";
+    readonly failure: string;
+} | ({
+    readonly session: string;
+    readonly mind: string;
+    readonly instance?: string;
+} & ChainEquivocation);
+
+// @public
+export interface SessionView {
+    readonly chains: readonly ChainView[];
+    readonly id: string;
+    readonly sent: number;
+    readonly session: Session;
 }
 
 // @public

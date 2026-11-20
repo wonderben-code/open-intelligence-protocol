@@ -15,6 +15,7 @@ import { example } from "../examples/first-mind.ts";
 import { example as messaging } from "../examples/messages.ts";
 import { example as moving } from "../examples/move.ts";
 import { example as publishing } from "../examples/publish.ts";
+import { example as talking } from "../examples/session.ts";
 import * as client from "../src/index.ts";
 import { World } from "./world.ts";
 
@@ -51,6 +52,7 @@ describe("the README", () => {
       "publish.ts",
       "find.ts",
       "messages.ts",
+      "session.ts",
       "move.ts",
       "deal.ts",
       "collective.ts",
@@ -144,6 +146,55 @@ describe("the README", () => {
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });
 
+  it("shows the output the example of a session really gives, with one packet lost on its way", async () => {
+    const homes = { ada: "https://home-one.example", bob: "https://home-two.example" };
+    world.resolver("https://resolver.example");
+    world.host(homes.ada);
+    world.host(homes.bob);
+    const run = () =>
+      talking(["https://resolver.example"], homes, keychainLock(memoryKeychain(), "example"), {
+        fetch: world.fetch,
+        clock: world.clock,
+      });
+    // The second packet for Bob reaches neither his inbox nor his mailbox.
+    let posted = 0;
+    let losing = false;
+    world.before = (request) => {
+      if (request.method !== "POST" || !request.url.startsWith(homes.bob)) return;
+      if (request.url.endsWith("/inbox") && ++posted === 2) losing = true;
+      else if (!request.url.endsWith("/mailbox")) return;
+      if (!losing) return;
+      losing = request.url.endsWith("/inbox");
+      throw new TypeError("fetch failed");
+    };
+    const output = await run();
+    world.before = undefined;
+    expect(output).toStrictEqual([
+      "Ada sends packet 0: taken",
+      "Ada sends packet 1: not taken",
+      "Ada sends packet 2: taken",
+      "Bob has packet 0: One.",
+      "Bob lacks the packets from 1",
+      "Bob asks for them, in a Resume",
+      "Ada has packet 0: resume",
+      "Ada sends 2 packets again",
+      "Bob has packet 1: Two.",
+      "Bob has packet 2: Three.",
+      "Bob holds 3 of Ada's packets, in order",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+    // With nothing lost there is nothing to ask for.
+    expect(await run()).toStrictEqual([
+      "Ada sends packet 0: taken",
+      "Ada sends packet 1: taken",
+      "Ada sends packet 2: taken",
+      "Bob has packet 0: One.",
+      "Bob has packet 1: Two.",
+      "Bob has packet 2: Three.",
+      "Bob holds 3 of Ada's packets, in order",
+    ]);
+  });
+
   it("shows the output the example of changing hosts really gives, against a resolver and two hosts", async () => {
     const hosts = { from: "https://host-one.example", to: "https://host-two.example" };
     world.resolver("https://resolver.example");
@@ -226,6 +277,7 @@ describe("the README", () => {
         "AliasOptions",
         "Answer",
         "Asking",
+        "ChainView",
         "Clock",
         "CollectiveChanges",
         "ControlOptions",
@@ -260,6 +312,8 @@ describe("the README", () => {
         "Resolved",
         "ResolverAnswer",
         "Sent",
+        "SessionEvent",
+        "SessionView",
         "TransportFailure",
         "TransportOptions",
       ].sort(),

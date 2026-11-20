@@ -17,7 +17,7 @@ export const send: Command = {
     record: {
       type: "string",
       multiple: true,
-      value: "file",
+      value: "record",
       describes:
         "A record to carry: the ID of one the mind holds, or a file. It may be given several times",
     },

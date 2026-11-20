@@ -4,6 +4,7 @@
 import { defineProject } from "vitest/config";
 
 import { sourceAliases } from "../../scripts/lib/source-aliases.ts";
+import { testTimeouts } from "../../scripts/lib/test-timeouts.ts";
 
 export default defineProject({
   // Tests run against each package's source, so nothing needs building first.
@@ -12,10 +13,8 @@ export default defineProject({
     name: "@oip/cli",
     environment: "node",
     include: ["test/**/*.test.ts"],
-    testTimeout: 120_000,
-    // Each file starts a network of three services and makes its minds before its first
-    // test: with coverage on, on a machine that is busy, that takes more than the default.
-    hookTimeout: 120_000,
+    // Each file starts a network of three services and makes its minds before its first test.
+    ...testTimeouts,
     benchmark: { include: ["bench/**/*.bench.ts"] },
   },
 });

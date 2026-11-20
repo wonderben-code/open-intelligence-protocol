@@ -287,7 +287,7 @@ describe(`${clause("L1 13.2", "L1 12.4")} a host whose process is killed`, () =>
     }
     expect((await mail(http)).map((item) => contentId(item.record))).toEqual(ids);
     expect(digests.map(firstSeen)).toEqual(seen);
-  }, 60_000);
+  });
 });
 
 describe(`${clause("L1 13.4", "L1 13.5")} a mind whose connection to its host is severed`, () => {
@@ -330,7 +330,7 @@ describe(`${clause("L1 13.4", "L1 13.5")} a mind whose connection to its host is
     await going;
     expect((await deliver(http, late)).status).toBe(202);
     expect((await mail(http)).map((item) => contentId(item.record))).toEqual([contentId(late)]);
-  }, 60_000);
+  });
 });
 
 describe(`${clause("L1 13.2")} a host whose database another process has locked`, () => {
@@ -361,5 +361,5 @@ describe(`${clause("L1 13.2")} a host whose database another process has locked`
       contentId(during),
     ]);
     expect(firstSeen(proofDigest(during.proof[0]))).toBeDefined();
-  }, 60_000);
+  });
 });

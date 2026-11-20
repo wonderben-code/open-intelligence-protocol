@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { defineConfig } from "vitest/config";
 
 // Packages that must reach 95% line and branch coverage (BUILD.md, Section 2).
-const VERIFICATION_PACKAGES = ["core", "identity", "delegation", "web", "net"];
+const VERIFICATION_PACKAGES = ["core", "identity", "delegation", "web", "net", "keystore"];
 
 // Files of `@oip/server` held to the same threshold.
 const SERVER_GUARDS = [

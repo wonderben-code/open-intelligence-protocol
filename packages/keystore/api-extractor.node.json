@@ -1,0 +1,10 @@
+{
+  "extends": "../../api-extractor.base.json",
+  "mainEntryPointFilePath": "<projectFolder>/dist/node.d.ts",
+  "apiReport": {
+    "enabled": true,
+    "reportFileName": "keystore-node.api.md",
+    "reportFolder": "<projectFolder>/etc/",
+    "reportTempFolder": "<projectFolder>/temp/"
+  }
+}

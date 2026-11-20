@@ -36,6 +36,7 @@ export default {
     "packages/delegation/src/**/*.ts",
     "packages/web/src/**/*.ts",
     "packages/net/src/**/*.ts",
+    "packages/keystore/src/**/*.ts",
     "packages/server/src/**/*.ts",
     "packages/resolver/src/**/*.ts",
     "packages/host/src/**/*.ts",

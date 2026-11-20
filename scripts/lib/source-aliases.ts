@@ -22,6 +22,11 @@ export const sourceAliases = [
     find: /^@oip\/testkit\/minds$/,
     replacement: join(repoRoot, "packages", "testkit", "src", "minds.ts"),
   },
+  // What a keystore has in Node.js only: a directory, and the system's keychain.
+  {
+    find: /^@oip\/keystore\/node$/,
+    replacement: join(repoRoot, "packages", "keystore", "src", "node.ts"),
+  },
   {
     find: /^@oip\/([a-z0-9-]+)$/,
     replacement: join(repoRoot, "packages", "$1", "src", "index.ts"),

@@ -76,7 +76,7 @@ It says nothing of how keys are stored. That is this record.
 
 ### What is still to come
 
-17. **The keychain of the operating system and a storage for browsers** are built on the two interfaces here, `Keychain` and `KeyStorage`. Each brings a dependency or a platform of its own, and has its own record when it is built.
+17. **The keychain of the operating system and a storage for browsers** are built on the two interfaces here, `Keychain` and `KeyStorage`. Each brings a dependency or a platform of its own, and has its own record: [ADR-0018](0018-the-keystore-in-a-browser.md) for browsers.
 
 ## What was checked
 

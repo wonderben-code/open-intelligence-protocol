@@ -15,8 +15,9 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { KeystoreError, type KeyStorage, memoryStorage } from "../src/index.ts";
+import { indexedDbStorage, KeystoreError, type KeyStorage, memoryStorage } from "../src/index.ts";
 import { fileStorage } from "../src/node.ts";
+import { fakeBrowser } from "./helpers.ts";
 
 let directory: string;
 beforeEach(() => {
@@ -46,6 +47,17 @@ const KINDS: [string, () => { storage: KeyStorage; again?: () => KeyStorage }][]
     () => {
       const path = join(directory, "keys");
       return { storage: fileStorage(path), again: () => fileStorage(path) };
+    },
+  ],
+  [
+    "in IndexedDB",
+    () => {
+      // Each test has a browser of its own. Two storages over it are two tabs of one origin.
+      const factory = fakeBrowser();
+      return {
+        storage: indexedDbStorage("keys", factory),
+        again: () => indexedDbStorage("keys", factory),
+      };
     },
   ],
 ];

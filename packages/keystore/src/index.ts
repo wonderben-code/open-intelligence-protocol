@@ -25,6 +25,15 @@ export {
   type SealedToKey,
 } from "./keys.ts";
 export {
+  type IdbDatabase,
+  type IdbFactory,
+  type IdbObjectStore,
+  type IdbOpenRequest,
+  type IdbRequest,
+  type IdbTransaction,
+  indexedDbStorage,
+} from "./indexeddb.ts";
+export {
   type AllKeys,
   type Backup,
   type CreateOptions,

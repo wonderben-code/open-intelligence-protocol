@@ -3,7 +3,22 @@
 
 import { createHash } from "node:crypto";
 
-import { type Keychain, passphrase, type Randomness, SCRYPT_MIN_N } from "../src/index.ts";
+import { IDBFactory as FakeFactory } from "fake-indexeddb";
+
+import {
+  type IdbFactory,
+  type Keychain,
+  passphrase,
+  type Randomness,
+  SCRYPT_MIN_N,
+} from "../src/index.ts";
+
+/**
+ * A browser's IndexedDB, in memory: a new one at every call, as a new profile
+ * is. The library is typed against the browser's own types, which this
+ * package is built without, so it is given the type of what is used of it.
+ */
+export const fakeBrowser = (): IdbFactory => new (FakeFactory as unknown as new () => IdbFactory)();
 
 /** Bytes that differ at every draw and are the same in every run: SHA-256 of a name and a count. */
 export function randomnessOf(name: string): Randomness & { drawn: number } {

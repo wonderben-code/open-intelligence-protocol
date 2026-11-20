@@ -57,6 +57,7 @@
     "@oip/schema": "workspace:*"
   },
   "devDependencies": {
-    "@oip/testkit": "workspace:*"
+    "@oip/testkit": "workspace:*",
+    "fake-indexeddb": "6.2.8"
   }
 }

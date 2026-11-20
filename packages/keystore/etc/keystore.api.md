@@ -60,6 +60,52 @@ export interface GenerateOptions {
 }
 
 // @public
+export interface IdbDatabase {
+    close(): void;
+    createObjectStore(name: string): unknown;
+    transaction(store: string, mode: "readonly" | "readwrite"): IdbTransaction;
+}
+
+// @public
+export interface IdbFactory {
+    open(name: string, version?: number): IdbOpenRequest;
+}
+
+// @public
+export interface IdbObjectStore {
+    delete(key: string): IdbRequest;
+    get(key: string): IdbRequest;
+    getAllKeys(): IdbRequest<unknown[]>;
+    put(value: unknown, key: string): IdbRequest;
+}
+
+// @public
+export interface IdbOpenRequest extends IdbRequest<IdbDatabase> {
+    onblocked: (() => void) | null;
+    onupgradeneeded: (() => void) | null;
+}
+
+// @public
+export interface IdbRequest<T = unknown> {
+    readonly error: unknown;
+    onerror: (() => void) | null;
+    onsuccess: (() => void) | null;
+    readonly result: T;
+}
+
+// @public
+export interface IdbTransaction {
+    abort(): void;
+    readonly error: unknown;
+    objectStore(name: string): IdbObjectStore;
+    onabort: (() => void) | null;
+    oncomplete: (() => void) | null;
+}
+
+// @public
+export function indexedDbStorage(database: string, factory?: IdbFactory): KeyStorage;
+
+// @public
 export class InvocationKeys extends RoleKeys {
     sign<T extends Unsigned<IdentityEvent>>(event: T, as: MemberSigning, created?: string): Promise<T & {
         proof: Proof[];

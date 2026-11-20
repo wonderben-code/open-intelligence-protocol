@@ -10,4 +10,4 @@ First version: the private keys of a mind, sealed and kept apart by role ([ADR-0
 - `InvocationKeys`: remembers the event signed for each position of each collective's log, and signs no other for it.
 - `OperationalKeys`, `AgreementKeys`: a signer over an operational key; opening what was sealed to an agreement key.
 - `Keystore.backup`, `Keystore.restore`, `backupDue`: the one form in which private keys leave a keystore, and which roles have keys no saved backup holds.
-- `KeyStorage`, `memoryStorage`, and `fileStorage` from `@oip/keystore/node`: storages in which every write names the version it replaces, so that two writers cannot both change a role.
+- `KeyStorage`, `memoryStorage`, `indexedDbStorage` for browsers, and `fileStorage` from `@oip/keystore/node`: storages in which every write names the version it replaces, so that two writers cannot both change a role.

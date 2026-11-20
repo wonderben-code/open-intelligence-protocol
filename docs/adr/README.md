@@ -21,6 +21,7 @@ An ADR records a decision that is hard to reverse: what was decided, why, and wh
 | [0015](0015-server-budgets.md)                    | The servers' budgets, as measured in M5, and signatures that are checked once |
 | [0016](0016-native-ed25519.md)                    | Ed25519 by OpenSSL in the services                                            |
 | [0017](0017-the-keystore.md)                      | The keystore                                                                  |
+| [0018](0018-the-keystore-in-a-browser.md)         | The keystore in a browser                                                     |
 
 ## Writing one
 

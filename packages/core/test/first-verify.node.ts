@@ -16,6 +16,7 @@
  */
 
 import { cutShortCount } from "@oip/schema";
+import { keepFramesOneSize } from "@oip/testkit";
 
 import { hasOrderL } from "../src/ed25519.ts";
 import { ed25519PublicKey, isEd25519PublicKey, signEd25519, verifyEd25519 } from "../src/index.ts";
@@ -62,12 +63,27 @@ const descend = (depth: number): void => {
   }
 };
 
-descend(0);
-target = deepest - frames;
-try {
+// The frames of the descent stay one size, so that the second descent ends where the first
+// said it would (`keepFramesOneSize`).
+keepFramesOneSize(descend);
+// Where the stack ends, asked until two askings agree: the first of all can be a frame out.
+let found = -1;
+for (let asked = 0; asked < 8 && found !== deepest; asked++) {
+  found = deepest;
+  deepest = 0;
+  target = -1;
   descend(0);
-} catch {
-  answer = "threw outside";
+}
+if (found === deepest) {
+  target = deepest - frames;
+  try {
+    descend(0);
+  } catch {
+    // The stack ended above the depth asked for: the frames were not one size after all.
+    answer = "threw outside";
+  }
+} else {
+  answer = "the end of the stack was not found twice at one depth";
 }
 // Where it was thrown from tells a function that could not be entered from one that failed
 // to answer.

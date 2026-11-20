@@ -64,3 +64,4 @@ export {
   type PublicJwk,
   verifySignatures,
 } from "./signature.ts";
+export { BridgeError, type Bridged, Gateway, type GatewayEdges, PROTOCOL } from "./gateway.ts";

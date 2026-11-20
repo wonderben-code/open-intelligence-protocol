@@ -47,9 +47,12 @@
   "dependencies": {
     "@oip/client": "workspace:*",
     "@oip/core": "workspace:*",
+    "@oip/keystore": "workspace:*",
+    "@oip/local": "workspace:*",
     "@oip/schema": "workspace:*"
   },
   "devDependencies": {
+    "@oip/cli": "workspace:*",
     "@oip/identity": "workspace:*",
     "@oip/testkit": "workspace:*"
   }

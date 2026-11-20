@@ -235,10 +235,19 @@ importers:
       '@oip/core':
         specifier: workspace:*
         version: link:../core
+      '@oip/keystore':
+        specifier: workspace:*
+        version: link:../keystore
+      '@oip/local':
+        specifier: workspace:*
+        version: link:../local
       '@oip/schema':
         specifier: workspace:*
         version: link:../schema
     devDependencies:
+      '@oip/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@oip/identity':
         specifier: workspace:*
         version: link:../identity

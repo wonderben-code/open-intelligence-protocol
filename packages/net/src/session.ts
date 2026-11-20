@@ -19,7 +19,7 @@
  * package reads no clock and does no I/O.
  */
 
-import { contentId } from "@oip/core";
+import { contentId, isContentId } from "@oip/core";
 import {
   type Branch,
   IMPLEMENTATION_LIMIT,
@@ -143,6 +143,29 @@ interface Held {
   readonly instances: Map<string, number>;
 }
 
+/** What a receiver holds of one sending chain, as `Sessions.held` gives it. */
+export interface HeldChain {
+  /** The sender. */
+  readonly from: string;
+  /** The instance of it that sends, if it names one. */
+  readonly instance?: string;
+  /** The content IDs of its packets in order, from `seq` 0. */
+  readonly ids: readonly string[];
+  /** The equivocation found in it, if one was. */
+  readonly equivocation?: ChainEquivocation;
+}
+
+/**
+ * What a receiver holds of one session, in a form it can write down and
+ * give back (`Sessions.held`, `Sessions.restore`).
+ */
+export interface HeldSession {
+  /** The `Session` record. */
+  readonly session: Session;
+  /** Where each sending chain stands. */
+  readonly chains: readonly HeldChain[];
+}
+
 /** Limits on what a `Sessions` keeps. */
 export interface SessionLimits {
   /** How many sessions are held at once. Default 1,024. */
@@ -180,6 +203,37 @@ function equivocated(chain: Chain, found: ChainEquivocation): void {
   chain.equivocation = found;
   chain.waiting.clear();
   chain.waits = 0;
+}
+
+/** A chain as it was written down, or `undefined` if that is none. Nothing waits in it. */
+function readChain(entry: unknown): Chain | undefined {
+  if (typeof entry !== "object" || entry === null) return undefined;
+  const { from, instance, ids, equivocation } = entry as Readonly<Record<string, unknown>>;
+  if (typeof from !== "string") return undefined;
+  if (instance !== undefined && (typeof instance !== "string" || instance.length > 64)) {
+    return undefined;
+  }
+  if (!Array.isArray(ids) || !ids.every(isContentId)) return undefined;
+  let found: ChainEquivocation | undefined;
+  if (equivocation !== undefined) {
+    if (typeof equivocation !== "object" || equivocation === null) return undefined;
+    const { seq, packets } = equivocation as Readonly<Record<string, unknown>>;
+    if (typeof seq !== "number" || !Number.isSafeInteger(seq) || seq < 0) return undefined;
+    if (!Array.isArray(packets) || packets.length !== 2 || !packets.every(isContentId)) {
+      return undefined;
+    }
+    const [first, second] = packets as [string, string];
+    if (first === second) return undefined;
+    found = equivocationAt(seq, first, second);
+  }
+  return {
+    from,
+    instance,
+    ids: [...(ids as readonly string[])],
+    waiting: new Map(),
+    waits: 0,
+    equivocation: found,
+  };
 }
 
 /** What `take` answers, and what it keeps once the answer stands. */
@@ -254,6 +308,99 @@ export class Sessions {
   /** Forgets a session. @returns Whether it was held. */
   drop(id: string): boolean {
     return this.#held.delete(id);
+  }
+
+  /**
+   * What is held of a session, in a form that can be written down and given
+   * back to `restore`, so that a receiver that stops keeps its place in
+   * every chain (14.3). The packets that wait ahead of a gap are not in it:
+   * their sender sends them again when it is asked to (14.4).
+   */
+  held(id: string): HeldSession | undefined {
+    const held = this.#held.get(id);
+    if (held === undefined) return undefined;
+    return {
+      session: held.session,
+      chains: [...held.chains.values()].map((chain) => ({
+        from: chain.from,
+        ...(chain.instance === undefined ? {} : { instance: chain.instance }),
+        ids: [...chain.ids],
+        ...(chain.equivocation === undefined ? {} : { equivocation: chain.equivocation }),
+      })),
+    };
+  }
+
+  /**
+   * Takes up a session where it was left: what `held` gave, given back.
+   *
+   * It is the receiver's own state, and no packet is verified again. It is
+   * checked for what `take` relies on, since what was written down may have
+   * been damaged since. It is rejected, and nothing is kept of it, if:
+   *
+   * - its `Session` record is not one, or this receiver is not a
+   *   participant of it;
+   * - a chain is of a mind that is no participant, two chains are of one
+   *   sender and instance, or a chain is not a list of content IDs;
+   * - the session is held already, or the limits do not allow it.
+   *
+   * @returns The session's ID.
+   */
+  restore(state: HeldSession): Validation<string> {
+    const planned = judging(() => this.#restoring(state));
+    if (!planned.ok) return planned;
+    planned.value.keep();
+    return ok(planned.value.id);
+  }
+
+  /** What `restore` would keep. It changes nothing itself. */
+  #restoring(state: HeldSession): Validation<{ id: string; keep: () => void }> {
+    const given = state as { readonly session?: unknown; readonly chains?: unknown } | null;
+    const valid = validateRecordOfType("Session", given?.session);
+    if (!valid.ok) return no("what was held names no session", "L1 14.1", "/session");
+    const session = valid.value;
+    const id = contentId(session);
+    if (!session.participants.includes(this.#self)) {
+      return no("the receiver is not a participant of the session", "L1 14.3", "/session");
+    }
+    if (this.#held.has(id)) return no("the session is held already", "L1 14.3", "/session");
+    if (this.#held.size >= this.#maxSessions) {
+      return no(
+        `the receiver follows ${this.#maxSessions} sessions already`,
+        IMPLEMENTATION_LIMIT,
+        "/session",
+      );
+    }
+    const listed = given?.chains;
+    if (!Array.isArray(listed)) return no("what was held has no chains", "L1 14.3", "/chains");
+    const chains = new Map<string, Chain>();
+    const instances = new Map<string, number>();
+    for (const [index, entry] of (listed as readonly unknown[]).entries()) {
+      const chain = readChain(entry);
+      const path = `/chains/${index}`;
+      if (chain === undefined)
+        return no("that is no sending chain as it was held", "L1 14.3", path);
+      if (!session.participants.includes(chain.from)) {
+        return no("the sender is not a participant of the session", "L1 14.3", `${path}/from`);
+      }
+      const key = chainKey(chain.from, chain.instance);
+      if (chains.has(key)) return no("two chains are of one sender and instance", "L1 14.3", path);
+      const count = (instances.get(chain.from) ?? 0) + 1;
+      if (count > this.#maxInstances) {
+        return no(
+          `the sender has more than ${this.#maxInstances} sending chains in this session`,
+          IMPLEMENTATION_LIMIT,
+          `${path}/instance`,
+        );
+      }
+      instances.set(chain.from, count);
+      chains.set(key, chain);
+    }
+    return ok({
+      id,
+      keep: () => {
+        this.#held.set(id, { session, chains, instances });
+      },
+    });
   }
 
   /**

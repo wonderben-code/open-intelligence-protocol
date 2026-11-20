@@ -116,7 +116,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 4.1 |  | M1 | 7 | tested | Public keys are written as Multikey strings: `"z"` followed by the base58btc encoding of a mult… |
 | core 4.2 | MUST | M1 | 6 | tested | Implementations MUST check the prefix and length of every Multikey they use and reject any that… |
 | core 4.3 |  | M1 | 2 | tested | This revision requires Ed25519 for signatures and X25519 for encryption. Other key types are re… |
-| core 4.4 | MUST | M1 | 110 | tested | Ed25519 verification. Every implementation MUST apply the same rule, so that all verifiers agre… |
+| core 4.4 | MUST | M1 | 111 | tested | Ed25519 verification. Every implementation MUST apply the same rule, so that all verifiers agre… |
 | core 5.1 | MUST | M1 | 6 | tested | A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 p… |
 | core 5.2 | MUST | M1 | 13 | tested | Each proof object MUST conform to W3C Data Integrity 1.0 with the `eddsa-jcs-2022` cryptosuite,… |
 | core 5.3 |  | M1 | 15 | tested | Creating a proof. Let `options` be the proof object without `proofValue`. Compute ``` hashData… |
@@ -252,7 +252,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 13.6 |  | M5 | 2 | tested | Further bindings (DIDComm, libp2p, iroh, NATS, MQTT) are reserved for later revisions. Every bi… |
 | L1 14.1 |  | M4 | 9 | tested | A `Session` record is unsigned: `{ "oip": "1", "type": "Session", "participants": [addresses, s… |
 | L1 14.2 | MUST | M4 | 4 | tested | The first packet of each sending chain (14.3) in a session MUST include the `Session` record in… |
-| L1 14.3 | MUST | M4 | 16 | tested | Each sending chain in a session is identified by the sender's address and its `instance` (absen… |
+| L1 14.3 | MUST | M4 | 23 | tested | Each sending chain in a session is identified by the sender's address and its `instance` (absen… |
 | L1 14.4 |  | M4 | 6 | tested | `Resume` (the content of a packet with verb `resume`): `{ "oip": "1", "type": "Resume", "sessio… |
 | L1 14.5 | MUST | M4 | 8 | tested | `Branch` (the content of a packet with verb `branch`): `{ "oip": "1", "type": "Branch", "parent… |
 | L1 15.1 | MUST | M4 | 23 | tested | A `Location` record: \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The mind \|… |

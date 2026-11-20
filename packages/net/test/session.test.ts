@@ -674,3 +674,193 @@ describe(`${clause("L1 14.4")} a Resume`, () => {
     expect(sessions.against(saying(place(2), elsewhere), ada.address)).toBeUndefined();
   });
 });
+
+describe(`${clause("L1 14.3")} what a receiver holds of a session, written down and given back`, () => {
+  /** Bob's sessions after Ada's first three packets and Cy's first, as written down and read back. */
+  function kept() {
+    const sessions = new Sessions(bob.address);
+    for (const packet of [...chainOf(ada, 3), ...chainOf(cy, 1, { instance: "phone" })]) {
+      expect(take(sessions, packet)).toMatchObject({ kind: "in order" });
+    }
+    const held = sessions.held(sid);
+    return { sessions, written: JSON.parse(JSON.stringify(held)) as NonNullable<typeof held> };
+  }
+
+  it("is the Session record and the packets of each chain in order", () => {
+    const { sessions, written } = kept();
+    expect(sessions.held(contentId({ ...session, nonce: "session-0002" }))).toBeUndefined();
+    expect(written).toStrictEqual({
+      session,
+      chains: [
+        { from: ada.address, ids: chainOf(ada, 3).map((packet) => contentId(packet)) },
+        {
+          from: cy.address,
+          instance: "phone",
+          ids: chainOf(cy, 1, { instance: "phone" }).map((packet) => contentId(packet)),
+        },
+      ],
+    });
+  });
+
+  it("lets a receiver that stopped go on where it was: the next link is in order, an old one a duplicate", () => {
+    const { sessions, written } = kept();
+    const again = new Sessions(bob.address);
+    expect(again.restore(written)).toStrictEqual({ ok: true, value: sid });
+    expect(again.size).toBe(1);
+    expect(again.session(sid)).toStrictEqual(session);
+    expect(again.holdsChain({ session: sid, from: ada.address, instance: undefined })).toBe(true);
+    expect(again.holdsChain({ session: sid, from: cy.address, instance: "phone" })).toBe(true);
+    expect(again.holdsChain({ session: sid, from: cy.address, instance: undefined })).toBe(false);
+    const chain = chainOf(ada, 5);
+    expect(take(again, chain[1]!)).toStrictEqual({ kind: "duplicate" });
+    // A packet without the Session record is taken: the record is held again.
+    expect(take(again, chain[3]!)).toMatchObject({ kind: "in order" });
+    // It stands where the receiver that never stopped stands.
+    expect(take(sessions, chain[3]!)).toMatchObject({ kind: "in order" });
+    expect(again.resume(sid, undefined, T(50))).toStrictEqual(
+      sessions.resume(sid, undefined, T(50)),
+    );
+    expect(again.held(sid)).toStrictEqual(sessions.held(sid));
+    // What is given back is a copy: the receiver that went on did not change it.
+    expect(written.chains[0]?.ids).toHaveLength(3);
+  });
+
+  it("does not hold the packets that wait ahead of a gap", () => {
+    const sessions = new Sessions(bob.address);
+    const chain = chainOf(ada, 3);
+    expect(take(sessions, chain[0]!)).toMatchObject({ kind: "in order" });
+    expect(take(sessions, chain[2]!)).toStrictEqual({ kind: "waiting", next: 1 });
+    const again = new Sessions(bob.address);
+    expect(again.restore(sessions.held(sid) as never).ok).toBe(true);
+    // The gap is filled, and nothing waited for it here: the third is asked for again (14.4).
+    const filled = take(again, chain[1]!);
+    expect("delivered" in filled && ids(filled.delivered)).toStrictEqual([contentId(chain[1]!)]);
+  });
+
+  it("keeps an equivocation found: the chain is verified no further after it is taken up again", () => {
+    const sessions = new Sessions(bob.address);
+    const chain = chainOf(ada, 2);
+    const other = link(ada, 1, chain[0], { nonce: "another-nonce" });
+    expect(take(sessions, chain[0]!)).toMatchObject({ kind: "in order" });
+    expect(take(sessions, chain[1]!)).toMatchObject({ kind: "in order" });
+    const found = take(sessions, other);
+    expect(found).toMatchObject({ kind: "equivocation", seq: 1 });
+    const again = new Sessions(bob.address);
+    expect(again.restore(JSON.parse(JSON.stringify(sessions.held(sid))) as never)).toStrictEqual({
+      ok: true,
+      value: sid,
+    });
+    expect(
+      again.equivocation({ session: sid, from: ada.address, instance: undefined }),
+    ).toStrictEqual(found);
+    expect(take(again, link(ada, 2, chain[1]))).toStrictEqual(found);
+  });
+
+  it("is rejected, and nothing kept of it, where it is not what a receiver held", () => {
+    const { written } = kept();
+    const [first, second] = written.chains as [
+      (typeof written.chains)[0],
+      (typeof written.chains)[0],
+    ];
+    const id = first.ids[0]!;
+    const rejected = (state: unknown, self = bob.address) => {
+      const sessions = new Sessions(self);
+      const result = sessions.restore(state as never);
+      expect(sessions.size).toBe(result.ok ? 1 : 0);
+      return result.ok ? "taken" : `${result.issues[0].clause} ${result.issues[0].path}`;
+    };
+    expect(rejected(written)).toBe("taken");
+    expect(rejected(null)).toBe("L1 14.1 /session");
+    expect(rejected({ ...written, session: { ...session, participants: [ada.address] } })).toBe(
+      "L1 14.1 /session",
+    );
+    // A receiver that is no participant holds no such session.
+    expect(rejected(written, eve.address)).toBe("L1 14.3 /session");
+    expect(rejected({ session })).toBe("L1 14.3 /chains");
+    expect(rejected({ session, chains: "none" })).toBe("L1 14.3 /chains");
+    const chains = (...given: unknown[]) => rejected({ session, chains: given });
+    expect(chains()).toBe("taken");
+    expect(chains(null)).toBe("L1 14.3 /chains/0");
+    expect(chains("a chain")).toBe("L1 14.3 /chains/0");
+    expect(chains(first, { ...second, from: 7 })).toBe("L1 14.3 /chains/1");
+    expect(chains({ ...first, instance: 7 })).toBe("L1 14.3 /chains/0");
+    expect(chains({ ...first, instance: "i".repeat(65) })).toBe("L1 14.3 /chains/0");
+    expect(chains({ ...first, instance: "i".repeat(64) })).toBe("taken");
+    expect(chains({ ...first, ids: undefined })).toBe("L1 14.3 /chains/0");
+    expect(chains({ ...first, ids: [id, "not a content ID"] })).toBe("L1 14.3 /chains/0");
+    // A mind that is no participant has no chain in the session.
+    expect(chains({ ...first, from: eve.address })).toBe("L1 14.3 /chains/0/from");
+    // One chain for each sender and instance.
+    expect(chains(first, { ...first, ids: [] })).toBe("L1 14.3 /chains/1");
+    expect(chains(first, { ...first, instance: "phone" })).toBe("taken");
+    const equivocated = (equivocation: unknown) => chains({ ...first, equivocation });
+    const [a, b] = first.ids as [string, string, string];
+    expect(equivocated({ kind: "equivocation", seq: 1, packets: [a, b] })).toBe("taken");
+    expect(equivocated("found")).toBe("L1 14.3 /chains/0");
+    expect(equivocated(null)).toBe("L1 14.3 /chains/0");
+    expect(equivocated({ seq: "1", packets: [a, b] })).toBe("L1 14.3 /chains/0");
+    expect(equivocated({ seq: 1.5, packets: [a, b] })).toBe("L1 14.3 /chains/0");
+    expect(equivocated({ seq: -1, packets: [a, b] })).toBe("L1 14.3 /chains/0");
+    expect(equivocated({ seq: 1, packets: [a] })).toBe("L1 14.3 /chains/0");
+    expect(equivocated({ seq: 1, packets: [a, b, a] })).toBe("L1 14.3 /chains/0");
+    expect(equivocated({ seq: 1, packets: [a, "another"] })).toBe("L1 14.3 /chains/0");
+    expect(equivocated({ seq: 1, packets: "two" })).toBe("L1 14.3 /chains/0");
+    // Two packets at one place are two packets.
+    expect(equivocated({ seq: 1, packets: [a, a] })).toBe("L1 14.3 /chains/0");
+  });
+
+  it("names the two packets of an equivocation in one order, however they were written down", () => {
+    const { written } = kept();
+    const [first] = written.chains as [(typeof written.chains)[0]];
+    const [a, b] = (first.ids as [string, string, string]).toSorted();
+    const again = new Sessions(bob.address);
+    expect(
+      again.restore({
+        session,
+        chains: [{ ...first, equivocation: { kind: "equivocation", seq: 1, packets: [b, a] } }],
+      } as never).ok,
+    ).toBe(true);
+    expect(again.held(sid)?.chains[0]?.equivocation).toStrictEqual({
+      kind: "equivocation",
+      seq: 1,
+      packets: [a, b],
+    });
+  });
+
+  it("is rejected where the session is held already, or the limits do not allow it", () => {
+    const { sessions, written } = kept();
+    expect(sessions.restore(written)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "L1 14.3", path: "/session" }],
+    });
+    // The limit on sessions: one is followed, and no second is taken up.
+    const one = new Sessions(bob.address, { maxSessions: 1 });
+    expect(one.restore(written).ok).toBe(true);
+    const another = { ...session, nonce: "session-0002" };
+    expect(one.restore({ session: another, chains: [] } as never)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "implementation limit", path: "/session" }],
+    });
+    expect(one.size).toBe(1);
+    expect(one.drop(sid)).toBe(true);
+    expect(one.restore({ session: another, chains: [] } as never).ok).toBe(true);
+    // The limit on the chains of one sender.
+    const [first] = written.chains as [(typeof written.chains)[0]];
+    const two = {
+      session,
+      chains: [first, { ...first, instance: "a" }, { ...first, instance: "b" }],
+    };
+    expect(new Sessions(bob.address, { maxInstances: 2 }).restore(two as never)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "implementation limit", path: "/chains/2/instance" }],
+    });
+    expect(new Sessions(bob.address, { maxInstances: 3 }).restore(two as never).ok).toBe(true);
+    // A sender is held to the limit after its chains are taken up again, as before.
+    const full = new Sessions(bob.address, { maxInstances: 1 });
+    expect(full.restore({ session, chains: [first] } as never).ok).toBe(true);
+    expect(take(full, link(ada, 0, undefined, { instance: "tablet" }))).toMatchObject({
+      rejected: "implementation limit",
+      path: "/instance",
+    });
+  });
+});

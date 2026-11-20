@@ -87,6 +87,8 @@ export {
 export {
   type ChainEquivocation,
   DEFAULT_SESSION_LIMITS,
+  type HeldChain,
+  type HeldSession,
   lacking,
   type OwnChain,
   type Placed,

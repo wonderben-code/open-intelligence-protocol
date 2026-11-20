@@ -93,6 +93,13 @@ const MAY_COMPARE_CREATED = [
   "packages/net/src/dates.ts",
 ];
 
+// One file of the pure packages names the global object: it keeps there the
+// count of checks cut short, so that two copies of `@oip/schema` in one
+// process share it (ADR-0010). Every other rule binds it as it binds the
+// rest, and `scripts/check-guards.ts` checks that it names the global object
+// once, for that one property.
+const KEEPS_THE_PROCESS_COUNT = ["packages/schema/src/process-count.ts"];
+
 export default tseslint.config(
   {
     ignores: [
@@ -168,6 +175,15 @@ export default tseslint.config(
   {
     files: MAY_COMPARE_CREATED,
     rules: { "no-restricted-syntax": ["error", ...PURE_SYNTAX] },
+  },
+  {
+    files: KEEPS_THE_PROCESS_COUNT,
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        ...AMBIENT.filter((restricted) => restricted.name !== "globalThis"),
+      ],
+    },
   },
   {
     // Command-line scripts report on the console.

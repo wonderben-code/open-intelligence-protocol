@@ -2285,7 +2285,10 @@ def bridge_assurance(V, participant) -> str:
     except (KeyError, ValueError):
         return "claimed"
     declared = (genesis.get("ext") or {}).get("oip.bridge") or {}
-    entry = V.resolve(block.get("attestation"))
+    # Layer 0, 1.2: the profile names the gateway's entry by its record-ref.
+    # An entry given in place of the reference is not one.
+    named = block.get("attestation")
+    entry = V.resolve(named) if isinstance(named, str) else None
     if V.signed_time(participant, mind) is None or \
        declared.get("gateway") != gateway or not isinstance(entry, dict) or \
        entry.get("type") != "Entry" or entry.get("author") != gateway or \
@@ -4464,6 +4467,17 @@ def build():
                                                              self_entry)}}),
                     br_op, br_vm),
                 "extraRecords": [self_entry], "expect": "claimed"})
+    neg.append({"name": "bridge-attestation-inline",
+                "reason": "A profile names its gateway's attestation by "
+                          "the entry's record-ref (Layer 0, 1.2). With the "
+                          "gateway's entry itself in place of the "
+                          "reference, the label stays `claimed`.",
+                "kind": "assurance",
+                "record": signed(variant(br_participant, ext={
+                    "oip.bridge": {**bridge_block,
+                                   "attestation": gw_entry}}),
+                    br_op, br_vm),
+                "expect": "claimed"})
     bad_sig("duplicity-unresolved",
             "Evidence cannot separate the two events at position 1 of "
             "Amina's log, so she is duplicitous: her Intent, pinned to a "

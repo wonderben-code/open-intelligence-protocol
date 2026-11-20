@@ -17453,6 +17453,61 @@
       "expect": "claimed"
     },
     {
+      "name": "bridge-attestation-inline",
+      "reason": "A profile names its gateway's attestation by the entry's record-ref (Layer 0, 1.2). With the gateway's entry itself in place of the reference, the label stays `claimed`.",
+      "kind": "assurance",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy",
+        "created": "2026-10-30T08:12:00Z",
+        "name": "Example MCP tools",
+        "kind": "service",
+        "summary": "An MCP server, bridged into OIP by its gateway.",
+        "ext": {
+          "oip.bridge": {
+            "protocol": "mcp",
+            "endpoint": "https://tools.example/mcp",
+            "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+            "assurance": "bridged",
+            "attestation": {
+              "oip": "1",
+              "type": "Entry",
+              "author": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+              "seq": 0,
+              "created": "2026-10-30T08:11:00Z",
+              "object": "bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy",
+              "objectType": "Genesis",
+              "proofs": [
+                "sha256:dba78a354144380f1d4e932d30f3cefdc2cad14c66efb78dd3abfd9753e10bdc"
+              ],
+              "proof": [
+                {
+                  "type": "DataIntegrityProof",
+                  "cryptosuite": "eddsa-jcs-2022",
+                  "verificationMethod": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi?versionId=0-bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi#z6Mkvh74WEmoV1TRUyw9FWr2YvqQKCUrobrWVMu94Da1mK5f",
+                  "proofPurpose": "assertionMethod",
+                  "created": "2026-10-30T08:11:00Z",
+                  "proofValue": "z2N64r7ozQQv9CA42yjkNmrWZLx8zkFjLm7GY83EcM1fRFvRfS1NJGNhGUiJ3bj1JJk7SsYHv6TeMfYeZt7PRyqKw"
+                }
+              ]
+            }
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy?versionId=0-bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy#z6MkggW6KEUmJ4Rq2zZChZfPnbY8JAgaqG1CwMWnqY6Z5tXn",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T08:12:00Z",
+            "proofValue": "z5LwoaXbAQ1ySVpGWbazSu4uong8Gz7XhMSd63CpoNftuvYAogJuKhNTE5DU5AvkJ74B7vEVCc4vM55ybs5njSBNu"
+          }
+        ]
+      },
+      "expect": "claimed"
+    },
+    {
       "name": "duplicity-unresolved",
       "reason": "Evidence cannot separate the two events at position 1 of Amina's log, so she is duplicitous: her Intent, pinned to a version after the divergence, does not count.",
       "kind": "countsFor",

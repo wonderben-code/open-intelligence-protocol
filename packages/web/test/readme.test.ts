@@ -50,6 +50,7 @@ describe("the README", () => {
     const values = Object.keys(web);
     const types = named.filter((name) => !values.includes(name));
     expect(types.sort()).toEqual([
+      "Assurance",
       "CharterStatus",
       "CommitmentStatus",
       "IntentStatus",

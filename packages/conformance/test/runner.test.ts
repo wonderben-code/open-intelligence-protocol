@@ -306,9 +306,22 @@ describe("the positive checks", () => {
         name,
       ).toMatchObject({ outcome: "pass" });
     }
+    // M9: a bridged mind, which Layer 0, 1.3 has a verifier tell from one that only says it is.
+    const m9 = ["a bridged mind, attested in its gateway's feed"];
+    expect(
+      POSITIVE_CHECKS.filter((check) => check.milestone === "M9").map((check) => check.name),
+    ).toEqual(m9);
+    for (const name of m9) {
+      expect(
+        results.find((result) => result.name === name),
+        name,
+      ).toMatchObject({ outcome: "pass" });
+    }
     expect(results.filter((result) => result.outcome === "pass")).toHaveLength(
-      1 + m1.length + m2.length + m3.length + m4.length,
+      1 + m1.length + m2.length + m3.length + m4.length + m9.length,
     );
+    // Nothing of the positive part is left for a later milestone.
+    expect(results.filter((result) => result.outcome === "pending")).toEqual([]);
   });
 
   describe("of delegation, charter roles and status", () => {
@@ -717,6 +730,7 @@ describe("the positive checks", () => {
       "packet sent on Amina's behalf under a /oip/send delegation",
       "collective signs by 2-of-3 threshold and by a charter role",
       "Layer 2 status (every state of Intent, Offer and Commitment)",
+      "a bridged mind, attested in its gateway's feed",
     ]);
     expect(results[0]?.detail).toContain("amina_log[0] was rejected");
   });

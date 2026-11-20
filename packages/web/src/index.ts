@@ -10,6 +10,7 @@
  */
 
 export { charterInForce, roleProofTime, roleTime } from "./charter.ts";
+export { type Assurance, assuranceOf, BRIDGE_BLOCK } from "./assurance.ts";
 export { actsFor, countsFor, signedTime } from "./counts.ts";
 export { evidenceIsChecked, evidenceMatches } from "./evidence.ts";
 export {

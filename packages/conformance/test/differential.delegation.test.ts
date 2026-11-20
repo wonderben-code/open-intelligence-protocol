@@ -1094,6 +1094,148 @@ function statusQuestion(plan: StatusPlan): StatusQuestion {
   }
 }
 
+// ---------------------------------------------------------------- bridged minds
+
+const gatewayMind = new KeyMind("differential gateway");
+const otherGateway = new KeyMind("differential other gateway");
+const bridgeBlock = (gateway: Mind, more: JsonObject = {}): Record<string, JsonObject> => ({
+  "oip.bridge": {
+    protocol: "a2a",
+    endpoint: "https://agent.example/a2a",
+    gateway: gateway.address,
+    assurance: "bridged",
+    ...more,
+  },
+});
+/** A mind by what its genesis says of a gateway. */
+const BRIDGED = {
+  gateway: new KeyMind("differential bridged", 0, {
+    kind: "service",
+    ext: bridgeBlock(gatewayMind),
+  }),
+  other: new KeyMind("differential bridged by another", 0, {
+    kind: "service",
+    ext: bridgeBlock(otherGateway),
+  }),
+  none: new KeyMind("differential not bridged", 0, { kind: "service" }),
+} as const;
+
+/** What can be done wrong to a bridged mind, its gateway's entry, its profile, or what the verifier holds. */
+const BRIDGE_FAULTS = [
+  "the genesis names another gateway",
+  "the genesis names no gateway",
+  "the profile names another gateway",
+  "the profile names no gateway",
+  "the profile names a number",
+  "the profile has no block",
+  "the entry is another gateway's",
+  "the entry is the mind's own",
+  "the entry is signed by the mind",
+  "the entry is signed by another gateway",
+  "the entry is for another genesis",
+  "the entry is for a profile",
+  "the entry calls the genesis a Participant",
+  "the profile names no attestation",
+  "the profile names the content ID alone",
+  "the profile names words",
+  "the profile names an intent of the gateway",
+  "the profile holds the entry itself",
+  "the profile is signed by the gateway",
+  "the entry is not held",
+  "the mind's log is not held",
+  "the gateways' logs are not held",
+] as const;
+type BridgeFault = (typeof BRIDGE_FAULTS)[number];
+
+/** A bridged mind done rightly, and then a few things done to it: none, one, or some. */
+const bridgePlan = fc.oneof(
+  { weight: 1, arbitrary: fc.constant<BridgeFault[]>([]) },
+  { weight: 5, arbitrary: fc.constantFrom(...BRIDGE_FAULTS).map((fault) => [fault]) },
+  {
+    weight: 3,
+    arbitrary: fc.uniqueArray(fc.constantFrom(...BRIDGE_FAULTS), { minLength: 2, maxLength: 4 }),
+  },
+);
+
+/** The question a plan comes to: a profile, with what the verifier holds besides. */
+function bridgeQuestion(faults: readonly BridgeFault[]): VectorCase & { kind: "assurance" } {
+  const is = (fault: BridgeFault): boolean => faults.includes(fault);
+  const mind = is("the genesis names no gateway")
+    ? BRIDGED.none
+    : is("the genesis names another gateway")
+      ? BRIDGED.other
+      : BRIDGED.gateway;
+  const genesis = contentId(mind.events[0]);
+  const author = is("the entry is the mind's own")
+    ? mind
+    : is("the entry is another gateway's")
+      ? otherGateway
+      : gatewayMind;
+  const signer = is("the entry is signed by the mind")
+    ? mind
+    : is("the entry is signed by another gateway")
+      ? otherGateway
+      : author;
+  const entry = signer.sign({
+    oip: "1",
+    type: "Entry",
+    author: author.address,
+    seq: 0,
+    created: T(5),
+    object: is("the entry is for a profile")
+      ? contentId({ oip: "1", type: "Participant", name: "some profile" })
+      : is("the entry is for another genesis")
+        ? contentId(BRIDGED.none.events[0] as object)
+        : genesis,
+    objectType: is("the entry calls the genesis a Participant") ? "Participant" : "Genesis",
+  }) as Signed;
+  const intent = gatewayMind.sign(intentBy(gatewayMind, 5)) as Signed;
+  const named: unknown = is("the profile names no attestation")
+    ? undefined
+    : is("the profile names the content ID alone")
+      ? contentId(entry)
+      : is("the profile names words")
+        ? "the gateway said so"
+        : is("the profile names an intent of the gateway")
+          ? formatRecordRef(gatewayMind.address, contentId(intent))
+          : is("the profile holds the entry itself")
+            ? entry
+            : formatRecordRef(author.address, contentId(entry));
+  const about = named === undefined ? {} : { attestation: named };
+  const ext = is("the profile has no block")
+    ? undefined
+    : is("the profile names no gateway")
+      ? { "oip.bridge": { protocol: "a2a", ...about } }
+      : is("the profile names a number")
+        ? { "oip.bridge": { protocol: "a2a", gateway: 7, ...about } }
+        : bridgeBlock(is("the profile names another gateway") ? otherGateway : gatewayMind, about);
+  const draft = {
+    oip: "1",
+    type: "Participant",
+    author: mind.address,
+    created: T(10),
+    name: "A bridged agent",
+    kind: "service",
+    ...(ext === undefined ? {} : { ext }),
+  };
+  const profile = (
+    is("the profile is signed by the gateway") ? gatewayMind.sign(draft) : mind.sign(draft)
+  ) as Signed;
+  return {
+    kind: "assurance",
+    name: "generated",
+    record: profile,
+    expect: "",
+    extraLogs: [
+      ...(is("the mind's log is not held") ? [] : [mind.events as Events]),
+      ...(is("the gateways' logs are not held")
+        ? []
+        : [gatewayMind.events as Events, otherGateway.events as Events]),
+    ],
+    extraRecords: [...(is("the entry is not held") ? [] : [entry]), intent],
+  };
+}
+
 describe.skipIf((unavailable !== undefined && !required) || measured)(
   "differential: delegation and status",
   () => {
@@ -1315,6 +1457,31 @@ describe.skipIf((unavailable !== undefined && !required) || measured)(
         );
         // A campaign of any size reaches more than the status a record starts with.
         if (RUNS >= 100) expect(tally.get("statuses")?.size).toBeGreaterThan(8);
+      },
+      TIMEOUT,
+    );
+
+    it(
+      `agrees with it on the assurance level of ${RUNS} generated bridged minds`,
+      async () => {
+        await fc.assert(
+          fc.asyncProperty(bridgePlan, async (plan) => {
+            const question = bridgeQuestion(plan);
+            const ours = referenceAdapter.assurance?.(question.record, viewFor(vectors, question));
+            const theirs = await judge.judge(question);
+            expect(
+              { implementation: ours, judgeError: theirs.error },
+              `${shown(plan)} ${shown(question)}`,
+            ).toStrictEqual({ implementation: theirs.value, judgeError: undefined });
+            count("assurance levels", String(ours));
+            // Done rightly, it is bridged. One thing done wrong, and it never is.
+            if (plan.length === 0) expect(ours).toBe("bridged");
+            if (plan.length === 1) expect(ours, plan[0]).not.toBe("bridged");
+          }),
+          { numRuns: RUNS },
+        );
+        // A campaign of any size reaches each of the three levels (Layer 0, 1.3).
+        if (RUNS >= 100) expect(tally.get("assurance levels")?.size).toBe(3);
       },
       TIMEOUT,
     );

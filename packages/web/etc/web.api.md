@@ -18,6 +18,15 @@ import { VerifiedProof } from '@oip/core';
 export function actsFor(judged: JudgedRecord, signer: string, principal: string, context: DelegationContext): boolean;
 
 // @public
+export type Assurance = "native" | "bridged" | "claimed";
+
+// @public
+export function assuranceOf(profile: JudgedRecord, context: DelegationContext): Assurance;
+
+// @public
+export const BRIDGE_BLOCK = "oip.bridge";
+
+// @public
 export function charterInForce(mind: string, time: Instant, context: DelegationContext, also?: readonly JudgedRecord[]): Validation<string | undefined>;
 
 // @public

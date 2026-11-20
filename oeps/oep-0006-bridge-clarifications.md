@@ -16,7 +16,7 @@ revision: # the specification revision that adopted the change; empty until Fina
 
 ## Summary
 
-Writing the OIP MCP server showed one place where Layer 0 (revision 2026-11-17, with OEP-0001 to OEP-0005) protects the user from one kind of record and not from another that needs it as much. This proposal settles it. More items may follow while the A2A bridge is built.
+Writing the OIP MCP server showed one place where Layer 0 (revision 2026-11-17, with OEP-0001 to OEP-0005) protects the user from one kind of record and not from another that needs it as much. Writing the rule that tells a bridged mind from one that only says it is showed one place where two implementations read the same sentence differently. This proposal settles both. More items may follow while the A2A bridge is built.
 
 ## Motivation
 
@@ -24,11 +24,16 @@ An OIP MCP server gives a model the use of a mind. The model reads what stranger
 
 1. **What of a Receipt?** A Receipt binds nobody, and 2.2 does not name it. But a Commitment is fulfilled once a creditor says so (Layer 2, Section 8), and broken or disputed by the word of any party. The debtor of a Commitment can send its creditor a packet that tells the creditor's assistant to publish a `fulfilled` Receipt. An assistant that does as it is told gives up what the user is owed, in the user's name, in public and for good. The prompt-injection suite of the reference server makes this attack, and without a confirmation it succeeds.
 
+A verifier labels a mind `bridged` only on the gateway's own word (1.3).
+
+2. **How is the gateway's entry named?** 1.2 says the profile carries `attestation`, "the `record-ref` of that entry". 1.3 says "the entry the profile names". A profile can carry the entry itself where the reference belongs, and an extension block may hold any JSON. The independent checker took such an entry as named, and answered `bridged`. The reference implementation looked the reference up among the records it holds, found no reference, and answered `claimed`.
+
 ## Specification
 
 Each item is a change to `spec/layer-0-bridge.md`, made in the same commits as the code.
 
 1. **A Receipt is confirmed too (2.2).** The server SHOULD require the human user's confirmation before signing a Commitment, a Receipt or a Delegation unless the user has configured a policy that permits it.
+2. **An attestation is named, not carried (1.3).** The profile names the entry by its `record-ref` (1.2): an entry carried in the profile in place of the reference names none, and the mind is `claimed`.
 
 ## Rationale and alternatives
 
@@ -36,9 +41,11 @@ Each item is a change to `spec/layer-0-bridge.md`, made in the same commits as t
 - **Item 1: leave it to the MCP host, which asks before a tool is called.** A host shows the arguments the model chose. It does not show what the record is about, and it cannot: only the server holds the Commitment the Receipt names. The server's question shows the outcome, the user's own statement, and the promise the Receipt is about, word for word.
 - **Item 1: confirm an Intent, an Offer and a packet as well.** They bind nobody and settle nothing. A user who is asked about every message learns to say yes without reading, and then the question protects nothing.
 
+- **Item 2: take an entry that is carried, since it is signed all the same.** The signature would verify. But a verifier would then judge a record it was handed inside another, in a place where a reference belongs, and each such place is one more way for two implementations to differ. A record that is named is looked up by its content ID among the records the verifier holds, with the evidence the verifier has of when its proofs came (core 9.4). The reference is also what 1.2 already says.
+
 ## Backwards compatibility
 
-No record format changes, and no test vector. The rule is a SHOULD, as it was: a server built to the earlier text conforms as before, and protects its user less.
+No record format changes. Item 1 is a SHOULD, as it was: a server built to the earlier text conforms as before, and protects its user less. Item 2 says what 1.2 said already: a gateway that followed 1.2 wrote a reference, and nothing changes for it. A verifier that took a carried entry now answers `claimed` where it answered `bridged`.
 
 ## Security and privacy considerations
 
@@ -46,13 +53,17 @@ Item 1 closes a way to make a user give up a claim, or accuse another party, wit
 
 A policy is a standing yes. A user who permits every Receipt has the protection of the earlier text and no more.
 
+Item 2 errs toward `claimed`, the label that promises nothing.
+
 ## Test vectors
 
-None. The rule is about what a server does before it signs, and no record shows it.
+For item 2, one negative case of kind `assurance`: `bridge-attestation-inline`, the bridged mind of the vectors with its gateway's own entry in its profile where the reference belongs. It is `claimed`. Item 1 is about what a server does before it signs, and no record shows it.
 
 ## Reference implementation
 
 `@oip/mcp-server`, in `packages/mcp-server`: `tools/web.ts` (the confirmation before `oip_receipt` signs), `question.ts` (the question), `policy.ts` (the part of `policy.json` for Receipts). Its tests: `tools.test.ts` and `injection.test.ts`.
+
+`assuranceOf` of `@oip/web`, in `packages/web/src/assurance.ts` (item 2), and the campaign of the differential tests that found the difference: `packages/conformance/test/differential.delegation.test.ts`.
 
 ## Open questions
 

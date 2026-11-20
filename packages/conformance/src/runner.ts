@@ -367,16 +367,10 @@ function sameSet(a: readonly string[], b: readonly string[]): boolean {
   return left.size === right.size && [...left].every((one) => right.has(one));
 }
 
-const later = (name: string, milestone: string): PositiveCheck => ({
-  name,
-  milestone,
-  run: () => undefined,
-});
-
 /**
  * The checks of the positive part, in the order of the Python checker's
- * `check()`. Those that need parts of the implementation that do not exist
- * yet are pending, and name the milestone that fills them in.
+ * `check()`. Each names the milestone of the reference implementation in
+ * which it turned green. One whose method an adapter lacks is pending.
  */
 export const POSITIVE_CHECKS: readonly PositiveCheck[] = [
   {
@@ -927,7 +921,25 @@ export const POSITIVE_CHECKS: readonly PositiveCheck[] = [
       return mismatches;
     },
   },
-  later("a bridged mind, attested in its gateway's feed", "M9"),
+  {
+    name: "a bridged mind, attested in its gateway's feed",
+    milestone: "M9",
+    run: (adapter, vectors) => {
+      if (adapter.assurance === undefined) return undefined;
+      const view = baselineView(vectors);
+      const level = (name: string): string | undefined =>
+        adapter.assurance?.(namedRecord(vectors, name), view);
+      const mismatches: string[] = [];
+      // Layer 0, 1.3: the gateway's entry for the mind's genesis is among the records held.
+      if (level("bridged_participant") !== "bridged") {
+        mismatches.push("the profile of the bridged mind is not `bridged`");
+      }
+      if (level("participant") !== "native") {
+        mismatches.push("a profile that names no gateway is not `native`");
+      }
+      return mismatches;
+    },
+  },
 ];
 
 /** Runs one check of the positive part. A check that throws has failed. */

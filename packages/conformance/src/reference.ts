@@ -50,7 +50,14 @@ import {
   validateRecord,
   type Validation,
 } from "@oip/schema";
-import { countsFor, status, type WebRecords, WebRecordSet } from "@oip/web";
+import {
+  assuranceOf,
+  BRIDGE_BLOCK,
+  countsFor,
+  status,
+  type WebRecords,
+  WebRecordSet,
+} from "@oip/web";
 
 import {
   type ChainReading,
@@ -256,6 +263,19 @@ export const referenceAdapter: ConformanceAdapter = {
       records: known,
     });
     return answer.ok ? answer.value : "";
+  },
+  assurance: (profile, view) => {
+    const judged = judgeRecord(profile);
+    if (!judged.ok) {
+      // What is no record shows nothing. If it declares a bridge, that is a claim and no more.
+      const { ext } = profile as { readonly ext?: unknown };
+      const declares = typeof ext === "object" && ext !== null && Object.hasOwn(ext, BRIDGE_BLOCK);
+      return declares ? "claimed" : "native";
+    }
+    return assuranceOf(judged.value, {
+      identity: bookFor(view, profile),
+      records: recordsOf(view),
+    });
   },
   lineage: (child, view) => {
     const book = bookFor(view, undefined);

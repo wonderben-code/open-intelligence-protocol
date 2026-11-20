@@ -118,9 +118,14 @@ Two independent reviews of `@oip/delegation` and `@oip/web` found eight more (OE
 - **A broker's duties and its answer (18.5).** It forwards a packet once, not to its sender, to an inbox or else a mailbox, and answers `202` with `{ "stored": true }`.
 - **Submissions and queries are `application/json` (18.1).** They are JSON and not records, and core 10.1 names a media type for records only. A `QueryResult` is a record and is served as one.
 
-**Bridge clarifications ([OEP-0006](../oeps/oep-0006-bridge-clarifications.md), found while building the MCP server).** No test vector changes.
+**Bridge clarifications ([OEP-0006](../oeps/oep-0006-bridge-clarifications.md), found while building the MCP server and the A2A bridge).** No address, content ID or proof in the test vectors changes.
 
 - **A Receipt is confirmed too (Layer 0, 2.2).** An OIP MCP server SHOULD require the user's confirmation before it signs a Receipt, as before a Commitment or a Delegation, unless a policy of the user's permits it. A Receipt binds nobody, but a party that is owed something gives its claim up by saying the promise was fulfilled, and a model that a packet talked into it could say so in the user's name.
+- **An attestation is named, not carried (Layer 0, 1.3).** A profile names its gateway's entry by the entry's `record-ref`, as 1.2 says. An entry carried in the profile in place of the reference names none, and the mind is `claimed`. 1.3 now says so in so many words.
+
+**The Python checker** took an entry given in place of the reference as the entry, and answered `bridged`. It now takes a `record-ref` alone. The differential tests found it: the reference implementation answered `claimed`.
+
+**Test vectors.** One negative case, `bridge-attestation-inline`: the bridged mind of the vectors, with its gateway's own entry in its profile where the reference belongs. The vectors now hold 48 must-accept cases, 180 negative cases and 125 controls. Every value that was there is byte for byte what it was.
 
 ## Revision 2026-11-17 (Draft)
 

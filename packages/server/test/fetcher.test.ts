@@ -233,6 +233,39 @@ describe("a body posted for a stranger", () => {
     expect(requests.at(-1)?.headers).toMatchObject({ accept: "text/*", "content-length": "0" });
   });
 
+  it("is sent with the further headers a protocol has, and with none that are the fetcher's own or frame the request", async () => {
+    const body = new TextEncoder().encode("{}");
+    await fetcherFor().post(at("/inbox"), body, "application/json", "application/json", {
+      "A2A-Version": "1.0",
+      "a2a-extensions": "https://example.com/ext/v1,https://example.com/ext/v2",
+    });
+    expect(requests.at(-1)?.headers).toMatchObject({
+      accept: "application/json",
+      "content-type": "application/json",
+      "a2a-version": "1.0",
+      "a2a-extensions": "https://example.com/ext/v1,https://example.com/ext/v2",
+      "user-agent": "oip-server",
+    });
+    const sent = requests.length;
+    for (const headers of [
+      { Host: "elsewhere.example" },
+      { "content-length": "0" },
+      { "Transfer-Encoding": "chunked" },
+      { "user-agent": "another" },
+      { "x bad": "1" },
+      { "": "1" },
+      { "x-split": "one\r\nx-injected: two" },
+      { "x-wide": "caf\u00e9" },
+    ]) {
+      await expect(
+        fetcherFor().post(at("/inbox"), body, "application/json", "*/*", headers),
+        JSON.stringify(headers),
+      ).rejects.toThrow(TypeError);
+    }
+    // Nothing was sent for any of them.
+    expect(requests).toHaveLength(sent);
+  });
+
   it("is not sent on where the answer redirects: the redirect is the answer", async () => {
     const body = new TextEncoder().encode("{}");
     const answer = await fetcherFor().post(at("/redirect/same"), body, "application/json");

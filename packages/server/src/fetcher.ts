@@ -101,6 +101,40 @@ function literal(hostname: string): string | undefined {
   return isIP(bare) === 0 ? undefined : bare;
 }
 
+/** The headers a caller may not give: the fetcher's own, and those that say where a request goes or how it is framed. */
+const OWN_HEADERS: ReadonlySet<string> = new Set([
+  "accept",
+  "accept-encoding",
+  "connection",
+  "content-length",
+  "content-type",
+  "expect",
+  "host",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+  "user-agent",
+]);
+
+/** Further headers of a request, their names in lower case. @throws TypeError for one that may not be given. */
+function furtherHeaders(headers: Readonly<Record<string, string>>): Record<string, string> {
+  const further: Record<string, string> = {};
+  for (const [given, value] of Object.entries(headers)) {
+    const name = given.toLowerCase();
+    if (!/^[a-z0-9-]+$/u.test(name) || OWN_HEADERS.has(name)) {
+      throw new TypeError(`the header ${JSON.stringify(given)} is not one a caller gives`);
+    }
+    // No line ends in a value, and nothing a header cannot hold.
+    if (!/^[\x20-\x7e]*$/u.test(value)) {
+      throw new TypeError(`the value of the header ${name} is not printable ASCII`);
+    }
+    further[name] = value;
+  }
+  return further;
+}
+
 /** The fetcher. One is made for a service, with its limits and what it allows. */
 export class GuardedFetcher {
   readonly #limits: FetchLimits;
@@ -167,14 +201,25 @@ export class GuardedFetcher {
    * the answer is given as it is.
    *
    * @param accept - The media types asked for.
+   * @param headers - Further headers of the request, for a protocol that
+   *   has its own: `a2a-version`, say. None of them replaces a header this
+   *   fetcher sets, or says where the request goes or how long it is.
    * @returns The response, whatever its status.
-   * @throws FetchRefused if the URL may not be fetched, or the exchange failed.
+   * @throws FetchRefused if the URL may not be fetched, or the exchange
+   *   failed. TypeError for a header that may not be given.
    */
-  async post(url: string, body: Uint8Array, contentType: string, accept = "*/*"): Promise<Fetched> {
+  async post(
+    url: string,
+    body: Uint8Array,
+    contentType: string,
+    accept = "*/*",
+    headers: Readonly<Record<string, string>> = {},
+  ): Promise<Fetched> {
+    const further = furtherHeaders(headers);
     const deadline = AbortSignal.timeout(this.#limits.timeoutMs);
     const target = this.#vetted(url);
     const addresses = await this.#addresses(target.hostname, deadline);
-    return this.#exchange(target, addresses, accept, deadline, { body, contentType });
+    return this.#exchange(target, addresses, accept, deadline, { body, contentType, further });
   }
 
   /** The URL, if it is one this fetcher may ask at all. */
@@ -228,7 +273,11 @@ export class GuardedFetcher {
     addresses: Addresses,
     accept: string,
     deadline: AbortSignal,
-    sent?: { readonly body: Uint8Array; readonly contentType: string },
+    sent?: {
+      readonly body: Uint8Array;
+      readonly contentType: string;
+      readonly further: Readonly<Record<string, string>>;
+    },
   ): Promise<Fetched> {
     const { maxBytes } = this.#limits;
     return new Promise<Fetched>((resolve, reject) => {
@@ -240,6 +289,7 @@ export class GuardedFetcher {
           agent: false,
           signal: deadline,
           headers: {
+            ...sent?.further,
             accept,
             "accept-encoding": "identity",
             "user-agent": this.#userAgent,

@@ -48,9 +48,18 @@ export class World {
     this.clock = clock;
   }
 
+  /** Called with each request before it is answered: a test acts at a moment of its choosing. */
+  before: ((request: Request) => void | Promise<void>) | undefined;
+
   /** Reaches the services of this world, and nothing else. */
   readonly fetch: Fetch = async (request) => {
     this.asked.push(`${request.method} ${request.url}`);
+    await this.before?.(request);
+    return this.direct(request);
+  };
+
+  /** As `fetch`, for a client a test does not watch: `before` is not called. */
+  readonly direct: Fetch = async (request) => {
     const answering = this.#origins.get(new URL(request.url).origin);
     if (answering === undefined) throw new TypeError("fetch failed");
     return answering(request);

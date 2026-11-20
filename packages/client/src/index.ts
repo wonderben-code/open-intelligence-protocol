@@ -35,3 +35,12 @@ export {
   type ResolverAnswer,
   systemClock,
 } from "./lookup.ts";
+export {
+  type ControlOptions,
+  type IdentityChanges,
+  type KeyEntry,
+  Mind,
+  type MindOptions,
+  type NewMind,
+  type Publication,
+} from "./mind.ts";

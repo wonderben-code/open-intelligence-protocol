@@ -4,14 +4,19 @@
 
 ```ts
 
+import { AgreementKeys } from '@oip/keystore';
 import { DidResolution } from '@oip/identity';
 import { FirstSeen } from '@oip/identity';
 import { HeldLocation } from '@oip/net';
 import { IdentityState } from '@oip/identity';
 import { IdentityView } from '@oip/identity';
 import { Instant } from '@oip/core';
+import { JsonObject } from '@oip/core';
 import type { JsonValue } from '@oip/schema';
+import { Keystore } from '@oip/keystore';
+import { Lock } from '@oip/keystore';
 import { OipRecord } from '@oip/core';
+import type { Proof } from '@oip/schema';
 import { VerifiedLog } from '@oip/identity';
 
 // @public
@@ -46,6 +51,11 @@ export interface Clock {
 }
 
 // @public
+export interface ControlOptions {
+    readonly control: Lock;
+}
+
+// @public
 export const DEFAULT_MAX_BYTES: number;
 
 // @public
@@ -64,6 +74,25 @@ export type Fetch = (request: Request) => Promise<Response>;
 export function httpsOrigin(url: string): string | undefined;
 
 // @public
+export interface IdentityChanges {
+    readonly agreement?: readonly KeyEntry[];
+    readonly alsoKnownAs?: readonly string[];
+    readonly homes?: readonly string[];
+    readonly invocation?: readonly KeyEntry[];
+    readonly keys?: readonly KeyEntry[];
+    readonly revoked?: readonly {
+        readonly key: string;
+        readonly compromisedSince?: string;
+    }[];
+}
+
+// @public
+export interface KeyEntry {
+    readonly key: string;
+    readonly label?: string;
+}
+
+// @public
 export class Lookup {
     constructor(options: LookupOptions);
     resolve(mind: string): Promise<Resolved>;
@@ -80,6 +109,61 @@ export interface LookupOptions extends TransportOptions {
 
 // @public
 export const MAX_DETAIL_LENGTH = 256;
+
+// @public
+export class Mind {
+    addKey(options: ControlOptions & {
+        readonly label?: string;
+    }): Promise<string>;
+    get address(): string;
+    get agreement(): AgreementKeys;
+    close(): void;
+    static create(options: MindOptions, fields: NewMind): Promise<Mind>;
+    fork(child: string, options: ControlOptions & {
+        readonly terms?: JsonObject;
+        readonly changes?: IdentityChanges;
+    }): Promise<IdentityState>;
+    get lookup(): Lookup;
+    static open(options: MindOptions): Promise<Mind>;
+    get publications(): readonly Publication[];
+    refresh(): Promise<IdentityState>;
+    get resolved(): Resolved;
+    retire(options: ControlOptions & {
+        readonly successor?: string;
+        readonly reason?: string;
+    }): Promise<IdentityState>;
+    revokeKey(key: string, options: ControlOptions & {
+        readonly compromisedSince?: string;
+    }): Promise<IdentityState>;
+    sign<T extends object>(record: T): Promise<T & {
+        proof: Proof[];
+    }>;
+    signingKey(): string;
+    get state(): IdentityState;
+    update(changes: IdentityChanges, options: ControlOptions): Promise<IdentityState>;
+}
+
+// @public
+export interface MindOptions extends LookupOptions {
+    readonly keystore: Keystore;
+    readonly lock: Lock;
+}
+
+// @public
+export interface NewMind {
+    readonly alsoKnownAs?: readonly string[];
+    readonly control?: Lock;
+    readonly homes?: readonly string[];
+    readonly invocation?: Lock;
+    readonly kind: string;
+}
+
+// @public
+export interface Publication {
+    readonly failure?: string;
+    readonly resolver: string;
+    readonly taken: boolean;
+}
 
 // @public
 export function recordBody(record: unknown): {

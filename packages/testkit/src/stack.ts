@@ -1,6 +1,37 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import { setFlagsFromString } from "node:v8";
+import { runInThisContext } from "node:vm";
+
+/**
+ * Tells the engine never to compile these functions again for speed, so
+ * that a frame of each stays the size it is.
+ *
+ * A script that finds where the call stack ends by descending, and then
+ * descends again to a chosen distance from the end, counts on the frames of
+ * both descents being one size. The engine compiles a function that runs
+ * often again, more than once and on a thread of its own, and each
+ * compilation has frames of another size. Whether the second descent ran
+ * the code the first did then depended on how fast the machine was: on some
+ * it ended before it reached the depth asked for.
+ *
+ * This is V8's own request for it, in the syntax V8 keeps for its tests.
+ * The syntax is allowed while the request is read, and not after. What the
+ * functions call is compiled as it would be anyway.
+ */
+export function keepFramesOneSize(...functions: readonly ((...args: never[]) => unknown)[]): void {
+  setFlagsFromString("--allow-natives-syntax");
+  try {
+    const keep = runInThisContext("(function (f) { %NeverOptimizeFunction(f); })") as (
+      f: unknown,
+    ) => void;
+    for (const one of functions) keep(one);
+  } finally {
+    setFlagsFromString("--no-allow-natives-syntax");
+  }
+}
+
 /**
  * Calls a function with the call stack all but spent, at one depth after
  * another near the end of it. Any function throws when there is no stack

@@ -21,6 +21,7 @@
  */
 
 import { cutShortCount } from "@oip/schema";
+import { keepFramesOneSize } from "@oip/testkit";
 
 import { ed25519PublicKey, isEd25519PublicKey, signEd25519, verifyEd25519 } from "../src/index.ts";
 
@@ -78,24 +79,45 @@ const shifted = (frames: number, run: () => void, a = 0, b = 0, c = 0): void => 
   else shifted(frames - 1, run, a + 1, b + a, c + b);
 };
 
-const answers: Record<string, number> = {};
-const silent: string[] = [];
-for (let round = 0; round < rounds; round++) {
-  for (let shift = 0; shift < shifts; shift++) {
+// The frames of the descent, and of what shifts it, stay one size: each descent then ends
+// where the one before it said it would (`keepFramesOneSize`). The verification is compiled
+// as the engine sees fit, which is what is asked about.
+keepFramesOneSize(descend, shifted);
+
+/** Finds where the stack ends below `shift` frames, asked until two askings agree. */
+const findEnd = (shift: number): boolean => {
+  let found = -1;
+  for (let asked = 0; asked < 8; asked++) {
     deepest = 0;
     target = -1;
     shifted(shift, () => {
       descend(0);
     });
+    if (deepest === found) return true;
+    found = deepest;
+  }
+  return false;
+};
+
+const answers: Record<string, number> = {};
+const silent: string[] = [];
+for (let round = 0; round < rounds; round++) {
+  for (let shift = 0; shift < shifts; shift++) {
+    const settled = findEnd(shift);
     for (let frames = 0; frames < depths; frames++) {
       target = deepest - frames;
       answer = "not reached";
-      try {
-        shifted(shift, () => {
-          descend(0);
-        });
-      } catch {
-        answer = "threw outside";
+      if (settled) {
+        try {
+          shifted(shift, () => {
+            descend(0);
+          });
+        } catch {
+          // The stack ended above the depth asked for: the frames were not one size after all.
+          answer = "threw outside";
+        }
+      } else {
+        answer = "the end of the stack was not found twice at one depth";
       }
       answers[answer] = (answers[answer] ?? 0) + 1;
       if (answer === "false, nothing noted") silent.push(`${frames} below ${shift}`);

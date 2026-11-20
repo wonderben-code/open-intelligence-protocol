@@ -21,23 +21,59 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 /**
+ * How long such a script may run before it is taken for hung. It takes a
+ * second or two alone. Beside every other test on a shared runner it has
+ * taken a hundred times that: the limit is there to end what will never end.
+ */
+const SCRIPT_TIMEOUT_MS = 300_000;
+
+/** What `execFileSync` throws for a process that did not end well, as far as it is read here. */
+interface Failed {
+  readonly code?: unknown;
+  readonly status?: unknown;
+  readonly signal?: unknown;
+  readonly stderr?: unknown;
+}
+
+/**
  * Runs a script in a Node.js process of its own, with the packages read
  * from their sources, and returns what it printed, read as JSON.
  *
  * @param args - Arguments for the script, which it reads from `process.argv`.
- * @throws Error if the script fails, with what it wrote to standard error.
+ * @param timeoutMs - How long it may run. Default: five minutes.
+ * @throws Error if the script fails. Its first line says how the process
+ *   ended (with what code, by what signal, or stopped for taking too long)
+ *   and the end of what it wrote to standard error: a run that reports one
+ *   line of a failure reports what is needed to tell these apart.
  */
-export function inNode(script: URL, args: readonly string[] = []): unknown {
-  const printed = execFileSync(
-    process.execPath,
-    ["--conditions=@oip/source", fileURLToPath(script), ...args],
-    {
+export function inNode(
+  script: URL,
+  args: readonly string[] = [],
+  timeoutMs = SCRIPT_TIMEOUT_MS,
+): unknown {
+  const path = fileURLToPath(script);
+  let printed: string;
+  try {
+    printed = execFileSync(process.execPath, ["--conditions=@oip/source", path, ...args], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
-      // Some hundred times what such a script takes.
-      timeout: 120_000,
-    },
-  );
+      timeout: timeoutMs,
+    });
+  } catch (error) {
+    const { code, status, signal, stderr } = error as Failed;
+    const how =
+      code === "ETIMEDOUT"
+        ? `was stopped after ${String(timeoutMs / 1000)} seconds`
+        : typeof signal === "string"
+          ? `was ended by ${signal}`
+          : `ended with ${String(status)}`;
+    const wrote = typeof stderr === "string" ? stderr.trim() : "";
+    const last = wrote.split("\n").slice(-8).join(" | ").slice(-1500);
+    throw new Error(
+      `${path} ${how}. ${last === "" ? "It wrote nothing to its standard error" : `Its standard error ends: ${last}`}`,
+      { cause: error },
+    );
+  }
   return JSON.parse(printed) as unknown;
 }
 

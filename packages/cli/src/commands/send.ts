@@ -3,8 +3,9 @@
 
 import { carried, type Message } from "@oip/client";
 
+import { withMind } from "@oip/local";
+
 import { type Command, has, many, one, UsageError } from "../command.ts";
-import { withMind } from "../mind.ts";
 import { recordOf, who } from "./dealing.ts";
 import { deliveryLine, packetLines } from "./packets.ts";
 

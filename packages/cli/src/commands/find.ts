@@ -5,10 +5,9 @@ import { type Finding, type Found, Lookup } from "@oip/client";
 import { type Instant, proofDigest } from "@oip/core";
 import type { CapabilityQuery } from "@oip/schema";
 
+import { Home, KeptRecords, lookupOptions, servicesOf } from "@oip/local";
+
 import { type Command, has, many, one, UsageError } from "../command.ts";
-import { Home } from "../home.ts";
-import { lookupOptions, servicesOf } from "../mind.ts";
-import { KeptRecords } from "../records.ts";
 import { row } from "./describe.ts";
 import { networkDirectory } from "./init.ts";
 

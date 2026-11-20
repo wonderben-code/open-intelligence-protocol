@@ -5,9 +5,9 @@ import { writeFileSync } from "node:fs";
 
 import { Lookup } from "@oip/client";
 
+import { counted, lookupOptions, servicesOf } from "@oip/local";
+
 import { type Command, has, one, UsageError } from "../command.ts";
-import { lookupOptions, servicesOf } from "../mind.ts";
-import { counted } from "../text.ts";
 import { describe, described, lineageOf, row } from "./describe.ts";
 import { networkDirectory } from "./init.ts";
 

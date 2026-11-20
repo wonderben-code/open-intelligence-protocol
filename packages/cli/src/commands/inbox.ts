@@ -3,9 +3,9 @@
 
 import type { Inbox, SessionEvent } from "@oip/client";
 
+import { counted, keepRecords, type Opened, withMind } from "@oip/local";
+
 import { type Command, has, type Result, UsageError } from "../command.ts";
-import { keepRecords, type Opened, withMind } from "../mind.ts";
-import { counted } from "../text.ts";
 import { row } from "./describe.ts";
 import { deliveryLine, keptFrom, keptOf, type KeptPacket, receivedLines } from "./packets.ts";
 

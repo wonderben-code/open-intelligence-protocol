@@ -16,6 +16,7 @@
     "indexer": "M5",
     "keystore": "M6",
     "client": "M6",
+    "local": "M7",
     "cli": "M7",
     "mcp-server": "M8",
     "bridge-a2a": "M9",

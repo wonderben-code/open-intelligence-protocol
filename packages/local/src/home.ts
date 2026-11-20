@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * A mind's directory: where the command keeps its keys, what its client
+ * A mind's directory: where a program keeps the mind's keys, what its client
  * remembers, the records it holds, and which services it asks.
  *
  * One directory is one mind. It is `~/.oip` unless `--dir` or `OIP_DIR`
@@ -14,8 +14,8 @@ import { join, resolve } from "node:path";
 
 import { httpsOrigin } from "@oip/client";
 
-import { UsageError } from "./command.ts";
-import type { Edges } from "./edges.ts";
+import { UsageError } from "./errors.ts";
+import type { Machine } from "./machine.ts";
 
 /** What a mind's directory says of how the mind is reached and kept. */
 export interface Config {
@@ -86,8 +86,11 @@ export function readNetwork(directory: string): NetworkFile {
   };
 }
 
-/** The directory a command works in: the one named, or `OIP_DIR`, or `.oip` under the user's home. */
-export function directoryOf(named: string | undefined, edges: Edges): string {
+/** The directory a program works in: the one named, or `OIP_DIR`, or `.oip` under the user's home. */
+export function directoryOf(
+  named: string | undefined,
+  edges: Pick<Machine, "env" | "home">,
+): string {
   return resolve(named ?? edges.env["OIP_DIR"] ?? join(edges.home, ".oip"));
 }
 

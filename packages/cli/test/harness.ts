@@ -12,9 +12,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { type Keychain, SCRYPT_MIN_N } from "@oip/keystore";
+import { type Opened, openMind } from "@oip/local";
 
 import { type Context, type Edges, type ExitCode, type Network, run } from "../src/index.ts";
-import { type Opened, openMind } from "../src/mind.ts";
 
 /** What a run of the command came to. */
 export interface Ran {

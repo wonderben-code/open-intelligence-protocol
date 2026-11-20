@@ -151,7 +151,7 @@ It is for trying the protocol and for tests. Its services keep what they are giv
 
 ## From another program
 
-The package is a program first. What it exports is for running the same command inside another process, as its own tests do:
+The package is a program first. What it exports is for running the same command inside another process, as its own tests do. The mind's directory itself, its lock and what it keeps are [`@oip/local`](../local/README.md), which any program on the machine can use:
 
 ```ts
 import { run, systemEdges } from "@oip/cli";
@@ -160,11 +160,10 @@ import { run, systemEdges } from "@oip/cli";
 process.exitCode = await run(["show", "--json"], systemEdges(process));
 ```
 
-| Export                                                                         |                                                                                                                                       |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `run`, `ExitCode`                                                              | Runs `oip` once, with the edges it is given, and answers with what the process should exit with                                       |
-| `Edges`, `systemEdges`, `Process`                                              | What the command reaches outside itself: the environment, the terminal, the network, the clock and the keychain. A test gives its own |
-| `COMMANDS`, `Command`, `Flag`, `Arguments`, `Context`, `Result`, `UsageError`  | The commands, and what one is: its name, its options, its help, and what it does                                                      |
-| `GLOBAL_FLAGS`, `overview`, `helpOf`, `VERSION`                                | The options every command takes, the help, and the version                                                                            |
-| `startNetwork`, `Network`, `NetworkOptions`, `LOCAL`, `routed`, `routedSocket` | The network `oip demo` runs, and how a client reaches it                                                                              |
-| `Config`, `NetworkFile`                                                        | What `config.json` and `network.json` hold                                                                                            |
+| Export                                                                        |                                                                                                                                       |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `run`, `ExitCode`                                                             | Runs `oip` once, with the edges it is given, and answers with what the process should exit with                                       |
+| `Edges`, `systemEdges`, `Process`                                             | What the command reaches outside itself: the environment, the terminal, the network, the clock and the keychain. A test gives its own |
+| `COMMANDS`, `Command`, `Flag`, `Arguments`, `Context`, `Result`, `UsageError` | The commands, and what one is: its name, its options, its help, and what it does                                                      |
+| `GLOBAL_FLAGS`, `overview`, `helpOf`, `VERSION`                               | The options every command takes, the help, and the version                                                                            |
+| `startNetwork`, `Network`, `NetworkOptions`, `LOCAL`                          | The network `oip demo` runs                                                                                                           |

@@ -12,11 +12,9 @@ import { resolve } from "node:path";
 import type { Mind } from "@oip/client";
 import { parseTimestamp } from "@oip/core";
 
+import { counted, Home, readObject, withMind } from "@oip/local";
+
 import { type Command, many, one, type Result, UsageError } from "../command.ts";
-import { readObject } from "../files.ts";
-import { Home } from "../home.ts";
-import { withMind } from "../mind.ts";
-import { counted } from "../text.ts";
 import { makeMind, origins } from "./init.ts";
 
 /** What every one of these commands says once its event is published. */

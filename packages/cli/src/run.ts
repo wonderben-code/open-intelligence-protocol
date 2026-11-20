@@ -13,11 +13,11 @@ import { TransportError } from "@oip/client";
 import { OipError } from "@oip/core";
 import { KeystoreError } from "@oip/keystore";
 
+import { directoryOf, printable, printableJson } from "@oip/local";
+
 import { type Arguments, type Command, type Flag, type Result, UsageError } from "./command.ts";
 import { COMMANDS } from "./commands/index.ts";
 import type { Edges } from "./edges.ts";
-import { directoryOf } from "./home.ts";
-import { printable, printableJson } from "./text.ts";
 
 /** What a run ends with: 0 if it did what was asked, 1 if it could not, 2 if it was asked wrongly. */
 export type ExitCode = 0 | 1 | 2;

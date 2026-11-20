@@ -13,10 +13,17 @@ import { keyHash, OipError } from "@oip/core";
 import { KEY_ROLES, Keystore, KeystoreError, type RoleKeys } from "@oip/keystore";
 import { fileStorage } from "@oip/keystore/node";
 
+import {
+  backupLockOf,
+  type Config,
+  counted,
+  Home,
+  lockOf,
+  optionsOf,
+  readNetwork,
+} from "@oip/local";
+
 import { type Command, has, many, one, UsageError } from "../command.ts";
-import { type Config, Home, readNetwork } from "../home.ts";
-import { backupLockOf, lockOf, optionsOf } from "../mind.ts";
-import { counted } from "../text.ts";
 import { row } from "./describe.ts";
 import { networkDirectory, origins } from "./init.ts";
 

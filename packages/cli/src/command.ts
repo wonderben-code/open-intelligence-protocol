@@ -3,7 +3,12 @@
 
 /** What a command of `oip` is: its name, its options, its help, and what it does. */
 
+import { UsageError } from "@oip/local";
+
 import type { Edges } from "./edges.ts";
+
+// What a command throws when it was not given what it takes: the help says what that is.
+export { UsageError };
 
 /** An option of a command. */
 export interface Flag {
@@ -68,12 +73,6 @@ export interface Command {
   readonly example: string;
   /** Does it. */
   run(context: Context, given: Arguments): Promise<Result>;
-}
-
-/** The command was not given what it takes. The help says what that is. */
-export class UsageError extends Error {
-  /** The name of the error: `UsageError`. */
-  override readonly name = "UsageError";
 }
 
 /** The value of an option that takes one, if it was given. */

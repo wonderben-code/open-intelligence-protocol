@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * What is printed, made safe to print. Much of what a command shows is a
+ * What is printed, made safe to print. Much of what a program shows is a
  * stranger's words: a name in a profile, the text of a packet, an indexer's
  * reason. A terminal obeys control characters in what it is given, so they
  * are never passed on: a packet must not be able to clear the screen, move

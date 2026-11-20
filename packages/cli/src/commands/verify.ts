@@ -25,12 +25,17 @@ import { judgeRecord, operationalProofEvaluation, verifyLog } from "@oip/identit
 import { validateRecord } from "@oip/schema";
 import { countsFor, WebRecordSet } from "@oip/web";
 
+import {
+  type Config,
+  counted,
+  Home,
+  KeptRecords,
+  lookupOptions,
+  readJson,
+  servicesOf,
+} from "@oip/local";
+
 import { type Command, type Context, has, one, type Result, UsageError } from "../command.ts";
-import { readJson } from "../files.ts";
-import { type Config, Home } from "../home.ts";
-import { lookupOptions, servicesOf } from "../mind.ts";
-import { KeptRecords } from "../records.ts";
-import { counted } from "../text.ts";
 import { row } from "./describe.ts";
 import { networkDirectory } from "./init.ts";
 

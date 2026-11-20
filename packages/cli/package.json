@@ -50,6 +50,7 @@
     "@oip/identity": "workspace:*",
     "@oip/indexer": "workspace:*",
     "@oip/keystore": "workspace:*",
+    "@oip/local": "workspace:*",
     "@oip/resolver": "workspace:*",
     "@oip/schema": "workspace:*",
     "@oip/web": "workspace:*"

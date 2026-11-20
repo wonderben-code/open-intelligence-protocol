@@ -7,12 +7,12 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Finding } from "@oip/client";
+import { Home } from "@oip/local";
 import { clause } from "@oip/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { findingLines } from "../src/commands/find.ts";
 import { makeMind } from "../src/commands/init.ts";
-import { Home } from "../src/home.ts";
 import { LOCAL, startNetwork } from "../src/index.ts";
 import { PASSPHRASE, Place } from "./harness.ts";
 

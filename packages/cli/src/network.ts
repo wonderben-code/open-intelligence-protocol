@@ -17,10 +17,10 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { Fetch, OpenSocket } from "@oip/client";
 import { formatTimestamp, mindId } from "@oip/core";
 import { start as startHost } from "@oip/host";
 import { init as initIndexer, INIT_FILES, start as startIndexer } from "@oip/indexer";
+import { routed } from "@oip/local";
 import { start as startResolver } from "@oip/resolver";
 
 /** The origins the services of a local network are known by. */
@@ -54,42 +54,6 @@ export interface NetworkOptions {
   readonly now?: () => bigint;
   /** Random bytes, for the indexer's own keys. Default: the platform's generator. */
   readonly random?: (length: number) => Uint8Array;
-}
-
-/** A request for an origin that has a route goes where the route says: everything else as it is. */
-export function routed(routes: Readonly<Record<string, string>>, fetch: Fetch): Fetch {
-  return async (request) => {
-    const url = new URL(request.url);
-    const place = routes[url.origin];
-    if (place === undefined) return fetch(request);
-    const body = request.body === null ? undefined : new Uint8Array(await request.arrayBuffer());
-    return fetch(
-      new Request(`${place}${url.pathname}${url.search}`, {
-        method: request.method,
-        headers: request.headers,
-        redirect: request.redirect,
-        signal: request.signal,
-        ...(body === undefined ? {} : { body }),
-      }),
-    );
-  };
-}
-
-/** A socket to an origin that has a route is opened where the route says, without TLS. */
-export function routedSocket(
-  routes: Readonly<Record<string, string>>,
-  open: OpenSocket,
-): OpenSocket {
-  return (url, protocol) => {
-    const asked = new URL(url);
-    const place = routes[`https://${asked.host}`];
-    return open(
-      place === undefined
-        ? url
-        : `${place.replace(/^http:/u, "ws:")}${asked.pathname}${asked.search}`,
-      protocol,
-    );
-  };
 }
 
 /** The services of a local network are generous: every client is at one address. */

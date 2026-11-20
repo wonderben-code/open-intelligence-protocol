@@ -18,6 +18,8 @@ const LAYERS = [
   ["net"],
   ["keystore"],
   ["client"],
+  // A mind on one machine: what a command, and a server that a host starts, both need (ADR-0027).
+  ["local"],
   // What the three services share (ADR-0013). They do not import each other.
   ["server"],
   ["host", "resolver", "indexer"],

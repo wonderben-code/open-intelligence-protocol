@@ -8,9 +8,9 @@ import { httpsOrigin, Mind } from "@oip/client";
 import { Keystore, KeystoreError } from "@oip/keystore";
 import { fileStorage } from "@oip/keystore/node";
 
+import { type Config, Home, lockOf, optionsOf, readNetwork } from "@oip/local";
+
 import { type Command, type Context, has, many, one, UsageError } from "../command.ts";
-import { type Config, Home, readNetwork } from "../home.ts";
-import { lockOf, optionsOf } from "../mind.ts";
 
 /** Each of the origins given, or what is wrong with the first that is none. */
 export function origins(given: readonly string[], what: string): string[] {

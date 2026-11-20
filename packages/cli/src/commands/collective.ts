@@ -11,9 +11,9 @@ import { writeFileSync } from "node:fs";
 
 import { contentId, type JsonObject, mindAddress } from "@oip/core";
 
+import { counted, withMind } from "@oip/local";
+
 import { type Command, has, many, one, UsageError } from "../command.ts";
-import { withMind } from "../mind.ts";
-import { counted } from "../text.ts";
 import { recordOf, share, SHARING_FLAGS, who } from "./dealing.ts";
 import { row } from "./describe.ts";
 import { origins } from "./init.ts";

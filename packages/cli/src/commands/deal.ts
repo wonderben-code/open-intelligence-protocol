@@ -9,8 +9,9 @@
 import { contentId, type JsonObject } from "@oip/core";
 import { validateRecordOfType } from "@oip/schema";
 
+import { withMind } from "@oip/local";
+
 import { type Command, has, many, one, UsageError } from "../command.ts";
-import { withMind } from "../mind.ts";
 import {
   ACTING_FLAGS,
   actingOf,

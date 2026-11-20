@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * The mind a command works for: opened from its directory, with its keys
- * unlocked for as long as the command runs.
+ * The mind a program works for: opened from its directory, with its keys
+ * unlocked for as long as the program works for it.
  */
 
 import {
@@ -18,12 +18,13 @@ import { contentId, OipError } from "@oip/core";
 import { keychainLock, Keystore, type Lock, passphrase } from "@oip/keystore";
 import { fileStorage } from "@oip/keystore/node";
 
-import { type Context, UsageError } from "./command.ts";
+import { UsageError } from "./errors.ts";
 import { type Config, Home, readNetwork } from "./home.ts";
-import { routed, routedSocket } from "./network.ts";
+import type { Where } from "./machine.ts";
+import { routed, routedSocket } from "./routes.ts";
 import { Kept, KeptRecords } from "./records.ts";
 
-/** The name the command's keys are kept under in a keychain. */
+/** The name a mind's keys are kept under in a keychain. */
 const SERVICE = "oip";
 
 const platformFetch: Fetch = (request) => fetch(request);
@@ -46,7 +47,7 @@ const platformSocket: OpenSocket = (url, protocol) =>
  * @throws UsageError if there is no passphrase to be had.
  */
 export async function passphraseOf(
-  context: Context,
+  context: Where,
   from: { variable: string; what: string; question: string; fresh: boolean },
 ): Promise<Lock> {
   const { edges } = context;
@@ -74,7 +75,7 @@ export async function passphraseOf(
  *   passphrase that is typed is then asked for twice.
  * @throws UsageError if there is no passphrase to be had.
  */
-export async function lockOf(context: Context, kind: Config["lock"], fresh = false): Promise<Lock> {
+export async function lockOf(context: Where, kind: Config["lock"], fresh = false): Promise<Lock> {
   if (kind === "keychain") return keychainLock(await context.edges.keychain(), SERVICE);
   return passphraseOf(context, {
     variable: "OIP_PASSPHRASE",
@@ -89,7 +90,7 @@ export async function lockOf(context: Context, kind: Config["lock"], fresh = fal
  * `OIP_BACKUP_PASSPHRASE` or typed. Kept apart from the one the keys are
  * sealed with, it is what makes a backup worth having.
  */
-export function backupLockOf(context: Context, fresh: boolean): Promise<Lock> {
+export function backupLockOf(context: Where, fresh: boolean): Promise<Lock> {
   return passphraseOf(context, {
     variable: "OIP_BACKUP_PASSPHRASE",
     what: "the keys of a backup",
@@ -99,14 +100,14 @@ export function backupLockOf(context: Context, fresh: boolean): Promise<Lock> {
 }
 
 /** How a service of a mind's configuration is reached: where its route says, if it has one. */
-export function fetchOf(context: Context, config: Config): Fetch {
+export function fetchOf(context: Where, config: Config): Fetch {
   // A network on this machine says where it is each time: it may have started again since.
   const routes = config.network === undefined ? {} : readNetwork(config.network).routes;
   return routed(routes, context.edges.fetch ?? platformFetch);
 }
 
 /** How the services of a mind's configuration are asked: for reading, with no key. */
-export function lookupOptions(context: Context, config: Config): LookupOptions {
+export function lookupOptions(context: Where, config: Config): LookupOptions {
   const { edges } = context;
   return {
     resolvers: config.resolvers,
@@ -118,7 +119,7 @@ export function lookupOptions(context: Context, config: Config): LookupOptions {
 
 /** How a mind in a directory is made or opened: its keystore, its memory, and its network. */
 export function optionsOf(
-  context: Context,
+  context: Where,
   home: Home,
   config: Config,
   keystore: Keystore,
@@ -135,26 +136,30 @@ export function optionsOf(
   };
 }
 
-/** A mind that is open, with what the commands need besides. */
+/** A mind that is open, with what a program needs besides. */
 export interface Opened {
+  /** The mind, with its keys of everyday work unlocked. Whoever opened it closes it. */
   readonly mind: Mind;
+  /** Its directory. */
   readonly home: Home;
+  /** What its directory says of its services and of its lock. */
   readonly config: Config;
+  /** Its keystore. */
   readonly keystore: Keystore;
   /** What opens the keys of everyday work, and the control keys unless told otherwise. */
   readonly lock: Lock;
-  /** The records the mind held when the command before this one ended. It holds them again. */
+  /** The records the mind held when the program last ended. It holds them again. */
   readonly records: KeptRecords;
   /** The packets the mind has received. */
   readonly inbox: Kept;
 }
 
 /**
- * Opens the mind of the command's directory.
+ * Opens the mind of a directory.
  *
  * @throws UsageError if there is none there.
  */
-export async function openMind(context: Context): Promise<Opened> {
+export async function openMind(context: Where): Promise<Opened> {
   const home = new Home(context.dir);
   const config = home.read();
   const keystore = await Keystore.open({ storage: fileStorage(home.keys) });
@@ -181,13 +186,13 @@ export function keepRecords({ mind, records }: Pick<Opened, "mind" | "records">)
 }
 
 /**
- * Opens the mind of the command's directory for one piece of work. After
+ * Opens the mind of a directory for one piece of work. After
  * it, the records the mind holds are written down, whether the work came
  * to an end or failed part of the way: what the mind signed, it signed.
  * Then its keys are locked.
  */
 export async function withMind<T>(
-  context: Context,
+  context: Where,
   work: (opened: Opened) => Promise<T>,
 ): Promise<T> {
   const opened = await openMind(context);
@@ -203,13 +208,13 @@ export async function withMind<T>(
 }
 
 /**
- * The services a command asks that reads and signs nothing: those of the
+ * The services a program asks that reads and signs nothing: those of the
  * directory's mind if there is one, or the local network's where `--local`
  * says so.
  *
  * @throws UsageError if there is neither.
  */
-export function servicesOf(context: Context, local: string | undefined): Config {
+export function servicesOf(context: Where, local: string | undefined): Config {
   if (local !== undefined) {
     const network = readNetwork(local);
     return {

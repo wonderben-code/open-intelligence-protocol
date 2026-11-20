@@ -23,14 +23,6 @@ export {
 } from "./command.ts";
 export { COMMANDS } from "./commands/index.ts";
 export type { Edges } from "./edges.ts";
-export { type Config, type NetworkFile } from "./home.ts";
-export {
-  LOCAL,
-  type Network,
-  type NetworkOptions,
-  routed,
-  routedSocket,
-  startNetwork,
-} from "./network.ts";
+export { LOCAL, type Network, type NetworkOptions, startNetwork } from "./network.ts";
 export { type ExitCode, GLOBAL_FLAGS, helpOf, overview, run, VERSION } from "./run.ts";
 export { type Process, systemEdges } from "./system.ts";

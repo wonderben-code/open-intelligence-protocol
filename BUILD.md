@@ -74,6 +74,7 @@ This table makes "production-grade" concrete. Each row is enforced in CI from th
  services         host · resolver · indexer          (Hono, SQLite)
                                    │
  client           client  ─────────── keystore
+                  local       a mind's directory on one machine, for the tools (ADR-0027)
                                    │
  protocol         net         Layer 1 records, packets, sessions, sealing, bindings
                   web         Layer 2 records, countsFor, status

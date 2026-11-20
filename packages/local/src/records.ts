@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * What a mind's directory keeps between runs of the command: the records
+ * What a mind's directory keeps between the runs of a program: the records
  * the mind holds, and the packets it has received.
  *
  * A client holds records while it is open. A command is one short run, so
  * what the mind held at the end of one is written down, and held again at
  * the start of the next. A mailbox gives each packet once: a packet that
- * was read is kept here, or it would be gone when the command ends.
+ * was read is kept here, or it would be gone when the program ends.
  *
  * Each is a file named by its content ID. What is read back is validated
  * again before it is used, as anything from outside is.
@@ -96,6 +96,7 @@ export class Kept {
 
 /** A record as it is kept: with when each of its proofs was first obtained (core 9.4, item 1). */
 export interface KeptRecord {
+  /** The record, as it was kept. It is validated again when the mind holds it. */
   readonly record: JsonObject;
   /** By the proof's digest, the time, in nanoseconds of the Unix epoch. */
   readonly seen: Readonly<Record<string, Instant>>;

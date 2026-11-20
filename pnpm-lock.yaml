@@ -250,6 +250,9 @@ importers:
       '@oip/keystore':
         specifier: workspace:*
         version: link:../keystore
+      '@oip/local':
+        specifier: workspace:*
+        version: link:../local
       '@oip/resolver':
         specifier: workspace:*
         version: link:../resolver
@@ -496,6 +499,28 @@ importers:
       fake-indexeddb:
         specifier: 6.2.8
         version: 6.2.8
+
+  packages/local:
+    dependencies:
+      '@oip/client':
+        specifier: workspace:*
+        version: link:../client
+      '@oip/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oip/keystore':
+        specifier: workspace:*
+        version: link:../keystore
+      '@oip/schema':
+        specifier: workspace:*
+        version: link:../schema
+    devDependencies:
+      '@oip/cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@oip/testkit':
+        specifier: workspace:*
+        version: link:../testkit
 
   packages/net:
     dependencies:

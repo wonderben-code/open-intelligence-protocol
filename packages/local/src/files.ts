@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * The files a command is given to read: JSON, under the profile of core
+ * The files a program is given to read: JSON, under the profile of core
  * Section 1. What a file holds is as little trusted as what a service sent.
  */
 
@@ -10,7 +10,7 @@ import { readFileSync, statSync } from "node:fs";
 
 import { type JsonObject, type JsonValue, MAX_RECORD_BYTES, parseJsonBytes } from "@oip/core";
 
-import { UsageError } from "./command.ts";
+import { UsageError } from "./errors.ts";
 
 /**
  * The most bytes of a file that are read. A record is at most 1 MiB in
@@ -22,7 +22,7 @@ export const MAX_FILE_BYTES = 16 * MAX_RECORD_BYTES;
 /**
  * Reads a file of JSON.
  *
- * @param what - What the file is to the command, for the message: "the record".
+ * @param what - What the file is to the program, for the message: "the record".
  * @throws UsageError if there is no such file, it is too large, or it is not JSON of the profile.
  */
 export function readJson(path: string, what: string): JsonValue {

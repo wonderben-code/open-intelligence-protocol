@@ -4,8 +4,9 @@
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { NETWORK_FILE, type NetworkFile } from "@oip/local";
+
 import { type Command, one } from "../command.ts";
-import { NETWORK_FILE, type NetworkFile } from "../home.ts";
 import { startNetwork } from "../network.ts";
 import { networkDirectory } from "./init.ts";
 

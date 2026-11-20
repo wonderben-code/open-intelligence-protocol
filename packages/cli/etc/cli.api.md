@@ -4,10 +4,8 @@
 
 ```ts
 
-import type { Clock } from '@oip/client';
-import type { Fetch } from '@oip/client';
-import type { Keychain } from '@oip/keystore';
-import type { OpenSocket } from '@oip/client';
+import type { Machine } from '@oip/local';
+import { UsageError } from '@oip/local';
 
 // @public
 export interface Arguments {
@@ -30,14 +28,6 @@ export interface Command {
 export const COMMANDS: readonly Command[];
 
 // @public
-export interface Config {
-    readonly indexers: readonly string[];
-    readonly lock: "passphrase" | "keychain";
-    readonly network?: string;
-    readonly resolvers: readonly string[];
-}
-
-// @public
 export interface Context {
     readonly dir: string;
     readonly edges: Edges;
@@ -45,18 +35,10 @@ export interface Context {
 }
 
 // @public
-export interface Edges {
-    readonly clock?: Clock;
-    readonly env: Readonly<Record<string, string | undefined>>;
+export interface Edges extends Machine {
     readonly err: (text: string) => void;
-    readonly fetch?: Fetch;
-    readonly home: string;
-    readonly keychain: () => Promise<Keychain>;
     readonly out: (text: string) => void;
-    readonly scryptN?: number;
-    readonly secret?: (question: string) => Promise<string>;
     readonly stopped: () => Promise<void>;
-    readonly webSocket?: OpenSocket;
 }
 
 // @public
@@ -116,14 +98,6 @@ export interface Network {
 }
 
 // @public
-export interface NetworkFile {
-    readonly host: string;
-    readonly indexer: string;
-    readonly resolver: string;
-    readonly routes: Readonly<Record<string, string>>;
-}
-
-// @public
 export interface NetworkOptions {
     readonly directory: string;
     readonly now?: () => bigint;
@@ -157,12 +131,6 @@ export interface Result {
 }
 
 // @public
-export function routed(routes: Readonly<Record<string, string>>, fetch: Fetch): Fetch;
-
-// @public
-export function routedSocket(routes: Readonly<Record<string, string>>, open: OpenSocket): OpenSocket;
-
-// @public
 export function run(argv: readonly string[], edges: Edges): Promise<ExitCode>;
 
 // @public
@@ -171,10 +139,7 @@ export function startNetwork(options: NetworkOptions): Promise<Network>;
 // @public
 export function systemEdges(of: Process): Edges;
 
-// @public
-export class UsageError extends Error {
-    readonly name = "UsageError";
-}
+export { UsageError }
 
 // @public
 export const VERSION = "0.0.0";

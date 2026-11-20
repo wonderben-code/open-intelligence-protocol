@@ -6,9 +6,9 @@
 import { formatTimestamp } from "@oip/core";
 import { type Delegation, validateRecordOfType } from "@oip/schema";
 
+import { readJson, withMind } from "@oip/local";
+
 import { type Command, many, one, UsageError } from "../command.ts";
-import { readJson } from "../files.ts";
-import { withMind } from "../mind.ts";
 import { ACTING_FLAGS, recordOf, SHARING_FLAGS, signed, timeOf } from "./dealing.ts";
 import { row } from "./describe.ts";
 

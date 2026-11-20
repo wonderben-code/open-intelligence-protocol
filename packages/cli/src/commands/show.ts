@@ -5,9 +5,9 @@ import { Lookup } from "@oip/client";
 import { Keystore } from "@oip/keystore";
 import { fileStorage } from "@oip/keystore/node";
 
+import { Home, lookupOptions } from "@oip/local";
+
 import { type Command, UsageError } from "../command.ts";
-import { Home } from "../home.ts";
-import { lookupOptions } from "../mind.ts";
 import { describe, described, lineageOf, row } from "./describe.ts";
 
 export const show: Command = {

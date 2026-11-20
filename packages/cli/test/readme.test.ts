@@ -5,10 +5,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { repoRoot } from "@oip/testkit";
+import { Home } from "@oip/local";
 import { describe, expect, it } from "vitest";
 
 import * as cli from "../src/index.ts";
-import { Home } from "../src/home.ts";
 
 const packageRoot = join(repoRoot, "packages", "cli");
 const readme = readFileSync(join(packageRoot, "README.md"), "utf8");
@@ -122,13 +122,11 @@ describe("the README", () => {
       [
         "Arguments",
         "Command",
-        "Config",
         "Context",
         "Edges",
         "ExitCode",
         "Flag",
         "Network",
-        "NetworkFile",
         "NetworkOptions",
         "Process",
         "Result",

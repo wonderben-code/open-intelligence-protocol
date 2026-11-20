@@ -31,6 +31,9 @@
       "path": "../client/tsconfig.build.json"
     },
     {
+      "path": "../local/tsconfig.build.json"
+    },
+    {
       "path": "../resolver/tsconfig.build.json"
     },
     {

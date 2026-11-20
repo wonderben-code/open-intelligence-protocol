@@ -6,8 +6,7 @@
 import { type Lookup, type Publication, type Resolved, TransportError } from "@oip/client";
 import { OipError } from "@oip/core";
 import { type Lineage, lineage } from "@oip/identity";
-
-import { counted } from "../text.ts";
+import { counted } from "@oip/local";
 
 /** A row of two columns: a name, and what is said of it. */
 export const row = (name: string, value: string): string => `  ${name.padEnd(10)} ${value}`;

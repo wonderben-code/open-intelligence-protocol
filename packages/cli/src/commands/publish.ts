@@ -9,10 +9,9 @@
 import type { LocationFields, ProfileFields } from "@oip/client";
 import { contentId, parseTimestamp } from "@oip/core";
 
+import { counted, readObject, withMind } from "@oip/local";
+
 import { type Command, many, one, UsageError } from "../command.ts";
-import { readObject } from "../files.ts";
-import { withMind } from "../mind.ts";
-import { counted } from "../text.ts";
 import { taken } from "./describe.ts";
 
 /** A capability as `--capability` names one: an ID, `=`, and what it is in a sentence. */

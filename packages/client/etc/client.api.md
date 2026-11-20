@@ -447,6 +447,10 @@ export interface NewMind {
     readonly homes?: readonly string[];
     readonly invocation?: Lock;
     readonly kind: string;
+    readonly parents?: readonly {
+        readonly mind: string;
+        readonly at: string;
+    }[];
 }
 
 // @public

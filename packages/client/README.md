@@ -121,8 +121,12 @@ export async function example(
   const again = await Mind.open(options);
   output.push(`opened again, the same mind: ${String(again.address === mind.address)}`);
 
-  // Another mind is made from this one, and this one says so in its log (Layer 1, 3.8).
-  const child = await Mind.create(await fresh(), { kind: "agent" });
+  // Another mind is made from this one: it names its parent at a version (Layer 1, 8.1),
+  // and the parent says so in its log (3.8), which makes the lineage acknowledged (8.2).
+  const child = await Mind.create(await fresh(), {
+    kind: "agent",
+    parents: [{ mind: again.address, at: again.state.versionId }],
+  });
   await again.fork(child.address, { control: lock, terms: { received: "the lease archive" } });
   output.push(`it acknowledges ${String(again.resolved.log.children.length)} child`);
 

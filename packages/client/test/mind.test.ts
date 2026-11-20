@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { contentId, keyHash, mindAddress, OipError, proofDigest } from "@oip/core";
-import { judgeRecord, ownSignedTime } from "@oip/identity";
+import { judgeRecord, lineage, ownSignedTime } from "@oip/identity";
 import {
   type Keychain,
   keychainLock,
@@ -395,6 +395,49 @@ describe(`${clause("L1 3.7")} changing a mind's identity`, () => {
     expect((await seenBy().resolve(mind.address)).did.didDocumentMetadata.children).toStrictEqual([
       child.address,
     ]);
+  });
+
+  it(`${clause("L1 8.1")} makes a mind that is forked from another, and ${clause("L1 8.2")} the parent acknowledges it`, async () => {
+    const parent = await fresh();
+    const mind = await Mind.create(parent.options, { kind: "agent" });
+    const version = mind.state.versionId;
+    const child = await Mind.create((await fresh()).options, {
+      kind: "agent",
+      parents: [{ mind: mind.address, at: version }],
+    });
+    expect(child.state.parents).toStrictEqual([{ mind: mind.address, at: version }]);
+    // Only the child says so yet.
+    const reader = seenBy();
+    const claimed = await reader.resolve(child.address);
+    await reader.resolve(mind.address);
+    expect(lineage(claimed.log, reader.view)).toStrictEqual([
+      { mind: mind.address, at: version, status: "claimed" },
+    ]);
+    world.clock.at = at(200);
+    await mind.fork(child.address, { control: parent.lock });
+    const later = seenBy();
+    const acknowledged = await later.resolve(child.address);
+    await later.resolve(mind.address);
+    expect(lineage(acknowledged.log, later.view)).toStrictEqual([
+      { mind: mind.address, at: version, status: "acknowledged" },
+    ]);
+    expect(acknowledged.did.didDocumentMetadata.parents).toStrictEqual([
+      { mind: mind.address, at: version },
+    ]);
+  });
+
+  it("refuses parents that are none before anything is signed", async () => {
+    const { keystore, options, lock } = await fresh();
+    expect(
+      await refusal(() =>
+        Mind.create(options, { kind: "agent", parents: [{ mind: "did:oip:nobody", at: "0-x" }] }),
+      ),
+    ).toBe("oip: invalid-record");
+    expect(keystore.mind).toBeUndefined();
+    // The keys it made are those of the mind that is made after.
+    const mind = await Mind.create(options, { kind: "agent" });
+    expect(mind.state.parents).toStrictEqual([]);
+    expect(await held(keystore, "control", lock)).toHaveLength(1);
   });
 
   it("dates an event no earlier than the one before it, whatever the clock says", async () => {

@@ -41,34 +41,44 @@ import {
   verifyRequest,
 } from "../src/index.ts";
 
+/**
+ * Each budget is a ratio to judging one record with one proof, measured in
+ * the same run. The figures in the comments are the middle ratios of three
+ * quiet runs on the machine of ADR-0006. A budget is a third above its
+ * figure where the work is a signature: the two times of a ratio are taken
+ * seconds apart, and one run in four on that machine, while it did other
+ * work, moved the ratio of the sealed packet from 2.4 to 3.2. What a budget
+ * is there to catch is a second signature check, or a second agreement,
+ * and that moves a ratio by 1.0.
+ */
 export const BUDGETS = {
   /**
    * A packet that arrives, with one proof, judged by the rules of Layer 1,
    * 12.4, against judging one record with one proof. It is that signature,
    * and the address, the dates and the receiver's memory. It measures at
-   * about MEASURED_RECEIVE.
+   * 0.87 to 1.04.
    */
   receive: 1.3,
   /**
    * The place of an accepted packet in its session's chain (14.3). No
-   * signature: it measures at about MEASURED_TAKE.
+   * signature: it measures at 0.008 to 0.009.
    */
   take: 0.05,
   /**
    * A sealed packet opened and judged (12.6): the signature, and one
    * agreement under X25519 with the authenticated decryption. It measures
-   * at about MEASURED_OPEN.
+   * at 2.34 to 2.47.
    */
-  open: 2.6,
+  open: 3.3,
   /**
    * A feed of 50 entries verified, for each entry (Section 10): one
-   * signature, and the entry's place. It measures at about MEASURED_FEED.
+   * signature, and the entry's place. It measures at 0.95 to 1.01.
    */
   feedPerEntry: 1.3,
   /**
    * An authenticated HTTP request (13.3): one signature over the signature
    * base, the reading of two structured fields, and the key's standing. It
-   * measures at about MEASURED_REQUEST.
+   * measures at 0.93 to 0.98.
    */
   request: 1.3,
 } as const;
@@ -246,10 +256,10 @@ describe("the hot paths of the Mind Network", () => {
         )) / one,
       );
     }
-    expect(middle(ratios.receive)).toBeLessThan(BUDGETS.receive);
-    expect(middle(ratios.take)).toBeLessThan(BUDGETS.take);
-    expect(middle(ratios.open)).toBeLessThan(BUDGETS.open);
-    expect(middle(ratios.feed)).toBeLessThan(BUDGETS.feedPerEntry);
-    expect(middle(ratios.request)).toBeLessThan(BUDGETS.request);
+    expect(middle(ratios.receive), "receive").toBeLessThan(BUDGETS.receive);
+    expect(middle(ratios.take), "take").toBeLessThan(BUDGETS.take);
+    expect(middle(ratios.open), "open").toBeLessThan(BUDGETS.open);
+    expect(middle(ratios.feed), "feed").toBeLessThan(BUDGETS.feedPerEntry);
+    expect(middle(ratios.request), "request").toBeLessThan(BUDGETS.request);
   });
 });

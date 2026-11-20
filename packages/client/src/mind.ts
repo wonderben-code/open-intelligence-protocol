@@ -235,6 +235,8 @@ export class Mind {
   readonly #messaging: Messaging;
   readonly #sessions: SessionBook;
   readonly #outbox: Outbox;
+  /** What the mind listens to, for as long as it does. */
+  readonly #listening = new Set<Listening>();
   readonly #dealings: Dealings;
   #resolved: Resolved;
   #published: readonly Publication[] = [];
@@ -432,10 +434,12 @@ export class Mind {
   }
 
   /**
-   * Locks the mind's keys. The mind signs nothing more: open it again for
-   * that.
+   * Locks the mind's keys, and stops what it listens to. The mind signs
+   * nothing more: open it again for that.
    */
   close(): void {
+    // A socket that stayed open would hear what it could not acknowledge: that takes a key.
+    for (const listening of this.#listening) void listening.close();
     this.#operational.lock();
     this.#agreement.lock();
   }
@@ -710,11 +714,13 @@ export class Mind {
    * welcomed the mind. The socket is the first the mind's location record
    * names, or that of its first home.
    *
+   * Closing the mind stops it.
+   *
    * @returns What stops the listening, and tells when it has ended.
    * @throws TypeError if the platform has no `WebSocket` and none is given.
    */
   listen(options: ListenOptions): Listening {
-    return listen(
+    const listening = listen(
       {
         own: this.#own,
         open: this.#options.webSocket ?? platformSocket,
@@ -725,6 +731,13 @@ export class Mind {
       },
       options,
     );
+    // Kept until it ends, however it ends, so that closing the mind ends it.
+    this.#listening.add(listening);
+    const ended = (): void => {
+      this.#listening.delete(listening);
+    };
+    listening.closed.then(ended, ended);
+    return listening;
   }
 
   /**

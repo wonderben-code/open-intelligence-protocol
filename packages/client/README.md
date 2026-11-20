@@ -1273,7 +1273,7 @@ now a collective of 4, of whom 3 act
 - **A connection that ends is opened again**, after a wait that doubles from a second to a minute, and starts at a second again once the host has welcomed the mind. Each wait is shortened by up to half, at random, so that many clients do not all return at once. `retryMs` and `maxRetryMs` set the two bounds, and `changed` says where the connection stands.
 - **The mind answers the host's challenge for the origin it connected to** (13.3), whatever the host says its own origin is. A host that passes the answer on to another finds it refused there.
 - **`received` is called for one batch after another.** If it returns a promise, the next batch waits for it. What it throws ends the listening: `closed` rejects with it. A connection that drops does not.
-- **`close` stops it.** No connection is opened after it, and `closed` then settles.
+- **`close` stops it**, and so does closing the mind. No connection is opened after it, and `closed` then settles.
 - **It needs a `WebSocket`**: the platform's own in a browser and in Node.js from version 22, or one you give as `webSocket`. `sleep` is the timer between connections, which a test replaces.
 - **The socket is for the mind's own mail.** `send` still posts to a recipient's inbox or mailbox over HTTPS. An endpoint that offers only a socket takes no packet from this client yet.
 
@@ -1318,6 +1318,11 @@ now a collective of 4, of whom 3 act
 - **A service must let the page's origin ask.** A browser asks a service of another origin for leave before it sends a signed request, which carries `Content-Digest`, `Signature` and `Signature-Input`. The reference resolver, host and indexer give leave to every origin: they trust no request for where it comes from, only for what it proves.
 - **A page that holds keys loads no script it does not control.** Whatever runs in the page can use the keys while they are unlocked (see the keystore's README).
 - **It is tested in Chromium** ([ADR-0022](../../docs/adr/0022-the-client-in-a-browser.md)): the examples above run in a page, against the same services. `OIP_CHROMIUM=installed pnpm exec vitest run --project @oip/client test/browser.real.test.ts` runs it with the browser Playwright installed, and a path in place of `installed` with another.
+
+### What stays the same
+
+- **The public interface is frozen for 0.x.** It is written out in [`etc/client.api.md`](etc/client.api.md), and the build fails on any change to it that was not made there on purpose. A change that would break a caller comes with a new minor version and a changeset that says what to do.
+- **What the client keeps in its `memory` is its own**, and may change between versions. It is read by the version that wrote it, and a version that cannot read it says `damaged`.
 
 ### Failures
 

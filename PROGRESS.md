@@ -51,7 +51,7 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
 - **The scenario of the papers runs through the client** against the real resolver, host and indexer in one process (`packages/client/test/dealings.test.ts`, `examples/deal.ts`).
 - **It runs in a browser too** ([ADR-0022](docs/adr/0022-the-client-in-a-browser.md)): a page of Chromium runs the README's examples against the same services, with its keys sealed in IndexedDB, and the test checks that each service would have let a browser make every request the page made (`packages/client/test/browser.real.test.ts`, the `browser` job of CI).
 
-**Everything on M6's build list is built**, and every public method of `Mind` and of `Lookup` is called in a runnable example the README shows, which a test holds. What remains before the milestone closes: the API report frozen for 0.x, the independent reviews, and the mutation run.
+**Everything on M6's build list is built**, and every public method of `Mind` and of `Lookup` is called in a runnable example the README shows, which a test holds. The API report was read through and is frozen for 0.x: the reading found that closing a mind left its sockets open, which it no longer does. What remains before the milestone closes: the independent reviews and the mutation run.
 
 **What M6 found:**
 

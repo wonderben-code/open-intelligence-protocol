@@ -533,6 +533,32 @@ describe("a connection that ends", () => {
     expect(world.sockets).toHaveLength(sockets);
   });
 
+  it("ends when the mind is closed: with its keys locked it could acknowledge nothing", async () => {
+    const { ada, bob } = await pair();
+    const heard = listening(bob.mind);
+    const other = listening(bob.mind);
+    await until(() => heard.isOpen() && other.isOpen());
+    await other.handle.close();
+    bob.mind.close();
+    await heard.handle.closed;
+    expect(world.sockets).toHaveLength(2);
+    // What is sent now waits with the host, for the mind that is opened again.
+    await ada.mind.send(hello(bob.mind.address, "For the next time."));
+    expect(heard.inboxes).toStrictEqual([]);
+    world.clock.at = at(170);
+    const again = await Mind.open(bob.options);
+    expect((await again.receive()).received).toHaveLength(1);
+    // One that ended by itself is not closed a second time.
+    const failing = again.listen({
+      received: () => {
+        throw new Error("the application's own");
+      },
+    });
+    await ada.mind.send(hello(bob.mind.address, "Once more."));
+    await expect(failing.closed).rejects.toThrow("the application's own");
+    again.close();
+  });
+
   it("takes a wait for a whole number of milliseconds", async () => {
     const { bob } = await pair();
     const received = (): void => undefined;
@@ -740,8 +766,8 @@ describe(`${clause("L1 13.4")} a host that does not keep to the binding`, () => 
     const bob = await at_(TWO, { webSocket: stage.webSocket });
     const heard = listening(bob.mind);
     await until(stage.connected);
-    // The mind's keys are locked while the socket is open.
-    bob.mind.close();
+    // The mind is retired while the socket is open: its keys sign nothing more.
+    await bob.mind.retire({ control: bob.lock });
     stage.say(challenge);
     await until(() => bob.waits.length === 1);
     expect(stage.closed).toMatchObject([
@@ -754,7 +780,7 @@ describe(`${clause("L1 13.4")} a host that does not keep to the binding`, () => 
     const cyd = await at_(TWO, { webSocket: again.webSocket });
     const second = listening(cyd.mind);
     await until(again.connected);
-    cyd.mind.close();
+    await cyd.mind.retire({ control: cyd.lock });
     again.say(challenge);
     again.say("not JSON");
     await until(() => cyd.waits.length === 1);

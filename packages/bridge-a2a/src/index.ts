@@ -14,6 +14,22 @@
  */
 
 export {
+  A2aError,
+  type A2aMessage,
+  type Agent,
+  type Answered,
+  type Artifact,
+  type Ask,
+  cancelTask,
+  getTask,
+  MAX_ARTIFACTS,
+  MAX_ID,
+  MAX_PARTS,
+  type Part,
+  sendMessage,
+  type Task,
+} from "./a2a.ts";
+export {
   A2A_VERSION,
   type AgentCard,
   type AgentExtension,

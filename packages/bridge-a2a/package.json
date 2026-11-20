@@ -1,0 +1,56 @@
+{
+  "name": "@oip/bridge-a2a",
+  "version": "0.0.0",
+  "description": "A gateway between the Open Intelligence Protocol and A2A: A2A agents as minds, and minds as A2A agents.",
+  "license": "Apache-2.0",
+  "author": "Ekram Alam",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wonderben-code/open-intelligence-protocol.git",
+    "directory": "packages/bridge-a2a"
+  },
+  "homepage": "https://github.com/wonderben-code/open-intelligence-protocol/tree/main/packages/bridge-a2a#readme",
+  "bugs": "https://github.com/wonderben-code/open-intelligence-protocol/issues",
+  "keywords": [
+    "oip",
+    "open-intelligence-protocol",
+    "a2a",
+    "agent2agent",
+    "gateway",
+    "bridge"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "@oip/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=24.15"
+  },
+  "scripts": {
+    "api": "api-extractor run --local",
+    "api:check": "api-extractor run"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@oip/client": "workspace:*",
+    "@oip/core": "workspace:*",
+    "@oip/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@oip/identity": "workspace:*",
+    "@oip/testkit": "workspace:*"
+  }
+}

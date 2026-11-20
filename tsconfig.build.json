@@ -48,6 +48,9 @@
     },
     {
       "path": "packages/mcp-server/tsconfig.build.json"
+    },
+    {
+      "path": "packages/bridge-a2a/tsconfig.build.json"
     }
   ]
 }

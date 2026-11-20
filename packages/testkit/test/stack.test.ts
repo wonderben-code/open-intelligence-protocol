@@ -27,3 +27,26 @@ describe("withStackSpent", () => {
     expect(report).toMatchObject({ never: { answers: 0 } });
   });
 });
+
+describe("keepFramesOneSize", () => {
+  // The checks made at a chosen distance from the end of the stack rest on a descent whose
+  // frames are one size: it is found to end at one depth, and reaches that depth again.
+  const frames = (...args: string[]) =>
+    inNode(new URL("./frames.node.ts", import.meta.url), args) as {
+      readonly depths: number;
+      readonly short: number;
+      readonly syntax: string;
+      readonly first: number;
+    };
+
+  it("makes a descent end at one depth however often it runs, and reach that depth again", () => {
+    const kept = frames("kept");
+    expect(kept.first).toBeGreaterThan(1000);
+    expect({ depths: kept.depths, short: kept.short }).toStrictEqual({ depths: 1, short: 0 });
+  });
+
+  it("leaves the engine's own syntax unread once it has asked", () => {
+    expect(frames("kept").syntax).toBe("refused");
+    expect(frames().syntax).toBe("refused");
+  });
+});

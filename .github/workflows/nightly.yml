@@ -5,8 +5,8 @@ name: Nightly
 
 # The longer campaigns that are too slow for every push: differential testing
 # against the Python checker with many more generated cases, a million
-# generated identity logs, delegation chains, policies and statuses, and
-# the records of the Mind Network.
+# generated identity logs, delegation chains, policies and statuses, the
+# records of the Mind Network, and the fuzzing of the services' HTTP interfaces.
 
 on:
   schedule:
@@ -25,6 +25,9 @@ on:
       network:
         description: Generated checkpoints, and as many of each other network record (twice as many feeds and sessions, three times as many arrivals)
         default: "20000"
+      fuzz:
+        description: Requests of each fuzzing campaign against a service's HTTP interface
+        default: "200000"
 
 permissions:
   contents: read
@@ -78,6 +81,26 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Delegation and status against the Python checker
         run: pnpm test:differential:delegation
+
+  # BUILD.md, W2: each service's HTTP interface asked 200,000 things, from a seed
+  # of the night's own. Every push runs the same campaigns at a few hundred, from one seed.
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      OIP_FUZZ_RUNS: ${{ inputs.fuzz || '200000' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The HTTP interfaces of the resolver, the host and the indexer, asked anything at all
+        run: pnpm test:fuzz
 
   # BUILD.md, W1: the Mind Network against the Python checker, each night:
   # 40,000 feeds, 20,000 checkpoints, 60,000 arrivals of a packet, 40,000

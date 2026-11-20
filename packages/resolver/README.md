@@ -153,3 +153,6 @@ pairs of conflicting events held as evidence: 1
 
 - What it keeps and how it judges is tested in `@oip/server`: copies crowded with proofs that sign nothing, restarts, two valid events for one position, a clock that does not move and one that goes back, a table that goes missing in the middle of a write.
 - The HTTP interface is tested as a function, and the running service over a socket on the machine.
+- `test/fuzz.test.ts` asks the interface anything at all: requests it would take with something done to them, and requests made of nothing. Every answer must be one the resolver means, and for an error the problem details of core 10.2. `pnpm test:fuzz` runs the campaign, `OIP_FUZZ_RUNS` sets its length, and it runs each night at 200,000.
+- `test/faults.test.ts` plants faults under a running resolver: the process is killed while it publishes and while a client reads its stream, and another process locks its database. What it answered `202` for is there after, first seen at the time it gave, and the stream goes on from a cursor with nothing twice and nothing missing.
+- The [conformance suite](../conformance/README.md#over-the-wire) runs its Resolver profile against it, in a test process and in its container.

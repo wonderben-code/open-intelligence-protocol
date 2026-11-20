@@ -473,6 +473,9 @@ importers:
       '@oip/schema':
         specifier: workspace:*
         version: link:../schema
+      fast-check:
+        specifier: ^4.10.2
+        version: 4.10.2
 
   packages/web:
     dependencies:

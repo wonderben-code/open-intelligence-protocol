@@ -21,6 +21,9 @@ import {
   type JsonObject,
   mindId,
   OipError,
+  type ProblemCode,
+  problemCode,
+  utf8,
 } from "@oip/core";
 import { judgeRecord } from "@oip/identity";
 import {
@@ -32,11 +35,13 @@ import {
   validateRecordOfType,
 } from "@oip/schema";
 
-import { accepted, type Clock, type Lookup, type Resolved } from "./lookup.ts";
+import { accepted } from "./accepted.ts";
+import type { Clock, Lookup, Resolved } from "./lookup.ts";
 import type { Memory, Remembered } from "./memory.ts";
 import {
   type Asking,
   askJson,
+  MAX_DETAIL_LENGTH,
   recordBody,
   TransportError,
   type TransportOptions,
@@ -83,8 +88,11 @@ export interface ProfileFields {
 
 /** What a service said when the mind published to it. */
 export interface Publication {
-  /** What the service is to the mind: a resolver the client trusts, or one of the mind's homes. */
-  readonly service: "resolver" | "home";
+  /**
+   * What the service is to the mind: a resolver the client trusts, one of
+   * the mind's homes, or an indexer the client names.
+   */
+  readonly service: "resolver" | "home" | "indexer";
   /** The service's origin. */
   readonly origin: string;
   /** Whether it took what was published. */
@@ -119,6 +127,8 @@ export interface Own {
   readonly transport: TransportOptions;
   /** The resolvers the client trusts. */
   readonly resolvers: readonly string[];
+  /** The indexers the client names. */
+  readonly indexers: readonly string[];
   readonly clock: Clock;
   readonly lookup: Lookup;
   readonly memory: Memory;
@@ -198,6 +208,22 @@ function feedState(stored: JsonObject): FeedState | undefined {
   if (!entry.ok || record === undefined) return undefined;
   const pending = { entry: entry.value, record };
   return head === undefined ? { pending } : { head, pending };
+}
+
+/**
+ * The first record an indexer says it refused (Layer 1, 18.1), or
+ * `undefined` if it says it refused none. Its words are a stranger's, and
+ * are cut short.
+ */
+function refusedOf(answer: JsonValue): { code: ProblemCode; detail: string } | undefined {
+  const said = objectOf(answer)?.["refused"];
+  const refused = objectOf(Array.isArray(said) ? (said as readonly JsonValue[])[0] : undefined);
+  if (refused === undefined) return undefined;
+  const detail = typeof refused["detail"] === "string" ? refused["detail"] : "";
+  return {
+    code: problemCode(refused["type"]) ?? "invalid-record",
+    detail: detail.replace(/[^\x20-\x7e]/gu, " ").slice(0, MAX_DETAIL_LENGTH),
+  };
 }
 
 /** The identifier of a mind: its address without `did:oip:`. */
@@ -299,10 +325,12 @@ export class Publishing {
     );
     // Remembered before it leaves: no other record is signed with this number.
     await own.memory.put(LOCATION, { seq }, remembered.version);
-    const offered = await this.#bundle(resolved, {
-      location,
-      ...(held === undefined ? {} : { participant: held }),
-    });
+    const others = { location, ...(held === undefined ? {} : { participant: held }) };
+    const offered = [
+      ...(await this.#bundle(resolved, others)),
+      // The indexers learn of the mind as it is now, once it is published.
+      ...(await this.#submit(resolved, others)),
+    ];
     own.told(offered.map(({ publication }) => publication));
     const resolvers = offered.filter(({ publication }) => publication.service === "resolver");
     const [refused] = resolvers.flatMap(({ failure }) => (failure === undefined ? [] : [failure]));
@@ -376,6 +404,50 @@ export class Publishing {
         ),
       ),
     ]);
+  }
+
+  /**
+   * Submits the mind's bundle, and its profile to be listed, to the
+   * indexers the client names (Layer 1, 18.1). An indexer says what became
+   * of each record: one it refused is the failure of the submission.
+   */
+  #submit(
+    resolved: Resolved,
+    others: { location: Location; participant?: Participant },
+  ): Promise<Offered[]> {
+    const own = this.#own;
+    const bundle = {
+      oip: "1",
+      type: "Bundle",
+      mind: own.address,
+      log: resolved.log.entries.map((entry) => entry.event),
+      ...others,
+    };
+    const records = others.participant === undefined ? [bundle] : [bundle, others.participant];
+    const body = { bytes: utf8(JSON.stringify({ records })), mediaType: "application/json" };
+    return Promise.all(
+      own.indexers.map(async (origin): Promise<Offered> => {
+        const publication = { service: "indexer" as const, origin };
+        try {
+          const asking = await own.signed({
+            method: "POST",
+            url: `${origin}/oip/v1/submit`,
+            body,
+          });
+          const refused = refusedOf(await askJson(asking, own.transport));
+          if (refused === undefined) return { publication: { ...publication, taken: true } };
+          throw new OipError(refused.code, `${origin} refused a record: ${refused.detail}`, {
+            clause: "L1 18.1",
+          });
+        } catch (error) {
+          if (!(error instanceof OipError || error instanceof TransportError)) throw error;
+          return {
+            publication: { ...publication, taken: false, failure: codeOf(error) },
+            failure: error,
+          };
+        }
+      }),
+    );
   }
 
   /** Makes a signed request of a service, and says what came of it. */

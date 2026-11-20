@@ -39,6 +39,15 @@ export {
   systemClock,
 } from "./lookup.ts";
 export {
+  type Finding,
+  type Found,
+  type IndexerAnswer,
+  type Listed,
+  MAX_RESULTS,
+  type NotFound,
+  type Ranking,
+} from "./find.ts";
+export {
   type ControlOptions,
   type IdentityChanges,
   type KeyEntry,

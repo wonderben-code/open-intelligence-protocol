@@ -24,7 +24,6 @@ import {
   OipError,
   type OipRecord,
   parseTimestamp,
-  type ProblemCode,
   proofDigest,
 } from "@oip/core";
 import {
@@ -51,8 +50,10 @@ import {
   verifyFeed,
   verifyParticipant,
 } from "@oip/net";
-import { type Bundle, type Entry, validateRecordOfType, type Validation } from "@oip/schema";
+import { type Bundle, type CapabilityQuery, type Entry, validateRecordOfType } from "@oip/schema";
 
+import { accepted } from "./accepted.ts";
+import { find, type Finding } from "./find.ts";
 import { askRecord, httpsOrigin, TransportError, type TransportOptions } from "./transport.ts";
 
 /** The present: a reading of the clock, in nanoseconds since the epoch. */
@@ -86,6 +87,12 @@ export interface LookupOptions extends TransportOptions {
   readonly maxLogs?: number;
   /** The most entries of one feed that are read from one home. Default 10 000. */
   readonly maxFeedEntries?: number;
+  /**
+   * The indexers the client asks to find minds (Layer 1, Section 18), as
+   * HTTPS origins. An indexer is not trusted: what it names is fetched and
+   * verified. Default: none, and `find` has nobody to ask.
+   */
+  readonly indexers?: readonly string[];
 }
 
 /** The most identity logs fetched to judge one mind, unless a client says otherwise. */
@@ -168,16 +175,6 @@ type Failure = OipError | TransportError;
 /** How much a failure says: one that answered and refused says the most, one that knows no such mind the least. */
 const rank = (failure: Failure): number =>
   failure instanceof TransportError ? 1 : failure.code === "not-found" ? 2 : 0;
-
-/** The value a judge answered with, or an `OipError` for its refusal. */
-export function accepted<T>(judged: Validation<T>, code: ProblemCode, what: string): T {
-  if (judged.ok) return judged.value;
-  const [first] = judged.issues;
-  throw new OipError(code, `${what}: ${first.message}`, {
-    clause: first.clause,
-    issues: judged.issues,
-  });
-}
 
 /**
  * The logs a client holds of other minds, fetched from the resolvers it
@@ -316,6 +313,77 @@ export class Lookup {
           : { home: answer.home, entries: undefined, failure: codeOf(answer.failure) },
       ),
     };
+  }
+
+  /**
+   * Fetches a record a mind's homes serve, by its content ID (Layer 1,
+   * 13.1): a record its feed lists. The homes are asked in the order the
+   * mind names them, and the first that serves it is believed as far as the
+   * content ID goes: what comes back is that record, whoever served it.
+   *
+   * Its proofs are verified as signatures and are not judged for anyone: a
+   * feed lists records of other minds too. Ask `ownSignedTime`, or the
+   * judge of the record's type, with `view`, after resolving its author
+   * again: the record was first seen now (core 9.4).
+   *
+   * @throws OipError `not-found` if the mind names no home, or none serves
+   *   the record; `invalid-record` if a home served another record, and no
+   *   home served this one. What `resolve` throws.
+   */
+  async record(mind: string, id: string): Promise<JudgedRecord> {
+    const { state } = await this.resolve(mind);
+    let failed: Failure = new OipError("not-found", `no home of ${mind} serves that record`, {
+      clause: "L1 13.1",
+    });
+    for (const home of state.homes) {
+      try {
+        const served = await askRecord(
+          { method: "GET", url: `${home}/.well-known/oip/mind/${idOf(mind)}/obj/${id}` },
+          this.#options,
+        );
+        const judged = accepted(
+          judgeRecord(served),
+          "invalid-record",
+          `${home} served what is no record this client can judge`,
+        );
+        if (contentId(judged.record) !== id) {
+          throw new OipError("invalid-record", `${home} served another record than was asked for`, {
+            clause: "L1 13.1",
+          });
+        }
+        witnessRecord(judged, this.#clock.now(), this.#seen);
+        return judged;
+      } catch (error) {
+        if (!(error instanceof OipError || error instanceof TransportError)) throw error;
+        // A home that refuses says more than one that knows of no such record.
+        if (rank(error) <= rank(failed)) failed = error;
+      }
+    }
+    throw failed;
+  }
+
+  /**
+   * Finds minds by what they can do (Layer 1, Section 18): asks each
+   * indexer the client names a capability query, and fetches and verifies
+   * every record they name before it returns it (18.4).
+   *
+   * - An indexer's answer is taken if it is a `QueryResult` to this query,
+   *   signed by a mind the client's resolvers hold.
+   * - A profile is returned if it counts for its mind, and carries the tags
+   *   asked for. It is the mind's current one, or it is marked as not.
+   * - An Offer or an Intent is returned if its author's own authority
+   *   signed it and it has not expired. It is fetched from the homes its
+   *   author's log names. An indexer's `hints` are not followed.
+   *
+   * What was named and does not check out is in `refused`, with why.
+   * Ranking is each indexer's own policy.
+   *
+   * @throws TypeError if the client names no indexer.
+   */
+  find(query: CapabilityQuery): Promise<Finding> {
+    const indexers = this.#options.indexers ?? [];
+    if (indexers.length === 0) throw new TypeError("a client names the indexers it asks");
+    return find({ lookup: this, transport: this.#options, clock: this.#clock, indexers }, query);
   }
 
   /** The entries one home serves of a mind's feed, page by page, as far as a client reads. */

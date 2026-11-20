@@ -5,6 +5,8 @@
 ```ts
 
 import { AgreementKeys } from '@oip/keystore';
+import { Capability } from '@oip/schema';
+import { CapabilityQuery } from '@oip/schema';
 import { DidResolution } from '@oip/identity';
 import type { Entry } from '@oip/schema';
 import { FirstSeen } from '@oip/identity';
@@ -13,12 +15,15 @@ import { HeldParticipant } from '@oip/net';
 import { IdentityState } from '@oip/identity';
 import { IdentityView } from '@oip/identity';
 import { Instant } from '@oip/core';
+import { Intent } from '@oip/schema';
 import { JsonObject } from '@oip/core';
 import type { JsonValue } from '@oip/schema';
+import { JudgedRecord } from '@oip/identity';
 import { KeyStorage } from '@oip/keystore';
 import { Keystore } from '@oip/keystore';
 import { Location } from '@oip/schema';
 import { Lock } from '@oip/keystore';
+import { Offer } from '@oip/schema';
 import { OipRecord } from '@oip/core';
 import { Participant } from '@oip/schema';
 import type { Proof } from '@oip/schema';
@@ -87,6 +92,23 @@ export function exchange(asking: Asking, options?: TransportOptions): Promise<An
 export type Fetch = (request: Request) => Promise<Response>;
 
 // @public
+export interface Finding {
+    readonly found: readonly Found[];
+    readonly refused: readonly NotFound[];
+    readonly sources: readonly IndexerAnswer[];
+}
+
+// @public
+export interface Found {
+    readonly by: readonly Ranking[];
+    readonly capability?: Capability;
+    readonly current: boolean;
+    readonly id: string;
+    readonly mind: string;
+    readonly record: Listed;
+}
+
+// @public
 export interface HomeAnswer {
     readonly entries: number | undefined;
     readonly failure?: string;
@@ -113,10 +135,21 @@ export interface IdentityChanges {
 }
 
 // @public
+export interface IndexerAnswer {
+    readonly failure?: string;
+    readonly indexer: string;
+    readonly mind?: string;
+    readonly results: number | undefined;
+}
+
+// @public
 export interface KeyEntry {
     readonly key: string;
     readonly label?: string;
 }
+
+// @public
+export type Listed = Participant | Offer | Intent;
 
 // @public
 export interface LocationFields {
@@ -130,6 +163,8 @@ export interface LocationFields {
 export class Lookup {
     constructor(options: LookupOptions);
     feed(mind: string): Promise<ReadFeed>;
+    find(query: CapabilityQuery): Promise<Finding>;
+    record(mind: string, id: string): Promise<JudgedRecord>;
     resolve(mind: string): Promise<Resolved>;
     get seen(): FirstSeen;
     get view(): IdentityView;
@@ -138,6 +173,7 @@ export class Lookup {
 // @public
 export interface LookupOptions extends TransportOptions {
     readonly clock?: Clock;
+    readonly indexers?: readonly string[];
     readonly maxFeedEntries?: number;
     readonly maxLogs?: number;
     readonly resolvers: readonly string[];
@@ -145,6 +181,9 @@ export interface LookupOptions extends TransportOptions {
 
 // @public
 export const MAX_DETAIL_LENGTH = 256;
+
+// @public
+export const MAX_RESULTS = 100;
 
 // @public
 export class Mind {
@@ -201,6 +240,14 @@ export interface NewMind {
 }
 
 // @public
+export interface NotFound {
+    readonly failure: string;
+    readonly indexer: string;
+    readonly mind: string;
+    readonly record: string;
+}
+
+// @public
 export interface ProfileFields {
     readonly actsFor?: Participant["actsFor"];
     readonly attestations?: readonly string[];
@@ -215,8 +262,15 @@ export interface ProfileFields {
 export interface Publication {
     readonly failure?: string;
     readonly origin: string;
-    readonly service: "resolver" | "home";
+    readonly service: "resolver" | "home" | "indexer";
     readonly taken: boolean;
+}
+
+// @public
+export interface Ranking {
+    readonly indexer: string;
+    readonly score: string;
+    readonly why?: string;
 }
 
 // @public

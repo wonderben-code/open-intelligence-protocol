@@ -169,6 +169,7 @@ export class Mind {
       address: resolved.mind,
       transport: options,
       resolvers: options.resolvers,
+      indexers: options.indexers ?? [],
       clock: this.#clock,
       lookup,
       memory: new Memory(options.memory ?? memoryStorage(), resolved.mind),

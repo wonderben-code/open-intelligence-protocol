@@ -8,6 +8,7 @@ import { type Keychain, keychainLock } from "@oip/keystore";
 import { repoRoot } from "@oip/testkit";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { example as finding } from "../examples/find.ts";
 import { example } from "../examples/first-mind.ts";
 import { example as publishing } from "../examples/publish.ts";
 import * as client from "../src/index.ts";
@@ -41,7 +42,7 @@ function memoryKeychain(): Keychain {
 
 describe("the README", () => {
   it("shows its examples unchanged", () => {
-    for (const name of ["first-mind.ts", "publish.ts"]) {
+    for (const name of ["first-mind.ts", "publish.ts", "find.ts"]) {
       const source = readFileSync(join(packageRoot, "examples", name), "utf8");
       // The file's licence header is not part of what the README shows.
       const code = source.replace(/^(\/\/ SPDX[^\n]*\n)+\n/, "");
@@ -87,6 +88,30 @@ describe("the README", () => {
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });
 
+  it("shows the output the example of finding really gives, against a resolver, a host and an indexer", async () => {
+    const services = {
+      resolvers: ["https://resolver.example"],
+      indexers: ["https://indexer.example"],
+      home: "https://home.example",
+    };
+    world.resolver("https://resolver.example");
+    world.host(services.home);
+    const indexer = world.indexer("https://indexer.example");
+    // The indexer's own mind is with the resolver, so that its answers can be taken as its own.
+    expect(await world.publish("https://resolver.example", indexer.mind)).toBe(202);
+    const output = await finding(services, keychainLock(memoryKeychain(), "example"), {
+      fetch: world.fetch,
+      clock: world.clock,
+    });
+    expect(output).toStrictEqual([
+      "listed by 1 indexer",
+      "the indexer named 1 record",
+      'found: Ada, for "Translation of legal texts", score 1',
+      "named and not returned: 0",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+  });
+
   it("names only things the package exports, and every value it exports", () => {
     const table = readme.slice(
       readme.indexOf("## What it exports"),
@@ -110,15 +135,21 @@ describe("the README", () => {
         "ControlOptions",
         "Endpoint",
         "Fetch",
+        "Finding",
+        "Found",
         "HomeAnswer",
         "IdentityChanges",
+        "IndexerAnswer",
         "KeyEntry",
+        "Listed",
         "LocationFields",
         "LookupOptions",
         "MindOptions",
         "NewMind",
+        "NotFound",
         "ProfileFields",
         "Publication",
+        "Ranking",
         "ReadFeed",
         "Resolved",
         "ResolverAnswer",
@@ -140,6 +171,8 @@ describe("the README", () => {
     expect(client.DEFAULT_MAX_LOGS).toBe(64);
     expect(readme).toContain("10 000 entries of a feed from one home");
     expect(client.DEFAULT_MAX_FEED_ENTRIES).toBe(10_000);
+    expect(readme).toContain("as many results as the query's `limit`, 100 at most");
+    expect(client.MAX_RESULTS).toBe(100);
     expect(readme).toContain("good for an hour");
     expect(client.DEFAULT_TTL).toBe(3600);
   });

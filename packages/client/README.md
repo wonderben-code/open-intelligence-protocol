@@ -154,6 +154,80 @@ another client reads: Ada, paused
 and its feed: 1 entry that verifies
 ```
 
+## Finding
+
+[`examples/find.ts`](examples/find.ts) lists a mind at an indexer, and finds it from another client:
+
+```ts
+import { type Clock, type Fetch, Lookup, Mind } from "@oip/client";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * One mind says what it can do, and another finds it by that.
+ *
+ * @param services - The HTTPS origins of the resolvers and the indexers the
+ *   clients name, and of a host that takes the mind on.
+ * @param lock - What the mind's keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  services: {
+    readonly resolvers: readonly string[];
+    readonly indexers: readonly string[];
+    readonly home: string;
+  },
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const { resolvers, indexers, home } = services;
+
+  // A mind publishes its profile. The indexers the client names are brought it too.
+  const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+  const mind = await Mind.create(
+    { keystore, lock, resolvers, indexers, ...edges },
+    { kind: "agent", homes: [home] },
+  );
+  await mind.publishProfile({
+    name: "Ada",
+    capabilities: [
+      { id: "translate", summary: "Translation of legal texts", tags: ["lang:en", "lang:pt"] },
+      { id: "review", summary: "Review of contracts", tags: ["domain:legal"] },
+    ],
+  });
+  const listed = mind.publications.filter(
+    (publication) => publication.service === "indexer" && publication.taken,
+  );
+  output.push(`listed by ${String(listed.length)} indexer`);
+  mind.close();
+
+  // Anyone asks the indexer, and gets back only what was fetched and verified.
+  const seeker = new Lookup({ resolvers, indexers, ...edges });
+  const { found, refused, sources } = await seeker.find({
+    want: "translation",
+    tags: ["lang:pt"],
+  });
+  output.push(`the indexer named ${String(sources[0]?.results)} record`);
+  for (const { record, capability, by } of found) {
+    const name = record.type === "Participant" ? record.name : record.type;
+    output.push(
+      `found: ${name}, for "${String(capability?.summary)}", score ${String(by[0]?.score)}`,
+    );
+  }
+  output.push(`named and not returned: ${String(refused.length)}`);
+  return output;
+}
+```
+
+It gives:
+
+```
+listed by 1 indexer
+the indexer named 1 record
+found: Ada, for "Translation of legal texts", score 1
+named and not returned: 0
+```
+
 ## What it exports
 
 | Export                                                                                                                        | What it does                                                                                                                                                                                                                                                                                   |
@@ -163,6 +237,7 @@ and its feed: 1 entry that verifies
 | `IdentityChanges`, `KeyEntry`, `ControlOptions`                                                                               | What changes with an identity event, and what opens the control keys for it: `Mind.update`, `addKey`, `revokeKey`, `fork`, `retire` (Layer 1, 3.7 to 3.10)                                                                                                                                     |
 | `Lookup`, `LookupOptions`, `Resolved`, `ResolverAnswer`, `DEFAULT_MAX_LOGS`                                                   | Resolves a mind: fetches its identity log from the resolvers the client trusts, takes their first-seen times as evidence, and verifies the log with them (Layer 1, 17.1; core 9.4). With the log come the mind's current location record and profile, if a resolver served them and they count |
 | `ReadFeed`, `HomeAnswer`, `DEFAULT_MAX_FEED_ENTRIES`                                                                          | `Lookup.feed` reads a mind's public feed from its homes and verifies it (Layer 1, 10 and 13.1)                                                                                                                                                                                                 |
+| `Finding`, `Found`, `Listed`, `Ranking`, `NotFound`, `IndexerAnswer`, `MAX_RESULTS`                                           | `Lookup.find` asks the indexers the client names a capability query, and fetches and verifies every record they name before it returns it (Layer 1, 18.4). `Lookup.record` fetches a record a mind's homes serve, by its content ID                                                            |
 | `Clock`, `systemClock`                                                                                                        | The present, behind an interface: a test gives its own                                                                                                                                                                                                                                         |
 | `exchange`, `askRecord`, `askJson`, `Asking`, `Answer`, `Fetch`, `TransportOptions`, `recordBody`, `refusalOf`, `httpsOrigin` | One request to a service over HTTPS, bounded in size and in time, and its answer read as a record or as JSON                                                                                                                                                                                   |
 | `TransportError`, `TransportFailure`                                                                                          | Thrown when a service cannot be reached or does not speak the protocol                                                                                                                                                                                                                         |
@@ -201,6 +276,16 @@ and its feed: 1 entry that verifies
 - **Two processes must not write one feed.** They find each other out in the memory, if they share it: the second to write is told `changed`, before its entry has left. If they do not share it, a home that holds another entry at the position answers `duplicity`. The client then forgets where it thought the feed stood, and the next call reads it afresh.
 - **A location record says where the feed stood when it was signed.** Publish one after the entries that matter. A reader that finds less at a home than the record says knows the home is behind.
 - **`Lookup.feed` reads every home and judges what they served together.** A home that withholds the end of a feed is made up for by one that serves it. It reads 10 000 entries of a feed from one home at most. An entry counts from when this client first saw it.
+
+### Finding
+
+- **Name the indexers you ask**: `indexers` in the options, by their HTTPS origins. An indexer is not trusted as a resolver is. What it answers is advice, and `find` returns nothing on its word alone.
+- **An indexer's answer is taken if it is its own**: a `QueryResult` to the query that was asked, signed by a mind your resolvers hold. Of an answer it looks at as many results as the query's `limit`, 100 at most.
+- **Every record named is fetched and verified** (Layer 1, 18.4). A profile is returned if it counts for its mind (16.1) and carries every tag asked for. An Offer or an Intent is returned if its author's own authority signed it and it has not expired. They are fetched from the homes the author's own log names: an indexer's `hints` are not followed.
+- **`current` says whether a profile is the mind's current one** (16.4). An indexer may still list one the mind has replaced. It is returned only if the mind's homes still serve it, and marked.
+- **`refused` says what was named and is not returned**, each with why, and `sources` what each indexer answered. `by` gives each indexer's own score for what was found. Scores of two indexers do not compare: ranking is each indexer's own policy.
+- **A mind that publishes is listed.** `publishProfile` and `publishLocation` submit the mind's bundle and its profile to the indexers the client names, and `publications` says which took them.
+- **A client that fetches for strangers is asked to fetch from where they say.** The homes of a mind are URLs its controller chose. In a browser that is as any link. On a server inside a private network, give the client a `fetch` that reaches only public addresses.
 
 ### Failures
 

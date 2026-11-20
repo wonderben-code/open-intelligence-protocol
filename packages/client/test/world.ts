@@ -13,6 +13,7 @@ import { join } from "node:path";
 
 import { MEDIA_TYPE, mindId } from "@oip/core";
 import { Host, HOST_MIGRATIONS, hostApp } from "@oip/host";
+import { Broker, Indexer, INDEXER_MIGRATIONS, indexerApp } from "@oip/indexer";
 import { RESOLVER_MIGRATIONS, resolverApp } from "@oip/resolver";
 import {
   Database,
@@ -23,7 +24,7 @@ import {
   Shutdown,
   StoredNonces,
 } from "@oip/server";
-import { at, type Mind } from "@oip/testkit/minds";
+import { at, KeyMind, type Mind } from "@oip/testkit/minds";
 
 import type { Clock, Fetch } from "../src/index.ts";
 
@@ -177,6 +178,72 @@ export class World {
     });
     this.put(origin, (request) => app.fetch(request, { address: "203.0.113.7" }));
     return { host };
+  }
+
+  /**
+   * An indexer at an origin, with a database and a mind of its own. The
+   * mind's log is with the indexer only: publish it to the resolvers a
+   * client trusts, for the client to take the indexer's answers.
+   *
+   * @param name - The name its mind's keys are made from.
+   * @returns The indexer's own mind.
+   */
+  indexer(origin: string, name = "indexer"): { mind: KeyMind } {
+    const db = Database.open(
+      {
+        path: join(this.#directory, `indexer-${String(this.#databases.length)}.db`),
+        durable: false,
+      },
+      INDEXER_MIGRATIONS,
+      this.clock,
+    );
+    this.#databases.push(db);
+    const mind = new KeyMind(name);
+    const log = new Log({ service: "indexer", clock: this.clock, sink: () => undefined });
+    const metrics = new Metrics();
+    const generous = (): RateLimiter =>
+      new RateLimiter({ burst: 10_000, perMinute: 600_000 }, this.clock);
+    const archive = new LogArchive({ db, clock: this.clock });
+    archive.publish(mindId(mind.address) ?? "", {
+      oip: "1",
+      type: "Bundle",
+      mind: mind.address,
+      log: mind.events,
+    } as never);
+    const indexer = new Indexer({
+      db,
+      archive,
+      clock: this.clock,
+      address: mind.address,
+      signer: mind.operational(),
+    });
+    const broker = new Broker({
+      indexer,
+      archive,
+      log,
+      metrics,
+      // What it forwards goes through this world, as a request of its own.
+      post: async (url, body, contentType) => {
+        const response = await this.direct(
+          new Request(url, { method: "POST", body, headers: { "content-type": contentType } }),
+        );
+        return { status: response.status };
+      },
+      perSender: generous(),
+    });
+    const app = indexerApp({
+      indexer,
+      broker,
+      archive,
+      clock: this.clock,
+      log,
+      metrics,
+      limits: { query: generous(), submit: generous(), deliver: generous() },
+      shutdown: new Shutdown({ log }),
+      ready: { database: () => true },
+    });
+    this.put(origin, (request) => app.fetch(request, { address: "203.0.113.7" }));
+    return { mind };
   }
 
   /** Publishes a mind's log to a resolver, as the mind would, at the present of this world. */

@@ -439,7 +439,7 @@ describe(`${clause("L1 4.9")} an event that is invalid, and one the verifier can
     }
   });
 
-  it("calls undecided a log longer than it reads", { timeout: 120_000 }, () => {
+  it("calls undecided a log longer than it reads", () => {
     const long = unchecked(() => {
       const ada = new KeyMind("ada");
       for (let n = 1; n <= 1000; n++) ada.update(n);

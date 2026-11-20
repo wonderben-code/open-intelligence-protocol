@@ -540,7 +540,7 @@ describe(`${clause("L1 7.3")} a branch that this verifier cannot read to its end
     expect(heads(book, mind).heads).toStrictEqual(honest.events.map((event) => contentId(event)));
   });
 
-  it("is not passed over for being longer than this verifier reads", { timeout: 120_000 }, () => {
+  it("is not passed over for being longer than this verifier reads", () => {
     const { other, mind } = scene();
     const long = unchecked(() => {
       const ada = new KeyMind("ada").update(20, { keys: [] });
@@ -1177,54 +1177,46 @@ describe(`${clause("L1 7.1")} a copy of an event that is not well formed`, () =>
     return event["proof"] as JsonObject[];
   }
 
-  it.each(spoiled)(
-    "takes no proof away from the event, and adds none: %s",
-    (_, spoil) => {
-      const copy = [genesis, update, spoil(removal)];
-      // Anyone can make such a copy of any event. Held beside the log, in either order, it changes nothing.
-      for (const copies of [
-        [ada.events, copy],
-        [copy, ada.events],
-      ]) {
-        const book = new LogBook(evidence());
-        for (const events of copies) {
-          expect(book.hold(events, LATER)).toStrictEqual({ ok: true, value: ada.address });
-        }
-        expect(heads(book, ada.address).heads).toHaveLength(3);
-        expect(removedKeyCounts(book)).toBe(false);
+  it.each(spoiled)("takes no proof away from the event, and adds none: %s", (_, spoil) => {
+    const copy = [genesis, update, spoil(removal)];
+    // Anyone can make such a copy of any event. Held beside the log, in either order, it changes nothing.
+    for (const copies of [
+      [ada.events, copy],
+      [copy, ada.events],
+    ]) {
+      const book = new LogBook(evidence());
+      for (const events of copies) {
+        expect(book.hold(events, LATER)).toStrictEqual({ ok: true, value: ada.address });
       }
-      // Alone, it is the event with no proof: invalid, as `witnessLog` says of the copy.
-      const alone = new LogBook(evidence());
-      alone.hold(copy, LATER);
-      expect(heads(alone, ada.address).heads).toHaveLength(2);
-      expect(witnessLog(copy, LATER, evidence())).toMatchObject({ undecided: false });
-      expect(witnessLog(copy, LATER, evidence()).log?.entries).toHaveLength(2);
-    },
-    60_000,
-  );
+      expect(heads(book, ada.address).heads).toHaveLength(3);
+      expect(removedKeyCounts(book)).toBe(false);
+    }
+    // Alone, it is the event with no proof: invalid, as `witnessLog` says of the copy.
+    const alone = new LogBook(evidence());
+    alone.hold(copy, LATER);
+    expect(heads(alone, ada.address).heads).toHaveLength(2);
+    expect(witnessLog(copy, LATER, evidence())).toMatchObject({ undecided: false });
+    expect(witnessLog(copy, LATER, evidence()).log?.entries).toHaveLength(2);
+  });
 
-  it.each(spoiled)(
-    "keeps its place, so what follows it in its copy is held: %s",
-    (_, spoil) => {
-      // A later copy of the log, with the removal, whose event before it is spoiled.
-      const copy = [genesis, spoil(update), removal];
-      const earlier = [genesis, update];
-      for (const copies of [
-        [earlier, copy],
-        [copy, earlier],
-      ]) {
-        const book = new LogBook(evidence());
-        for (const events of copies) book.hold(events, LATER);
-        expect(heads(book, ada.address).heads).toHaveLength(3);
-        expect(removedKeyCounts(book)).toBe(false);
-      }
-      // Alone, the copy shows nothing after its genesis.
-      const alone = new LogBook(evidence());
-      alone.hold(copy, LATER);
-      expect(heads(alone, ada.address).heads).toHaveLength(1);
-    },
-    60_000,
-  );
+  it.each(spoiled)("keeps its place, so what follows it in its copy is held: %s", (_, spoil) => {
+    // A later copy of the log, with the removal, whose event before it is spoiled.
+    const copy = [genesis, spoil(update), removal];
+    const earlier = [genesis, update];
+    for (const copies of [
+      [earlier, copy],
+      [copy, earlier],
+    ]) {
+      const book = new LogBook(evidence());
+      for (const events of copies) book.hold(events, LATER);
+      expect(heads(book, ada.address).heads).toHaveLength(3);
+      expect(removedKeyCounts(book)).toBe(false);
+    }
+    // Alone, the copy shows nothing after its genesis.
+    const alone = new LogBook(evidence());
+    alone.hold(copy, LATER);
+    expect(heads(alone, ada.address).heads).toHaveLength(1);
+  });
 
   describe("a value in a copy that is no record", () => {
     // The removal stands in its place with a proof that does not verify. Its own proof
@@ -1912,27 +1904,23 @@ describe(`${clause("L1 4.9")} what a book has been shown, it keeps`, () => {
     },
   );
 
-  it(
-    "answers, and does not throw, for a copy with thousands of values after the log",
-    { timeout: 120_000 },
-    () => {
-      // Each value has a place after the one before, so what is held is ten thousand deep.
-      const ada = new KeyMind("ada").update(10).update(20, { keys: [] });
-      const tail = Array.from({ length: 9_990 }, (_, n) => ({ proof: [], n }));
-      // After the log, the copy that ends in them is a copy of the whole log. After the
-      // genesis, it is a copy of the genesis.
-      for (const [copy, known] of [
-        [[...ada.events, ...tail], LATER],
-        [[ada.events[0], ...tail], at(100)],
-      ] as const) {
-        const book = new LogBook(witness([ada.events]));
-        expect(book.hold(copy, LATER).ok).toBe(true);
-        book.hold(ada.events, at(100));
-        expect(heads(book, ada.address).heads).toHaveLength(3);
-        expect(heads(book, ada.address).log.asOf).toBe(known);
-      }
-    },
-  );
+  it("answers, and does not throw, for a copy with thousands of values after the log", () => {
+    // Each value has a place after the one before, so what is held is ten thousand deep.
+    const ada = new KeyMind("ada").update(10).update(20, { keys: [] });
+    const tail = Array.from({ length: 9_990 }, (_, n) => ({ proof: [], n }));
+    // After the log, the copy that ends in them is a copy of the whole log. After the
+    // genesis, it is a copy of the genesis.
+    for (const [copy, known] of [
+      [[...ada.events, ...tail], LATER],
+      [[ada.events[0], ...tail], at(100)],
+    ] as const) {
+      const book = new LogBook(witness([ada.events]));
+      expect(book.hold(copy, LATER).ok).toBe(true);
+      book.hold(ada.events, at(100));
+      expect(heads(book, ada.address).heads).toHaveLength(3);
+      expect(heads(book, ada.address).log.asOf).toBe(known);
+    }
+  });
 
   it("answers by what it was shown, in whatever order the copies and the evidence came", () => {
     const ada = new KeyMind("ada").update(10).update(20).update(30).update(40);
@@ -2831,7 +2819,6 @@ describe(`${clause("core 9.5", "L1 7.1")} a verifier that follows a log itself`,
         issues: [{ clause: "implementation limit" }],
       });
     },
-    60_000,
   );
 
   it("comes to an end, and keeps no verdict from before, whatever the record it writes to does", () => {

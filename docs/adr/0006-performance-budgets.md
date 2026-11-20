@@ -1,6 +1,6 @@
 # ADR-0006: Performance budgets, as measured in M1
 
-**Status:** Accepted, 17 November 2026 (M1). M5 measures the remaining budgets and revisits these.
+**Status:** Accepted, 17 November 2026 (M1). M5 measures the remaining budgets and revisits these. Superseded in part: how a ratio is measured (Decision, item 1) is replaced by [ADR-0020](0020-ratios-turn-about.md).
 
 ## Context
 

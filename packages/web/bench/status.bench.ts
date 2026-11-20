@@ -16,6 +16,7 @@ import { contentId, forgetVerifiedSignatures, formatRecordRef, proofDigest } fro
 import { FirstSeen, judgeRecord, LogBook } from "@oip/identity";
 import type { JsonObject } from "@oip/testkit";
 import { at, Collective, intentBy, KeyMind, LATER, type Mind, T } from "@oip/testkit/minds";
+import { ratiosOver, reportMeasured } from "@oip/testkit/ratio";
 import { describe, expect, test } from "vitest";
 
 import { signedTime, status, type WebContext, WebRecordSet } from "../src/index.ts";
@@ -32,26 +33,21 @@ export const BUDGETS = {
    * The status of a Commitment with two parties and four Receipts about it,
    * against judging one record with one proof. No signature is checked
    * again: what it costs is the content ID of each of the five records,
-   * worked out once. It measures at about 0.05.
+   * worked out once. It measures at 0.05 to 0.07: hashing and arithmetic
+   * do not slow alike on a machine that is shared, so this ratio moves
+   * where the others do not (ADR-0020). A signature checked again would
+   * add 1.0, and the content IDs worked out twice would pass 0.1.
    */
-  commitment: 0.065,
+  commitment: 0.09,
   /**
    * The status of an Intent that an accepted Commitment closes, against
    * judging one record with one proof: the content ID of the Intent, and
    * that of the Commitment, which is judged with the proofs of every copy
-   * held of it (Layer 2, Section 2). It measures at about 0.022.
+   * held of it (Layer 2, Section 2). It measures at 0.022 to 0.026, and
+   * done twice it would pass 0.044.
    */
-  intent: 0.03,
+  intent: 0.036,
 } as const;
-
-/** How many times each ratio is measured. Odd, so that one of them is the middle. */
-const ROUNDS = 3;
-
-/** The middle of an odd number of values. */
-function middle(values: readonly number[]): number {
-  const sorted = values.toSorted((a, b) => a - b);
-  return sorted[(sorted.length - 1) / 2] ?? Number.NaN;
-}
 
 type Signed = JsonObject & { proof: JsonObject[] };
 
@@ -156,39 +152,35 @@ describe("a record among those a verifier holds", () => {
   const [intent, commitment] = [judged(asked), judged(agreed)];
   const byRole = () => signedTime(judged(forTheClub), club, context);
 
-  test("stays close to one signature for a role, and well under one for a status", async ({
-    bench,
-  }) => {
+  test("stays close to one signature for a role, and well under one for a status", async () => {
     expect(byRole()).toBe(at(60));
     expect(status(commitment, at(100), context)).toStrictEqual({ ok: true, value: "fulfilled" });
     expect(status(intent, at(100), context)).toStrictEqual({ ok: true, value: "satisfied" });
-    const ratios = { role: [] as number[], commitment: [] as number[], intent: [] as number[] };
-    for (let round = 1; round <= ROUNDS; round++) {
-      // What is timed is the checking of signatures: none is remembered from the call before.
-      const measure = async (name: string, run: () => unknown): Promise<number> =>
-        (
-          await bench(`${name} (round ${round})`, () => {
-            forgetVerifiedSignatures();
-            return run();
-          }).run()
-        ).latency.p50;
-      const one = await measure("judgeRecord: one Intent, one proof", () => judgeRecord(asked));
-      ratios.role.push(
-        (await measure("judgeRecord + signedTime: for a collective, through a role", byRole)) / one,
-      );
-      ratios.commitment.push(
-        (await measure("status: a Commitment with four Receipts", () =>
+    // What is timed is the checking of signatures: none is remembered from the call before.
+    const afresh =
+      (run: () => unknown): (() => unknown) =>
+      () => {
+        forgetVerifiedSignatures();
+        return run();
+      };
+    const measured = await ratiosOver(
+      afresh(() => judgeRecord(asked)),
+      {
+        "judgeRecord + signedTime: for a collective, through a role": afresh(byRole),
+        "status: a Commitment with four Receipts": afresh(() =>
           status(commitment, at(100), context),
-        )) / one,
-      );
-      ratios.intent.push(
-        (await measure("status: an Intent that a Commitment closes", () =>
+        ),
+        "status: an Intent that a Commitment closes": afresh(() =>
           status(intent, at(100), context),
-        )) / one,
-      );
-    }
-    expect(middle(ratios.role)).toBeLessThan(BUDGETS.role);
-    expect(middle(ratios.commitment)).toBeLessThan(BUDGETS.commitment);
-    expect(middle(ratios.intent)).toBeLessThan(BUDGETS.intent);
+        ),
+      },
+    );
+    reportMeasured("@oip/web", "judgeRecord: one Intent, one proof", measured);
+    const { ratios } = measured;
+    expect(ratios["judgeRecord + signedTime: for a collective, through a role"]).toBeLessThan(
+      BUDGETS.role,
+    );
+    expect(ratios["status: a Commitment with four Receipts"]).toBeLessThan(BUDGETS.commitment);
+    expect(ratios["status: an Intent that a Commitment closes"]).toBeLessThan(BUDGETS.intent);
   });
 });

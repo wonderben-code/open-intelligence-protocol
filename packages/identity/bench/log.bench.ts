@@ -9,11 +9,13 @@
  *
  * As in `@oip/core`, a ceiling in milliseconds is set with room, because it
  * depends on the machine, and a ratio is set close, because it does not: the
- * whole log against a thousand times the signature check of one event.
+ * whole log against a thousand times the signature check of one event,
+ * measured turn about (ADR-0020).
  */
 
 import { forgetVerifiedSignatures, parseRecord, verifyProofs } from "@oip/core";
 import { KeyMind, LATER, witness } from "@oip/testkit/minds";
+import { ratiosOver, reportMeasured } from "@oip/testkit/ratio";
 import { describe, expect, test } from "vitest";
 
 import { type EvidenceView, LogBook, verifyLog } from "../src/index.ts";
@@ -24,9 +26,11 @@ export const BUDGETS = {
   /**
    * The same against a thousand times `parseRecord` and `verifyProofs` of
    * one event, as a ratio: what replaying adds to reading and checking each
-   * event's signature. It measures at about 1.1.
+   * event's signature. It measures at 0.93 to 1.2: a run of the log takes
+   * seconds, so a turn is long enough for the machine's speed to change
+   * within it (ADR-0020). A signature checked twice would pass 2.
    */
-  overTheSignatures: 1.4,
+  overTheSignatures: 1.5,
   /**
    * How many times faster a log is verified again, once its signatures have
    * verified: a verifier that is sent a copy of a log it has read pays for
@@ -48,52 +52,46 @@ describe("the budgets of BUILD.md 3.8", () => {
   const { events, evidence, mind } = longLog();
   const oneEvent = JSON.stringify(events[500]);
 
-  test("verify an identity log of 1,000 events", async ({ bench }) => {
+  test("verify an identity log of 1,000 events", async () => {
     const check = verifyLog(events, { evidence, asOf: LATER });
     expect(check.ok && check.value.entries).toHaveLength(EVENTS);
-    /** The median time to read and check one event of the log. */
-    const one = async (when: string): Promise<number> =>
-      (
-        await bench(`parseRecord + verifyProofs: one event of the log (${when})`, () => {
-          // What is timed is the checking of a signature: none is remembered from the call before.
+    const log = "verifyLog: 1,000 events";
+    const measured = await ratiosOver(
+      () => {
+        // What is timed is the checking of a signature: none is remembered from the call before.
+        forgetVerifiedSignatures();
+        const parsed = parseRecord(oneEvent);
+        return parsed.ok && verifyProofs(parsed.value).verified.length;
+      },
+      {
+        [log]: () => {
           forgetVerifiedSignatures();
-          const parsed = parseRecord(oneEvent);
-          return parsed.ok && verifyProofs(parsed.value).verified.length;
-        }).run()
-      ).latency.p50;
-    const before = await one("before");
-    const whole = await bench("verifyLog: 1,000 events", () => {
-      forgetVerifiedSignatures();
-      return verifyLog(events, { evidence, asOf: LATER });
-    })
-      // A few runs of some seconds each say enough; the default would take minutes.
-      .run({ iterations: 3, time: 0, warmupIterations: 1, warmupTime: 0 });
-    expect(whole.latency.min).toBeLessThan(BUDGETS.logOfAThousandEvents);
-    const after = await one("after");
-    // A ratio of medians: the best case of one event is one sample of thousands, and a
-    // lucky one moved this ratio between 1.2 and 1.45 where the medians give about 1.1.
-    // One event is measured before the log and after it, and the faster of the two is
-    // what the log is compared with: other work on the machine while one of them is
-    // measured does not make the log look cheaper than it is. Work that slows both of
-    // them and not the log would, which their lengths make unlikely.
-    expect(whole.latency.p50 / (EVENTS * Math.min(before, after))).toBeLessThan(
-      BUDGETS.overTheSignatures,
+          return verifyLog(events, { evidence, asOf: LATER });
+        },
+      },
+      // A run of the log takes seconds. A few turns say enough, and the one event is sampled
+      // for a tenth as long as the log beside it, not for a quarter of a millisecond.
+      { minTurns: 7, budgetMs: 0, sampleMs: 200, warmupMs: 0 },
     );
+    reportMeasured("@oip/identity", "parseRecord + verifyProofs: one event of the log", measured);
+    expect(measured.fastest[log]).toBeLessThan(BUDGETS.logOfAThousandEvents);
+    expect((measured.ratios[log] ?? Number.NaN) / EVENTS).toBeLessThan(BUDGETS.overTheSignatures);
   });
 
-  test("verify again a log whose signatures verified before, for a fraction of the first time", async ({
-    bench,
-  }) => {
-    const options = { iterations: 3, time: 0, warmupIterations: 1, warmupTime: 0 };
-    const first = await bench("verifyLog: 1,000 events, none verified before", () => {
-      forgetVerifiedSignatures();
-      return verifyLog(events, { evidence, asOf: LATER });
-    }).run(options);
-    // The same log, read again: by a verifier that was sent a longer copy of it, or the same one.
-    const again = await bench("verifyLog: 1,000 events, all verified before", () =>
-      verifyLog(events, { evidence, asOf: LATER }),
-    ).run(options);
-    expect(again.latency.p50 * BUDGETS.againOverFirst).toBeLessThan(first.latency.p50);
+  test("verify again a log whose signatures verified before, for a fraction of the first time", async () => {
+    const again = "verifyLog: 1,000 events, all verified before";
+    // Turn about, the log is verified with no signature remembered, and then again with all of
+    // them: by a verifier that was sent a longer copy of it, or the same one.
+    const measured = await ratiosOver(
+      () => {
+        forgetVerifiedSignatures();
+        return verifyLog(events, { evidence, asOf: LATER });
+      },
+      { [again]: () => verifyLog(events, { evidence, asOf: LATER }) },
+      { minTurns: 3, budgetMs: 0, warmupMs: 0 },
+    );
+    reportMeasured("@oip/identity", "verifyLog: 1,000 events, none verified before", measured);
+    expect((measured.ratios[again] ?? Number.NaN) * BUDGETS.againOverFirst).toBeLessThan(1);
   });
 
   test("answer at once for a log a book has verified", async ({ bench }) => {

@@ -688,7 +688,7 @@ describe(`${clause("L1 13.4")} a host that does not keep to the binding`, () => 
       expect(stage.sent).toStrictEqual([]);
       await heard.handle.close();
     }
-  }, 30_000);
+  });
 
   it(`${clause("L1 13.3")} is answered for the origin the client connected to, whatever it says its own is`, async () => {
     const stage = staged();
@@ -723,7 +723,7 @@ describe(`${clause("L1 13.4")} a host that does not keep to the binding`, () => 
       expect(heard.states.map(({ state }) => state)).toStrictEqual(["connecting", "closed"]);
       await heard.handle.close();
     }
-  }, 30_000);
+  });
 
   it("may end the connection without a word, or with an empty one", async () => {
     for (const [event, told] of [
@@ -759,7 +759,7 @@ describe(`${clause("L1 13.4")} a host that does not keep to the binding`, () => 
       expect(bob.waits).toHaveLength(1);
       await heard.handle.close();
     }
-  }, 30_000);
+  });
 
   it("is left where the mind has no key to answer its challenge with", async () => {
     const stage = staged();

@@ -131,7 +131,7 @@ describe.skipIf(CHROMIUM === undefined)("the client in a browser", () => {
     browser = await chromium.launch(
       CHROMIUM === undefined || CHROMIUM === "installed" ? {} : { executablePath: CHROMIUM },
     );
-  }, 120_000);
+  });
   afterAll(async () => {
     await browser.close();
   });
@@ -226,7 +226,7 @@ describe.skipIf(CHROMIUM === undefined)("the client in a browser", () => {
     // Signed requests carry headers a browser asks leave for, and it would have had it.
     expect(sent.some(({ headers }) => unsafeHeaders(headers).includes("signature"))).toBe(true);
     expect(await withoutLeave()).toStrictEqual([]);
-  }, 120_000);
+  });
 
   it(`${clause("L1 18.1", "L1 18.4")} lists a mind at an indexer and finds it, from a page`, async () => {
     const indexer = world.indexer(X);
@@ -244,7 +244,7 @@ describe.skipIf(CHROMIUM === undefined)("the client in a browser", () => {
     ]);
     expect(asked.some((request) => request === `POST ${X}/oip/v1/query`)).toBe(true);
     expect(await withoutLeave()).toStrictEqual([]);
-  }, 120_000);
+  });
 
   it(`${clause("L1 13.4")} listens at its host over the browser's own WebSocket, and hears what is sent`, async () => {
     const output = await page.evaluate(([resolvers, home]) => oip.listen(resolvers, home), [
@@ -264,7 +264,7 @@ describe.skipIf(CHROMIUM === undefined)("the client in a browser", () => {
       (text) => (JSON.parse(text) as { type: string }).type,
     );
     expect(said).toStrictEqual(["Hello", "Ack", "Ack"]);
-  }, 120_000);
+  });
 
   it(`${clause("L1 3.11")} keeps a mind's keys in the browser's own storage, sealed, and opens the mind from it again`, async () => {
     const output = await page.evaluate((resolvers) => oip.kept(resolvers), [A]);
@@ -274,5 +274,5 @@ describe.skipIf(CHROMIUM === undefined)("the client in a browser", () => {
       "a wrong passphrase opens it: false",
     ]);
     expect(await withoutLeave()).toStrictEqual([]);
-  }, 120_000);
+  });
 });

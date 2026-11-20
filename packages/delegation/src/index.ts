@@ -34,7 +34,7 @@ export {
   draftSubDelegation,
   type SubDelegationFields,
 } from "./create.ts";
-export { evaluatePolicy, MAX_POLICY_WORK, policyHolds, select } from "./policy.ts";
+export { checkPolicy, evaluatePolicy, MAX_POLICY_WORK, policyHolds, select } from "./policy.ts";
 export { RecordSet, type RecordView } from "./records.ts";
 export { revokedTime } from "./revocation.ts";
 export { sentFor } from "./send.ts";

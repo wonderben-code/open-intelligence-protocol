@@ -21,6 +21,9 @@ import { VerifiedProof } from '@oip/core';
 export function authorityOf(chain: readonly Delegation[], as?: "records" | "references"): (Delegation | string)[];
 
 // @public
+export function checkPolicy(policy: unknown): Validation<true>;
+
+// @public
 export function covers(granted: unknown, needed: unknown): boolean;
 
 // @public

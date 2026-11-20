@@ -6,7 +6,7 @@ import { clause } from "@oip/testkit";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { evaluatePolicy, MAX_POLICY_WORK, policyHolds, select } from "../src/index.ts";
+import { checkPolicy, evaluatePolicy, MAX_POLICY_WORK, policyHolds, select } from "../src/index.ts";
 
 /** A commitment of the kind a policy is written for. */
 const record = {
@@ -425,6 +425,53 @@ describe(`${clause("L1 11.3", "L1 11.1")} a policy`, () => {
     ]);
     const result = evaluatePolicy(many, record);
     expect(!result.ok && result.issues.length).toBe(32);
+  });
+});
+
+describe(`${clause("L1 11.3")} whether a value is a policy at all`, () => {
+  it("is asked of the policy alone, and answered as the evaluation answers it first", () => {
+    const policy = [
+      ["==", ".terms.price.currency", "USD"],
+      ["<=", ".terms.price.amount", "500"],
+      ["all", ".parties", ["not", ["==", ".mind", "did:oip:x"]]],
+    ];
+    expect(checkPolicy(policy)).toStrictEqual({ ok: true, value: true });
+    expect(checkPolicy([])).toStrictEqual({ ok: true, value: true });
+    expect(checkPolicy(undefined)).toStrictEqual({ ok: true, value: true });
+    // It is a policy whether or not it holds for a record, and whether or not it resolves there.
+    expect(policyHolds(policy, {})).toBe(false);
+    for (const none of [
+      null,
+      "a policy",
+      { 0: ["==", ".a", 1] },
+      [["==", "a", 1]],
+      [["maybe", ".a", 1]],
+      [["==", ".a"]],
+      ["==", ".a", 1],
+      [["all", ".list", ["==", "x", 1]]],
+      Array.from({ length: 65 }, () => ["==", ".a", 1]),
+    ]) {
+      const checked = checkPolicy(none);
+      expect(checked.ok, JSON.stringify(none)).toBe(false);
+      // The same reasons, whatever record it would have been asked of.
+      expect(checked).toStrictEqual(evaluatePolicy(none, {}));
+      expect(checked).toStrictEqual(evaluatePolicy(none, record));
+      if (!checked.ok) expect(checked.issues[0].clause).toBe("L1 11.3");
+    }
+  });
+
+  it("says of any value what the evaluation would say first, whatever the record", () => {
+    fc.assert(
+      fc.property(fc.jsonValue(), fc.jsonValue(), (value, asked) => {
+        const checked = checkPolicy(value);
+        const evaluated = evaluatePolicy(value, asked as JsonValue);
+        // What is no policy holds for no record, for the same reasons.
+        if (!checked.ok) expect(evaluated).toStrictEqual(checked);
+        // And what holds for a record is a policy.
+        if (evaluated.ok) expect(checked).toStrictEqual({ ok: true, value: true });
+      }),
+      { numRuns: 300 },
+    );
   });
 });
 

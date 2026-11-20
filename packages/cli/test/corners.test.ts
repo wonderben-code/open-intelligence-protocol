@@ -403,6 +403,19 @@ describe("the records of the Mind Web, in their less usual forms", () => {
         ],
         "holds no JSON array: a policy is one",
       ],
+      [
+        [
+          "delegate",
+          junior.mind,
+          "--command",
+          "/oip/send",
+          "--days",
+          "1",
+          "--policy",
+          file("q.json", [["maybe", ".a", 1]]),
+        ],
+        "is no policy: ",
+      ],
       [["offer", "--provides", "x", "--authority", root, "--charter", root], "is no charter"],
       [
         [

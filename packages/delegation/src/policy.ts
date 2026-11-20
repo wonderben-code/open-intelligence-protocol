@@ -270,8 +270,15 @@ export function evaluatePolicy(policy: unknown, record: JsonValue): Validation<t
   return judging(() => evaluated(policy, record));
 }
 
-/** The verdict, as `evaluatePolicy` answers when no check is cut short. */
-function evaluated(policy: unknown, record: JsonValue): Validation<true> {
+/**
+ * Reads a whole policy, before any of it is asked of a record: an array of
+ * at most 64 statements, each well formed.
+ *
+ * @returns The statements and what reading them noted, or why it is no policy.
+ */
+function readPolicy(
+  policy: unknown,
+): { ok: true; statements: readonly unknown[]; run: Run } | Rejection {
   // A record with no `policy` member has the empty policy. `null` is not a policy.
   const statements: unknown = policy === undefined ? [] : policy;
   if (!Array.isArray(statements) || statements.length > 64) {
@@ -279,23 +286,49 @@ function evaluated(policy: unknown, record: JsonValue): Validation<true> {
       { path: "", message: "a policy is an array of at most 64 statements", clause: CLAUSE },
     ]);
   }
+  const run: Run = { errors: [], work: 0, spent: false, paths: new Map() };
+  (statements as readonly unknown[]).forEach((statement, i) =>
+    wellFormed(statement, `/${i}`, 0, run),
+  );
+  const [malformed, ...others] = run.errors;
+  if (malformed !== undefined) return failed([malformed, ...others]);
+  return { ok: true, statements: statements as readonly unknown[], run };
+}
+
+/**
+ * Layer 1, 11.3: whether a value is a policy at all: an array of at most 64
+ * statements, each well formed. It says nothing of any record.
+ *
+ * `evaluatePolicy` makes the same check first, and a policy that is none
+ * holds for no record. This is for whoever is given a policy and should say
+ * so at once if it is none: a delegation about to be signed, a setting read
+ * when a program starts. Nothing here throws.
+ *
+ * @param policy - The statements. No policy at all is the empty policy.
+ */
+export function checkPolicy(policy: unknown): Validation<true> {
+  return judging(() => {
+    const read = readPolicy(policy);
+    return read.ok ? ok(true) : read;
+  });
+}
+
+/** The verdict, as `evaluatePolicy` answers when no check is cut short. */
+function evaluated(policy: unknown, record: JsonValue): Validation<true> {
+  // Validate, then use. The whole policy is read before any of it is asked of the
+  // record: a part that this record does not reach is part of the policy too.
+  const read = readPolicy(policy);
+  if (!read.ok) return read;
+  const { statements, run } = read;
   // The record without its proofs: a policy constrains what was signed.
   let subject: JsonValue = record;
   if (typeof record === "object" && record !== null && !Array.isArray(record)) {
     const { proof: _proof, ...content } = record as JsonObject;
     subject = content;
   }
-  const run: Run = { errors: [], work: 0, spent: false, paths: new Map() };
-  // Validate, then use. The whole policy is read before any of it is asked of the
-  // record: a part that this record does not reach is part of the policy too.
-  (statements as readonly unknown[]).forEach((statement, i) =>
-    wellFormed(statement, `/${i}`, 0, run),
-  );
-  const [malformed, ...others] = run.errors;
-  if (malformed !== undefined) return failed([malformed, ...others]);
   run.work = 0;
   const unmet: Issue[] = [];
-  (statements as readonly unknown[]).forEach((statement, i) => {
+  statements.forEach((statement, i) => {
     if (!holds(statement, subject, `/${i}`, run) && unmet.length < MAX_ISSUES) {
       unmet.push({
         path: `/${i}`,

@@ -522,6 +522,34 @@ importers:
         specifier: workspace:*
         version: link:../testkit
 
+  packages/mcp-server:
+    dependencies:
+      '@oip/client':
+        specifier: workspace:*
+        version: link:../client
+      '@oip/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oip/delegation':
+        specifier: workspace:*
+        version: link:../delegation
+      '@oip/keystore':
+        specifier: workspace:*
+        version: link:../keystore
+      '@oip/local':
+        specifier: workspace:*
+        version: link:../local
+      '@oip/schema':
+        specifier: workspace:*
+        version: link:../schema
+    devDependencies:
+      '@oip/cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@oip/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+
   packages/net:
     dependencies:
       '@oip/core':

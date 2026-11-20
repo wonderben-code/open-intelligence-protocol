@@ -4,6 +4,7 @@
 /** The commands of delegation (Layer 1, Section 11): granting authority, and taking it back. */
 
 import { formatTimestamp } from "@oip/core";
+import { checkPolicy } from "@oip/delegation";
 import { type Delegation, validateRecordOfType } from "@oip/schema";
 
 import { readJson, withMind } from "@oip/local";
@@ -72,6 +73,13 @@ export const delegate: Command = {
     const policy = file === undefined ? undefined : readJson(file, "the policy");
     if (policy !== undefined && !Array.isArray(policy)) {
       throw new UsageError(`${String(file)} holds no JSON array: a policy is one, of statements`);
+    }
+    const checked = checkPolicy(policy);
+    if (!checked.ok) {
+      const [{ message, clause, path }] = checked.issues;
+      throw new UsageError(
+        `${String(file)} is no policy: ${message}, at ${path === "" ? "its top" : path} (${clause})`,
+      );
     }
     return withMind(context, async (opened) => {
       const { mind } = opened;

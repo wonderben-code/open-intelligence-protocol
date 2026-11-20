@@ -318,6 +318,70 @@ describe(`${clause("L1 12.1")} a packet that is sent`, () => {
   });
 });
 
+describe("a packet another mind signed", () => {
+  /** A packet of Ada's for Bob that reached nobody: Bob's home was away. */
+  async function undelivered() {
+    const ada = await at_(ONE);
+    const bob = await at_(TWO);
+    world.down(TWO);
+    const sent = await ada.mind.send(hello([bob.mind.address], { queue: false }));
+    expect(sent.deliveries).toMatchObject([{ stored: false }]);
+    world.up(TWO);
+    return { ada, bob, sent };
+  }
+
+  it(`${clause("L1 12.4", "L1 13.2")} is passed on by a courier, sealed to its recipient, and is its sender's packet where it arrives`, async () => {
+    const { ada, bob, sent } = await undelivered();
+    const courier = await at_(ONE);
+    const posted: string[] = [];
+    world.before = async (request) => {
+      if (request.method === "POST") posted.push(await request.clone().text());
+    };
+    const delivery = await courier.mind.pass(sent.packet, bob.mind.address);
+    expect(delivery).toMatchObject({ to: bob.mind.address, sealed: true, stored: true });
+    // What was posted is sealed: nobody on the way reads it.
+    expect(posted).toHaveLength(1);
+    expect(JSON.parse(posted[0] ?? "{}")).toMatchObject({ type: "Sealed" });
+    expect(posted[0]).not.toContain("Hello.");
+    // A packet is judged by its own proof, however it arrived.
+    const { received } = await bob.mind.receive();
+    expect(received).toMatchObject([{ id: sent.id, from: ada.mind.address, sealed: true }]);
+    expect(received[0]?.packet).toStrictEqual(sent.packet);
+    // The courier kept nothing of it, and has nothing to try again.
+    expect(await courier.mind.outbox()).toStrictEqual([]);
+  });
+
+  it("is passed on to a mind it lists, and to no other", async () => {
+    const { sent } = await undelivered();
+    const courier = await at_(ONE);
+    const other = await at_(TWO);
+    expect(await refusal(() => courier.mind.pass(sent.packet, other.mind.address))).toBe(
+      "oip: invalid-record",
+    );
+    expect(await refusal(() => courier.mind.pass({ type: "Packet" }, other.mind.address))).toBe(
+      "oip: invalid-record",
+    );
+    expect(await refusal(() => courier.mind.pass("a packet", other.mind.address))).toBe(
+      "oip: invalid-record",
+    );
+    // A packet for whoever a query finds lists nobody.
+    const asked = { ...sent.packet, to: { query: { want: "anyone" } } };
+    expect(await refusal(() => courier.mind.pass(asked, other.mind.address))).toBe(
+      "oip: invalid-record",
+    );
+  });
+
+  it("is said not to have arrived where its recipient cannot be reached, and is not kept to be tried again", async () => {
+    const { bob, sent } = await undelivered();
+    const courier = await at_(ONE);
+    world.down(TWO);
+    const delivery = await courier.mind.pass(sent.packet, bob.mind.address);
+    expect(delivery).toMatchObject({ to: bob.mind.address, stored: false, failure: "unreachable" });
+    expect(delivery).not.toHaveProperty("queued");
+    expect(await courier.mind.outbox()).toStrictEqual([]);
+  });
+});
+
 describe(`${clause("L1 13.2")} an acknowledgement`, () => {
   it("is the recipient's own for the packet, and evidence for the proofs it lists", async () => {
     const ada = await at_(ONE);

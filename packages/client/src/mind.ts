@@ -79,7 +79,14 @@ import type { Status } from "@oip/web";
 import { type Clock, Lookup, type LookupOptions, type Resolved, systemClock } from "./lookup.ts";
 import { Memory } from "./memory.ts";
 import { type Acting, Dealings, type Fields, type Grant, type Sightings } from "./dealings.ts";
-import { type Inbox, type Message, Messaging, type Retried, type Sent } from "./messages.ts";
+import {
+  type Delivery,
+  type Inbox,
+  type Message,
+  Messaging,
+  type Retried,
+  type Sent,
+} from "./messages.ts";
 import { Outbox, type Queued } from "./outbox.ts";
 import { checkInstance, SessionBook, type SessionView } from "./sessions.ts";
 import {
@@ -654,6 +661,27 @@ export class Mind {
    */
   send(message: Message): Promise<Sent> {
     return this.#messaging.send(message);
+  }
+
+  /**
+   * Brings a packet that another mind signed to one of the minds it is for,
+   * as a courier does: sealed to the recipient, and posted to the first of
+   * the recipient's endpoints that takes it (Layer 1, 13.2, 15.3). A gateway
+   * that was handed a packet over another protocol passes it on with this
+   * (Layer 0, 3.3).
+   *
+   * The packet is not judged here, and it is not this mind's: a packet is
+   * judged by its own proof however it arrived (12.4), and its recipient
+   * judges it. Nothing of it is kept, and it is not tried again if it does
+   * not arrive.
+   *
+   * @param packet - The packet, as its sender signed it.
+   * @param to - The recipient: one of the minds the packet lists.
+   * @returns What became of it.
+   * @throws OipError `invalid-record` if it is no packet, or is not for `to`.
+   */
+  pass(packet: unknown, to: string): Promise<Delivery> {
+    return this.#messaging.pass(packet, to);
   }
 
   /**

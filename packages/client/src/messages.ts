@@ -679,6 +679,19 @@ export class Messaging {
     }
   }
 
+  /** Brings a packet that is another mind's to one recipient, sealed: see `Mind.pass`. */
+  async pass(packet: unknown, to: string): Promise<Delivery> {
+    const read = accepted(
+      validateRecordOfType("Packet", packet),
+      "invalid-record",
+      "that is no packet",
+    );
+    if (!Array.isArray(read.to) || !read.to.includes(to)) {
+      throw new OipError("invalid-record", `the packet is not for ${to}`, { clause: "L1 12.4" });
+    }
+    return this.#deliver(read, to, true);
+  }
+
   /** Brings a packet to one recipient: to the first of its endpoints that takes it (15.3). */
   async #deliver(packet: Packet, to: string, seal: boolean): Promise<Delivery> {
     const own = this.#own;

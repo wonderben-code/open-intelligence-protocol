@@ -8,3 +8,4 @@ What a gateway needs, and what anyone needs to know of a mind a gateway made (La
 - `Lookup.assurance(mind)` says whether a mind is `native`, `bridged` by a gateway whose own feed attests it, or only `claimed` to be (1.3), with the gateway, protocol and endpoint the mind names.
 - A gateway attests a mind with `publishRecord` of the mind's `Genesis`: the entry of its feed is the attestation.
 - `publishRecord` of the record whose entry waited after a failed call returns that entry, and signs no second one for the record. A caller that asks again after a failure lists the record once.
+- `Mind.pass(packet, to)` brings a packet that another mind signed to one of the minds it is for, sealed, as a courier does. A gateway that was handed a packet over another protocol passes it on with this (Layer 0, 3.3).

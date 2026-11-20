@@ -9,6 +9,7 @@ import { repoRoot } from "@oip/testkit";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { example as chartering } from "../examples/charter.ts";
+import { example as carrying } from "../examples/courier.ts";
 import { example as founding } from "../examples/collective.ts";
 import { example as dealing } from "../examples/deal.ts";
 import { example as delegating } from "../examples/delegation.ts";
@@ -64,6 +65,7 @@ describe("the README", () => {
       "publish.ts",
       "find.ts",
       "messages.ts",
+      "courier.ts",
       "listen.ts",
       "outbox.ts",
       "session.ts",
@@ -265,6 +267,22 @@ describe("the README", () => {
       "received from Ada: Could you translate a lease by Friday?",
       "a request, sealed",
       "refused: 0; left in the mailbox: 0",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+  });
+
+  it("shows the output the example of a courier really gives", async () => {
+    world.resolver("https://resolver.example");
+    world.host("https://host.example");
+    const output = await carrying(
+      ["https://resolver.example"],
+      "https://host.example",
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock: world.clock },
+    );
+    expect(output).toStrictEqual([
+      "passed on sealed: it arrived",
+      "received from its sender: This came by another's hands.",
     ]);
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });

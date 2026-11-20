@@ -398,6 +398,7 @@ export class Mind {
         session: Session;
     }>;
     outbox(): Promise<Queued[]>;
+    pass(packet: unknown, to: string): Promise<Delivery>;
     get publications(): readonly Publication[];
     publishLocation(fields?: LocationFields): Promise<Location>;
     publishLog(events: readonly object[]): Promise<Resolved>;

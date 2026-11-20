@@ -48,7 +48,7 @@ export {
   type NotFound,
   type Ranking,
 } from "./find.ts";
-export { type Acting, carried, type Fields, type Grant } from "./dealings.ts";
+export { type Acting, carried, type Fields, type Grant, type Sightings } from "./dealings.ts";
 export {
   DEFAULT_EXPIRES_IN,
   type Delivery,

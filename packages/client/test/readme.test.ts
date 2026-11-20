@@ -94,6 +94,7 @@ describe("the README", () => {
       "it is the record the firm signed: true",
       "a later offer is the firm's: false",
       "the first still is: true",
+      "kept with the offer: when 3 proofs came",
     ]);
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });
@@ -467,6 +468,7 @@ describe("the README", () => {
         "Sent",
         "SessionEvent",
         "SessionView",
+        "Sightings",
         "SocketLike",
         "SocketState",
         "TransportFailure",

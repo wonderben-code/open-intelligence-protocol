@@ -33,7 +33,7 @@ import {
   sentFor,
   witnessProofs,
 } from "@oip/delegation";
-import { type JudgedRecord, judgeRecord } from "@oip/identity";
+import { FirstSeen, type JudgedRecord, judgeRecord } from "@oip/identity";
 import {
   type AuthorityItem,
   type Collective as Charter,
@@ -150,6 +150,32 @@ function authorityFor(acting: Acting | undefined): readonly AuthorityItem[] | un
   );
 }
 
+/**
+ * A client's own record of when it first obtained proofs: for each, by its
+ * digest (core 9.4), the time. It is evidence that the proof existed then
+ * (core 9.4, item 1), and it is the only evidence a verifier has for a proof
+ * that nobody else witnessed.
+ */
+export type Sightings = Readonly<Record<string, Instant>>;
+
+/**
+ * What `witnessProofs` is given to write to, in place of the client's own
+ * record, so that each proof it names is dealt with as one function says:
+ * the proofs of a record, and of the delegations its proofs carry whole.
+ */
+class EachProof extends FirstSeen {
+  readonly #each: (digest: string, at: Instant) => Instant;
+
+  constructor(each: (digest: string, at: Instant) => Instant) {
+    super();
+    this.#each = each;
+  }
+
+  override sawProof(digest: string, at: Instant): Instant {
+    return this.#each(digest, at);
+  }
+}
+
 /** What a mind makes of the records it deals by. */
 export class Dealings {
   readonly #own: Own;
@@ -162,15 +188,15 @@ export class Dealings {
   }
 
   /** Holds a record: see `Mind.hold`. */
-  hold(record: unknown): string {
-    return this.#take(record).id;
+  hold(record: unknown, seen?: Sightings): string {
+    return this.#take(record, seen).id;
   }
 
   /**
    * Takes a record in, and gives it back as the client holds it: judged,
    * with the proofs of every copy the client has seen (Layer 2, Section 2).
    */
-  #take(record: unknown): { id: string; judged: JudgedRecord } {
+  #take(record: unknown, kept?: Sightings): { id: string; judged: JudgedRecord } {
     const own = this.#own;
     const id = accepted(this.#records.add(record), "invalid-record", "that is no record");
     const judged = withHeld(
@@ -179,9 +205,36 @@ export class Dealings {
     );
     this.#held.set(id, judged.record as OipRecord);
     // Its proofs are first seen now, by this client (core 9.4, item 1): a delegation that a
-    // later proof names is judged by when it was first held.
-    witnessProofs(judged, own.clock.now(), own.lookup.seen);
+    // later proof names is judged by when it was first held. Or they were first seen when
+    // the client's own record, kept from before, says: never later than now, whatever it says.
+    const { seen } = own.lookup;
+    witnessProofs(
+      judged,
+      own.clock.now(),
+      kept === undefined
+        ? seen
+        : new EachProof((digest, now) => {
+            const before = Object.hasOwn(kept, digest) ? kept[digest] : undefined;
+            return seen.sawProof(digest, typeof before === "bigint" && before < now ? before : now);
+          }),
+    );
     return { id, judged };
+  }
+
+  /** When the client first obtained the proofs of a record it holds: see `Mind.sightings`. */
+  sightings(id: string): Sightings {
+    const record = this.#held.get(id);
+    const found: Record<string, Instant> = {};
+    if (record === undefined) return found;
+    const judged = accepted(judgeRecord(record), "invalid-record", "that is no record");
+    const { seen } = this.#own.lookup;
+    // Each was seen when the record was taken in: the earliest time held for it is the answer.
+    witnessProofs(
+      judged,
+      this.#own.clock.now(),
+      new EachProof((digest, now) => (found[digest] = seen.sawProof(digest, now))),
+    );
+    return found;
   }
 
   /** The records held: see `Mind.records`. */

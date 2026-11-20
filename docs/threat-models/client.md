@@ -116,4 +116,5 @@
 - **Who talks to whom is visible** to the resolvers and hosts involved.
 - **Sealing gives no forward secrecy.**
 - **Records are held in the process only.** An application that does not keep an acknowledgement or a delegation has no evidence of it after it stops.
+- **So is the client's record of when it first obtained each proof**, which is the only evidence most proofs have (core 9.4). An application that keeps a record between runs keeps `Mind.sightings` of it too, and gives both to `Mind.hold`. One that does not judges the record, after it starts again, as if it had only then arrived: a signature made under a delegation that has since expired or been revoked counts no longer. That errs towards counting less, never more. The times are the application's own: kept where someone else can write, they let that someone date a proof before a revocation.
 - **A home learns that its mind has retired only if the mind brings it the event.** If the home could not be reached then, it serves the log as it was until someone brings it more. A host that follows the resolvers for the minds it serves would close this, and none does yet.

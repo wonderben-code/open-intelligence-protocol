@@ -78,7 +78,7 @@ import type { Status } from "@oip/web";
 
 import { type Clock, Lookup, type LookupOptions, type Resolved, systemClock } from "./lookup.ts";
 import { Memory } from "./memory.ts";
-import { type Acting, Dealings, type Fields, type Grant } from "./dealings.ts";
+import { type Acting, Dealings, type Fields, type Grant, type Sightings } from "./dealings.ts";
 import { type Inbox, type Message, Messaging, type Retried, type Sent } from "./messages.ts";
 import { Outbox, type Queued } from "./outbox.ts";
 import { checkInstance, SessionBook, type SessionView } from "./sessions.ts";
@@ -808,13 +808,33 @@ export class Mind {
    *
    * What the mind signs is held, and so are the records carried by the
    * packets it accepts. They are kept while the mind is open: keep what
-   * matters yourself, and hold it again.
+   * matters yourself, with its `sightings`, and hold it again.
    *
+   * @param seen - When this client first obtained the record's proofs, by
+   *   its own record of an earlier run: what `sightings` returned then.
+   *   Without it, a proof is first seen now, and one that was signed under a
+   *   delegation which has since expired, or with a key since removed,
+   *   counts no longer (core 9.3). A time later than now is not believed.
    * @returns The record's content ID.
    * @throws OipError `invalid-record` for what is no record.
    */
-  hold(record: unknown): string {
-    return this.#dealings.hold(record);
+  hold(record: unknown, seen?: Sightings): string {
+    return this.#dealings.hold(record, seen);
+  }
+
+  /**
+   * When this client first obtained each proof of a record it holds, by
+   * the proof's digest: the client's own record, which is evidence that the
+   * proof existed then (core 9.4, item 1). A proof's `created` is none.
+   *
+   * The client keeps it while the mind is open. A program that keeps a
+   * record between runs keeps this with it, and gives both to `hold`.
+   *
+   * @param id - The record's content ID.
+   * @returns The times, in nanoseconds of the Unix epoch. Empty for a record the mind does not hold.
+   */
+  sightings(id: string): Sightings {
+    return this.#dealings.sightings(id);
   }
 
   /** The records the mind holds, each as the copy with every proof seen of it. */

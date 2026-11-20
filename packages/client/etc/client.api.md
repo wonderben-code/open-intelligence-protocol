@@ -373,7 +373,7 @@ export class Mind {
         readonly changes?: IdentityChanges;
     }): Promise<IdentityState>;
     foundCollective(fields: NewCollective, options: MemberOptions): Promise<IdentityEvent>;
-    hold(record: unknown): string;
+    hold(record: unknown, seen?: Sightings): string;
     intent(fields: Fields<Intent>, acting?: Acting): Promise<Intent>;
     leaveSession(session: string): Promise<boolean>;
     listen(options: ListenOptions): Listening;
@@ -410,6 +410,7 @@ export class Mind {
     }): Promise<IdentityState>;
     send(message: Message): Promise<Sent>;
     sessions(): Promise<SessionView[]>;
+    sightings(id: string): Sightings;
     sign<T extends object>(record: T, authority?: readonly AuthorityItem[]): Promise<T & {
         proof: Proof[];
     }>;
@@ -604,6 +605,9 @@ export interface SessionView {
     readonly sent: number;
     readonly session: Session;
 }
+
+// @public
+export type Sightings = Readonly<Record<string, Instant>>;
 
 // @public
 export interface SocketLike {

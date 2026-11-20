@@ -10,6 +10,7 @@
     "packages/web",
     "packages/net",
     "packages/keystore",
+    "packages/client",
     "packages/conformance"
   ],
   "packageOptions": {

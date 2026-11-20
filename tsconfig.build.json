@@ -23,6 +23,9 @@
       "path": "packages/keystore/tsconfig.build.json"
     },
     {
+      "path": "packages/client/tsconfig.build.json"
+    },
+    {
       "path": "packages/server/tsconfig.build.json"
     },
     {

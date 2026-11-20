@@ -4,7 +4,7 @@
 /**
  * The layering of BUILD.md, Section 3.1, as rules:
  *
- *   1. a package imports only packages below it;
+ *   1. a package imports only packages below it, except from its tests;
  *   2. pure packages use no Node.js built-in and only the dependencies an ADR allows;
  *   3. a package's source never imports test code or development dependencies.
  */
@@ -20,9 +20,9 @@ const layerRules = LAYERS.flatMap((layer, index) =>
       .filter((other) => other !== name);
     return {
       name: `layer-${name}`,
-      comment: `@oip/${name} may import only packages below it (BUILD.md, Section 3.1).`,
+      comment: `@oip/${name} may import only packages below it (BUILD.md, Section 3.1). Its tests may reach up, to run it against the real thing above it: the client against the services.`,
       severity: "error",
-      from: { path: `^packages/${name}/` },
+      from: { path: `^packages/${name}/`, pathNot: `^packages/${name}/test/` },
       to: { path: `^packages/${group(notBelow)}/` },
     };
   }),

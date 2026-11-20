@@ -104,6 +104,9 @@ export function errorFrom(rejection: {
 export { ExtensionRecord }
 
 // @public
+export function forgetVerifiedSignatures(): void;
+
+// @public
 export function formatControlKeyRef(key: string): string;
 
 // @public
@@ -444,6 +447,9 @@ export function sha256(bytes: Uint8Array): Uint8Array;
 
 // @public
 export function sha256Digest(bytes: Uint8Array): string;
+
+// @public
+export const SIGNATURE_CACHE_SIZE = 16384;
 
 // @public
 export const SIGNATURE_LENGTH = 64;

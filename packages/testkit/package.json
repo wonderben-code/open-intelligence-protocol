@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./minds": "./src/minds.ts",
-    "./http-fuzz": "./src/http-fuzz.ts"
+    "./http-fuzz": "./src/http-fuzz.ts",
+    "./load": "./src/load.ts"
   },
   "engines": {
     "node": ">=24"

@@ -619,6 +619,7 @@ export class WireClient {
 
 // @public
 export interface WireCommand {
+    readonly allowSkipped: boolean;
     readonly json: boolean;
     readonly options: WireOptions;
     readonly profile: WireProfile;

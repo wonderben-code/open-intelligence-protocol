@@ -19,6 +19,7 @@ import { Metrics } from '@oip/server';
 import { Migration } from '@oip/server';
 import { OipRecord } from '@oip/core';
 import { QueryResult } from '@oip/schema';
+import { Randomness } from '@oip/server';
 import { RateLimiter } from '@oip/server';
 import { Setting } from '@oip/server';
 import { Shutdown } from '@oip/server';
@@ -157,6 +158,43 @@ export class IndexStore {
     removeProfile(mind: string): number;
     removeRecord(record: string): number;
     search(search: Search): Found[];
+}
+
+// @public
+export function init(options: InitOptions): Initialised;
+
+// @public
+export const INIT_FILES: {
+    readonly bundle: "bundle.json";
+    readonly key: "operational.key";
+    readonly nextControlKey: "next-control.key";
+};
+
+// @public
+export const INIT_USAGE: string;
+
+// @public
+export function initCommand(args: readonly string[], edges: {
+    readonly created: string;
+    readonly randomness: Randomness;
+    readonly out: (text: string) => void;
+    readonly err: (text: string) => void;
+}): number;
+
+// @public
+export interface Initialised {
+    readonly address: string;
+    readonly bundleFile: string;
+    readonly keyFile: string;
+    readonly nextControlKeyFile: string;
+}
+
+// @public
+export interface InitOptions {
+    readonly created: string;
+    readonly directory: string;
+    readonly homes?: readonly string[];
+    readonly randomness: Randomness;
 }
 
 // @public

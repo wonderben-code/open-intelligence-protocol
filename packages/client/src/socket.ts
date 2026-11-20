@@ -16,7 +16,7 @@
  * A connection that ends is opened again, after a wait that grows.
  */
 
-import { type JsonValue, parseJsonBytes, utf8 } from "@oip/core";
+import { type JsonValue, OipError, parseJsonBytes, utf8 } from "@oip/core";
 import { KeystoreError } from "@oip/keystore";
 import { webSocketUrl } from "@oip/net";
 import type { Ack } from "@oip/schema";
@@ -370,7 +370,9 @@ export function listen(listener: Listener, options: ListenOptions): Listening {
       try {
         sockets = await urls();
       } catch (error) {
-        if (!(error instanceof TransportError)) throw error;
+        // The resolvers cannot be asked where the mind is, or what they say does not hold:
+        // that may pass, and is waited out.
+        if (!(error instanceof TransportError || error instanceof OipError)) throw error;
         sockets = [];
       }
       const url = sockets[turn++ % Math.max(sockets.length, 1)];

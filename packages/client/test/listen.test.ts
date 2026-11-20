@@ -244,6 +244,53 @@ describe(`${clause("L1 13.4")} a socket to the mind's own host`, () => {
     expect((await bob.mind.receive()).sources[0]?.items).toBe(0);
   });
 
+  it("removes what it refused by reading the mailbox, and opens again if that cannot be read", async () => {
+    const { ada, bob } = await pair();
+    const eve = new KeyMind("eve");
+    expect(await world.publish(A, eve)).toBe(202);
+    const junk = (nonce: string): Promise<Response> =>
+      world.direct(
+        new Request(mailboxOf(TWO, bob.mind), {
+          method: "POST",
+          headers: { "content-type": MEDIA_TYPE },
+          body: JSON.stringify(
+            eve.sign({
+              oip: "1",
+              type: "Packet",
+              from: ada.mind.address,
+              to: [bob.mind.address],
+              created: T(160),
+              expires: T(3000),
+              nonce,
+              purpose: { verb: "inform" },
+              content: { mediaType: "text/plain", body: "From Ada, honestly." },
+            }),
+          ),
+        }),
+      );
+    const heard = listening(bob.mind);
+    await until(heard.isOpen);
+    world.clock.at = at(170);
+    await junk("eve-nonce-1");
+    await until(() => world.asked.some((request) => request.startsWith("DELETE ")));
+    // Told once, and nothing else was there to tell.
+    expect(heard.inboxes).toMatchObject([{ received: [], refused: [{ clause: "L1 12.4" }] }]);
+    // The next time the mind's own log cannot be asked for when the mailbox is to be read.
+    world.before = (request) => {
+      const own = request.url.includes(mindId(bob.mind.address) ?? "");
+      if (own && request.url.startsWith(A)) throw new TypeError("fetch failed");
+    };
+    await junk("eve-nonce-2");
+    await until(() => bob.waits.length === 1);
+    world.before = undefined;
+    expect(heard.states.at(-1)).toMatchObject({ state: "closed", reason: "unreachable" });
+    // It is read when the connection is open again.
+    bob.waits[0]?.wake();
+    await until(() => heard.inboxes.length === 3);
+    await heard.handle.close();
+    expect((await bob.mind.receive()).sources[0]?.items).toBe(0);
+  });
+
   it(`${clause("L1 14.3", "L1 14.4")} keeps a session in order: a packet ahead of a gap stays with the host until the gap is filled`, async () => {
     const { ada, bob } = await pair();
     const { id } = await ada.mind.openSession([bob.mind.address]);
@@ -343,6 +390,93 @@ describe("a connection that ends", () => {
     await again.handle.close();
   });
 
+  it("waits by the platform's own timer where it is given none", async () => {
+    const made = await freshKeystore(world, [A], { webSocket: world.socket });
+    const mind = await Mind.create(made.options, { kind: "agent", homes: [TWO] });
+    await mind.publishLocation();
+    world.clock.at = at(160);
+    const heard = listening(mind, { retryMs: 2, maxRetryMs: 4 });
+    await until(heard.isOpen);
+    world.cut(TWO);
+    await until(() => world.sockets.length === 2 && heard.isOpen());
+    expect(heard.states.map(({ state }) => state)).toStrictEqual([
+      "connecting",
+      "open",
+      "closed",
+      "connecting",
+      "open",
+    ]);
+  });
+
+  it(`${clause("L1 15.1")} tries each socket the mind names, in the order of their priority, one after another`, async () => {
+    const { bob } = await pair();
+    const id = mindId(bob.mind.address) ?? "";
+    const elsewhere = `wss://host-three.example/oip/v1/minds/${id}/ws`;
+    await bob.mind.publishLocation({
+      endpoints: [
+        { binding: "https", url: `${TWO}/oip/v1/minds/${id}`, priority: 2 },
+        // Nothing answers at the one it prefers. One that states no priority has priority 0.
+        { binding: "wss", url: elsewhere },
+        { binding: "mailbox", url: mailboxOf(TWO, bob.mind), priority: 1 },
+      ],
+    });
+    world.clock.at = at(170);
+    const heard = listening(bob.mind);
+    await until(() => bob.waits.length === 1);
+    expect(heard.states).toMatchObject([
+      { state: "connecting", url: elsewhere },
+      { state: "closed", url: elsewhere, code: 1006 },
+    ]);
+    bob.waits[0]?.wake();
+    await until(heard.isOpen);
+    expect(heard.states.at(-1)).toStrictEqual({ state: "open", url: socketOf(TWO, bob.mind) });
+  });
+
+  it("is tried again where a socket could not even be made", async () => {
+    let failed = false;
+    const { bob } = await pair({
+      webSocket: (url, protocol) => {
+        if (!failed) {
+          failed = true;
+          throw new Error("no such scheme");
+        }
+        return world.socket(url, protocol);
+      },
+    });
+    const heard = listening(bob.mind);
+    await until(() => bob.waits.length === 1);
+    const closed = heard.states.at(-1);
+    expect(closed).toMatchObject({
+      state: "closed",
+      reason: "the connection could not be opened",
+    });
+    expect(closed).not.toHaveProperty("code");
+    bob.waits[0]?.wake();
+    await until(heard.isOpen);
+  });
+
+  it("is not opened again by a mind that stops listening when it is told the connection ended", async () => {
+    const { bob } = await pair();
+    const states: SocketState[] = [];
+    const handle = bob.mind.listen({
+      received: () => undefined,
+      changed: (state) => {
+        states.push(state);
+        if (state.state === "closed") void handle.close();
+      },
+    });
+    open.push(handle);
+    await until(() => states.at(-1)?.state === "open");
+    world.cut(TWO);
+    await handle.closed;
+    expect(states.map(({ state }) => state)).toStrictEqual(["connecting", "open", "closed"]);
+    // And one that stops before it has even found where to connect opens nothing.
+    const sockets = world.sockets.length;
+    const brief = bob.mind.listen({ received: () => undefined });
+    await brief.close();
+    expect(world.sockets).toHaveLength(sockets);
+  });
+
   it("takes a wait for a whole number of milliseconds", async () => {
     const { bob } = await pair();
     const received = (): void => undefined;
@@ -369,6 +503,47 @@ describe("a mind with nowhere to listen", () => {
     expect(heard.states.at(-1)).toMatchObject({ state: "nowhere" });
     expect(cyd.waits[1]?.ms).toBeGreaterThanOrEqual(100);
     world.up(A);
+    // And so is a resolver that serves what is no log of the mind.
+    const real = world.at(A);
+    world.put(
+      A,
+      () =>
+        new Response(
+          JSON.stringify({ oip: "1", type: "Bundle", mind: cyd.mind.address, log: [] }),
+          {
+            headers: { "content-type": MEDIA_TYPE },
+          },
+        ),
+    );
+    cyd.waits[1]?.wake();
+    await until(() => cyd.waits.length === 3);
+    expect(heard.states.at(-1)).toMatchObject({ state: "nowhere" });
+    world.put(A, real);
+  });
+
+  it("ends the listening where what fails is nobody's answer", async () => {
+    const made = await freshKeystore(world, [A], { webSocket: world.socket });
+    const mind = await Mind.create(made.options, { kind: "agent", homes: [TWO] });
+    mind.close();
+    let opened = false;
+    const again = await Mind.open({
+      ...made.options,
+      fetch: (request) =>
+        opened
+          ? Promise.resolve({
+              status: 200,
+              body: null,
+              headers: {
+                get: () => {
+                  throw new RangeError("not a response");
+                },
+              },
+            } as unknown as Response)
+          : world.fetch(request),
+    });
+    opened = true;
+    const handle = again.listen({ received: () => undefined });
+    await expect(handle.closed).rejects.toThrow(RangeError);
   });
 
   it("listens while it is paused: its status is for those who send to it", async () => {
@@ -468,6 +643,70 @@ describe(`${clause("L1 13.4")} a host that does not keep to the binding`, () => 
     }
   }, 30_000);
 
+  it("may end the connection without a word, or with an empty one", async () => {
+    for (const [event, told] of [
+      [{}, {}],
+      [{ code: 1000, reason: "" }, { code: 1000 }],
+      [{ code: 4401, reason: "the Hello does not authenticate a mind" }, { code: 4401 }],
+    ] as const) {
+      let socket: SocketLike | undefined;
+      const bob = await at_(TWO, {
+        webSocket: () => {
+          socket = {
+            onopen: null,
+            onmessage: null,
+            onclose: null,
+            onerror: null,
+            send: () => undefined,
+            close: () => undefined,
+          };
+          return socket;
+        },
+      });
+      const heard = listening(bob.mind);
+      await until(() => socket !== undefined);
+      socket?.onerror?.({});
+      socket?.onclose?.(event);
+      await until(() => bob.waits.length === 1);
+      const closed = heard.states.at(-1);
+      expect(closed).toMatchObject({ state: "closed", ...told });
+      expect(closed !== undefined && "code" in closed).toBe("code" in told);
+      expect(closed !== undefined && "reason" in closed).toBe(event.code === 4401);
+      // A second close of the same connection is one too many, and changes nothing.
+      socket?.onclose?.(event);
+      expect(bob.waits).toHaveLength(1);
+      await heard.handle.close();
+    }
+  }, 30_000);
+
+  it("is left where the mind has no key to answer its challenge with", async () => {
+    const stage = staged();
+    const bob = await at_(TWO, { webSocket: stage.webSocket });
+    const heard = listening(bob.mind);
+    await until(stage.connected);
+    // The mind's keys are locked while the socket is open.
+    bob.mind.close();
+    stage.say(challenge);
+    await until(() => bob.waits.length === 1);
+    expect(stage.closed).toMatchObject([
+      { code: 1011, reason: "the mind has no key to answer with" },
+    ]);
+    expect(stage.sent).toStrictEqual([]);
+    await heard.handle.close();
+    // The same, where the connection has ended by the time that is known.
+    const again = staged();
+    const cyd = await at_(TWO, { webSocket: again.webSocket });
+    const second = listening(cyd.mind);
+    await until(again.connected);
+    cyd.mind.close();
+    again.say(challenge);
+    again.say("not JSON");
+    await until(() => cyd.waits.length === 1);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(again.closed).toMatchObject([{ reason: "the message is no JSON object" }]);
+    await second.handle.close();
+  });
+
   it("is told nothing after the connection has ended: an answer that comes late is not sent", async () => {
     const stage = staged();
     const bob = await at_(TWO, { webSocket: stage.webSocket });
@@ -497,6 +736,19 @@ describe("what goes wrong on the mind's own side", () => {
     // Nothing is opened again.
     expect(world.sockets).toHaveLength(1);
     await handle.close();
+  });
+
+  it("ends the listening with an error, whatever the application threw", async () => {
+    const { ada, bob } = await pair();
+    await ada.mind.send(hello(bob.mind.address));
+    world.clock.at = at(170);
+    const handle = bob.mind.listen({
+      received: () => {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- An application may.
+        throw "a word, and no error";
+      },
+    });
+    await expect(handle.closed).rejects.toThrow("a word, and no error");
   });
 
   it("ends the listening where the client fails in a way it does not know", async () => {

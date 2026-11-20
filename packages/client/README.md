@@ -480,6 +480,61 @@ the firm says it delivered: claimed-fulfilled
 Amina confirms: fulfilled
 ```
 
+## A collective
+
+[`examples/collective.ts`](examples/collective.ts) founds a collective of three, and signs for it:
+
+```ts
+import { type Clock, type Fetch, Lookup, Mind } from "@oip/client";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * Three people found a collective that acts when two of them agree.
+ *
+ * @param resolvers - The HTTPS origins of the resolvers they trust.
+ * @param lock - What their keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const person = async (): Promise<Mind> => {
+    const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+    return Mind.create({ keystore, lock, resolvers, ...edges }, { kind: "human" });
+  };
+  const [ada, bo, cy] = [await person(), await person(), await person()];
+  const members = [ada.address, bo.address, cy.address];
+
+  // Each founder signs the genesis, with an invocation key of its own. Then anyone publishes it.
+  let genesis = await ada.foundCollective({ members, threshold: 2 }, { invocation: lock });
+  genesis = await bo.signEvent(genesis, { invocation: lock });
+  genesis = await cy.signEvent(genesis, { invocation: lock });
+  const club = await ada.publishLog([genesis]);
+  const other = await new Lookup({ resolvers, ...edges }).resolve(club.mind);
+  const signers = other.state.controller.kind === "member" ? other.state.controller.threshold : 0;
+  output.push(`a ${other.state.kind} of ${String(members.length)}, of whom ${String(signers)} act`);
+
+  // What one member signs in its name is one member's. With a second, it is the collective's.
+  const intent = await ada.intent({ author: club.mind, want: "A hall for the spring meeting." });
+  output.push(`signed by one: the collective's? ${String(await ada.countsFor(intent, club.mind))}`);
+  const both = await bo.cosign(intent);
+  output.push(`signed by two: the collective's? ${String(await bo.countsFor(both, club.mind))}`);
+  for (const mind of [ada, bo, cy]) mind.close();
+  return output;
+}
+```
+
+It gives:
+
+```
+a collective of 3, of whom 2 act
+signed by one: the collective's? false
+signed by two: the collective's? true
+```
+
 ## What it exports
 
 | Export                                                                                                                                                   | What it does                                                                                                                                                                                                                                                                                   |
@@ -493,6 +548,7 @@ Amina confirms: fulfilled
 | `AliasCheck`, `AliasOptions`, `DidLike`                                                                                                                  | `Lookup.aliases` checks the other names a mind gives itself: each is the mind's only if it points back (Layer 1, 5.3; Layer 0, Section 4)                                                                                                                                                      |
 | `Message`, `Sent`, `Delivery`, `Inbox`, `Received`, `MailboxAnswer`, `DEFAULT_EXPIRES_IN`, `MAX_EXPIRES_IN`, `MAX_QUERY_EXPIRES_IN`, `MAX_MAILBOX_ITEMS` | `Mind.send` signs a packet, seals it to each recipient and posts it where the recipient takes packets (Layer 1, Section 12; 15.3). `Mind.receive` reads the mind's mailboxes and returns what was judged to be a packet for it (12.4, 13.5)                                                    |
 | `Grant`, `Acting`, `Fields`, `carried`                                                                                                                   | Delegation and the records of the Mind Web: `Mind.delegate`, `subDelegate` and `revoke` (Layer 1, Section 11); `intent`, `offer`, `commitment`, `receipt` and `cosign` (Layer 2, Sections 4 to 6); `countsFor` and `statusOf` (7 and 8); `hold` and `records`                                  |
+| `NewCollective`, `CollectiveChanges`, `MemberOptions`                                                                                                    | Collectives (Layer 1, Section 9): `Mind.foundCollective`, `changeCollective` and `signEvent` for a collective's identity events, which its members sign; `publishLog`; and `charter` for the roles its members may act in (Layer 2, 6.2)                                                       |
 | `Clock`, `systemClock`                                                                                                                                   | The present, behind an interface: a test gives its own                                                                                                                                                                                                                                         |
 | `exchange`, `askRecord`, `askJson`, `Asking`, `Answer`, `Fetch`, `TransportOptions`, `recordBody`, `refusalOf`, `httpsOrigin`                            | One request to a service over HTTPS, bounded in size and in time, and its answer read as a record or as JSON                                                                                                                                                                                   |
 | `TransportError`, `TransportFailure`                                                                                                                     | Thrown when a service cannot be reached or does not speak the protocol                                                                                                                                                                                                                         |
@@ -544,6 +600,16 @@ Amina confirms: fulfilled
 - **`revoke` takes a delegation back** from when a verifier first sees the revocation, and puts it on the mind's feed. What the delegate signed before stands. A verifier that relies on a delegate checks the principal's feed when the value warrants it (11.5).
 - **`carried(record)`** is a record as the content of a packet. `send` it, and the recipient's `receive` holds it.
 - **A packet sent for another mind** says so in `onBehalfOf`, with a chain that covers `/oip/send`. `receive` marks it `sentFor` only if that chain holds: a packet that merely says it is sent for someone is its sender's alone.
+
+### Collectives
+
+- **A collective is a mind its members control** (Layer 1, Section 9). It has no keystore of its own. Its identity events are signed by its members, each with an invocation key of its own mind, and its other records by the threshold of them, each with its own operational key.
+- **Every founder signs the genesis** (9.2). `foundCollective` drafts it and signs as one of them. Give the event to each of the others for `signEvent`, in turn, and then `publishLog`. A later event needs the threshold of the members, and every member that is new (9.3): `changeCollective` drafts it.
+- **`signEvent` adds this mind's proof, and unlocks its invocation keys for that alone.** The keystore remembers which event a key signed for each position of each collective's log, and signs no other: two would be duplicity, and would name the member.
+- **`publishLog` verifies the log first**, as any verifier would, with the members' logs fetched afresh. A genesis a founder has not signed, or an event below the threshold, is refused before anything is published.
+- **A record is the collective's once the threshold of its members has signed it** (9.5): write it with the collective as its `author`, and have the others `cosign`. `countsFor(record, collective)` says when.
+- **A charter gives roles** (Layer 2, 6.2). `charter` writes one, and it is in force once the threshold has signed it. A member assigned to a role signs for the collective alone, within the role's powers, by passing `{ charter }` where a delegate passes a chain. Give a charter an `expires`.
+- **Membership is what the identity log says**, and never what a charter says.
 
 ### Changing hosts
 

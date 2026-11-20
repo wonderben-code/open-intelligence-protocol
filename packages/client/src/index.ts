@@ -62,11 +62,14 @@ export {
   type Sent,
 } from "./messages.ts";
 export {
+  type CollectiveChanges,
   type ControlOptions,
   type IdentityChanges,
   type KeyEntry,
+  type MemberOptions,
   Mind,
   type MindOptions,
+  type NewCollective,
   type NewMind,
 } from "./mind.ts";
 export {

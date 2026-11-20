@@ -44,9 +44,10 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
   - resolve any mind with the witness rule of core 9.4 applied, read a feed, check aliases (5.3), and find minds through indexers with every record they name verified (18.4);
   - send packets, sealed unless told otherwise, and read its mailbox; send to whoever a query finds, through a broker; send for another mind under a delegation;
   - delegate, pass a delegation on and revoke one; make Intents, Offers, Commitments and Receipts, for itself or for the mind it acts for; co-sign; and say whether a record counts for a mind and what its status is.
+  - found a collective with other minds, change it, and sign for it: by the threshold of its members, or alone by a role of its charter.
 - **The scenario of the papers runs through the client** against the real resolver, host and indexer in one process (`packages/client/test/dealings.test.ts`, `examples/deal.ts`).
 
-**Not built yet in M6:** sessions with resume, the WebSocket binding with a client that reconnects, an outbox for when nobody answers, collectives, and the scenario in a browser.
+**Not built yet in M6:** sessions with resume, the WebSocket binding with a client that reconnects, an outbox for when nobody answers, and the scenario in a browser.
 
 **What M6 found:**
 

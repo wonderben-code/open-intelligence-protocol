@@ -17,6 +17,8 @@
 
 import {
   bytesToBase64url,
+  contentId,
+  formatRecordRef,
   formatTimestamp,
   type Instant,
   type JsonObject,
@@ -33,6 +35,8 @@ import {
 } from "@oip/delegation";
 import { type JudgedRecord, judgeRecord } from "@oip/identity";
 import {
+  type AuthorityItem,
+  type Collective as Charter,
   type Commitment,
   type Delegation,
   type Intent,
@@ -71,17 +75,26 @@ export interface Grant {
   readonly notBefore?: string;
 }
 
-/** How a mind signs for another: the chain of delegations that lets it (Layer 1, 11.6). */
+/**
+ * How a mind signs for another: by the chain of delegations that lets it
+ * (Layer 1, 11.6), or, for a collective it is a member of, by the charter
+ * that gives it a role (Layer 2, 7.1, item 4). One of the two.
+ */
 export interface Acting {
   /**
    * One chain, root first: the first is by the mind acted for, and the last
    * names this mind as its delegate.
    */
-  readonly chain: readonly Delegation[];
+  readonly chain?: readonly Delegation[];
   /**
-   * Whether the proof carries the delegations whole, or names them. A proof
-   * that names them counts only for a verifier that holds them. Default:
-   * `records`.
+   * The collective's charter in force, in which this mind is assigned to a
+   * role with a power that covers the record.
+   */
+  readonly charter?: Charter;
+  /**
+   * Whether the proof carries the delegations, or the charter, whole, or
+   * names them. A proof that names them counts only for a verifier that
+   * holds them. Default: `records`.
    */
   readonly as?: "records" | "references";
 }
@@ -92,7 +105,7 @@ export type Fields<T extends { author: string }> = Omit<
   "oip" | "type" | "created" | "proof" | "author"
 > & { readonly author?: string };
 
-type Made = Intent | Offer | Commitment | Receipt;
+type Made = Intent | Offer | Commitment | Receipt | Charter;
 type Failure = OipError | TransportError;
 const isFailure = (error: unknown): error is Failure =>
   error instanceof OipError || error instanceof TransportError;
@@ -120,6 +133,21 @@ function mindsIn(value: unknown, into: Set<string>): void {
 function named(judged: JudgedRecord, into: Set<string>): void {
   mindsIn(judged.record, into);
   for (const { proof } of judged.proofs) mindsIn(proof, into);
+}
+
+/** What a proof names to count for another mind (core 5.2): one chain, or one charter. */
+function authorityFor(acting: Acting | undefined): readonly AuthorityItem[] | undefined {
+  if (acting === undefined) return undefined;
+  const { chain, charter, as = "records" } = acting;
+  if (chain !== undefined && charter === undefined) return authorityOf(chain, as);
+  if (charter !== undefined && chain === undefined) {
+    return [as === "records" ? charter : formatRecordRef(charter.author, contentId(charter))];
+  }
+  throw new OipError(
+    "invalid-record",
+    "a proof acts for another mind by one chain of delegations, or by one charter",
+    { clause: "core 5.2" },
+  );
 }
 
 /** What a mind makes of the records it deals by. */
@@ -242,9 +270,7 @@ export class Dealings {
 
   /** Signs a record, checks that it is one, and holds it. */
   async #signed<T extends object>(record: object, acting: Acting | undefined): Promise<T> {
-    const authority =
-      acting === undefined ? undefined : authorityOf(acting.chain, acting.as ?? "records");
-    const signed = await this.#own.sign(record, authority);
+    const signed = await this.#own.sign(record, authorityFor(acting));
     accepted(validateRecord(signed), "invalid-record", "that is no record of its type");
     this.hold(signed);
     return signed as unknown as T;

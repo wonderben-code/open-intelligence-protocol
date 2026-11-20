@@ -9,6 +9,7 @@ import { AgreementKeys } from '@oip/keystore';
 import type { AuthorityItem } from '@oip/schema';
 import { Capability } from '@oip/schema';
 import { CapabilityQuery } from '@oip/schema';
+import { Collective } from '@oip/schema';
 import type { Commitment } from '@oip/schema';
 import { Delegation } from '@oip/schema';
 import { DidResolution } from '@oip/identity';
@@ -16,6 +17,7 @@ import type { Entry } from '@oip/schema';
 import { FirstSeen } from '@oip/identity';
 import { HeldLocation } from '@oip/net';
 import { HeldParticipant } from '@oip/net';
+import type { IdentityEvent } from '@oip/schema';
 import { IdentityState } from '@oip/identity';
 import { IdentityView } from '@oip/identity';
 import { Instant } from '@oip/core';
@@ -36,13 +38,15 @@ import { Randomness } from '@oip/keystore';
 import type { Receipt } from '@oip/schema';
 import type { Revocation } from '@oip/schema';
 import type { Status } from '@oip/web';
+import { Unsigned } from '@oip/identity';
 import { VerifiedFeed } from '@oip/net';
 import { VerifiedLog } from '@oip/identity';
 
 // @public
 export interface Acting {
     readonly as?: "records" | "references";
-    readonly chain: readonly Delegation[];
+    readonly chain?: readonly Delegation[];
+    readonly charter?: Collective;
 }
 
 // @public
@@ -93,6 +97,14 @@ export function carried(record: object): {
 // @public
 export interface Clock {
     now(): Instant;
+}
+
+// @public
+export interface CollectiveChanges {
+    readonly alsoKnownAs?: readonly string[];
+    readonly homes?: readonly string[];
+    readonly members?: readonly string[];
+    readonly threshold?: number;
 }
 
 // @public
@@ -285,6 +297,11 @@ export const MAX_QUERY_EXPIRES_IN = 3600;
 export const MAX_RESULTS = 100;
 
 // @public
+export interface MemberOptions {
+    readonly invocation: Lock;
+}
+
+// @public
 export interface Message {
     readonly constraints?: Packet["constraints"];
     readonly content: Packet["content"];
@@ -310,6 +327,8 @@ export class Mind {
     get address(): string;
     get agreement(): AgreementKeys;
     bringHomes(): Promise<readonly Publication[]>;
+    changeCollective(collective: string, changes: CollectiveChanges, options: MemberOptions): Promise<IdentityEvent>;
+    charter(collective: string, fields: Omit<Fields<Collective>, "author">): Promise<Collective>;
     close(): void;
     commitment(fields: Fields<Commitment>, acting?: Acting): Promise<Commitment>;
     cosign<T extends object>(record: T, acting?: Acting): Promise<T>;
@@ -320,6 +339,7 @@ export class Mind {
         readonly terms?: JsonObject;
         readonly changes?: IdentityChanges;
     }): Promise<IdentityState>;
+    foundCollective(fields: NewCollective, options: MemberOptions): Promise<IdentityEvent>;
     hold(record: unknown): string;
     intent(fields: Fields<Intent>, acting?: Acting): Promise<Intent>;
     get lookup(): Lookup;
@@ -330,6 +350,7 @@ export class Mind {
     static open(options: MindOptions): Promise<Mind>;
     get publications(): readonly Publication[];
     publishLocation(fields?: LocationFields): Promise<Location>;
+    publishLog(events: readonly object[]): Promise<Resolved>;
     publishProfile(fields: ProfileFields): Promise<Participant>;
     publishRecord(record: object): Promise<Entry>;
     receipt(fields: Fields<Receipt>, acting?: Acting): Promise<Receipt>;
@@ -349,6 +370,7 @@ export class Mind {
     sign<T extends object>(record: T, authority?: readonly AuthorityItem[]): Promise<T & {
         proof: Proof[];
     }>;
+    signEvent(event: IdentityEvent | Unsigned<IdentityEvent>, options: MemberOptions): Promise<IdentityEvent>;
     signingKey(): string;
     get state(): IdentityState;
     statusOf(record: unknown): Promise<Status>;
@@ -362,6 +384,14 @@ export interface MindOptions extends LookupOptions {
     readonly lock: Lock;
     readonly memory?: KeyStorage;
     readonly randomness?: Randomness;
+}
+
+// @public
+export interface NewCollective {
+    readonly alsoKnownAs?: readonly string[];
+    readonly homes?: readonly string[];
+    readonly members: readonly string[];
+    readonly threshold: number;
 }
 
 // @public

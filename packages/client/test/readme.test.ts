@@ -8,6 +8,7 @@ import { type Keychain, keychainLock } from "@oip/keystore";
 import { repoRoot } from "@oip/testkit";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { example as founding } from "../examples/collective.ts";
 import { example as dealing } from "../examples/deal.ts";
 import { example as finding } from "../examples/find.ts";
 import { example } from "../examples/first-mind.ts";
@@ -52,6 +53,7 @@ describe("the README", () => {
       "messages.ts",
       "move.ts",
       "deal.ts",
+      "collective.ts",
     ]) {
       const source = readFileSync(join(packageRoot, "examples", name), "utf8");
       // The file's licence header is not part of what the README shows.
@@ -185,6 +187,23 @@ describe("the README", () => {
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });
 
+  it("shows the output the example of a collective really gives, against a resolver", async () => {
+    world.resolver("https://resolver.example");
+    // A clock that moves, as clocks do: a millisecond each time the client reads it.
+    const clock = { now: () => (world.clock.at += 1_000_000n) };
+    const output = await founding(
+      ["https://resolver.example"],
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock },
+    );
+    expect(output).toStrictEqual([
+      "a collective of 3, of whom 2 act",
+      "signed by one: the collective's? false",
+      "signed by two: the collective's? true",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+  });
+
   it("names only things the package exports, and every value it exports", () => {
     const table = readme.slice(
       readme.indexOf("## What it exports"),
@@ -208,6 +227,7 @@ describe("the README", () => {
         "Answer",
         "Asking",
         "Clock",
+        "CollectiveChanges",
         "ControlOptions",
         "Delivery",
         "DidLike",
@@ -226,8 +246,10 @@ describe("the README", () => {
         "LocationFields",
         "LookupOptions",
         "MailboxAnswer",
+        "MemberOptions",
         "Message",
         "MindOptions",
+        "NewCollective",
         "NewMind",
         "NotFound",
         "ProfileFields",

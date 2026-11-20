@@ -54,7 +54,7 @@ The packages below it judge and do no I/O. `@oip/identity` verifies a log, `@oip
 - **Records are held while the mind is open.** What the mind signs and what its packets carry is held in memory, to judge by. It is not written anywhere: an application keeps what matters and holds it again. Storing records is a decision about retention that is the application's.
 - **The owner's interface of a host is not in the specification.** Another host has to offer the same interface for a mind to keep its records there with this client. That is a candidate for an OEP once a second host exists.
 - **A client fetches where strangers say.** In a browser that is what a link does. On a server inside a private network, the application gives the client a `fetch` that reaches only public addresses, as the services of M5 have.
-- **Not here yet, and coming in M6:** sessions with resume (Layer 1, Section 14), the WebSocket binding with a client that reconnects (13.4), an outbox for when no endpoint answers, and collectives.
+- **Not here yet, and coming in M6:** sessions with resume (Layer 1, Section 14), the WebSocket binding with a client that reconnects (13.4), and an outbox for when no endpoint answers.
 
 ## Alternatives
 

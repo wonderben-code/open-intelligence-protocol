@@ -29,6 +29,7 @@ import {
   type JsonObject,
   keyHash,
   mindAddress,
+  mindId,
   OipError,
   type OipRecord,
   parseTimestamp,
@@ -59,6 +60,7 @@ import {
 } from "@oip/keystore";
 import type {
   AuthorityItem,
+  Collective as Charter,
   Commitment,
   Delegation,
   Entry,
@@ -156,6 +158,36 @@ export interface KeyEntry {
 export interface ControlOptions {
   /** What opens the control keys. They are unlocked for this change and locked again. */
   readonly control: Lock;
+}
+
+/** What a collective is founded with (Layer 1, Section 9). */
+export interface NewCollective {
+  /** Its founding members, this mind among them: distinct addresses. Each of them signs the genesis. */
+  readonly members: readonly string[];
+  /** How many members act for it: a majority of them (Layer 1, 3.4). */
+  readonly threshold: number;
+  /** The HTTPS origins that will serve its records. */
+  readonly homes?: readonly string[];
+  /** Other names of the collective. */
+  readonly alsoKnownAs?: readonly string[];
+}
+
+/** What changes with an identity event of a collective. What is left out stays as it is. */
+export interface CollectiveChanges {
+  /** Its members from now on. Every member that is new signs the event too (Layer 1, 9.3). */
+  readonly members?: readonly string[];
+  /** Its threshold from now on. */
+  readonly threshold?: number;
+  /** Its homes from now on. */
+  readonly homes?: readonly string[];
+  /** Its other names from now on. */
+  readonly alsoKnownAs?: readonly string[];
+}
+
+/** What signing an identity event of a collective needs. */
+export interface MemberOptions {
+  /** What opens this mind's invocation keys. They are unlocked for the one signature and locked again. */
+  readonly invocation: Lock;
 }
 
 /** The keys of everyday work, unlocked. */
@@ -677,6 +709,204 @@ export class Mind {
   }
 
   /**
+   * Founds a collective (Layer 1, Section 9): drafts its genesis, and signs
+   * it as one of its founding members. The collective exists once every
+   * founder has signed (9.2) and the genesis is published: give the event
+   * to each of the others for `signEvent`, and then `publishLog`.
+   *
+   * @returns The genesis, with this mind's proof.
+   * @throws OipError `invalid-record` if the fields make no genesis, such
+   *   as a threshold that is no majority; `forbidden` if this mind is not
+   *   among the members, or the keystore holds none of its invocation keys.
+   */
+  foundCollective(fields: NewCollective, options: MemberOptions): Promise<IdentityEvent> {
+    if (!fields.members.includes(this.address)) {
+      return Promise.reject(
+        new OipError("forbidden", "a collective is founded by its members: name this mind", {
+          clause: "L1 9.2",
+        }),
+      );
+    }
+    // What makes no genesis is found out when it is signed: a draft is checked by nothing.
+    const genesis = draftGenesis(formatTimestamp(this.#clock.now()), {
+      kind: "collective",
+      controller: { members: [...fields.members], threshold: fields.threshold },
+      ...(fields.homes === undefined ? {} : { homes: [...fields.homes] }),
+      ...(fields.alsoKnownAs === undefined ? {} : { alsoKnownAs: [...fields.alsoKnownAs] }),
+    });
+    return this.signEvent(genesis, options);
+  }
+
+  /**
+   * Drafts the next identity event of a collective this mind is a member
+   * of, an `Update`, and signs it as a member (Layer 1, 9.3). It takes
+   * effect once the threshold of the members has signed, and every member
+   * that is new, and the log is published.
+   *
+   * @returns The event, with this mind's proof.
+   * @throws OipError `forbidden` if the collective is retired, shows
+   *   duplicity, or is no collective. What `resolve` throws.
+   */
+  async changeCollective(
+    collective: string,
+    changes: CollectiveChanges,
+    options: MemberOptions,
+  ): Promise<IdentityEvent> {
+    const { state, duplicitous } = await this.#lookup.resolve(collective);
+    const { controller } = state;
+    if (state.retired || duplicitous || controller.kind !== "member") {
+      throw new OipError("forbidden", "that mind's log is not a collective's to extend", {
+        clause: "L1 9.3",
+      });
+    }
+    const now = this.#clock.now();
+    const membership = changes.members !== undefined || changes.threshold !== undefined;
+    // Not earlier than the event before it (Layer 1, 3.2), whatever this clock says.
+    const created = formatTimestamp(now > state.created ? now : state.created);
+    const event = draftUpdate(state, created, {
+      ...(membership
+        ? {
+            controller: {
+              members: [...(changes.members ?? controller.members)],
+              threshold: changes.threshold ?? controller.threshold,
+            },
+          }
+        : {}),
+      ...(changes.homes === undefined ? {} : { homes: [...changes.homes] }),
+      ...(changes.alsoKnownAs === undefined ? {} : { alsoKnownAs: [...changes.alsoKnownAs] }),
+    });
+    return this.signEvent(event, options);
+  }
+
+  /**
+   * Signs an identity event of a collective as one of its members, with
+   * one of this mind's invocation keys (Layer 1, 9.4). The proofs the
+   * event has stay.
+   *
+   * The keystore remembers which event the key signed for each position of
+   * each collective's log, and signs no other for that position: two would
+   * be duplicity, and would name this mind.
+   *
+   * Read what you sign: an event changes who the collective is.
+   *
+   * @returns The event with the proofs it had and this mind's.
+   * @throws OipError `invalid-record` if it is no identity event that can
+   *   be signed so; `forbidden` if the keystore holds none of the mind's
+   *   invocation keys. KeystoreError `already-signed` if the key signed
+   *   another event for the position.
+   */
+  async signEvent(
+    event: IdentityEvent | Unsigned<IdentityEvent>,
+    options: MemberOptions,
+  ): Promise<IdentityEvent> {
+    await this.refresh();
+    const { proof: before = [], ...unsigned } = event as Unsigned<IdentityEvent> & {
+      proof?: Proof[];
+    };
+    // One proof of a member is enough, and a second by the same key says nothing more.
+    const mine = before.some((proof) => proof.verificationMethod.startsWith(`${this.address}?`));
+    if (mine) return event as IdentityEvent;
+    const invocation = await this.#options.keystore.unlock("invocation", options.invocation);
+    try {
+      const key = this.state.invocation.find((candidate) => invocation.has(candidate));
+      if (key === undefined) {
+        throw new OipError(
+          "forbidden",
+          "the keystore holds none of the mind's current invocation keys",
+          { clause: "L1 6.4" },
+        );
+      }
+      const now = this.#clock.now();
+      const said = parseTimestamp((unsigned as { created?: unknown }).created);
+      const signed = await invocation.sign(
+        unsigned,
+        { member: this.address, publicKey: key, versionId: this.state.versionId },
+        // A proof is not dated before its event (core 5.7), whatever this clock says.
+        formatTimestamp(said !== undefined && said > now ? said : now),
+      );
+      return { ...unsigned, proof: [...before, ...signed.proof] } as unknown as IdentityEvent;
+    } catch (error) {
+      if (error instanceof KeystoreError && error.code === "argument") throw asInvalid(error);
+      throw error;
+    } finally {
+      invocation.lock();
+    }
+  }
+
+  /**
+   * Publishes an identity log this mind has a copy of, such as that of a
+   * collective it is a member of, to every resolver the client trusts, and
+   * resolves it. Anyone may publish a log: it is evidence, and stands by
+   * its own signatures.
+   *
+   * The log is verified here first, as any verifier would, with the logs
+   * of the members it names fetched afresh.
+   *
+   * @param events - The log, from its genesis.
+   * @returns The mind the log is of, as the resolvers now serve it.
+   * @throws OipError `invalid-record` if it is no log, or does not verify:
+   *   a founder has not signed, or the threshold is not met. What
+   *   publishing an identity event of one's own throws.
+   */
+  async publishLog(events: readonly object[]): Promise<Resolved> {
+    // The logs of the members it names, afresh: its events are judged by them. A member is
+    // named by an address, and what names anything else is found out below, by the judge.
+    const members = new Set<string>();
+    for (const event of events) {
+      const named = (event as { controller?: { members?: unknown } }).controller?.members;
+      for (const member of Array.isArray(named) ? (named as unknown[]) : []) {
+        if (typeof member === "string" && mindId(member) !== undefined) members.add(member);
+      }
+    }
+    // The log is seen now, and its members' logs are fetched after: a log held from before
+    // an event was first seen does not judge the proofs on it (core 9.4).
+    const now = this.#clock.now();
+    for (const member of members) await this.#lookup.resolve(member);
+    const own = verifyLog(events, {
+      // Each event is seen now at the latest, unless a resolver saw it before.
+      evidence: earliestEvidence(this.#lookup.view.evidence, {
+        eventSeen: () => now,
+        proofSeen: () => undefined,
+      }),
+      asOf: now,
+      memberLog: (member) => this.#lookup.view.log(member),
+    });
+    if (!own.ok) {
+      const [first] = own.issues;
+      throw new OipError("invalid-record", `the log does not verify: ${first.message}`, {
+        clause: first.clause,
+        issues: own.issues,
+      });
+    }
+    const address = own.value.mind;
+    const { resolved, published } = await publishAndConfirm(
+      this.#options,
+      this.#lookup,
+      address,
+      events,
+      (asking) => this.#signed(asking),
+    );
+    this.#published = published;
+    return resolved;
+  }
+
+  /**
+   * Writes a collective's charter (Layer 2, 6.2), and signs it as a member.
+   * It is the collective's once the threshold of its members has signed
+   * it, each with `cosign`, and it is in force from then.
+   *
+   * A charter names roles and what each may do. A member assigned to a
+   * role signs records for the collective with `{ charter }` in place of a
+   * chain of delegations. Give a charter an `expires`: it bounds when it
+   * can still be signed.
+   *
+   * @param collective - The collective's address.
+   */
+  charter(collective: string, fields: Omit<Fields<Charter>, "author">): Promise<Charter> {
+    return this.#dealings.make<Charter>("Collective", { ...fields, author: collective }, undefined);
+  }
+
+  /**
    * Whether a record counts for a mind (Layer 2, Section 7): by the mind's
    * own key, or by a delegate's proof whose chain of delegations covers
    * the record. The logs of the minds the record names are fetched afresh
@@ -1037,6 +1267,11 @@ function publisher(
   const old = held(earlier);
   if (before === undefined || old === undefined) return undefined;
   return { keyRef: formatKeyRef(mind, before.versionId, old), signer: operational.signer(old) };
+}
+
+/** What a caller gave that makes no record: its mistake, as the protocol names it. */
+function asInvalid(error: Error): OipError {
+  return new OipError("invalid-record", error.message, { clause: "L1 3", cause: error });
 }
 
 /** The members of an event that the changes fill in. */

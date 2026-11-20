@@ -1,0 +1,10 @@
+# Branch head manifest — 2026-11-20T00-24-08Z
+# repo: wonderben-code/open-intelligence-protocol
+# Each line: <branch> <tab> <head sha>. A commit hash contains its
+# entire ancestry, so stamping these heads stamps all history behind them.
+claude/sharp-dirac-6frk9h	24a14b17c3e172189575eb1927fbb96ad6ff9b75
+m1-core	4a12ba99a12015ce27572ca2082e85351a97e92c
+m2-identity	f47ad231a4f56087b2da12fbb76199172081931c
+m3-delegation-web	7d2fdd4fc9bbf4894ffb23ab9a2c127f2ff12728
+main	988896a70cec45473daa5e9bb4d1b56dc111e3d1
+review-fixes	54b02b32168f6508508911ea9c9beb69d7b3890d

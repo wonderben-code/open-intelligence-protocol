@@ -8,6 +8,7 @@
  * @packageDocumentation
  */
 
+export { indexerApp, type IndexerAppOptions } from "./app.ts";
 export { Broker, type BrokerOptions, type Forwarding } from "./broker.ts";
 export {
   DEFAULT_INDEXER_LIMITS,
@@ -24,3 +25,4 @@ export {
   type Kind,
   type Search,
 } from "./store.ts";
+export { type Edges, PREFIX, readKey, type Running, SETTINGS, start } from "./main.ts";

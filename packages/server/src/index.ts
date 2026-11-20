@@ -62,6 +62,7 @@ export {
   HttpFailure,
   problemResponse,
   readBody,
+  readJson,
   readRecord,
   recordFrom,
   recordResponse,

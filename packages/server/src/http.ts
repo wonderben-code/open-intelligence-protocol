@@ -13,9 +13,11 @@
  */
 
 import {
+  type JsonValue,
   MEDIA_TYPE,
   OipError,
   type OipRecord,
+  parseJsonBytes,
   parseRecord,
   PROBLEM_MEDIA_TYPE,
   type ProblemDetails,
@@ -201,6 +203,31 @@ export function requireRecordType(request: Request): void {
   if (mediaType(request) !== MEDIA_TYPE) {
     throw new HttpFailure(415, "Unsupported Media Type", { accept: MEDIA_TYPE });
   }
+}
+
+/**
+ * Reads a body that is JSON and no record, such as a query: said to be
+ * `application/json`, at most `limit` bytes, and within the JSON profile
+ * (core Section 1), so that it holds no float and nests no deeper than a
+ * record may.
+ *
+ * @throws HttpFailure 415 if it is said to be another media type.
+ * @throws OipError `too-large` or `invalid-record`.
+ * @throws Unavailable if the check was cut short (ADR-0010).
+ */
+export async function readJson(request: Request, limit: number): Promise<JsonValue> {
+  if (mediaType(request) !== "application/json") {
+    throw new HttpFailure(415, "Unsupported Media Type", { accept: "application/json" });
+  }
+  const body = await readBody(request, limit);
+  const parsed = parseJsonBytes(body, { maxLength: limit });
+  if (parsed.ok) return parsed.value;
+  if (parsed === cutShort()) throw new Unavailable("the body could not be judged just now");
+  const [first] = parsed.issues;
+  throw new OipError("invalid-record", first.message, {
+    clause: first.clause,
+    issues: parsed.issues,
+  });
 }
 
 /**

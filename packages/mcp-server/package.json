@@ -44,6 +44,7 @@
     "provenance": true
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
     "@oip/client": "workspace:*",
     "@oip/core": "workspace:*",
     "@oip/delegation": "workspace:*",
@@ -52,6 +53,7 @@
     "@oip/schema": "workspace:*"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
     "@oip/cli": "workspace:*",
     "@oip/testkit": "workspace:*"
   },

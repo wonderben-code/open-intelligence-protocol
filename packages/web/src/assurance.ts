@@ -49,18 +49,23 @@ function blockOf(record: {
 function levelOf(profile: JudgedRecord, context: DelegationContext): Assurance {
   const { record } = profile;
   const block = blockOf(record);
-  if (block === undefined) return "native";
   const mind = (record as { readonly author?: unknown }).author;
+  const log = typeof mind === "string" ? context.identity.log(mind) : undefined;
+  const genesis = log?.ok === true ? log.value.entries[0].event : undefined;
+  const declared = genesis === undefined ? undefined : blockOf(genesis);
+  // No block in the profile, and none in the genesis this verifier holds: nothing was declared.
+  // A genesis that names a gateway is a declaration, whatever the profile leaves out.
+  if (block === undefined) return declared === undefined ? "native" : "claimed";
   const { gateway } = block;
-  if (typeof mind !== "string" || typeof gateway !== "string") return "claimed";
+  if (typeof mind !== "string" || typeof gateway !== "string" || genesis === undefined) {
+    return "claimed";
+  }
   // The profile is the mind's own, and so is what it names.
   if (!countsFor(profile, mind, context)) return "claimed";
-  const log = context.identity.log(mind);
-  if (!log.ok) return "claimed";
-  const genesis = log.value.entries[0].event;
   // The mind was made as a bridged mind of this gateway: a profile cannot make it one later.
-  if (blockOf(genesis)?.["gateway"] !== gateway) return "claimed";
+  if (declared?.["gateway"] !== gateway) return "claimed";
   // The gateway says so itself: an entry of its feed, for this genesis, that counts for it.
+  // The profile names the entry by its reference. One carried in its place names none.
   const named = parseRecordRef(block["attestation"]);
   const entry = named === undefined ? undefined : context.records.record(named.contentId);
   if (entry === undefined) return "claimed";
@@ -84,18 +89,22 @@ function levelOf(profile: JudgedRecord, context: DelegationContext): Assurance {
 /**
  * Layer 0, 1.3: the assurance level of the mind a profile describes.
  *
- * A profile with no `oip.bridge` block is `native`. One with such a block
- * is `bridged` only if all of this holds, and `claimed` otherwise:
+ * Where neither the profile nor the mind's `Genesis` has an `oip.bridge`
+ * block, the mind is `native`. Where the `Genesis` has one and the profile
+ * has none, it is `claimed`: a gateway was named, and nothing shows it.
+ * Where the profile has one, the mind is `bridged` only if all of this
+ * holds, and `claimed` otherwise:
  *
  * - the profile counts for the mind (Layer 2, 7.1);
  * - the mind's `Genesis` names the same gateway in its own block;
- * - the profile's `attestation` names an `Entry` this verifier holds, whose
- *   author is that gateway, whose `object` is the content ID of the mind's
- *   `Genesis` and whose `objectType` is `Genesis`;
+ * - the profile's `attestation` is the `record-ref` of an `Entry` this
+ *   verifier holds, whose author is that gateway, whose `object` is the
+ *   content ID of the mind's `Genesis` and whose `objectType` is `Genesis`;
  * - that entry counts for the gateway.
  *
- * Where a check was cut short, a declared bridge is `claimed`: nothing was
- * shown.
+ * Where a check was cut short the answer is `claimed`: nothing was shown.
+ * A caller that keeps answers compares `cutShortCount()`, as for any
+ * function that answers with a value (ADR-0010).
  *
  * @param profile - A `Participant`, from `judgeRecord`.
  * @param context - The logs and the records the verifier holds, with its
@@ -103,7 +112,5 @@ function levelOf(profile: JudgedRecord, context: DelegationContext): Assurance {
  *   records, by its content ID.
  */
 export function assuranceOf(profile: JudgedRecord, context: DelegationContext): Assurance {
-  // Whether there is a declaration at all is read from the record, and needs no check.
-  if (blockOf(profile.record) === undefined) return "native";
   return finding(() => levelOf(profile, context)) ?? "claimed";
 }

@@ -93,9 +93,20 @@ describe(`${clause("L0 1.3")} the assurance level of a mind`, () => {
     expect(level(profile(plain, { "com.example": { note: "hello" } }, plain, "agent"))).toBe(
       "native",
     );
-    // It is the default, and says no more: a profile that omits the block is not found out
-    // by its mind's genesis.
-    expect(level(profile(agent), [attestation])).toBe("native");
+  });
+
+  it("is `claimed` where the genesis names a gateway and the profile leaves it out: the profile can be rewritten, and the genesis cannot", () => {
+    expect(level(profile(agent), [attestation])).toBe("claimed");
+    expect(level(profile(agent, { "com.example": { note: "hello" } }), [attestation])).toBe(
+      "claimed",
+    );
+    // A verifier that does not hold the mind's log has seen no declaration.
+    const record = profile(agent);
+    const set = new RecordSet();
+    set.add(record);
+    expect(
+      assuranceOf(judged(record), { identity: bookOf([gateway], [record]), records: set }),
+    ).toBe("native");
   });
 
   it(`${clause("L0 1.2")} is \`bridged\` where the genesis and the profile name a gateway, and an entry of that gateway's feed names the genesis`, () => {

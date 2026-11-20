@@ -69,7 +69,7 @@ describe("the vectors file", () => {
 
   it("has the cases its README counts", () => {
     expect(vectors.valid).toHaveLength(48);
-    expect(vectors.negative).toHaveLength(180);
+    expect(vectors.negative).toHaveLength(181);
     expect(vectors.controls).toHaveLength(125);
   });
 

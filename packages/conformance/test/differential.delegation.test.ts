@@ -1150,6 +1150,14 @@ type BridgeFault = (typeof BRIDGE_FAULTS)[number];
 /** A bridged mind done rightly, and then a few things done to it: none, one, or some. */
 const bridgePlan = fc.oneof(
   { weight: 1, arbitrary: fc.constant<BridgeFault[]>([]) },
+  // A mind that was never a bridged mind, and says nothing of one.
+  {
+    weight: 1,
+    arbitrary: fc.constant<BridgeFault[]>([
+      "the genesis names no gateway",
+      "the profile has no block",
+    ]),
+  },
   { weight: 5, arbitrary: fc.constantFrom(...BRIDGE_FAULTS).map((fault) => [fault]) },
   {
     weight: 3,

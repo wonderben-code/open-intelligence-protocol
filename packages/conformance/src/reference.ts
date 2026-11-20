@@ -50,14 +50,7 @@ import {
   validateRecord,
   type Validation,
 } from "@oip/schema";
-import {
-  assuranceOf,
-  BRIDGE_BLOCK,
-  countsFor,
-  status,
-  type WebRecords,
-  WebRecordSet,
-} from "@oip/web";
+import { assuranceOf, countsFor, status, type WebRecords, WebRecordSet } from "@oip/web";
 
 import {
   type ChainReading,
@@ -266,12 +259,8 @@ export const referenceAdapter: ConformanceAdapter = {
   },
   assurance: (profile, view) => {
     const judged = judgeRecord(profile);
-    if (!judged.ok) {
-      // What is no record shows nothing. If it declares a bridge, that is a claim and no more.
-      const { ext } = profile as { readonly ext?: unknown };
-      const declares = typeof ext === "object" && ext !== null && Object.hasOwn(ext, BRIDGE_BLOCK);
-      return declares ? "claimed" : "native";
-    }
+    // What is no record shows nothing, and nothing can be asked of it: the label that promises nothing.
+    if (!judged.ok) return "claimed";
     return assuranceOf(judged.value, {
       identity: bookFor(view, profile),
       records: recordsOf(view),

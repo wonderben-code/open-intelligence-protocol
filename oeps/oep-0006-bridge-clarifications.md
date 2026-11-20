@@ -28,12 +28,15 @@ A verifier labels a mind `bridged` only on the gateway's own word (1.3).
 
 2. **How is the gateway's entry named?** 1.2 says the profile carries `attestation`, "the `record-ref` of that entry". 1.3 says "the entry the profile names". A profile can carry the entry itself where the reference belongs, and an extension block may hold any JSON. The independent checker took such an entry as named, and answered `bridged`. The reference implementation looked the reference up among the records it holds, found no reference, and answered `claimed`.
 
+3. **Is a mind `native` if its profile says nothing of a bridge and its genesis names a gateway?** 1.3 says `native` means that no gateway has declared the mind bridged, and that a block without an attestation is `claimed`. It speaks of the profile's block and does not say whether the block of the `Genesis` is a declaration. Both implementations read the profile alone, and called such a mind `native`.
+
 ## Specification
 
 Each item is a change to `spec/layer-0-bridge.md`, made in the same commits as the code.
 
 1. **A Receipt is confirmed too (2.2).** The server SHOULD require the human user's confirmation before signing a Commitment, a Receipt or a Delegation unless the user has configured a policy that permits it.
 2. **An attestation is named, not carried (1.3).** The profile names the entry by its `record-ref` (1.2): an entry carried in the profile in place of the reference names none, and the mind is `claimed`.
+3. **A genesis that names a gateway is a declaration (1.3).** A mind is `native` where neither its `Genesis` nor its profile carries an `oip.bridge` block. Where its `Genesis` carries one and its profile does not, the mind is `claimed`.
 
 ## Rationale and alternatives
 
@@ -43,9 +46,11 @@ Each item is a change to `spec/layer-0-bridge.md`, made in the same commits as t
 
 - **Item 2: take an entry that is carried, since it is signed all the same.** The signature would verify. But a verifier would then judge a record it was handed inside another, in a place where a reference belongs, and each such place is one more way for two implementations to differ. A record that is named is looked up by its content ID among the records the verifier holds, with the evidence the verifier has of when its proofs came (core 9.4). The reference is also what 1.2 already says.
 
+- **Item 3: `native` for a profile that says nothing.** The label would then be the profile's to choose, and a mind that was made as a bridged mind could present itself as native by leaving a block out of a record it can rewrite at will. The genesis cannot be rewritten: it is what the address is made from. A gateway that never declared anything is still not found out, as 1.3 says: this closes only the case that records can show.
+
 ## Backwards compatibility
 
-No record format changes. Item 1 is a SHOULD, as it was: a server built to the earlier text conforms as before, and protects its user less. Item 2 says what 1.2 said already: a gateway that followed 1.2 wrote a reference, and nothing changes for it. A verifier that took a carried entry now answers `claimed` where it answered `bridged`.
+No record format changes. Item 1 is a SHOULD, as it was: a server built to the earlier text conforms as before, and protects its user less. Item 2 says what 1.2 said already: a gateway that followed 1.2 wrote a reference, and nothing changes for it. A verifier that took a carried entry now answers `claimed` where it answered `bridged`. For item 3, a verifier that holds the mind's log now answers `claimed` for a profile without a block where the genesis has one, and `native` as before where it does not.
 
 ## Security and privacy considerations
 
@@ -53,17 +58,17 @@ Item 1 closes a way to make a user give up a claim, or accuse another party, wit
 
 A policy is a standing yes. A user who permits every Receipt has the protection of the earlier text and no more.
 
-Item 2 errs toward `claimed`, the label that promises nothing.
+Items 2 and 3 err toward `claimed`, the label that promises nothing.
 
 ## Test vectors
 
-For item 2, one negative case of kind `assurance`: `bridge-attestation-inline`, the bridged mind of the vectors with its gateway's own entry in its profile where the reference belongs. It is `claimed`. Item 1 is about what a server does before it signs, and no record shows it.
+For item 2, one negative case of kind `assurance`: `bridge-attestation-inline`, the bridged mind of the vectors with its gateway's own entry in its profile where the reference belongs. It is `claimed`. For item 3, one more: `bridge-profile-omits-block`, the same mind with a profile that has no block, which is `claimed` too. Item 1 is about what a server does before it signs, and no record shows it.
 
 ## Reference implementation
 
 `@oip/mcp-server`, in `packages/mcp-server`: `tools/web.ts` (the confirmation before `oip_receipt` signs), `question.ts` (the question), `policy.ts` (the part of `policy.json` for Receipts). Its tests: `tools.test.ts` and `injection.test.ts`.
 
-`assuranceOf` of `@oip/web`, in `packages/web/src/assurance.ts` (item 2), and the campaign of the differential tests that found the difference: `packages/conformance/test/differential.delegation.test.ts`.
+`assuranceOf` of `@oip/web`, in `packages/web/src/assurance.ts` (items 2 and 3), and the campaign of the differential tests that found the difference: `packages/conformance/test/differential.delegation.test.ts`.
 
 ## Open questions
 

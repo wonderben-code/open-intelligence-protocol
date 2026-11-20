@@ -2272,25 +2272,32 @@ def commitment_accepted(V, c) -> bool:
 
 
 def bridge_assurance(V, participant) -> str:
-    """Layer 0, 1.3: `bridged` only if the mind's genesis and profile name
-    the same gateway, and the gateway's own feed entry for that genesis,
-    named in the profile, counts for the gateway; `claimed` for any other
-    `oip.bridge` block; otherwise `native`."""
+    """Layer 0, 1.3: `native` if neither the profile nor the mind's genesis
+    has an `oip.bridge` block; `bridged` only if the genesis and the profile
+    name the same gateway, and the gateway's own feed entry for that
+    genesis, named in the profile by its record-ref, counts for the
+    gateway; `claimed` for any other `oip.bridge` block."""
     block = (participant.get("ext") or {}).get("oip.bridge")
-    if block is None:
-        return "native"
-    mind, gateway = participant.get("author"), block.get("gateway")
+    mind = participant.get("author")
     try:
         genesis = V.log(mind).events[0]
     except (KeyError, ValueError):
+        genesis = None
+    declared = ((genesis or {}).get("ext") or {}).get("oip.bridge")
+    if block is None:
+        # A genesis that names a gateway is a declaration, whatever the
+        # profile leaves out.
+        return "native" if declared is None else "claimed"
+    if genesis is None:
         return "claimed"
-    declared = (genesis.get("ext") or {}).get("oip.bridge") or {}
+    gateway = block.get("gateway")
     # Layer 0, 1.2: the profile names the gateway's entry by its record-ref.
     # An entry given in place of the reference is not one.
     named = block.get("attestation")
     entry = V.resolve(named) if isinstance(named, str) else None
     if V.signed_time(participant, mind) is None or \
-       declared.get("gateway") != gateway or not isinstance(entry, dict) or \
+       (declared or {}).get("gateway") != gateway or \
+       not isinstance(entry, dict) or \
        entry.get("type") != "Entry" or entry.get("author") != gateway or \
        entry.get("object") != content_id(genesis) or \
        entry.get("objectType") != "Genesis" or \
@@ -4477,6 +4484,16 @@ def build():
                     "oip.bridge": {**bridge_block,
                                    "attestation": gw_entry}}),
                     br_op, br_vm),
+                "expect": "claimed"})
+    neg.append({"name": "bridge-profile-omits-block",
+                "reason": "The genesis of the mind names a gateway, and its "
+                          "profile has no `oip.bridge` block. A gateway was "
+                          "named and nothing shows it: the mind is "
+                          "`claimed`, and not `native`.",
+                "kind": "assurance",
+                "record": signed({kk: v for kk, v in
+                                  variant(br_participant).items()
+                                  if kk != "ext"}, br_op, br_vm),
                 "expect": "claimed"})
     bad_sig("duplicity-unresolved",
             "Evidence cannot separate the two events at position 1 of "

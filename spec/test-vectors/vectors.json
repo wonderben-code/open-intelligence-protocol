@@ -17508,6 +17508,31 @@
       "expect": "claimed"
     },
     {
+      "name": "bridge-profile-omits-block",
+      "reason": "The genesis of the mind names a gateway, and its profile has no `oip.bridge` block. A gateway was named and nothing shows it: the mind is `claimed`, and not `native`.",
+      "kind": "assurance",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy",
+        "created": "2026-10-30T08:12:00Z",
+        "name": "Example MCP tools",
+        "kind": "service",
+        "summary": "An MCP server, bridged into OIP by its gateway.",
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy?versionId=0-bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy#z6MkggW6KEUmJ4Rq2zZChZfPnbY8JAgaqG1CwMWnqY6Z5tXn",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T08:12:00Z",
+            "proofValue": "zGSmEaF96DJBRomsA7RfCukAHeGWut9mZeaRChSEgRHDc8AHqaTdQ4BG8riEYomaJfunGGuNYqQnTJuRrjtJzCaf"
+          }
+        ]
+      },
+      "expect": "claimed"
+    },
+    {
       "name": "duplicity-unresolved",
       "reason": "Evidence cannot separate the two events at position 1 of Amina's log, so she is duplicitous: her Intent, pinned to a version after the divergence, does not count.",
       "kind": "countsFor",

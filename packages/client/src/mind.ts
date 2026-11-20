@@ -158,6 +158,12 @@ export interface NewMind {
    * with a `Lineage` record (8.2).
    */
   readonly parents?: readonly { readonly mind: string; readonly at: string }[];
+  /**
+   * Extension blocks of the mind's `Genesis`, by their namespace (core 8.1).
+   * They are part of what the address is made from, and cannot be changed:
+   * a gateway names itself here for a mind it bridges (Layer 0, 1.2).
+   */
+  readonly ext?: Readonly<Record<string, JsonObject>>;
 }
 
 /** What changes with an identity event. What is left out stays as it is. */
@@ -340,6 +346,7 @@ export class Mind {
             ...(fields.parents === undefined
               ? {}
               : { parents: fields.parents.map(({ mind, at }) => ({ mind, at })) }),
+            ...(fields.ext === undefined ? {} : { ext: { ...fields.ext } }),
           });
         } finally {
           for (const keys of unlocked) keys.lock();

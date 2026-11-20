@@ -522,12 +522,12 @@
       "id": "L0 1.3",
       "document": "L0",
       "section": "Gateway minds and assurance",
-      "summary": "Assurance levels. `native`: no gateway has declared the mind bridged (the default). `bridged`:…",
+      "summary": "Assurance levels. `native`: no gateway has declared the mind bridged (the default): neither its…",
       "level": "MUST",
       "keywords": {
         "MUST": 1
       },
-      "digest": "4e48d129743f207bb6ac61b63fc541082fd223a35997012b074d5e92fea057b6"
+      "digest": "33f0e2691df4182eab7082037bc931c367464699b3e3f836f013af001a877275"
     },
     {
       "id": "L0 1.4",

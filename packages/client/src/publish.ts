@@ -87,6 +87,12 @@ export interface ProfileFields {
   readonly languages?: readonly string[];
   /** Credentials about the mind, as record references or URLs. */
   readonly attestations?: readonly string[];
+  /**
+   * Extension blocks of the profile, by their namespace (core 8.1). A
+   * bridged mind's profile names its gateway and the gateway's attestation
+   * here (Layer 0, 1.2).
+   */
+  readonly ext?: Readonly<Record<string, JsonObject>>;
 }
 
 /** What a service said when the mind published to it. */
@@ -300,6 +306,7 @@ export class Publishing {
       ...(fields.interfaces === undefined ? {} : { interfaces: fields.interfaces }),
       ...(fields.languages === undefined ? {} : { languages: fields.languages }),
       ...(fields.attestations === undefined ? {} : { attestations: fields.attestations }),
+      ...(fields.ext === undefined ? {} : { ext: fields.ext }),
       ...(before === undefined ? {} : { supersedes: formatRecordRef(own.address, before.id) }),
     });
     const profile = accepted(

@@ -115,6 +115,10 @@ export const init: Command = {
       value: "origin",
       describes: "An indexer the mind lists itself at, and asks",
     },
+    "no-host": {
+      type: "boolean",
+      describes: "Name no host: the mind signs and reads, and takes no packets",
+    },
     local: {
       type: "boolean",
       describes: "Use the network `oip demo` runs on this machine, for what is not named",
@@ -147,7 +151,10 @@ export const init: Command = {
       return listed.length > 0 || fallback === undefined ? listed : [fallback];
     };
     const resolvers = named("resolver", "a resolver", local?.resolver);
-    const homes = named("host", "a host", local?.host);
+    if (has(given, "no-host") && many(given, "host").length > 0) {
+      throw new UsageError("--no-host and --host say opposite things");
+    }
+    const homes = has(given, "no-host") ? [] : named("host", "a host", local?.host);
     const indexers = named("indexer", "an indexer", local?.indexer);
     if (resolvers.length === 0) {
       throw new UsageError(

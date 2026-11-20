@@ -47,7 +47,11 @@ function signers(event: JsonObject): Set<string> {
 }
 
 /** The lines that say who has signed an event, of those who must. */
-function signedBy(event: JsonObject): { lines: string[]; signed: string[]; waiting: string[] } {
+export function signedBy(event: JsonObject): {
+  lines: string[];
+  signed: string[];
+  waiting: string[];
+} {
   const control = controlOf(event);
   const have = signers(event);
   const members = control?.members ?? [];

@@ -80,22 +80,27 @@ interface Holding {
 }
 
 /** Fetches the logs of the minds a value names, afresh, and says which could not be had. */
-async function fetchLogs(holding: Holding, value: unknown): Promise<Verdict[]> {
+async function fetchLogs(
+  holding: Holding,
+  value: unknown,
+): Promise<{ verdicts: Verdict[]; missing: Set<string> }> {
   const minds = new Set<string>();
   mindsIn(value, minds);
-  const missing: Verdict[] = [];
+  const verdicts: Verdict[] = [];
+  const missing = new Set<string>();
   for (const mind of [...minds].slice(0, MAX_MINDS)) {
     try {
       await holding.lookup.resolve(mind);
     } catch (error) {
       if (!(error instanceof OipError || error instanceof TransportError)) throw error;
       const code = error instanceof OipError ? error.code : error.failure;
-      missing.push(
+      missing.add(mind);
+      verdicts.push(
         unknown(`the log of ${mind} could not be had from the resolvers (${code})`, "core 9.4"),
       );
     }
   }
-  return missing;
+  return { verdicts, missing };
 }
 
 /** The verdicts on one record: its form, each of its proofs, and for whom it counts. */
@@ -146,9 +151,8 @@ async function verdictsOnRecord(
   // Its proofs are first seen now, unless the mind's own record says they came earlier. The
   // logs they are judged by are fetched after that (core 9.4).
   witnessProofs(judged.value, holding.now, holding.lookup.seen);
-  verdicts.push(
-    ...(await fetchLogs(holding, [record, ...judged.value.proofs.map((p) => p.proof)])),
-  );
+  const fetched = await fetchLogs(holding, [record, ...judged.value.proofs.map((p) => p.proof)]);
+  verdicts.push(...fetched.verdicts);
   const context = { identity: holding.lookup.view, records: holding.records };
   const { author } = record as { author?: unknown };
   const parties = (record as { parties?: readonly { mind?: unknown }[] }).parties ?? [];
@@ -168,6 +172,16 @@ async function verdictsOnRecord(
       continue;
     }
     const signer = proof.method.mind;
+    if (fetched.missing.has(signer)) {
+      // Nothing is known against it: there is only nobody to say whose key that is.
+      verdicts.push(
+        unknown(
+          `${named} cannot be judged: it names a key of ${signer}, whose log was not had`,
+          "L1 6.1",
+        ),
+      );
+      continue;
+    }
     const own = operationalProofEvaluation(record.type, proof, context.identity);
     if (!own.ok) {
       const [{ message, clause }] = own.issues;
@@ -199,14 +213,23 @@ async function verdictsOnRecord(
     }
   }
   for (const mind of principals) {
-    verdicts.push(
-      countsFor(judged.value, mind, context)
-        ? yes(`it counts for ${mind}`, "L2 7.1")
-        : not(
-            `it does not count for ${mind}: no signature on it is that mind's, or made for it`,
-            "L2 7.1",
-          ),
-    );
+    if (countsFor(judged.value, mind, context)) {
+      verdicts.push(yes(`it counts for ${mind}`, "L2 7.1"));
+    } else if (fetched.missing.size > 0) {
+      verdicts.push(
+        unknown(
+          `whether it counts for ${mind} cannot be judged without the logs that were not had`,
+          "L2 7.1",
+        ),
+      );
+    } else {
+      verdicts.push(
+        not(
+          `it does not count for ${mind}: no signature on it is that mind's, or made for it`,
+          "L2 7.1",
+        ),
+      );
+    }
   }
   return verdicts;
 }
@@ -218,7 +241,7 @@ async function verdictsOnLog(
   now: Instant,
 ): Promise<{ verdicts: Verdict[]; mind?: string }> {
   // The members of a collective sign its events: their logs are needed, and fetched first.
-  const fetched = holding === undefined ? [] : await fetchLogs(holding, events);
+  const fetched = holding === undefined ? [] : (await fetchLogs(holding, events)).verdicts;
   const own = verifyLog(events, {
     // Each event is first seen now at the latest, unless a resolver saw it before.
     evidence: {

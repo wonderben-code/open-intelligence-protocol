@@ -12,7 +12,10 @@ export default defineProject({
     name: "@oip/cli",
     environment: "node",
     include: ["test/**/*.test.ts"],
-    testTimeout: 60_000,
+    testTimeout: 120_000,
+    // Each file starts a network of three services and makes its minds before its first
+    // test: with coverage on, on a machine that is busy, that takes more than the default.
+    hookTimeout: 120_000,
     benchmark: { include: ["bench/**/*.bench.ts"] },
   },
 });

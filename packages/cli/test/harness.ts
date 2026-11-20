@@ -13,7 +13,8 @@ import { join } from "node:path";
 
 import { type Keychain, SCRYPT_MIN_N } from "@oip/keystore";
 
-import { type Edges, type ExitCode, type Network, run } from "../src/index.ts";
+import { type Context, type Edges, type ExitCode, type Network, run } from "../src/index.ts";
+import { type Opened, openMind } from "../src/mind.ts";
 
 /** What a run of the command came to. */
 export interface Ran {
@@ -53,26 +54,43 @@ export class Place {
     return join(this.home, name);
   }
 
-  /** Runs `oip` with these arguments, as the user of this place. */
-  async oip(argv: readonly string[], more: Partial<Edges> = {}): Promise<Ran> {
-    let out = "";
-    let err = "";
-    const code = await run(argv, {
+  /** The edges of a run in this place, which writes to what it is given. */
+  #edges(written: { out: string; err: string }, more: Partial<Edges>): Edges {
+    return {
       env: { OIP_PASSPHRASE: PASSPHRASE },
       home: this.home,
       out: (text) => {
-        out += text;
+        written.out += text;
       },
       err: (text) => {
-        err += text;
+        written.err += text;
       },
       keychain: () => Promise.resolve(this.keychain),
       // Nothing of a test runs until it is stopped, unless the test says when.
       stopped: () => Promise.resolve(),
       scryptN: SCRYPT_MIN_N,
       ...more,
-    });
-    return { code, out, err, json: () => JSON.parse(out) as unknown };
+    };
+  }
+
+  /** Runs `oip` with these arguments, as the user of this place. */
+  async oip(argv: readonly string[], more: Partial<Edges> = {}): Promise<Ran> {
+    const written = { out: "", err: "" };
+    const code = await run(argv, this.#edges(written, more));
+    return { code, ...written, json: () => JSON.parse(written.out) as unknown };
+  }
+
+  /**
+   * The mind of a directory, opened as a command opens it: for what a test
+   * does that no command does. The test closes it.
+   */
+  mind(dir: string): Promise<Opened> {
+    return openMind(this.context(dir));
+  }
+
+  /** What a command of this place is run with, for a directory: for a test that calls what a command calls. */
+  context(dir: string): Context {
+    return { edges: this.#edges({ out: "", err: "" }, {}), dir, say: () => undefined };
   }
 
   /**

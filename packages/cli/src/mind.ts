@@ -98,15 +98,20 @@ export function backupLockOf(context: Context, fresh: boolean): Promise<Lock> {
   });
 }
 
+/** How a service of a mind's configuration is reached: where its route says, if it has one. */
+export function fetchOf(context: Context, config: Config): Fetch {
+  // A network on this machine says where it is each time: it may have started again since.
+  const routes = config.network === undefined ? {} : readNetwork(config.network).routes;
+  return routed(routes, context.edges.fetch ?? platformFetch);
+}
+
 /** How the services of a mind's configuration are asked: for reading, with no key. */
 export function lookupOptions(context: Context, config: Config): LookupOptions {
   const { edges } = context;
-  // A network on this machine says where it is each time: it may have started again since.
-  const routes = config.network === undefined ? {} : readNetwork(config.network).routes;
   return {
     resolvers: config.resolvers,
     indexers: config.indexers,
-    fetch: routed(routes, edges.fetch ?? platformFetch),
+    fetch: fetchOf(context, config),
     ...(edges.clock === undefined ? {} : { clock: edges.clock }),
   };
 }

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { type Found, Lookup } from "@oip/client";
+import { type Finding, type Found, Lookup } from "@oip/client";
 import { type Instant, proofDigest } from "@oip/core";
 import type { CapabilityQuery } from "@oip/schema";
 
@@ -28,6 +28,30 @@ function saying(found: Found): string {
   return price === undefined
     ? record.provides
     : `${record.provides} (${price.amount} ${price.currency})`;
+}
+
+/** The lines that say what a query found, what was named and refused, and who did not answer. */
+export function findingLines(finding: Finding): string[] {
+  const answered = finding.sources.filter(({ results }) => results !== undefined).length;
+  return [
+    `${String(finding.found.length)} found. Indexers that answered: ${String(answered)} of ${String(finding.sources.length)}.`,
+    ...finding.found.flatMap((found, index) => [
+      `${String(index + 1)}. ${found.mind}`,
+      row(LABELS[found.record.type], saying(found) + (found.current ? "" : " (replaced since)")),
+      row("record", found.id),
+      ...found.by.map(({ indexer, score, why }) =>
+        row("ranked", `${score} by ${indexer}${why === undefined ? "" : `: ${why}`}`),
+      ),
+    ]),
+    ...finding.refused.map(({ indexer, mind, record, failure }) =>
+      row("refused", `${record} of ${mind}, named by ${indexer} (${failure})`),
+    ),
+    ...finding.sources
+      .filter(({ results }) => results === undefined)
+      .map(({ indexer, failure }) =>
+        row("no answer", `${indexer} (${failure ?? "it did not say why"})`),
+      ),
+  ];
 }
 
 export const find: Command = {
@@ -112,30 +136,8 @@ export const find: Command = {
         kept.add(record, seen);
       }
     }
-    const answered = finding.sources.filter(({ results }) => results !== undefined).length;
     return {
-      lines: [
-        `${String(finding.found.length)} found. Indexers that answered: ${String(answered)} of ${String(finding.sources.length)}.`,
-        ...finding.found.flatMap((found, index) => [
-          `${String(index + 1)}. ${found.mind}`,
-          row(
-            LABELS[found.record.type],
-            saying(found) + (found.current ? "" : " (replaced since)"),
-          ),
-          row("record", found.id),
-          ...found.by.map(({ indexer, score, why }) =>
-            row("ranked", `${score} by ${indexer}${why === undefined ? "" : `: ${why}`}`),
-          ),
-        ]),
-        ...finding.refused.map(({ indexer, mind, record, failure }) =>
-          row("refused", `${record} of ${mind}, named by ${indexer} (${failure})`),
-        ),
-        ...finding.sources
-          .filter(({ results }) => results === undefined)
-          .map(({ indexer, failure }) =>
-            row("no answer", `${indexer} (${failure ?? "it did not say why"})`),
-          ),
-      ],
+      lines: findingLines(finding),
       json: { query, ...finding },
     };
   },

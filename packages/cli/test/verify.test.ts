@@ -90,7 +90,7 @@ beforeAll(async () => {
     minds.amina,
   );
   await as("amina", "inbox");
-}, 60_000);
+});
 afterAll(async () => {
   await place.close();
 });

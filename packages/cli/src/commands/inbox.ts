@@ -10,7 +10,7 @@ import { row } from "./describe.ts";
 import { deliveryLine, keptFrom, keptOf, type KeptPacket, receivedLines } from "./packets.ts";
 
 /** What a session did or found while the mailboxes were read, in a line. */
-function sessionLine(event: SessionEvent): string {
+export function sessionLine(event: SessionEvent): string {
   const session = `session ${event.session}`;
   switch (event.kind) {
     case "gap":
@@ -40,6 +40,36 @@ function sessionLine(event: SessionEvent): string {
   }
 }
 
+/**
+ * What a reading of the mailboxes found besides the packets it accepted:
+ * what it refused, what waits, what its sessions did, what was sent again,
+ * and the mailboxes that could not be read.
+ */
+export function besides(inbox: Inbox): string[] {
+  return [
+    ...inbox.refused.map(({ clause, message }) => row("refused", `${message} (${clause})`)),
+    ...(inbox.waiting === 0
+      ? []
+      : [
+          row(
+            "waiting",
+            `${String(inbox.waiting)} in the mailbox, until their senders can be resolved`,
+          ),
+        ]),
+    ...inbox.sessions.map((event) => sessionLine(event)),
+    ...inbox.retried.flatMap(({ id, deliveries, expired }) =>
+      expired
+        ? [row("gave up", `${id}: it has expired, and was not sent again`)]
+        : [row("tried again", id), ...deliveries.map((delivery) => deliveryLine(delivery))],
+    ),
+    ...inbox.sources
+      .filter(({ items }) => items === undefined)
+      .map(({ mailbox, failure }) =>
+        row("not read", `${mailbox} (${failure ?? "it did not say why"})`),
+      ),
+  ];
+}
+
 /** What one reading of the mailboxes came to: the packets, kept, and what else was found. */
 function said(opened: Opened, inbox: Inbox, all: boolean): Result {
   const fresh = inbox.received.map((received) => keptOf(received));
@@ -50,37 +80,12 @@ function said(opened: Opened, inbox: Inbox, all: boolean): Result {
     .flatMap(({ value }) => keptFrom(value) ?? [])
     .sort((one, other) => (one.time < other.time ? -1 : one.time > other.time ? 1 : 0));
   const shown: readonly KeptPacket[] = all ? kept : fresh;
-  const failed = inbox.sources.filter(({ items }) => items === undefined);
+  const more = besides(inbox);
   return {
     lines: [
       `${counted(fresh.length, "new packet")}. ${String(kept.length)} kept in all.`,
       ...shown.flatMap((packet) => ["", ...receivedLines(packet)]),
-      ...(inbox.refused.length +
-        inbox.waiting +
-        inbox.sessions.length +
-        inbox.retried.length +
-        failed.length ===
-      0
-        ? []
-        : [""]),
-      ...inbox.refused.map(({ clause, message }) => row("refused", `${message} (${clause})`)),
-      ...(inbox.waiting === 0
-        ? []
-        : [
-            row(
-              "waiting",
-              `${String(inbox.waiting)} in the mailbox, until their senders can be resolved`,
-            ),
-          ]),
-      ...inbox.sessions.map((event) => sessionLine(event)),
-      ...inbox.retried.flatMap(({ id, deliveries, expired }) =>
-        expired
-          ? [row("gave up", `${id}: it has expired, and was not sent again`)]
-          : [row("tried again", id), ...deliveries.map((delivery) => deliveryLine(delivery))],
-      ),
-      ...failed.map(({ mailbox, failure }) =>
-        row("not read", `${mailbox} (${failure ?? "it did not say why"})`),
-      ),
+      ...(more.length === 0 ? [] : ["", ...more]),
     ],
     json: {
       mind: opened.mind.address,

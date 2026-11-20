@@ -245,6 +245,7 @@ Options:
   --resolver <origin>  A resolver the mind trusts, as an HTTPS origin. Name two, run by different people
   --host <origin>      A host that serves the mind's records and takes its packets
   --indexer <origin>   An indexer the mind lists itself at, and asks
+  --no-host            Name no host: the mind signs and reads, and takes no packets
   --local              Use the network \`oip demo\` runs on this machine, for what is not named
   --network <path>     The directory of that network. Default: ~/.oip-demo
   --keychain           Seal the keys with a key in this machine's keychain, in place of a passphrase

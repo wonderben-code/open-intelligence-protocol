@@ -16,7 +16,7 @@ import { fileStorage } from "@oip/keystore/node";
 
 import { type Command, type Context, UsageError } from "../command.ts";
 import { type Config, Home, readNetwork } from "../home.ts";
-import { lookupOptions } from "../mind.ts";
+import { fetchOf, lookupOptions } from "../mind.ts";
 import { counted } from "../text.ts";
 import { row } from "./describe.ts";
 
@@ -61,7 +61,7 @@ async function ready(fetch: Fetch, origin: string): Promise<{ ready: boolean; at
 async function checksOf(context: Context, home: Home, config: Config): Promise<Check[]> {
   const checks: Check[] = [];
   const options = lookupOptions(context, config);
-  const fetch = options.fetch ?? ((request: Request) => globalThis.fetch(request));
+  const fetch = fetchOf(context, config);
   let keystore: Keystore;
   try {
     keystore = await Keystore.open({ storage: fileStorage(home.keys) });
@@ -229,7 +229,7 @@ async function checksOf(context: Context, home: Home, config: Config): Promise<C
   if (waiting > 0) {
     checks.push(
       warn(
-        `${counted(waiting, "packet")} did not arrive, and wait to be sent again`,
+        `${counted(waiting, "packet")} sent from here did not arrive yet: each is kept, to be sent again`,
         "`oip inbox` tries them when they are due",
       ),
     );

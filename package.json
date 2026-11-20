@@ -35,6 +35,7 @@
     "changeset": "changeset",
     "newcomer": "node scripts/newcomer.ts",
     "mcp:inspector": "node scripts/mcp-inspector.ts",
+    "a2a:tck": "node scripts/a2a-tck.ts",
     "ci": "node scripts/ci.ts"
   },
   "devDependencies": {

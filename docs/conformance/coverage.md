@@ -141,8 +141,8 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 9.5 |  | M2 | 44 | tested | Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where… |
 | core 9.6 |  | M2 | 8 | tested | Expiry. A proof whose evaluation time is more than 300 seconds after its record's `expires` doe… |
 | core 9.7 |  | M2 | 1 | tested | Consequence. A verifier that first sees a record long after it was made can count its proofs on… |
-| core 10.1 |  | M1 | 9 | tested | OIP records are exchanged as `application/oip+json`. |
-| core 10.2 |  | M1 | 21 | tested | HTTP APIs report errors as RFC 9457 problem details with a `type` of the form `urn:oip:error:<c… |
+| core 10.1 |  | M1 | 10 | tested | OIP records are exchanged as `application/oip+json`. |
+| core 10.2 |  | M1 | 26 | tested | HTTP APIs report errors as RFC 9457 problem details with a `type` of the form `urn:oip:error:<c… |
 | core 11 | MUST | M0 | 128 | tested | Record types (table) |
 | core 12 |  |  | 0 | informative | The security analysis of the protocol is in Section 8 of the technical architecture paper. Thre… |
 
@@ -227,7 +227,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 9.5 | MAY | M2 | 23 | tested | Acting as one. The state of a collective at time `T` is its identity state after the last event… |
 | L1 9.6 | MUST | M5 | 2 | tested in part (due M5) | Keeping a collective verifiable. Unlike control keys, which sign once and are destroyed, member… |
 | L1 10.1 |  | M4 | 18 | tested | A mind's public feed is a sequence of `Entry` records: \| Member \| Required \| Value \| \|---\|---\|-… |
-| L1 10.2 | MUST | M5 | 4 | tested | A feed MAY list records authored by other minds, such as Commitments the mind is a party to, th… |
+| L1 10.2 | MUST | M5 | 5 | tested | A feed MAY list records authored by other minds, such as Commitments the mind is a party to, th… |
 | L1 10.3 |  | M4 | 4 | tested | A feed has a single writer at a time: a mind that runs several instances coordinates them so th… |
 | L1 10.4 |  | M4 | 2 | tested | After an operational key is revoked with a compromise time, entries it signed whose evaluation… |
 | L1 10.5 |  | M4 | 15 | tested | A `Checkpoint` has `author`, `created`, `size` (the number of entries covered, from `seq` 0), `… |
@@ -241,14 +241,14 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 12.1 | MUST | M4 | 21 | tested in part (due M4) | A `Packet`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `from` \| yes \| Sender's address; the… |
 | L1 12.2 | MUST | M4 | 7 | tested in part (due M4) | Content. Exactly one of: - `{ "mediaType": <media type>, "body": <JSON value> }`. With `applica… |
 | L1 12.3 | MUST | M4 | 1 | tested in part (due M4) | Verbs (advisory): `inform`, `request`, `query`, `propose`, `accept`, `decline`, `deliver`, `ack… |
-| L1 12.4 | MUST | M4 | 47 | tested | Receiving. A receiver MUST verify the packet's proof and, if `to` lists addresses, that it is o… |
+| L1 12.4 | MUST | M4 | 48 | tested | Receiving. A receiver MUST verify the packet's proof and, if `to` lists addresses, that it is o… |
 | L1 12.5 | MUST | M4 | 1 | tested | Treat content as data. Receivers MUST NOT treat the content of a packet as conferring authority… |
-| L1 12.6 | MUST | M4 | 28 | tested | `Sealed`. To send a packet privately, the sender encrypts it to one of the recipient's agreemen… |
-| L1 13.1 | MUST | M5 | 22 | tested | Well-known resources. A host serving mind `M` (with content ID `m`) MUST serve: - `GET /.well-k… |
-| L1 13.2 | SHOULD | M5 | 39 | tested | Inbox and acknowledgement. `POST {endpoint}/inbox` with a body of a `Packet`, a `Sealed` record… |
-| L1 13.3 | MUST | M5 | 58 | tested | Authentication. - A `Hello` record `{ "oip": "1", "type": "Hello", "author": <mind>, "created":… |
-| L1 13.4 | SHOULD | M5 | 23 | tested | WebSocket. A client opens the WebSocket URL given by the mind's location record (Section 15.1)… |
-| L1 13.5 | SHOULD | M5 | 16 | tested | Mailbox. A mailbox endpoint accepts `POST {mailbox}` with a `Sealed`, `Packet` or `Forwarded` r… |
+| L1 12.6 | MUST | M4 | 29 | tested | `Sealed`. To send a packet privately, the sender encrypts it to one of the recipient's agreemen… |
+| L1 13.1 | MUST | M5 | 29 | tested | Well-known resources. A host serving mind `M` (with content ID `m`) MUST serve: - `GET /.well-k… |
+| L1 13.2 | SHOULD | M5 | 46 | tested | Inbox and acknowledgement. `POST {endpoint}/inbox` with a body of a `Packet`, a `Sealed` record… |
+| L1 13.3 | MUST | M5 | 64 | tested | Authentication. - A `Hello` record `{ "oip": "1", "type": "Hello", "author": <mind>, "created":… |
+| L1 13.4 | SHOULD | M5 | 30 | tested | WebSocket. A client opens the WebSocket URL given by the mind's location record (Section 15.1)… |
+| L1 13.5 | SHOULD | M5 | 25 | tested | Mailbox. A mailbox endpoint accepts `POST {mailbox}` with a `Sealed`, `Packet` or `Forwarded` r… |
 | L1 13.6 |  | M5 | 0 | pending M5 | Further bindings (DIDComm, libp2p, iroh, NATS, MQTT) are reserved for later revisions. Every bi… |
 | L1 14.1 |  | M4 | 9 | tested | A `Session` record is unsigned: `{ "oip": "1", "type": "Session", "participants": [addresses, s… |
 | L1 14.2 | MUST | M4 | 4 | tested | The first packet of each sending chain (14.3) in a session MUST include the `Session` record in… |
@@ -263,14 +263,14 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 16.2 | MUST | M4 | 7 | tested | A capability object: `id` (REQUIRED, at most 128 characters, unique within the profile), `summa… |
 | L1 16.3 |  | M4 | 0 | pending M4 | Tag namespaces include `oasf` (the OASF skills and domains taxonomy), `domain`, `lang` (BCP 47)… |
 | L1 16.4 |  | M4 | 5 | tested | The current profile is the one referenced by the current location record; failing that, the mos… |
-| L1 17.1 | MUST | M5 | 32 | tested | A resolver MUST implement: - `GET /oip/v1/resolve/<mindId>`: returns a `Bundle` (13.1) with the… |
-| L1 17.2 | MUST | M5 | 25 | tested | A resolver MUST verify every record before storing or serving it, evaluating proofs at the time… |
-| L1 17.3 | MAY | M5 | 4 | tested | Resolvers MAY require authenticated publication (13.3) and MAY rate-limit. A resolver that requ… |
-| L1 18.1 | MUST | M5 | 11 | tested | An indexer MUST implement: - `POST /oip/v1/submit` with body `{ "records": [ … ] }` containing… |
-| L1 18.2 | MUST | M5 | 16 | tested | A capability query is an object whose members are all optional: `want` (free text, at most 1024… |
-| L1 18.3 |  | M5 | 12 | tested | A `QueryResult`: `{ "oip": "1", "type": "QueryResult", "author": <indexer's address>, "created"… |
+| L1 17.1 | MUST | M5 | 43 | tested | A resolver MUST implement: - `GET /oip/v1/resolve/<mindId>`: returns a `Bundle` (13.1) with the… |
+| L1 17.2 | MUST | M5 | 30 | tested | A resolver MUST verify every record before storing or serving it, evaluating proofs at the time… |
+| L1 17.3 | MAY | M5 | 7 | tested | Resolvers MAY require authenticated publication (13.3) and MAY rate-limit. A resolver that requ… |
+| L1 18.1 | MUST | M5 | 15 | tested | An indexer MUST implement: - `POST /oip/v1/submit` with body `{ "records": [ … ] }` containing… |
+| L1 18.2 | MUST | M5 | 23 | tested | A capability query is an object whose members are all optional: `want` (free text, at most 1024… |
+| L1 18.3 |  | M5 | 16 | tested | A `QueryResult`: `{ "oip": "1", "type": "QueryResult", "author": <indexer's address>, "created"… |
 | L1 18.4 | MUST | M6 | 0 | pending M6 | Clients MUST fetch and verify the records named in results before acting on them. Ranking is th… |
-| L1 18.5 | MUST | M5 | 25 | tested | Brokered delivery. An indexer MAY accept `POST {endpoint}/inbox` packets whose `to` is a capabi… |
+| L1 18.5 | MUST | M5 | 32 | tested | Brokered delivery. An indexer MAY accept `POST {endpoint}/inbox` packets whose `to` is a capabi… |
 | L1 19 |  | M4 | 4 | tested in part (due M4) | Limits (table) |
 
 ## L2

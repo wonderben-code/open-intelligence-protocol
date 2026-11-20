@@ -62,6 +62,7 @@ import { type Clock, Lookup, type LookupOptions, type Resolved, systemClock } fr
 import { Memory } from "./memory.ts";
 import { type Inbox, type Message, Messaging, type Sent } from "./messages.ts";
 import {
+  homeEndpoints,
   type LocationFields,
   type Own,
   type ProfileFields,
@@ -624,6 +625,53 @@ export class Mind {
       const label = labels.get(key);
       return label === undefined ? { key } : { key, label };
     });
+  }
+
+  /**
+   * Changes the hosts that serve the mind (Layer 1, 15.4).
+   *
+   * 1. Each host that is new is brought everything a home serves: the
+   *    mind's identity log, its location record and profile, and its feed
+   *    with every record the feed lists, read from the homes it has. A
+   *    host that will not take the mind on stops the move here, before
+   *    anything of the mind has changed.
+   * 2. An `Update` names the new homes. If a host that is left held one of
+   *    the mind's operational keys, name the key in `revoke`: the same
+   *    event removes it, and a location record that host signs counts no
+   *    longer. A mind MUST remove such a key when it moves away.
+   * 3. A location record gives the mind's endpoints at its new homes.
+   *
+   * @param homes - The HTTPS origins that serve the mind from now on.
+   * @param options.revoke - Operational keys to revoke with the move.
+   * @returns The mind's identity state after the move.
+   * @throws What `Lookup.feed` and `update` throw, and the failure of a
+   *   new host that did not take the mind on or its feed. `forbidden` if
+   *   `revoke` would leave the mind no operational key.
+   */
+  async moveHomes(
+    homes: readonly string[],
+    options: ControlOptions & { readonly revoke?: readonly string[] },
+  ): Promise<IdentityState> {
+    const revoke = options.revoke ?? [];
+    const kept = this.#entries("keys").filter((entry) => !revoke.includes(entry.key));
+    if (kept.length === 0) {
+      throw new OipError(
+        "forbidden",
+        "that would leave the mind no operational key: add another before these are revoked",
+        { clause: "L1 3.7" },
+      );
+    }
+    await this.#publishing.prepare(homes);
+    const state = await this.update(
+      {
+        homes,
+        ...(revoke.length === 0 ? {} : { keys: kept, revoked: revoke.map((key) => ({ key })) }),
+      },
+      options,
+    );
+    for (const key of revoke) if (this.#operational.has(key)) await this.#operational.remove(key);
+    await this.publishLocation({ endpoints: homeEndpoints(this.address, homes) });
+    return state;
   }
 
   /**

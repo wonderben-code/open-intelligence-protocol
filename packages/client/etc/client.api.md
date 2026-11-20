@@ -279,6 +279,9 @@ export class Mind {
         readonly changes?: IdentityChanges;
     }): Promise<IdentityState>;
     get lookup(): Lookup;
+    moveHomes(homes: readonly string[], options: ControlOptions & {
+        readonly revoke?: readonly string[];
+    }): Promise<IdentityState>;
     static open(options: MindOptions): Promise<Mind>;
     get publications(): readonly Publication[];
     publishLocation(fields?: LocationFields): Promise<Location>;

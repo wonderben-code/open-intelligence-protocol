@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { example as finding } from "../examples/find.ts";
 import { example } from "../examples/first-mind.ts";
 import { example as messaging } from "../examples/messages.ts";
+import { example as moving } from "../examples/move.ts";
 import { example as publishing } from "../examples/publish.ts";
 import * as client from "../src/index.ts";
 import { World } from "./world.ts";
@@ -43,7 +44,7 @@ function memoryKeychain(): Keychain {
 
 describe("the README", () => {
   it("shows its examples unchanged", () => {
-    for (const name of ["first-mind.ts", "publish.ts", "find.ts", "messages.ts"]) {
+    for (const name of ["first-mind.ts", "publish.ts", "find.ts", "messages.ts", "move.ts"]) {
       const source = readFileSync(join(packageRoot, "examples", name), "utf8");
       // The file's licence header is not part of what the README shows.
       const code = source.replace(/^(\/\/ SPDX[^\n]*\n)+\n/, "");
@@ -129,6 +130,26 @@ describe("the README", () => {
       "received from Ada: Could you translate a lease by Friday?",
       "a request, sealed",
       "refused: 0; left in the mailbox: 0",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+  });
+
+  it("shows the output the example of changing hosts really gives, against a resolver and two hosts", async () => {
+    const hosts = { from: "https://host-one.example", to: "https://host-two.example" };
+    world.resolver("https://resolver.example");
+    world.host(hosts.from);
+    world.host(hosts.to);
+    const output = await moving(
+      ["https://resolver.example"],
+      hosts,
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock: world.clock },
+    );
+    expect(output).toStrictEqual([
+      "at host-one.example, with a feed of 1 entry",
+      "moved to host-two.example, at event 1",
+      "its endpoints are at host-two.example",
+      "its feed is read from 1 home: 1 entry",
     ]);
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });

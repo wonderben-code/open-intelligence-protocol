@@ -386,6 +386,7 @@ export class Publishing {
     others: { location?: Location; participant?: Participant },
     resolvers = true,
     sign: (asking: Asking) => Promise<Asking> = (asking) => this.#own.signed(asking),
+    homes: readonly string[] = resolved.state.homes,
   ): Promise<Offered[]> {
     const own = this.#own;
     const id = idOf(own.address);
@@ -405,7 +406,7 @@ export class Publishing {
           sign,
         ),
       ),
-      ...resolved.state.homes.map((origin) =>
+      ...homes.map((origin) =>
         this.#offer(
           "home",
           origin,
@@ -414,6 +415,94 @@ export class Publishing {
         ),
       ),
     ]);
+  }
+
+  /**
+   * Brings hosts the mind is about to name as its homes everything a home
+   * serves for it (Layer 1, 13.1): its identity log with its current
+   * location record and profile, and its feed with every record the feed
+   * lists (10.2), read from its present homes.
+   *
+   * It is done before the mind's identity names them: a host that will not
+   * take the mind on, or cannot be brought its feed, is found out while
+   * the homes that serve the mind are still its homes.
+   *
+   * @param homes - The homes the mind will have. Those it has already are passed over.
+   * @throws OipError `duplicity` if the mind's feed holds two entries at one
+   *   position; `not-found` if its present homes serve less of the feed
+   *   than this client remembers. The failure of a host that did not take
+   *   the bundle, a record or an entry.
+   */
+  async prepare(homes: readonly string[]): Promise<void> {
+    const own = this.#own;
+    const resolved = await own.refresh();
+    const fresh = homes.filter((home) => !resolved.state.homes.includes(home));
+    if (fresh.length === 0) return;
+    const entries: Entry[] = [];
+    const records = new Map<string, object>();
+    const remembered = (await own.memory.get(FEED, feedState)).value;
+    if (resolved.state.homes.length > 0) {
+      try {
+        const { feed } = await own.lookup.feed(own.address);
+        if (feed.equivocation.length > 0) {
+          throw new OipError(
+            "duplicity",
+            "the mind's feed holds two valid entries at one position: it is not carried to another home",
+            { clause: "L1 10.3" },
+          );
+        }
+        entries.push(...feed.entries.map(({ entry }) => entry));
+      } catch (error) {
+        // No home serves the mind: it has no feed to carry.
+        if (!(error instanceof OipError && error.code === "not-found")) throw error;
+      }
+    }
+    const known = remembered?.pending?.entry.seq ?? remembered?.head?.seq ?? -1;
+    if (known >= entries.length) {
+      throw new OipError(
+        "not-found",
+        "the mind's homes serve less of its feed than this client remembers: the feed cannot be carried whole",
+        { clause: "L1 10.3" },
+      );
+    }
+    for (const entry of entries) {
+      if (records.has(entry.object)) continue;
+      records.set(entry.object, (await own.lookup.record(own.address, entry.object)).record);
+    }
+    // A present home may have been asked just now: the mind is as it was resolved last.
+    const current = own.resolved();
+    const id = idOf(own.address);
+    for (const home of fresh) {
+      const [adopted] = await this.#bundle(
+        current,
+        {
+          ...(current.location === undefined ? {} : { location: current.location.record }),
+          ...(current.participant === undefined ? {} : { participant: current.participant.record }),
+        },
+        false,
+        (asking) => own.signedForLog(asking),
+        [home],
+      );
+      if (adopted?.failure !== undefined) throw adopted.failure;
+      const brought = new Set<string>();
+      for (const entry of entries) {
+        if (!brought.has(entry.object)) {
+          brought.add(entry.object);
+          const kept = await this.#offer("home", home, {
+            method: "PUT",
+            url: `${home}/oip/v1/minds/${id}/obj/${entry.object}`,
+            body: recordBody(records.get(entry.object)),
+          });
+          if (kept.failure !== undefined) throw kept.failure;
+        }
+        const listed = await this.#offer("home", home, {
+          method: "POST",
+          url: `${home}/oip/v1/minds/${id}/feed`,
+          body: recordBody({ oip: "1", type: "FeedPage", mind: own.address, entries: [entry] }),
+        });
+        if (listed.failure !== undefined) throw listed.failure;
+      }
+    }
   }
 
   /**

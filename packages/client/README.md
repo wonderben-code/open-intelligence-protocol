@@ -303,12 +303,73 @@ a request, sealed
 refused: 0; left in the mailbox: 0
 ```
 
+## Changing hosts
+
+[`examples/move.ts`](examples/move.ts) moves a mind from one host to another:
+
+```ts
+import { type Clock, type Fetch, Lookup, Mind } from "@oip/client";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * A mind moves from one host to another, and takes everything with it.
+ *
+ * @param resolvers - The HTTPS origins of the resolvers the mind trusts.
+ * @param hosts - The host it starts at, and the one it moves to.
+ * @param lock - What the mind's keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  hosts: { readonly from: string; readonly to: string },
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+  const mind = await Mind.create(
+    { keystore, lock, resolvers, memory: memoryStorage(), ...edges },
+    { kind: "agent", homes: [hosts.from] },
+  );
+  const profile = await mind.publishProfile({ name: "Ada" });
+  await mind.publishRecord(profile);
+  output.push(`at ${new URL(mind.state.homes[0] ?? hosts.from).host}, with a feed of 1 entry`);
+
+  // The new host is brought the log, the profile and the feed. Then the mind's identity names it.
+  const state = await mind.moveHomes([hosts.to], { control: lock });
+  output.push(
+    `moved to ${new URL(state.homes[0] ?? hosts.to).host}, at event ${String(state.seq)}`,
+  );
+
+  // Anyone who resolves the mind finds it there, with its feed whole.
+  const other = new Lookup({ resolvers, ...edges });
+  const resolved = await other.resolve(mind.address);
+  const inbox = resolved.location?.record.endpoints[0]?.url ?? hosts.to;
+  const { feed, sources } = await other.feed(mind.address);
+  output.push(`its endpoints are at ${new URL(inbox).host}`);
+  output.push(
+    `its feed is read from ${String(sources.length)} home: ${String(feed.entries.length)} entry`,
+  );
+  mind.close();
+  return output;
+}
+```
+
+It gives:
+
+```
+at host-one.example, with a feed of 1 entry
+moved to host-two.example, at event 1
+its endpoints are at host-two.example
+its feed is read from 1 home: 1 entry
+```
+
 ## What it exports
 
 | Export                                                                                                                                                   | What it does                                                                                                                                                                                                                                                                                   |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Mind`, `MindOptions`, `NewMind`                                                                                                                         | A mind of one's own: `create` makes one with its keys in a keystore and its genesis with every resolver; `open` opens it; `sign` signs a record as it; `refresh` resolves it afresh; `close` locks its keys                                                                                    |
-| `LocationFields`, `ProfileFields`, `Endpoint`, `Publication`, `homeEndpoints`, `DEFAULT_TTL`                                                             | What a mind publishes of itself: `Mind.publishLocation` (Layer 1, Section 15), `publishProfile` (16), `publishRecord` on its feed (10) and `bringHomes`. `publications` says what each resolver and each home answered                                                                         |
+| `LocationFields`, `ProfileFields`, `Endpoint`, `Publication`, `homeEndpoints`, `DEFAULT_TTL`                                                             | What a mind publishes of itself: `Mind.publishLocation` (Layer 1, Section 15), `publishProfile` (16), `publishRecord` on its feed (10), `bringHomes`, and `moveHomes` to change hosts (15.4). `publications` says what each resolver and each home answered                                    |
 | `IdentityChanges`, `KeyEntry`, `ControlOptions`                                                                                                          | What changes with an identity event, and what opens the control keys for it: `Mind.update`, `addKey`, `revokeKey`, `fork`, `retire` (Layer 1, 3.7 to 3.10)                                                                                                                                     |
 | `Lookup`, `LookupOptions`, `Resolved`, `ResolverAnswer`, `DEFAULT_MAX_LOGS`                                                                              | Resolves a mind: fetches its identity log from the resolvers the client trusts, takes their first-seen times as evidence, and verifies the log with them (Layer 1, 17.1; core 9.4). With the log come the mind's current location record and profile, if a resolver served them and they count |
 | `ReadFeed`, `HomeAnswer`, `DEFAULT_MAX_FEED_ENTRIES`                                                                                                     | `Lookup.feed` reads a mind's public feed from its homes and verifies it (Layer 1, 10 and 13.1)                                                                                                                                                                                                 |
@@ -353,6 +414,13 @@ refused: 0; left in the mailbox: 0
 - **Two processes must not write one feed.** They find each other out in the memory, if they share it: the second to write is told `changed`, before its entry has left. If they do not share it, a home that holds another entry at the position answers `duplicity`. The client then forgets where it thought the feed stood, and the next call reads it afresh.
 - **A location record says where the feed stood when it was signed.** Publish one after the entries that matter. A reader that finds less at a home than the record says knows the home is behind.
 - **`Lookup.feed` reads every home and judges what they served together.** A home that withholds the end of a feed is made up for by one that serves it. It reads 10 000 entries of a feed from one home at most. An entry counts from when this client first saw it.
+
+### Changing hosts
+
+- **`moveHomes` brings the new host everything first** (Layer 1, 15.4): the mind's identity log, its location record and profile, and its whole feed with every record the feed lists, read from the homes it has. Only then does an `Update` name the new homes, and a location record give the mind's endpoints there. A host that will not take the mind on, or cannot be brought the feed, stops the move before anything of the mind has changed.
+- **Remove a key the host you leave held.** A host that signs acknowledgements for a mind holds one of its operational keys, and can go on publishing location records for it. Name the key in `revoke`: the same event removes it, and what that host signs counts no longer, however high the number it gives a record (15.2). Layer 1 says a mind MUST do this when it moves away.
+- **A feed that has forked is not carried**, and neither is less of a feed than the client remembers: the move stops, and says which.
+- **The whole feed passes through the client.** A long feed takes a request for each record and each entry. `Lookup.feed` reads 10 000 entries at most.
 
 ### Sending and receiving
 

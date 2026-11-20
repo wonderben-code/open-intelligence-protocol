@@ -8,7 +8,7 @@
  */
 
 import { contentId, type Instant, parseTimestamp } from "@oip/core";
-import { FirstSeen, LogBook } from "@oip/identity";
+import { FirstSeen, judgeRecord, LogBook, ownSignedTime, witnessRecord } from "@oip/identity";
 
 import type { WireMind } from "./minds.ts";
 import { present } from "./report.ts";
@@ -36,5 +36,17 @@ export class Verifier {
   /** Takes in a log that an implementation served, first seen at `now`. Whether it verified. */
   learns(events: unknown, now: Instant): boolean {
     return this.book.witness(events, now, this.seen).ok;
+  }
+
+  /**
+   * Whether a record is signed by a mind's own authority (Layer 1, 6.1),
+   * its proofs first seen at `now`. The mind's log is one the verifier
+   * holds as of `now` or later (core 9.4).
+   */
+  signedBy(record: unknown, mind: string, now: Instant): boolean {
+    const judged = judgeRecord(record);
+    if (!judged.ok) return false;
+    witnessRecord(judged.value, now, this.seen);
+    return ownSignedTime(judged.value, mind, this.book) !== undefined;
   }
 }

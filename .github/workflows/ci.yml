@@ -34,9 +34,11 @@ jobs:
   checks:
     name: Every check (pnpm run ci)
     runs-on: ubuntu-latest
-    # The checks take about five minutes, and the 10,000 identity logs compared
-    # with the Python checker about as long again.
-    timeout-minutes: 30
+    # Every check in order, on one machine, takes most of an hour: the tests are
+    # run three times over (for the clauses they cite, with coverage, and as the
+    # golden vectors), and the identity logs compared with the Python checker
+    # take twenty minutes of it. The limit is there to end a run that hangs.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -103,7 +105,8 @@ jobs:
   test:
     name: Test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # About ten minutes, with coverage, on a shared runner.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

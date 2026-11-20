@@ -4,6 +4,7 @@
 import { defineProject } from "vitest/config";
 
 import { sourceAliases } from "../../scripts/lib/source-aliases.ts";
+import { testTimeouts } from "../../scripts/lib/test-timeouts.ts";
 
 export default defineProject({
   // Tests run against each package's source, so nothing needs building first.
@@ -12,7 +13,7 @@ export default defineProject({
     name: "@oip/delegation",
     environment: "node",
     include: ["test/**/*.test.ts"],
-    testTimeout: 60_000,
+    ...testTimeouts,
     benchmark: { include: ["bench/**/*.bench.ts"] },
   },
 });

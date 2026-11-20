@@ -4,6 +4,7 @@
 import { defineProject } from "vitest/config";
 
 import { sourceAliases } from "../../scripts/lib/source-aliases.ts";
+import { testTimeouts } from "../../scripts/lib/test-timeouts.ts";
 
 export default defineProject({
   // Tests run against each package's source, so nothing needs building first.
@@ -16,7 +17,7 @@ export default defineProject({
     setupFiles: process.env["OIP_ED25519"] === "native" ? ["./test/native.setup.ts"] : [],
     // Hostile inputs of a megabyte take real time on a busy CI machine or
     // under mutation testing; the default of five seconds is too tight.
-    testTimeout: 60_000,
+    ...testTimeouts,
     benchmark: { include: ["bench/**/*.bench.ts"] },
   },
 });

@@ -79,5 +79,6 @@ export { Fault } from "./fault.ts";
 export { Front, type FrontOptions, type ServedMind, type Taking } from "./front.ts";
 export { A2aServer, type Answer, type Asking, MAX_REQUEST_BYTES } from "./server.ts";
 export { listen, type Listening, type Served as ServedInterface } from "./listen.ts";
+export { type Host, main, type Reach, type Serving, VERSION } from "./main.ts";
 export { MAX_CARRIED_BYTES, MAX_FETCHED } from "./content.ts";
 export { MAX_FOLLOWED_SECONDS, MAX_OPEN_TASKS, type Relayed } from "./relay.ts";

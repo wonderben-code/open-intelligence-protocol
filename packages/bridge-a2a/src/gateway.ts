@@ -20,7 +20,14 @@
  * with the same keys: no second mind is made for an agent.
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 
 import { httpsOrigin, Mind, systemClock } from "@oip/client";
@@ -41,8 +48,13 @@ export interface GatewayEdges {
   readonly get: Get;
   /** Makes a request of an agent. */
   readonly ask: Ask;
-  /** The keys that may verify the signatures on a card: see `KeySource`. */
-  readonly keys: KeySource;
+  /**
+   * The keys that may verify the signatures on a card: see `KeySource`.
+   * The source is told the origin of the agent whose card it is, too.
+   */
+  readonly keys: (
+    wanted: Parameters<KeySource>[0] & { readonly origin: string },
+  ) => ReturnType<KeySource>;
 }
 
 /** Thrown when an agent cannot be bridged, with why. Nothing was made, or what was made is gone on with later. */
@@ -123,6 +135,29 @@ export class Gateway {
     }
   }
 
+  /** The agents the gateway bridges, by their origins in order. */
+  agents(): Bridged[] {
+    const under = join(this.#where.dir, "agents");
+    let names: string[];
+    try {
+      names = readdirSync(under);
+    } catch {
+      return [];
+    }
+    return names
+      .flatMap((name) => {
+        try {
+          const read = JSON.parse(readFileSync(join(under, name, AGENT_FILE), "utf8")) as Bridged;
+          // What the directory of an origin records is of that origin, or it is nothing.
+          return this.#directory(read.origin) === join(under, name) ? [read] : [];
+        } catch {
+          // A mind that is half made has no record yet: `bridge` goes on with it.
+          return [];
+        }
+      })
+      .sort((one, other) => (one.origin < other.origin ? -1 : 1));
+  }
+
   /**
    * Bridges an A2A agent (Layer 0, 3.1): reads its card, verifies any
    * signatures on it, and makes the agent's bridged mind, or brings the
@@ -164,7 +199,9 @@ export class Gateway {
         `the card of ${origin} is no card: ${message}, at ${path === "" ? "its top" : path}`,
       );
     }
-    const signatures = await verifySignatures(read.value, this.#edges.keys);
+    const signatures = await verifySignatures(read.value, (wanted) =>
+      this.#edges.keys({ ...wanted, origin }),
+    );
     if (!signatures.ok) {
       throw new BridgeError(
         "unverified-card",

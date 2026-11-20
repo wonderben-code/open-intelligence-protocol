@@ -232,6 +232,7 @@ export interface Gauge {
 export class GuardedFetcher {
     constructor(options?: GuardedFetcherOptions);
     get(url: string, accept?: string): Promise<Fetched>;
+    post(url: string, body: Uint8Array, contentType: string, accept?: string): Promise<Fetched>;
 }
 
 // @public
@@ -333,6 +334,33 @@ export interface LogOptions {
     readonly level?: Level;
     readonly service: string;
     readonly sink?: (line: string) => void;
+}
+
+// @public
+export class Lookup {
+    constructor(options: LookupOptions);
+    learn(mind: string): Promise<boolean>;
+}
+
+// @public
+export interface LookupOptions {
+    readonly archive: LogArchive;
+    // (undocumented)
+    readonly clock: Clock;
+    readonly get: (url: string, accept: string) => Promise<{
+        status: number;
+        body: Uint8Array;
+    }>;
+    // (undocumented)
+    readonly log: Log;
+    readonly maxAtOnce?: number;
+    readonly maxBundleBytes?: number;
+    // (undocumented)
+    readonly metrics: Metrics;
+    readonly remembered?: number;
+    readonly resolvers: readonly string[];
+    readonly rest?: bigint;
+    readonly service: string;
 }
 
 // @public

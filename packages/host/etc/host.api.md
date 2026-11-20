@@ -13,6 +13,8 @@ import { Instant } from '@oip/core';
 import { JsonObject } from '@oip/core';
 import { Log } from '@oip/server';
 import { LogArchive } from '@oip/server';
+import { Lookup } from '@oip/server';
+import { LookupOptions } from '@oip/server';
 import { Metrics } from '@oip/server';
 import { Migration } from '@oip/server';
 import { OipRecord } from '@oip/core';
@@ -181,38 +183,15 @@ export class HostStore {
 }
 
 // @public
-export class Lookup {
-    constructor(options: LookupOptions);
-    learn(mind: string): Promise<boolean>;
-}
-
-// @public
-export interface LookupOptions {
-    readonly archive: LogArchive;
-    // (undocumented)
-    readonly clock: Clock;
-    readonly get: (url: string, accept: string) => Promise<{
-        status: number;
-        body: Uint8Array;
-    }>;
-    // (undocumented)
-    readonly log: Log;
-    readonly maxAtOnce?: number;
-    readonly maxBundleBytes?: number;
-    // (undocumented)
-    readonly metrics: Metrics;
-    readonly remembered?: number;
-    readonly resolvers: readonly string[];
-    readonly rest?: bigint;
-}
-
-// @public
 export interface MailboxItem {
     // (undocumented)
     readonly cursor: number;
     // (undocumented)
     readonly record: JsonObject;
 }
+
+// @public
+export function partiesOf(record: OipRecord): string[];
 
 // @public
 export const PREFIX = "OIP_HOST_";
@@ -250,7 +229,7 @@ export const SETTINGS: {
     MAX_SOCKETS: Setting<number>;
     TRUSTED_PROXIES: Setting<number>;
     UNDERSTOOD: Setting<readonly string[]>;
-    LOG_LEVEL: Setting<"debug" | "info" | "warn" | "error">;
+    LOG_LEVEL: Setting<"error" | "debug" | "info" | "warn">;
     SHUTDOWN_GRACE_MS: Setting<number>;
 };
 

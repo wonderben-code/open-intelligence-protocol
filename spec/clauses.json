@@ -1396,13 +1396,13 @@
       "id": "L1 13.2",
       "document": "L1",
       "section": "Bindings",
-      "summary": "Inbox and acknowledgement. `POST {endpoint}/inbox` with a body of a `Packet` or `Sealed` record…",
+      "summary": "Inbox and acknowledgement. `POST {endpoint}/inbox` with a body of a `Packet`, a `Sealed` record…",
       "level": "SHOULD",
       "keywords": {
         "MAY": 2,
         "SHOULD": 2
       },
-      "digest": "3584d0dda193af8cf06ac04ac1a9b114cac94a71c08bf8eb91d972a42805c183"
+      "digest": "b61d902facb3af00218a5dbc2ee9acb0c613ac14d74bb84f8e29e101ee77cc59"
     },
     {
       "id": "L1 13.3",
@@ -1422,20 +1422,23 @@
       "document": "L1",
       "section": "Bindings",
       "summary": "WebSocket. A client opens the WebSocket URL given by the mind's location record (Section 15.1)…",
-      "level": "none",
-      "keywords": {},
-      "digest": "867a4b52ea6d24ca4674a8ed55cba9bb04167dcebdac147c142185aa727eafcc"
+      "level": "SHOULD",
+      "keywords": {
+        "MAY": 2,
+        "SHOULD": 1
+      },
+      "digest": "e05d2e68e47b63e89992629cb150b582c6eb9566248e120d093262ee88b9bd96"
     },
     {
       "id": "L1 13.5",
       "document": "L1",
       "section": "Bindings",
-      "summary": "Mailbox. A mailbox endpoint accepts `POST {mailbox}` with a `Sealed` or `Packet` record and ret…",
+      "summary": "Mailbox. A mailbox endpoint accepts `POST {mailbox}` with a `Sealed`, `Packet` or `Forwarded` r…",
       "level": "SHOULD",
       "keywords": {
         "SHOULD": 1
       },
-      "digest": "c65cde3b714b5c65ddf6cb151e836727999f5b79b22aaa7ef04dbfca91380910"
+      "digest": "68dfb2e07b3666a21c5fa82eee0d2bbd3057162ec4ff6604622da9c052c55f03"
     },
     {
       "id": "L1 13.6",
@@ -1632,19 +1635,21 @@
       "summary": "An indexer MUST implement: - `POST /oip/v1/submit` with body `{ \"records\": [ … ] }` containing…",
       "level": "MUST",
       "keywords": {
-        "MUST": 1,
-        "MAY": 1
+        "MUST": 2,
+        "MAY": 2
       },
-      "digest": "5dc347e328fc104082fd717401df055c573e89694a65bdf64088bbcb8b270caf"
+      "digest": "71e9b1bf7d6a2e92fb97cd33cb4394b0c85343256cf9f2a3afcba3d26ce65b3c"
     },
     {
       "id": "L1 18.2",
       "document": "L1",
       "section": "Indexers and capability routing",
       "summary": "A capability query is an object whose members are all optional: `want` (free text, at most 1024…",
-      "level": "none",
-      "keywords": {},
-      "digest": "bb3fce2abd96f153759456aa63201f6a1d8a5687c7d1c9dfecbb80057a813a54"
+      "level": "MUST",
+      "keywords": {
+        "MUST NOT": 1
+      },
+      "digest": "bad0dd85d7dc3f7322fd9058a3bac735c684492d77dffca1cdf1329d92dcbffe"
     },
     {
       "id": "L1 18.3",
@@ -1673,10 +1678,10 @@
       "summary": "Brokered delivery. An indexer MAY accept `POST {endpoint}/inbox` packets whose `to` is a capabi…",
       "level": "MUST",
       "keywords": {
-        "MAY": 1,
+        "MAY": 2,
         "MUST": 2
       },
-      "digest": "544da3610b343ba76d690c431c1ce0a947eb3f960503b424b2c02b174c334458"
+      "digest": "5420aa5740bc805490106405c31cc4f0e6377de27514021795fa620b9aba1146"
     },
     {
       "id": "L1 19",

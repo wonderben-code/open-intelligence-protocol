@@ -327,7 +327,7 @@ describe(`${clause("L1 13.2")} a mind's inbox`, () => {
     expect(metrics.render()).toContain('oip_host_records_kept_total{at="inbox",answer="ack"} 2');
   });
 
-  it(`${clause("L1 18.5")} takes a packet a broker forwarded to the mind, and a mailbox does not`, async () => {
+  it(`${clause("L1 18.5", "L1 15.3")} takes a packet a broker forwarded to the mind, as its mailbox does`, async () => {
     const { ask } = service({}, { known: [ada, bob, eve] });
     const asked = packet(ada, [], { to: { query: { want: "A translator." } } });
     const wrapped = eve.sign({
@@ -340,11 +340,23 @@ describe(`${clause("L1 13.2")} a mind's inbox`, () => {
     });
     const taken = await ask(endpoint(bob, "/inbox"), sending(wrapped));
     expect([taken.status, await taken.json()]).toStrictEqual([202, { stored: true }]);
-    expect(await problemOf(await ask(endpoint(bob, "/mailbox"), sending(wrapped)))).toStrictEqual({
-      status: 400,
-      type: "urn:oip:error:invalid-record",
-    });
+    // The same packet at the mailbox is the same packet: it is there once.
+    const again = await ask(endpoint(bob, "/mailbox"), sending(wrapped));
+    expect([again.status, await again.json()]).toStrictEqual([202, { stored: true }]);
     expect(count("mailbox")).toBe(1);
+    // A wrapper for another mind is not this mind's mail.
+    const others = eve.sign({
+      oip: "1",
+      type: "Forwarded",
+      broker: eve.address,
+      to: ada.address,
+      packet: asked,
+      created: T(105),
+    });
+    expect(await problemOf(await ask(endpoint(bob, "/mailbox"), sending(others)))).toStrictEqual({
+      status: 403,
+      type: "urn:oip:error:forbidden",
+    });
   });
 
   it("takes a sealed record for the mind as it is", async () => {

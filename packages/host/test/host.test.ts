@@ -337,8 +337,17 @@ describe(`${clause("L1 18.5", "L1 12.4")} a packet a broker forwarded to a mind`
     expect(host.deliver(bob.address, forward(zed, bob, packet(ada, [bob])))).toStrictEqual({
       stored: true,
     });
-    // A mailbox takes a packet or a sealed record, and no wrapper (13.5).
-    expect(refused(() => host.post(bob.address, forward(eve, bob, asked())))).toStrictEqual({
+    // A mailbox takes a wrapper as it takes a packet: unjudged, for the mind it names, and
+    // under the packet's content ID, so that the packet is there once whoever carried it.
+    const carried = asked({ brokers: [ada.address] });
+    expect(host.post(bob.address, forward(eve, bob, carried))).toStrictEqual({ stored: true });
+    expect(host.post(bob.address, forward(zed, bob, carried))).toStrictEqual({ stored: true });
+    expect(count("mailbox")).toBe(2);
+    expect(refused(() => host.post(bob.address, forward(eve, ada, carried)))).toStrictEqual({
+      code: "forbidden",
+    });
+    const unformed = { ...forward(eve, bob, carried), broker: 7 } as unknown as OipRecord;
+    expect(refused(() => host.post(bob.address, unformed))).toStrictEqual({
       code: "invalid-record",
     });
   });

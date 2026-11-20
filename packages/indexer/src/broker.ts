@@ -13,9 +13,10 @@
  * `maxFanout` are inside what the sender signed: the broker cannot widen
  * them.
  *
- * A packet is forwarded once. It is delivered to the `https` endpoints of
- * each mind's current location record, through the guarded fetcher: an
- * endpoint is a URL a stranger wrote.
+ * A packet is forwarded once. It is posted to the inboxes of each mind's
+ * current location record, and to its mailboxes where no inbox takes it
+ * (15.3), through the guarded fetcher: an endpoint is a URL a stranger
+ * wrote.
  */
 
 import {
@@ -244,17 +245,18 @@ export class Broker {
     if (this.#running === 0) for (const told of this.#idle.splice(0)) told();
   }
 
-  /** One wrapper to one mind: the inboxes of its current location record, in the order it gives. */
+  /** One wrapper to one mind: the endpoints of its current location record, in the order to try them. */
   async #deliver(mind: string, wrapper: JsonObject): Promise<void> {
     const { archive, log, post } = this.#options;
     let outcome = "nowhere";
     try {
       const location = archive.resolve(mindId(mind) ?? "")?.location;
       const body = utf8(JSON.stringify(wrapper));
-      // A wrapper is no packet a mailbox takes (13.5): only an inbox will do.
-      const inboxes = (location === undefined ? [] : endpointsToTry(location))
-        .filter((endpoint) => endpoint.binding === "https")
-        .flatMap((endpoint) => postUrl(endpoint) ?? []);
+      // Where a packet is posted: the mind's inboxes in the order it gives, and its
+      // mailboxes after them, or alone while it is paused (15.3).
+      const inboxes = (location === undefined ? [] : endpointsToTry(location)).flatMap(
+        (endpoint) => postUrl(endpoint) ?? [],
+      );
       for (const url of inboxes) {
         outcome = "refused";
         try {

@@ -286,7 +286,10 @@ export function hostApp(options: HostAppOptions): Hono<{ Bindings: Arrival }> {
     "/oip/v1/minds/:id/mailbox",
     gated("mailbox", limits.deliver, async (request, param) => {
       const mind = served(param("id"));
-      const answer = host.post(mind, await sent(request, "L1 13.5", ["Packet", "Sealed"]));
+      const answer = host.post(
+        mind,
+        await sent(request, "L1 13.5", ["Packet", "Sealed", "Forwarded"]),
+      );
       kept.add({ at: "mailbox", answer: "stored" });
       return json(answer, 202);
     }),

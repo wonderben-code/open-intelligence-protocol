@@ -330,7 +330,9 @@ export class Host {
    * Layer 1, 13.5: a record posted to a mind's mailbox. It is kept as it
    * is, for the mind to judge when it drains the mailbox.
    *
-   * @param record - A `Packet` or a `Sealed` record, already read.
+   * @param record - A `Packet`, a `Sealed` record, or a `Forwarded` record
+   *   from a broker (18.5), already read: a mailbox is where a packet goes
+   *   when no other endpoint takes it (15.3), whoever carries it.
    * @throws OipError `not-found` if the host does not serve the mind;
    *   `invalid-record` for any other record; `forbidden` for one addressed
    *   to another.
@@ -338,25 +340,31 @@ export class Host {
    */
   post(mind: string, record: OipRecord): Answer {
     this.#served(mind);
-    if (record.type !== "Sealed" && record.type !== "Packet") {
-      throw new OipError("invalid-record", "a mailbox takes a Packet or a Sealed record", {
-        clause: "L1 13.5",
-      });
+    if (record.type !== "Sealed" && record.type !== "Packet" && record.type !== "Forwarded") {
+      throw new OipError(
+        "invalid-record",
+        "a mailbox takes a Packet, a Sealed record or a Forwarded record",
+        { clause: "L1 13.5" },
+      );
     }
     // Its form is checked, and no more: the mind judges what it drains.
     const formed = standing(() => validateRecordOfType(record.type, record));
     if (!formed.ok) malformed(formed);
-    const to = (record as { to?: unknown }).to;
+    const { to, packet } = record as { to?: unknown; packet?: object };
+    // A packet names its recipients in a list. A sealed record and a broker's wrapper name one.
     const addressed =
-      record.type === "Sealed" ? to === mind : Array.isArray(to) && to.includes(mind);
+      record.type === "Packet" ? Array.isArray(to) && to.includes(mind) : to === mind;
     if (!addressed) {
       throw new OipError("forbidden", "the record is addressed to another mind", {
         clause: "L1 12.4",
       });
     }
+    // A forwarded packet is kept under the packet's own content ID, as at the inbox: the
+    // same packet from two brokers is one packet (18.5).
+    const id = contentId(record.type === "Forwarded" && packet !== undefined ? packet : record);
     this.#archive.witnessing((_seen, now) => {
       this.#room(mind, record as unknown as JsonObject);
-      this.#put(mind, contentId(record), record as unknown as JsonObject, now);
+      this.#put(mind, id, record as unknown as JsonObject, now);
     });
     return STORED;
   }

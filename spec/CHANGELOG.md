@@ -102,7 +102,7 @@ Two independent reviews of `@oip/delegation` and `@oip/web` found eight more (OE
 
 **Test vectors for the Mind Network.** Eight new kinds of case (`feed`, `checkpoint`, `receive`, `chain`, `hello`, `ack`, `location`, `participant`; the vectors' README defines each), with 13 must-accept cases, 37 negative cases and 37 controls. The independent Python checker judges them from the text of Layer 1, Sections 10 and 12 to 16. The vectors now hold 48 must-accept cases, 179 negative cases and 125 controls. Every value that was there is byte for byte what it was.
 
-**Service clarifications ([OEP-0005](../oeps/oep-0005-service-clarifications.md), found while building the resolver).** The milestone is not finished, and more may follow. No test vector changes.
+**Service clarifications ([OEP-0005](../oeps/oep-0005-service-clarifications.md), found while building the resolver, the host and the indexer).** No test vector changes.
 
 - **`<mindId>` (Layer 1, 17.1).** It is the content ID of the mind's genesis: its address without `did:oip:`, and the `m` of 13.1. The technical paper said so and the specification did not. A bundle published under another mind's `<mindId>` is `invalid-record`.
 - **The stream's cursor (17.1).** A string of decimal digits, rising in the order things were taken in. Without `since` a stream starts from the first; `Last-Event-ID` may stand for `since`. Each event and each location record is told of once.
@@ -110,6 +110,12 @@ Two independent reviews of `@oip/delegation` and `@oip/web` found eight more (OE
 - **Which proofs a resolver keeps (17.2).** Those that can count for the event: a signature that verifies, by a control key the event reveals or an invocation key a member has at the version named. Without this rule anyone could put more proofs on a mind's event at two resolvers than a record carries, and a client that merged them would treat the log as not verified (7.1).
 - **Order (17.2).** A resolver records no two events of one mind as first seen at the same time.
 - **Authenticated publication (17.3).** The request is signed by a mind whose key is valid by the logs the resolver holds, or by the mind being published, judged against the log in the bundle. Nothing said how a mind could publish its own log to a resolver that asks for a signature and has never seen it.
+- **What an inbox and a mailbox take (13.2, 13.5).** A `Forwarded` record from a broker, besides a `Packet` and a `Sealed` record. 12.4 has a receiver accept a packet addressed to a query only inside a `Forwarded` record, and 18.5 has a broker deliver one: neither endpoint was said to take it. A packet is the same packet whichever broker forwarded it.
+- **What is said over a socket after the welcome (13.4).** A record sent to the server is delivered as at the inbox. A mind's own instance is sent the records kept for it, and says it has one with its own `Ack`; until then the record stays in the mailbox. A message that is refused closes the connection with code 1008. 13.4 said "each message is one record" and no more.
+- **Submission (18.1).** An indexer verifies a record before it lists it, and may say in its `202` what became of each record.
+- **Tag prefixes (18.2).** `oasf:nlp/*` matches a tag that begins with `oasf:nlp/`. "Any value with that prefix" did not say whether the slash is part of the prefix.
+- **Constraints and evidence an indexer does not weigh (18.2).** It returns no result for a query that states them, where it would otherwise return results it had not checked.
+- **A broker's duties and its answer (18.5).** It forwards a packet once, not to its sender, to an inbox or else a mailbox, and answers `202` with `{ "stored": true }`.
 
 ## Revision 2026-11-17 (Draft)
 

@@ -343,14 +343,19 @@ describe(`${clause("L1 18.5", "L1 15.3")} the delivery of a forwarded packet`, (
     expect(JSON.stringify(lines)).not.toContain("10.0.0.9");
   });
 
-  it("goes to an inbox only: a mind with none, or with a mailbox alone, is not reached", async () => {
+  it("goes to a mind's mailbox where no inbox takes it, and nowhere for a mind with no endpoint", async () => {
     archive = new LogArchive({ db, clock });
     archive.publish(idOf(ian), bundleOf(ian, []));
     indexer = new Indexer({ db, archive, clock, address: ian.address, signer: ian.operational() });
     indexer.submit([
       bundleOf(ada),
       bundleOf(bob, []),
-      bundleOf(cyd, ["mailbox:https://cyd.example/mailbox", "http://cyd.example/plain"]),
+      // A mailbox, listed before an inbox that refuses and an endpoint that is no HTTPS URL.
+      bundleOf(cyd, [
+        "mailbox:https://cyd.example/mailbox",
+        "https://cyd.example/oip",
+        "http://cyd.example/plain",
+      ]),
       translator(bob),
       translator(cyd),
     ]);
@@ -362,14 +367,20 @@ describe(`${clause("L1 18.5", "L1 15.3")} the delivery of a forwarded packet`, (
       metrics,
       post: (url) => {
         posted.push({ url, type: "", record: {} });
-        return Promise.resolve({ status: 202 });
+        return Promise.resolve({ status: url.endsWith("/inbox") ? 503 : 202 });
       },
       perSender: new RateLimiter({ burst: 100, perMinute: 6000 }, clock),
     });
     expect(forwarding.accept(asking(ada))).toStrictEqual({ forwarding: 2 });
     await forwarding.idle();
-    expect(posted).toStrictEqual([]);
-    expect(metrics.render()).toContain('oip_indexer_deliveries_total{outcome="nowhere"} 2');
+    // The inbox first, whatever order the record lists them in, and the mailbox after it.
+    expect(posted.map((post) => post.url)).toStrictEqual([
+      "https://cyd.example/oip/inbox",
+      "https://cyd.example/mailbox",
+    ]);
+    const text = metrics.render();
+    expect(text).toContain('oip_indexer_deliveries_total{outcome="delivered"} 1');
+    expect(text).toContain('oip_indexer_deliveries_total{outcome="nowhere"} 1');
   });
 
   it("is made a few at a time, and packets are refused for now when too many wait", async () => {

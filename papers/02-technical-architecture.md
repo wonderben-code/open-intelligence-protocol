@@ -584,7 +584,7 @@ Ranking is the indexer's own policy, and its signature makes it accountable for 
 **Sending to "whoever can do this".** A packet can be addressed to a capability query instead of a mind, with `to: { "query": { … } }`. There are two ways to deliver it:
 
 - **Client-resolved.** The sender queries one or more indexers, chooses candidates and sends to them directly.
-- **Broker-resolved.** The sender hands the packet to a broker, usually an indexer, which forwards the unchanged signed packet to matching minds as a call for offers, each wrapped in a signed `Forwarded` record naming the broker and the recipient. The packet itself names the brokers allowed to forward it and the maximum fan-out, inside its signature, so a broker cannot widen either, and such packets expire within an hour. Recipients discard repeat deliveries, reply directly to the sender, and can see which broker routed the packet to them, so they can filter brokers that send noise.
+- **Broker-resolved.** The sender hands the packet to a broker, usually an indexer, which forwards the unchanged signed packet to matching minds as a call for offers, each wrapped in a signed `Forwarded` record naming the broker and the recipient. The packet itself names the brokers allowed to forward it and the maximum fan-out, inside its signature, so a broker cannot widen either, and such packets expire within an hour. A broker forwards a packet once, to each mind's inbox or, where no inbox takes it, its mailbox. Recipients discard repeat deliveries, reply directly to the sender, and can see which broker routed the packet to them, so they can filter brokers that send noise.
 
 Revision 2 adds topic routing over publish/subscribe networks: `to: { "subject": "cap.nlp.translation.*" }`.
 

@@ -15,10 +15,10 @@ This page lists every numbered clause of the specifications (revision 2026-11-17
 | Document | Clauses | Gated | Gated with a passing test | MUST-level | MUST-level with a passing test |
 |---|---:|---:|---:|---:|---:|
 | [core](../../spec/core.md) | 47 | 46 | 46 | 26 | 26 |
-| [L0](../../spec/layer-0-bridge.md) | 17 | 12 | 2 | 6 | 1 |
+| [L0](../../spec/layer-0-bridge.md) | 17 | 12 | 3 | 6 | 2 |
 | [L1](../../spec/layer-1-mind-network.md) | 96 | 95 | 95 | 47 | 47 |
 | [L2](../../spec/layer-2-mind-web.md) | 28 | 24 | 24 | 11 | 11 |
-| **All** | 188 | 177 | 167 | 90 | 85 |
+| **All** | 188 | 177 | 168 | 90 | 86 |
 
 ## Golden vectors
 
@@ -137,7 +137,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 9.1 | MUST | M2 | 3 | tested | Implementations MUST tolerate clock skew of up to 300 seconds when checking whether a record is… |
 | core 9.2 |  | M2 | 2 | tested | `created`, in a record or in a proof, is asserted by the signer. A signer holding a stolen, rem… |
 | core 9.3 | MUST | M2 | 12 | tested | Evaluation time. Every rule that depends on when a proof was made (key removal and compromise,… |
-| core 9.4 | MUST | M2 | 64 | tested | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
+| core 9.4 | MUST | M2 | 65 | tested | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
 | core 9.5 |  | M2 | 44 | tested | Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where… |
 | core 9.6 |  | M2 | 8 | tested | Expiry. A proof whose evaluation time is more than 300 seconds after its record's `expires` doe… |
 | core 9.7 |  | M2 | 2 | tested | Consequence. A verifier that first sees a record long after it was made can count its proofs on… |
@@ -158,7 +158,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L0 1.4 | MUST | M9 | 0 | pending M9 | Records signed by a bridged mind are statements by the gateway about the external system. Recei… |
 | L0 1.5 | SHOULD | M9 | 0 | pending M9 | Several gateways MAY bridge the same external system. An external system that later creates a n… |
 | L0 2.1 | MUST | M9 | 0 | pending M9 | MCP servers as participants. A gateway bridging an MCP server: - maps each tool returned by `to… |
-| L0 2.2 | MUST | M8 | 0 | pending M8 | OIP as an MCP server. An OIP MCP server gives an MCP host a mind. It MUST expose tools with the… |
+| L0 2.2 | MUST | M8 | 73 | tested | OIP as an MCP server. An OIP MCP server gives an MCP host a mind. It MUST expose tools with the… |
 | L0 3.1 |  | M9 | 0 | pending M9 | A2A agents as participants. A gateway bridging an A2A agent fetches its Agent Card from `/.well… |
 | L0 3.2 | MAY | M9 | 0 | pending M9 | OIP minds as A2A agents. A host MAY publish an A2A Agent Card for a mind it serves, generated f… |
 | L0 3.3 | MAY | M9 | 0 | pending M9 | OIP extension for A2A. A2A messages MAY carry a complete OIP packet as a data part with media t… |
@@ -234,15 +234,15 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 10.6 | MAY | M4 | 4 | tested | A checkpoint MAY be anchored in a public append-only log or in the Bitcoin blockchain through O… |
 | L1 11.1 | MUST | M3 | 18 | tested | A `Delegation` record: \| Member \| Required \| Value \| UCAN 1.0 \| \|---\|---\|---\|---\| \| `author` \|… |
 | L1 11.2 | MUST | M3 | 24 | tested | Commands match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` covers a command `c` when… |
-| L1 11.3 | SHOULD | M3 | 51 | tested | Policies. A policy is an array of at most 64 statements, all of which must hold for the record… |
+| L1 11.3 | SHOULD | M3 | 54 | tested | Policies. A policy is an array of at most 64 statements, all of which must hold for the record… |
 | L1 11.4 |  | M3 | 26 | tested | Validity of a delegation chain for a record `r` carrying a proof `p` by a valid operational key… |
 | L1 11.5 | SHOULD | M3 | 18 | tested | A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco… |
 | L1 11.6 | MUST | M3 | 16 | tested | Use. A proof that relies on delegation lists, in its own `authority` member (core 5.2), exactly… |
 | L1 12.1 | MUST | M4 | 40 | tested | A `Packet`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `from` \| yes \| Sender's address; the… |
 | L1 12.2 | MUST | M4 | 13 | tested | Content. Exactly one of: - `{ "mediaType": <media type>, "body": <JSON value> }`. With `applica… |
 | L1 12.3 | MUST | M4 | 4 | tested | Verbs (advisory): `inform`, `request`, `query`, `propose`, `accept`, `decline`, `deliver`, `ack… |
-| L1 12.4 | MUST | M4 | 66 | tested | Receiving. A receiver MUST verify the packet's proof and, if `to` lists addresses, that it is o… |
-| L1 12.5 | MUST | M4 | 7 | tested | Treat content as data. Receivers MUST NOT treat the content of a packet as conferring authority… |
+| L1 12.4 | MUST | M4 | 67 | tested | Receiving. A receiver MUST verify the packet's proof and, if `to` lists addresses, that it is o… |
+| L1 12.5 | MUST | M4 | 8 | tested | Treat content as data. Receivers MUST NOT treat the content of a packet as conferring authority… |
 | L1 12.6 | MUST | M4 | 35 | tested | `Sealed`. To send a packet privately, the sender encrypts it to one of the recipient's agreemen… |
 | L1 13.1 | MUST | M5 | 45 | tested | Well-known resources. A host serving mind `M` (with content ID `m`) MUST serve: - `GET /.well-k… |
 | L1 13.2 | SHOULD | M5 | 52 | tested | Inbox and acknowledgement. `POST {endpoint}/inbox` with a body of a `Packet`, a `Sealed` record… |

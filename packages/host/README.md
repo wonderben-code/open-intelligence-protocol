@@ -231,3 +231,9 @@ pnpm vitest run --project @oip/host
 ```
 
 `test/host.test.ts` covers what the host does with a record, `test/app.test.ts` the HTTP interface, `test/sockets.test.ts` the binding without a socket, `test/lookup.test.ts` the asking of resolvers, and `test/main.test.ts` a host that runs, asked with `fetch` and a WebSocket client.
+
+`test/fuzz.test.ts` asks the interface anything at all: requests it would take with something done to them, and requests made of nothing. Every answer must be one the host means, and for an error the problem details of core 10.2. `pnpm test:fuzz` runs the campaign, `OIP_FUZZ_RUNS` sets its length, and it runs each night at 200,000.
+
+`test/faults.test.ts` plants faults under a running host: the process is killed after it has answered a delivery, a mind's connection is cut while its mail is being sent, and another process locks the database. A packet the host answered for is in the mailbox after, once, with the time its proof was first seen.
+
+The [conformance suite](../conformance/README.md#over-the-wire) runs its Host profile against it, in a test process and in its container.

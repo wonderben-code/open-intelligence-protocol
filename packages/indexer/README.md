@@ -198,3 +198,7 @@ pnpm vitest run --project @oip/indexer
 ```
 
 `test/indexer.test.ts` covers submission and queries, `test/broker.test.ts` brokered delivery, `test/app.test.ts` the HTTP interface, `test/main.test.ts` an indexer that runs, and `test/bin.test.ts` the command.
+
+`test/init.test.ts` covers the making of the indexer's own mind. `test/fuzz.test.ts` asks the interface anything at all: requests it would take with something done to them, and requests made of nothing. Every answer must be one the indexer means, and for an error the problem details of core 10.2, and nothing of its key may be in an answer or in its log. `pnpm test:fuzz` runs the campaign, `OIP_FUZZ_RUNS` sets its length, and it runs each night at 200,000.
+
+The [conformance suite](../conformance/README.md#over-the-wire) runs its Indexer profile against it, in a test process and in its container.

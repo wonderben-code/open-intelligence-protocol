@@ -7,11 +7,14 @@ It is built on [`@oip/server`](../server/README.md). It runs on Node.js 24.15 or
 ## Run it
 
 ```
+oip-indexer init /etc/oip/indexer
 OIP_INDEXER_ORIGIN=https://indexer.example \
-OIP_INDEXER_BUNDLE_FILE=/etc/oip/indexer.bundle.json \
-OIP_INDEXER_KEY_FILE=/run/secrets/indexer.key \
+OIP_INDEXER_BUNDLE_FILE=/etc/oip/indexer/bundle.json \
+OIP_INDEXER_KEY_FILE=/etc/oip/indexer/operational.key \
 OIP_INDEXER_DATABASE=/data/indexer.db oip-indexer
 ```
+
+`oip-indexer init <directory>` makes the indexer's own mind, once: a key-controlled mind of kind `service`. It writes the mind's `Bundle`, the operational key the indexer signs with, and `next-control.key`, the control key that the mind's next identity event will need. The indexer never reads that last file: move it somewhere safer than the machine the indexer runs on. The control key that signed the genesis is used once and kept nowhere (Layer 1, 3.11). Both key files are readable by their owner only, and nothing is ever written over: where the mind is there already the command ends with 1, or with 0 and nothing done if `--if-missing` is given, for whatever starts the indexer each time. `--home <https origin>` names an origin that serves the mind's records, and may be given more than once.
 
 An indexer signs what it answers, so it is a mind. It is started with the `Bundle` of that mind and with one of the mind's operational keys. The key file holds the 32 bytes of an Ed25519 private key as base64url, and must be readable by its owner only (mode 600): the indexer does not start otherwise. The key is read into the signer and goes nowhere else.
 
@@ -170,6 +173,7 @@ answered: 200, by the indexer: true, with a proof that verifies: true
 | Export                                                                               | What it is                                                                                                    |
 | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | `start`, `Running`, `Edges`, `SETTINGS`, `PREFIX`, `readKey`                         | The indexer as a running service, its settings, and how it reads its key                                      |
+| `init`, `initCommand`, `InitOptions`, `Initialised`, `INIT_FILES`, `INIT_USAGE`      | The indexer's own mind, made once before it first starts, and the command `oip-indexer init`                  |
 | `indexerApp`, `IndexerAppOptions`                                                    | Its HTTP interface, as a function from a request to a response                                                |
 | `Indexer`, `IndexerOptions`, `IndexerLimits`, `DEFAULT_INDEXER_LIMITS`, `Submission` | What an indexer does with a record and with a query: submission, the signed answer, the minds a query matches |
 | `Broker`, `BrokerOptions`, `Forwarding`                                              | Brokered delivery: a packet addressed to a query, forwarded once to the minds that match                      |

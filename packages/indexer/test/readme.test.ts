@@ -98,6 +98,8 @@ describe("the README", () => {
         "IndexerAppOptions",
         "IndexerLimits",
         "IndexerOptions",
+        "Initialised",
+        "InitOptions",
         "Item",
         "Kind",
         "Running",

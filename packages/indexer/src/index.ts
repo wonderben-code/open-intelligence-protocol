@@ -25,4 +25,12 @@ export {
   type Kind,
   type Search,
 } from "./store.ts";
+export {
+  init,
+  INIT_FILES,
+  INIT_USAGE,
+  initCommand,
+  type Initialised,
+  type InitOptions,
+} from "./init.ts";
 export { type Edges, PREFIX, readKey, type Running, SETTINGS, start } from "./main.ts";

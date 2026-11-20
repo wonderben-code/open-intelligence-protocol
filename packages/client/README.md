@@ -1322,7 +1322,7 @@ now a collective of 4, of whom 3 act
 - **Every record named is fetched and verified** (Layer 1, 18.4). A profile is returned if it counts for its mind (16.1) and carries every tag asked for. An Offer or an Intent is returned if its author's own authority signed it and it has not expired. They are fetched from the homes the author's own log names: an indexer's `hints` are not followed.
 - **`current` says whether a profile is the mind's current one** (16.4). An indexer may still list one the mind has replaced. It is returned only if the mind's homes still serve it, and marked.
 - **`refused` says what was named and is not returned**, each with why, and `sources` what each indexer answered. `by` gives each indexer's own score for what was found. Scores of two indexers do not compare: ranking is each indexer's own policy.
-- **A mind that publishes is listed.** `publishProfile` and `publishLocation` submit the mind's bundle and its profile to the indexers the client names, and `publications` says which took them.
+- **A mind that publishes is listed.** `publishProfile` and `publishLocation` submit the mind's bundle and its profile to the indexers the client names, and `publications` says which took them. `publishRecord` does the same for an Offer or an Intent of the mind's own, once a home serves it: an indexer that cannot be told changes nothing of the feed.
 - **A client that fetches for strangers is asked to fetch from where they say.** The homes of a mind are URLs its controller chose. In a browser that is as any link. On a server inside a private network, give the client a `fetch` that reaches only public addresses.
 
 ### In a browser

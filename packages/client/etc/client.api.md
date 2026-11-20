@@ -254,6 +254,20 @@ export interface KeyEntry {
 export type Listed = Participant | Offer | Intent;
 
 // @public
+export interface Listening {
+    close(): Promise<void>;
+    readonly closed: Promise<void>;
+}
+
+// @public
+export interface ListenOptions {
+    readonly changed?: (state: SocketState) => void;
+    readonly maxRetryMs?: number;
+    readonly received: (inbox: Inbox) => void | Promise<void>;
+    readonly retryMs?: number;
+}
+
+// @public
 export interface LocationFields {
     readonly endpoints?: readonly Endpoint[];
     readonly resumeAfter?: string;
@@ -355,6 +369,7 @@ export class Mind {
     hold(record: unknown): string;
     intent(fields: Fields<Intent>, acting?: Acting): Promise<Intent>;
     leaveSession(session: string): Promise<boolean>;
+    listen(options: ListenOptions): Listening;
     get lookup(): Lookup;
     moveHomes(homes: readonly string[], options: ControlOptions & {
         readonly revoke?: readonly string[];
@@ -404,6 +419,8 @@ export interface MindOptions extends LookupOptions {
     readonly lock: Lock;
     readonly memory?: KeyStorage;
     readonly randomness?: Randomness;
+    readonly sleep?: (ms: number) => Promise<void>;
+    readonly webSocket?: OpenSocket;
 }
 
 // @public
@@ -430,6 +447,9 @@ export interface NotFound {
     readonly mind: string;
     readonly record: string;
 }
+
+// @public
+export type OpenSocket = (url: string, protocol: string) => SocketLike;
 
 // @public
 export interface ProfileFields {
@@ -550,6 +570,39 @@ export interface SessionView {
     readonly sent: number;
     readonly session: Session;
 }
+
+// @public
+export interface SocketLike {
+    close(code?: number, reason?: string): void;
+    onclose: ((event: {
+        readonly code?: number;
+        readonly reason?: string;
+    }) => void) | null;
+    onerror: ((event: unknown) => void) | null;
+    onmessage: ((event: {
+        readonly data: unknown;
+    }) => void) | null;
+    onopen: ((event: unknown) => void) | null;
+    send(data: string): void;
+}
+
+// @public
+export type SocketState = {
+    readonly state: "connecting";
+    readonly url: string;
+} | {
+    readonly state: "open";
+    readonly url: string;
+} | {
+    readonly state: "closed";
+    readonly url: string;
+    readonly code?: number;
+    readonly reason?: string;
+    readonly retryIn: number;
+} | {
+    readonly state: "nowhere";
+    readonly retryIn: number;
+};
 
 // @public
 export const systemClock: Clock;

@@ -27,6 +27,7 @@ An ADR records a decision that is hard to reverse: what was decided, why, and wh
 | [0021](0021-the-client.md)                        | The client                                                                    |
 | [0022](0022-the-client-in-a-browser.md)           | The client's test in a browser                                                |
 | [0023](0023-sessions-in-the-client.md)            | Sessions in the client                                                        |
+| [0024](0024-the-clients-socket.md)                | The client's socket to its host                                               |
 
 ## Writing one
 

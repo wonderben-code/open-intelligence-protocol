@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { example as founding } from "../examples/collective.ts";
 import { example as dealing } from "../examples/deal.ts";
 import { example as finding } from "../examples/find.ts";
+import { example as hearing } from "../examples/listen.ts";
 import { example } from "../examples/first-mind.ts";
 import { example as messaging } from "../examples/messages.ts";
 import { example as moving } from "../examples/move.ts";
@@ -52,6 +53,7 @@ describe("the README", () => {
       "publish.ts",
       "find.ts",
       "messages.ts",
+      "listen.ts",
       "session.ts",
       "move.ts",
       "deal.ts",
@@ -142,6 +144,27 @@ describe("the README", () => {
       "received from Ada: Could you translate a lease by Friday?",
       "a request, sealed",
       "refused: 0; left in the mailbox: 0",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+  });
+
+  it("shows the output the example of listening really gives, over a socket to the host", async () => {
+    const homes = { ada: "https://home-one.example", bob: "https://home-two.example" };
+    world.resolver("https://resolver.example");
+    world.host(homes.ada);
+    world.host(homes.bob);
+    const output = await hearing(
+      ["https://resolver.example"],
+      homes,
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock: world.clock, webSocket: world.socket },
+    );
+    expect(output).toStrictEqual([
+      "the socket is connecting",
+      "the socket is open",
+      "Bob hears from Ada: Sent while you were away.",
+      "Bob hears from Ada: Sent while you listen.",
+      "Bob heard 2 packets, and listens no more",
     ]);
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });
@@ -295,6 +318,8 @@ describe("the README", () => {
         "IndexerAnswer",
         "KeyEntry",
         "Listed",
+        "Listening",
+        "ListenOptions",
         "LocationFields",
         "LookupOptions",
         "MailboxAnswer",
@@ -304,6 +329,7 @@ describe("the README", () => {
         "NewCollective",
         "NewMind",
         "NotFound",
+        "OpenSocket",
         "ProfileFields",
         "Publication",
         "Ranking",
@@ -314,6 +340,8 @@ describe("the README", () => {
         "Sent",
         "SessionEvent",
         "SessionView",
+        "SocketLike",
+        "SocketState",
         "TransportFailure",
         "TransportOptions",
       ].sort(),

@@ -303,6 +303,91 @@ a request, sealed
 refused: 0; left in the mailbox: 0
 ```
 
+## Listening
+
+`receive` reads the mailbox when you call it. [`examples/listen.ts`](examples/listen.ts) holds a socket open to the mind's host instead (Layer 1, 13.4), and hears each packet as it is sent:
+
+```ts
+import { type Clock, type Fetch, Mind, type OpenSocket } from "@oip/client";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * One mind listens at its host, and hears what another sends as it is sent.
+ *
+ * @param resolvers - The HTTPS origins of the resolvers both trust.
+ * @param homes - The HTTPS origins of the hosts that take each of them on.
+ * @param lock - What their keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  homes: { readonly ada: string; readonly bob: string },
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock; readonly webSocket?: OpenSocket } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const mindAt = async (home: string): Promise<Mind> => {
+    const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+    const mind = await Mind.create(
+      { keystore, lock, resolvers, memory: memoryStorage(), ...edges },
+      { kind: "agent", homes: [home] },
+    );
+    await mind.publishLocation();
+    return mind;
+  };
+  const ada = await mindAt(homes.ada);
+  const bob = await mindAt(homes.bob);
+  const write = (body: string) =>
+    ada.send({ to: [bob.address], verb: "inform", content: { mediaType: "text/plain", body } });
+
+  // Ada writes before Bob listens. His host keeps it for him.
+  await write("Sent while you were away.");
+
+  // Bob opens a socket to his host. What waited comes first, and then what arrives.
+  let heard = 0;
+  let next: () => void = () => undefined;
+  const another = (): Promise<void> =>
+    new Promise((resolve) => {
+      next = resolve;
+    });
+  let arrives = another();
+  const listening = bob.listen({
+    received: ({ received }) => {
+      for (const { packet, from } of received) {
+        const body = "body" in packet.content ? String(packet.content.body) : "";
+        output.push(`Bob hears from ${from === ada.address ? "Ada" : "a stranger"}: ${body}`);
+        heard++;
+      }
+      next();
+    },
+    changed: ({ state }) => output.push(`the socket is ${state}`),
+  });
+  await arrives;
+
+  arrives = another();
+  await write("Sent while you listen.");
+  await arrives;
+
+  // Each record was the host's to forget once Bob said he had it. A connection that drops
+  // is opened again, and loses nothing.
+  await listening.close();
+  output.push(`Bob heard ${String(heard)} packets, and listens no more`);
+  ada.close();
+  bob.close();
+  return output;
+}
+```
+
+It prints:
+
+```
+the socket is connecting
+the socket is open
+Bob hears from Ada: Sent while you were away.
+Bob hears from Ada: Sent while you listen.
+Bob heard 2 packets, and listens no more
+```
+
 ## A session
 
 A session puts the packets of each sender in order (Layer 1, Section 14). [`examples/session.ts`](examples/session.ts) sends three packets in one, and shows what happens to one that is lost on its way:
@@ -647,6 +732,7 @@ signed by two: the collective's? true
 | `Finding`, `Found`, `Listed`, `Ranking`, `NotFound`, `IndexerAnswer`, `MAX_RESULTS`                                                                      | `Lookup.find` asks the indexers the client names a capability query, and fetches and verifies every record they name before it returns it (Layer 1, 18.4). `Lookup.record` fetches a record a mind's homes serve, by its content ID                                                            |
 | `AliasCheck`, `AliasOptions`, `DidLike`                                                                                                                  | `Lookup.aliases` checks the other names a mind gives itself: each is the mind's only if it points back (Layer 1, 5.3; Layer 0, Section 4)                                                                                                                                                      |
 | `Message`, `Sent`, `Delivery`, `Inbox`, `Received`, `MailboxAnswer`, `DEFAULT_EXPIRES_IN`, `MAX_EXPIRES_IN`, `MAX_QUERY_EXPIRES_IN`, `MAX_MAILBOX_ITEMS` | `Mind.send` signs a packet, seals it to each recipient and posts it where the recipient takes packets (Layer 1, Section 12; 15.3). `Mind.receive` reads the mind's mailboxes and returns what was judged to be a packet for it (12.4, 13.5)                                                    |
+| `Listening`, `ListenOptions`, `SocketState`, `OpenSocket`, `SocketLike`                                                                                  | `Mind.listen` holds a socket open to the mind's own host (Layer 1, 13.4): what the host keeps and what arrives is judged as `receive` judges it, and a connection that ends is opened again                                                                                                    |
 | `SessionView`, `ChainView`, `SessionEvent`                                                                                                               | Sessions (Layer 1, Section 14): `Mind.openSession` names one, `send` with `session` sends in it, `receive` returns its packets in order and says in `sessions` what it found and did, `resume` asks for what is missing, `sessions` lists them, and `leaveSession` forgets one                 |
 | `Grant`, `Acting`, `Fields`, `carried`                                                                                                                   | Delegation and the records of the Mind Web: `Mind.delegate`, `subDelegate` and `revoke` (Layer 1, Section 11); `intent`, `offer`, `commitment`, `receipt` and `cosign` (Layer 2, Sections 4 to 6); `countsFor` and `statusOf` (7 and 8); `hold` and `records`                                  |
 | `NewCollective`, `CollectiveChanges`, `MemberOptions`                                                                                                    | Collectives (Layer 1, Section 9): `Mind.foundCollective`, `changeCollective` and `signEvent` for a collective's identity events, which its members sign; `publishLog`; and `charter` for the roles its members may act in (Layer 2, 6.2)                                                       |
@@ -730,6 +816,18 @@ signed by two: the collective's? true
 - **A packet is returned once.** The client remembers what it accepted, in `memory`, for as long as the packet could arrive again. With a memory that does not last, a packet that was not removed from the mailbox before the process ended is returned again.
 - **What cannot be judged yet waits.** If no resolver can be asked for a sender's log, the item stays in the mailbox and is counted in `waiting`.
 - **A packet may be for whoever a query finds** (18.5): `to: { query }`. It goes in the clear to the indexers the client names, for an hour at most, and each forwards it to the minds that match if it is a broker of it. `receive` takes such a packet only inside the broker's `Forwarded` record, and says which broker it came by.
+
+### Listening
+
+- **`listen` is `receive`, as things arrive.** The host sends what the mailbox holds and then what comes in. Each record is judged as an item of the mailbox is (12.4), and `received` is called with what `receive` would have returned. Use one or the other, or both: a packet is returned once.
+- **The mind tells its host what it has**, with an acknowledgement it signs, over the socket (13.4). The host keeps a record until then, so a connection that drops loses nothing, and a packet of a session that is ahead of a gap stays with the host as it stays in the mailbox.
+- **What is refused is removed by reading the mailbox.** A host cannot be told over the socket that a record is no packet for the mind. When one is refused, the mailbox is read once over HTTP, which removes it.
+- **A connection that ends is opened again**, after a wait that doubles from a second to a minute, and starts at a second again once the host has welcomed the mind. Each wait is shortened by up to half, at random, so that many clients do not all return at once. `retryMs` and `maxRetryMs` set the two bounds, and `changed` says where the connection stands.
+- **The mind answers the host's challenge for the origin it connected to** (13.3), whatever the host says its own origin is. A host that passes the answer on to another finds it refused there.
+- **`received` is called for one batch after another.** If it returns a promise, the next batch waits for it. What it throws ends the listening: `closed` rejects with it. A connection that drops does not.
+- **`close` stops it.** No connection is opened after it, and `closed` then settles.
+- **It needs a `WebSocket`**: the platform's own in a browser and in Node.js from version 22, or one you give as `webSocket`. `sleep` is the timer between connections, which a test replaces.
+- **The socket is for the mind's own mail.** `send` still posts to a recipient's inbox or mailbox over HTTPS. An endpoint that offers only a socket takes no packet from this client yet.
 
 ### Sessions
 

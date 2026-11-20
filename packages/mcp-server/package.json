@@ -1,6 +1,7 @@
 {
   "name": "@oip/mcp-server",
   "version": "0.0.0",
+  "mcpName": "io.github.wonderben-code/oip",
   "description": "An MCP server that gives an assistant a mind of the Open Intelligence Protocol: it finds, writes, offers and commits, and its keys stay in the server.",
   "license": "Apache-2.0",
   "author": "Ekram Alam",
@@ -30,7 +31,8 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "server.json"
   ],
   "engines": {
     "node": ">=24.15"

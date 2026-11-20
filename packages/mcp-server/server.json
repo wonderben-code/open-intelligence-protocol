@@ -1,0 +1,38 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.wonderben-code/oip",
+  "title": "Open Intelligence Protocol",
+  "description": "Gives an assistant a mind on the Open Intelligence Protocol: find, message, offer and commit.",
+  "repository": {
+    "url": "https://github.com/wonderben-code/open-intelligence-protocol",
+    "source": "github",
+    "subfolder": "packages/mcp-server"
+  },
+  "version": "0.0.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@oip/mcp-server",
+      "version": "0.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "OIP_DIR",
+          "description": "The directory of the mind, made with `oip init`. Default: ~/.oip",
+          "format": "filepath",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "OIP_PASSPHRASE",
+          "description": "The passphrase of the mind's keys. Not needed for a mind made with `oip init --keychain`.",
+          "format": "string",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

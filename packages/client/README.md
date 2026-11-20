@@ -228,21 +228,97 @@ found: Ada, for "Translation of legal texts", score 1
 named and not returned: 0
 ```
 
+## Sending and receiving
+
+[`examples/messages.ts`](examples/messages.ts) sends a sealed packet from one mind to another, which reads its mailbox:
+
+```ts
+import { type Clock, type Fetch, Mind } from "@oip/client";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * One mind sends another a sealed packet, and the other reads its mailbox.
+ *
+ * @param resolvers - The HTTPS origins of the resolvers both trust.
+ * @param homes - The HTTPS origins of the hosts that take each of them on.
+ * @param lock - What their keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  homes: { readonly ada: string; readonly bob: string },
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const mindAt = async (home: string): Promise<Mind> => {
+    const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+    const mind = await Mind.create(
+      { keystore, lock, resolvers, memory: memoryStorage(), ...edges },
+      { kind: "agent", homes: [home] },
+    );
+    // Where it takes packets: an inbox and a mailbox at its home.
+    await mind.publishLocation();
+    return mind;
+  };
+  const ada = await mindAt(homes.ada);
+  const bob = await mindAt(homes.bob);
+
+  // The packet is signed by Ada and sealed to Bob: his host carries it and cannot read it.
+  const sent = await ada.send({
+    to: [bob.address],
+    verb: "request",
+    goal: "A quote for a translation.",
+    content: { mediaType: "text/plain", body: "Could you translate a lease by Friday?" },
+  });
+  for (const delivery of sent.deliveries) {
+    const where = new URL(delivery.endpoint ?? homes.bob).pathname.split("/").at(-1);
+    output.push(
+      `sent ${delivery.sealed ? "sealed" : "in the clear"}, taken by his ${String(where)}`,
+    );
+  }
+
+  // Bob reads his mailbox. What comes back was judged: addressed to him, in date, signed by Ada.
+  const { received, refused } = await bob.receive();
+  for (const { packet, from, sealed } of received) {
+    const body = "body" in packet.content ? String(packet.content.body) : "";
+    output.push(`received from ${from === ada.address ? "Ada" : "a stranger"}: ${body}`);
+    output.push(`a ${packet.purpose.verb}, ${sealed ? "sealed" : "in the clear"}`);
+  }
+  output.push(
+    `refused: ${String(refused.length)}; left in the mailbox: ${String((await bob.receive()).received.length)}`,
+  );
+  ada.close();
+  bob.close();
+  return output;
+}
+```
+
+It gives:
+
+```
+sent sealed, taken by his inbox
+received from Ada: Could you translate a lease by Friday?
+a request, sealed
+refused: 0; left in the mailbox: 0
+```
+
 ## What it exports
 
-| Export                                                                                                                        | What it does                                                                                                                                                                                                                                                                                   |
-| ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Mind`, `MindOptions`, `NewMind`                                                                                              | A mind of one's own: `create` makes one with its keys in a keystore and its genesis with every resolver; `open` opens it; `sign` signs a record as it; `refresh` resolves it afresh; `close` locks its keys                                                                                    |
-| `LocationFields`, `ProfileFields`, `Endpoint`, `Publication`, `homeEndpoints`, `DEFAULT_TTL`                                  | What a mind publishes of itself: `Mind.publishLocation` (Layer 1, Section 15), `publishProfile` (16), `publishRecord` on its feed (10) and `bringHomes`. `publications` says what each resolver and each home answered                                                                         |
-| `IdentityChanges`, `KeyEntry`, `ControlOptions`                                                                               | What changes with an identity event, and what opens the control keys for it: `Mind.update`, `addKey`, `revokeKey`, `fork`, `retire` (Layer 1, 3.7 to 3.10)                                                                                                                                     |
-| `Lookup`, `LookupOptions`, `Resolved`, `ResolverAnswer`, `DEFAULT_MAX_LOGS`                                                   | Resolves a mind: fetches its identity log from the resolvers the client trusts, takes their first-seen times as evidence, and verifies the log with them (Layer 1, 17.1; core 9.4). With the log come the mind's current location record and profile, if a resolver served them and they count |
-| `ReadFeed`, `HomeAnswer`, `DEFAULT_MAX_FEED_ENTRIES`                                                                          | `Lookup.feed` reads a mind's public feed from its homes and verifies it (Layer 1, 10 and 13.1)                                                                                                                                                                                                 |
-| `Finding`, `Found`, `Listed`, `Ranking`, `NotFound`, `IndexerAnswer`, `MAX_RESULTS`                                           | `Lookup.find` asks the indexers the client names a capability query, and fetches and verifies every record they name before it returns it (Layer 1, 18.4). `Lookup.record` fetches a record a mind's homes serve, by its content ID                                                            |
-| `AliasCheck`, `AliasOptions`, `DidLike`                                                                                       | `Lookup.aliases` checks the other names a mind gives itself: each is the mind's only if it points back (Layer 1, 5.3; Layer 0, Section 4)                                                                                                                                                      |
-| `Clock`, `systemClock`                                                                                                        | The present, behind an interface: a test gives its own                                                                                                                                                                                                                                         |
-| `exchange`, `askRecord`, `askJson`, `Asking`, `Answer`, `Fetch`, `TransportOptions`, `recordBody`, `refusalOf`, `httpsOrigin` | One request to a service over HTTPS, bounded in size and in time, and its answer read as a record or as JSON                                                                                                                                                                                   |
-| `TransportError`, `TransportFailure`                                                                                          | Thrown when a service cannot be reached or does not speak the protocol                                                                                                                                                                                                                         |
-| `DEFAULT_TIMEOUT_MS`, `DEFAULT_MAX_BYTES`, `MAX_DETAIL_LENGTH`                                                                | The bounds on an answer, unless a client gives its own                                                                                                                                                                                                                                         |
+| Export                                                                                                                                                   | What it does                                                                                                                                                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Mind`, `MindOptions`, `NewMind`                                                                                                                         | A mind of one's own: `create` makes one with its keys in a keystore and its genesis with every resolver; `open` opens it; `sign` signs a record as it; `refresh` resolves it afresh; `close` locks its keys                                                                                    |
+| `LocationFields`, `ProfileFields`, `Endpoint`, `Publication`, `homeEndpoints`, `DEFAULT_TTL`                                                             | What a mind publishes of itself: `Mind.publishLocation` (Layer 1, Section 15), `publishProfile` (16), `publishRecord` on its feed (10) and `bringHomes`. `publications` says what each resolver and each home answered                                                                         |
+| `IdentityChanges`, `KeyEntry`, `ControlOptions`                                                                                                          | What changes with an identity event, and what opens the control keys for it: `Mind.update`, `addKey`, `revokeKey`, `fork`, `retire` (Layer 1, 3.7 to 3.10)                                                                                                                                     |
+| `Lookup`, `LookupOptions`, `Resolved`, `ResolverAnswer`, `DEFAULT_MAX_LOGS`                                                                              | Resolves a mind: fetches its identity log from the resolvers the client trusts, takes their first-seen times as evidence, and verifies the log with them (Layer 1, 17.1; core 9.4). With the log come the mind's current location record and profile, if a resolver served them and they count |
+| `ReadFeed`, `HomeAnswer`, `DEFAULT_MAX_FEED_ENTRIES`                                                                                                     | `Lookup.feed` reads a mind's public feed from its homes and verifies it (Layer 1, 10 and 13.1)                                                                                                                                                                                                 |
+| `Finding`, `Found`, `Listed`, `Ranking`, `NotFound`, `IndexerAnswer`, `MAX_RESULTS`                                                                      | `Lookup.find` asks the indexers the client names a capability query, and fetches and verifies every record they name before it returns it (Layer 1, 18.4). `Lookup.record` fetches a record a mind's homes serve, by its content ID                                                            |
+| `AliasCheck`, `AliasOptions`, `DidLike`                                                                                                                  | `Lookup.aliases` checks the other names a mind gives itself: each is the mind's only if it points back (Layer 1, 5.3; Layer 0, Section 4)                                                                                                                                                      |
+| `Message`, `Sent`, `Delivery`, `Inbox`, `Received`, `MailboxAnswer`, `DEFAULT_EXPIRES_IN`, `MAX_EXPIRES_IN`, `MAX_QUERY_EXPIRES_IN`, `MAX_MAILBOX_ITEMS` | `Mind.send` signs a packet, seals it to each recipient and posts it where the recipient takes packets (Layer 1, Section 12; 15.3). `Mind.receive` reads the mind's mailboxes and returns what was judged to be a packet for it (12.4, 13.5)                                                    |
+| `Clock`, `systemClock`                                                                                                                                   | The present, behind an interface: a test gives its own                                                                                                                                                                                                                                         |
+| `exchange`, `askRecord`, `askJson`, `Asking`, `Answer`, `Fetch`, `TransportOptions`, `recordBody`, `refusalOf`, `httpsOrigin`                            | One request to a service over HTTPS, bounded in size and in time, and its answer read as a record or as JSON                                                                                                                                                                                   |
+| `TransportError`, `TransportFailure`                                                                                                                     | Thrown when a service cannot be reached or does not speak the protocol                                                                                                                                                                                                                         |
+| `DEFAULT_TIMEOUT_MS`, `DEFAULT_MAX_BYTES`, `MAX_DETAIL_LENGTH`                                                                                           | The bounds on an answer, unless a client gives its own                                                                                                                                                                                                                                         |
 
 ## What to know
 
@@ -277,6 +353,18 @@ named and not returned: 0
 - **Two processes must not write one feed.** They find each other out in the memory, if they share it: the second to write is told `changed`, before its entry has left. If they do not share it, a home that holds another entry at the position answers `duplicity`. The client then forgets where it thought the feed stood, and the next call reads it afresh.
 - **A location record says where the feed stood when it was signed.** Publish one after the entries that matter. A reader that finds less at a home than the record says knows the home is behind.
 - **`Lookup.feed` reads every home and judges what they served together.** A home that withholds the end of a feed is made up for by one that serves it. It reads 10 000 entries of a feed from one home at most. An entry counts from when this client first saw it.
+
+### Sending and receiving
+
+- **A packet is sealed unless you say otherwise** (Layer 1, 12.6): `seal: false` sends it in the clear. Sealed, it is encrypted to an agreement key of the recipient, and the hosts it passes through cannot read it. A packet is never sent in the clear because it could not be sealed: the delivery fails, and says so. Sealing gives no forward secrecy: whoever later has the recipient's agreement key reads what was sealed to it.
+- **`send` does not throw for a recipient it could not reach.** `deliveries` says, for each, whether an endpoint took the packet, which, and why not. The endpoints of the recipient's current location record are tried in its order, a mailbox last, and only mailboxes while the recipient is paused (15.3). A packet may be delivered for an hour unless you say, and for seven days at most.
+- **An acknowledgement is kept only if it is the recipient's own** (13.2): signed by the recipient for this packet, as it was sent. It is evidence of when the packet's proofs existed. An endpoint that holds no key of the recipient answers that the packet is stored, and `ack` is absent. The reference host acknowledges packets it can read, and stores sealed ones.
+- **`receive` reads the mind's mailboxes**: the `mailbox` endpoints of its current location record, or of its homes if it has published none. A request the mind signs drains each, and each item is removed once it is judged.
+- **What comes back was judged** (12.4): a packet addressed to this mind, in date, signed by its sender, and not accepted before. The sender's log is fetched afresh after the packet is first seen, so a key that was removed in the meantime does not count (core 9.4). What is no such packet is in `refused`, with the first reason, and is removed too.
+- **A packet's content is data, whatever it says** (12.5). A packet grants nothing. Authority comes from identity logs, delegations and the records of Layer 2.
+- **A packet is returned once.** The client remembers what it accepted, in `memory`, for as long as the packet could arrive again. With a memory that does not last, a packet that was not removed from the mailbox before the process ended is returned again.
+- **What cannot be judged yet waits.** If no resolver can be asked for a sender's log, the item stays in the mailbox and is counted in `waiting`.
+- **A packet may be for whoever a query finds** (18.5): `to: { query }`. It goes in the clear to the indexers the client names, for an hour at most, and each forwards it to the minds that match if it is a broker of it. `receive` takes such a packet only inside the broker's `Forwarded` record, and says which broker it came by.
 
 ### Aliases
 

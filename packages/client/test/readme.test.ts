@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { example as finding } from "../examples/find.ts";
 import { example } from "../examples/first-mind.ts";
+import { example as messaging } from "../examples/messages.ts";
 import { example as publishing } from "../examples/publish.ts";
 import * as client from "../src/index.ts";
 import { World } from "./world.ts";
@@ -42,7 +43,7 @@ function memoryKeychain(): Keychain {
 
 describe("the README", () => {
   it("shows its examples unchanged", () => {
-    for (const name of ["first-mind.ts", "publish.ts", "find.ts"]) {
+    for (const name of ["first-mind.ts", "publish.ts", "find.ts", "messages.ts"]) {
       const source = readFileSync(join(packageRoot, "examples", name), "utf8");
       // The file's licence header is not part of what the README shows.
       const code = source.replace(/^(\/\/ SPDX[^\n]*\n)+\n/, "");
@@ -112,6 +113,26 @@ describe("the README", () => {
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });
 
+  it("shows the output the example of sending and receiving really gives, against a resolver and two hosts", async () => {
+    const homes = { ada: "https://home-one.example", bob: "https://home-two.example" };
+    world.resolver("https://resolver.example");
+    world.host(homes.ada);
+    world.host(homes.bob);
+    const output = await messaging(
+      ["https://resolver.example"],
+      homes,
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock: world.clock },
+    );
+    expect(output).toStrictEqual([
+      "sent sealed, taken by his inbox",
+      "received from Ada: Could you translate a lease by Friday?",
+      "a request, sealed",
+      "refused: 0; left in the mailbox: 0",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+  });
+
   it("names only things the package exports, and every value it exports", () => {
     const table = readme.slice(
       readme.indexOf("## What it exports"),
@@ -135,6 +156,7 @@ describe("the README", () => {
         "Asking",
         "Clock",
         "ControlOptions",
+        "Delivery",
         "DidLike",
         "Endpoint",
         "Fetch",
@@ -142,11 +164,14 @@ describe("the README", () => {
         "Found",
         "HomeAnswer",
         "IdentityChanges",
+        "Inbox",
         "IndexerAnswer",
         "KeyEntry",
         "Listed",
         "LocationFields",
         "LookupOptions",
+        "MailboxAnswer",
+        "Message",
         "MindOptions",
         "NewMind",
         "NotFound",
@@ -154,8 +179,10 @@ describe("the README", () => {
         "Publication",
         "Ranking",
         "ReadFeed",
+        "Received",
         "Resolved",
         "ResolverAnswer",
+        "Sent",
         "TransportFailure",
         "TransportOptions",
       ].sort(),
@@ -176,6 +203,13 @@ describe("the README", () => {
     expect(client.DEFAULT_MAX_FEED_ENTRIES).toBe(10_000);
     expect(readme).toContain("as many results as the query's `limit`, 100 at most");
     expect(client.MAX_RESULTS).toBe(100);
+    expect(readme).toContain("for an hour unless you say, and for seven days at most");
+    expect([
+      client.DEFAULT_EXPIRES_IN,
+      client.MAX_EXPIRES_IN,
+      client.MAX_QUERY_EXPIRES_IN,
+    ]).toStrictEqual([3600, 7 * 24 * 3600, 3600]);
+    expect(client.MAX_MAILBOX_ITEMS).toBe(1000);
     expect(readme).toContain("good for an hour");
     expect(client.DEFAULT_TTL).toBe(3600);
   });

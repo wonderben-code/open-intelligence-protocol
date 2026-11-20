@@ -49,6 +49,18 @@ export {
   type Ranking,
 } from "./find.ts";
 export {
+  DEFAULT_EXPIRES_IN,
+  type Delivery,
+  type Inbox,
+  type MailboxAnswer,
+  MAX_EXPIRES_IN,
+  MAX_MAILBOX_ITEMS,
+  MAX_QUERY_EXPIRES_IN,
+  type Message,
+  type Received,
+  type Sent,
+} from "./messages.ts";
+export {
   type ControlOptions,
   type IdentityChanges,
   type KeyEntry,

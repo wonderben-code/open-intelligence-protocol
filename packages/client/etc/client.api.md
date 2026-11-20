@@ -4,6 +4,7 @@
 
 ```ts
 
+import { Ack } from '@oip/schema';
 import { AgreementKeys } from '@oip/keystore';
 import { Capability } from '@oip/schema';
 import { CapabilityQuery } from '@oip/schema';
@@ -25,6 +26,7 @@ import { Location } from '@oip/schema';
 import { Lock } from '@oip/keystore';
 import { Offer } from '@oip/schema';
 import { OipRecord } from '@oip/core';
+import { Packet } from '@oip/schema';
 import { Participant } from '@oip/schema';
 import type { Proof } from '@oip/schema';
 import { Randomness } from '@oip/keystore';
@@ -81,6 +83,9 @@ export interface ControlOptions {
 }
 
 // @public
+export const DEFAULT_EXPIRES_IN = 3600;
+
+// @public
 export const DEFAULT_MAX_BYTES: number;
 
 // @public
@@ -94,6 +99,16 @@ export const DEFAULT_TIMEOUT_MS = 10000;
 
 // @public
 export const DEFAULT_TTL = 3600;
+
+// @public
+export interface Delivery {
+    readonly ack?: Ack;
+    readonly endpoint?: string;
+    readonly failure?: string;
+    readonly sealed: boolean;
+    readonly stored: boolean;
+    readonly to: string;
+}
 
 // @public
 export interface DidLike {
@@ -154,6 +169,17 @@ export interface IdentityChanges {
 }
 
 // @public
+export interface Inbox {
+    readonly received: readonly Received[];
+    readonly refused: readonly {
+        readonly clause: string;
+        readonly message: string;
+    }[];
+    readonly sources: readonly MailboxAnswer[];
+    readonly waiting: number;
+}
+
+// @public
 export interface IndexerAnswer {
     readonly failure?: string;
     readonly indexer: string;
@@ -203,10 +229,40 @@ export interface LookupOptions extends TransportOptions, AliasOptions {
 }
 
 // @public
+export interface MailboxAnswer {
+    readonly failure?: string;
+    readonly items: number | undefined;
+    readonly mailbox: string;
+}
+
+// @public
 export const MAX_DETAIL_LENGTH = 256;
 
 // @public
+export const MAX_EXPIRES_IN: number;
+
+// @public
+export const MAX_MAILBOX_ITEMS = 1000;
+
+// @public
+export const MAX_QUERY_EXPIRES_IN = 3600;
+
+// @public
 export const MAX_RESULTS = 100;
+
+// @public
+export interface Message {
+    readonly constraints?: Packet["constraints"];
+    readonly content: Packet["content"];
+    readonly context?: Packet["context"];
+    readonly expiresIn?: number;
+    readonly goal?: string;
+    readonly replyTo?: string;
+    readonly seal?: boolean;
+    readonly thread?: string;
+    readonly to: readonly string[] | Exclude<Packet["to"], readonly string[]>;
+    readonly verb: string;
+}
 
 // @public
 export class Mind {
@@ -228,6 +284,7 @@ export class Mind {
     publishLocation(fields?: LocationFields): Promise<Location>;
     publishProfile(fields: ProfileFields): Promise<Participant>;
     publishRecord(record: object): Promise<Entry>;
+    receive(): Promise<Inbox>;
     refresh(): Promise<IdentityState>;
     get resolved(): Resolved;
     retire(options: ControlOptions & {
@@ -237,6 +294,7 @@ export class Mind {
     revokeKey(key: string, options: ControlOptions & {
         readonly compromisedSince?: string;
     }): Promise<IdentityState>;
+    send(message: Message): Promise<Sent>;
     sign<T extends object>(record: T): Promise<T & {
         proof: Proof[];
     }>;
@@ -303,6 +361,16 @@ export interface ReadFeed {
 }
 
 // @public
+export interface Received {
+    readonly broker?: string;
+    readonly from: string;
+    readonly id: string;
+    readonly packet: Packet;
+    readonly sealed: boolean;
+    readonly time: Instant;
+}
+
+// @public
 export function recordBody(record: unknown): {
     bytes: Uint8Array;
     mediaType: string;
@@ -329,6 +397,13 @@ export interface ResolverAnswer {
     readonly events: number | undefined;
     readonly failure?: string;
     readonly resolver: string;
+}
+
+// @public
+export interface Sent {
+    readonly deliveries: readonly Delivery[];
+    readonly id: string;
+    readonly packet: Packet;
 }
 
 // @public

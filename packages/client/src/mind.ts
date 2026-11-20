@@ -60,8 +60,10 @@ import type { Entry, IdentityEvent, Location, Participant, Proof } from "@oip/sc
 
 import { type Clock, Lookup, type LookupOptions, type Resolved, systemClock } from "./lookup.ts";
 import { Memory } from "./memory.ts";
+import { type Inbox, type Message, Messaging, type Sent } from "./messages.ts";
 import {
   type LocationFields,
+  type Own,
   type ProfileFields,
   type Publication,
   Publishing,
@@ -154,6 +156,7 @@ export class Mind {
   readonly #operational: OperationalKeys;
   readonly #agreement: AgreementKeys;
   readonly #publishing: Publishing;
+  readonly #messaging: Messaging;
   #resolved: Resolved;
   #published: readonly Publication[] = [];
 
@@ -165,14 +168,17 @@ export class Mind {
     this.#operational = keys.operational;
     this.#agreement = keys.agreement;
     this.#resolved = resolved;
-    this.#publishing = new Publishing({
+    const own: Own = {
       address: resolved.mind,
       transport: options,
       resolvers: options.resolvers,
       indexers: options.indexers ?? [],
       clock: this.#clock,
+      randomness: this.#randomness,
       lookup,
       memory: new Memory(options.memory ?? memoryStorage(), resolved.mind),
+      opener: (key) =>
+        this.#agreement.has(key) ? (sealed) => this.#agreement.open(key, sealed) : undefined,
       resolved: () => this.#resolved,
       refresh: async () => {
         await this.refresh();
@@ -184,7 +190,9 @@ export class Mind {
       told: (publications) => {
         this.#published = publications;
       },
-    });
+    };
+    this.#publishing = new Publishing(own);
+    this.#messaging = new Messaging(own);
   }
 
   /**
@@ -485,6 +493,40 @@ export class Mind {
    */
   publishRecord(record: object): Promise<Entry> {
     return this.#publishing.record(record);
+  }
+
+  /**
+   * Sends a packet (Layer 1, Section 12): signs it, seals it to each
+   * recipient unless told not to (12.6), and posts it to the first endpoint
+   * of each recipient's current location record that takes it (15.3), a
+   * mailbox last.
+   *
+   * It does not throw for a recipient that could not be reached:
+   * `deliveries` says what became of the packet for each.
+   *
+   * @returns The packet, and what became of it for each recipient.
+   * @throws OipError `invalid-record` if the message makes no packet;
+   *   `forbidden` if the mind has no key to sign with.
+   */
+  send(message: Message): Promise<Sent> {
+    return this.#messaging.send(message);
+  }
+
+  /**
+   * Reads the mind's mailboxes (Layer 1, 13.5): the `mailbox` endpoints of
+   * its current location record, or those of its homes if it has published
+   * none. Each item is judged as a packet that has arrived (12.4), sealed
+   * or not, on the evidence of the client's resolvers, and removed from the
+   * mailbox once it is judged.
+   *
+   * A packet is returned once. The client remembers what it accepted
+   * (`memory`), so a packet that is found again is a duplicate, and is not
+   * returned again.
+   *
+   * @returns The packets accepted, what was refused, and what waits.
+   */
+  receive(): Promise<Inbox> {
+    return this.#messaging.receive();
   }
 
   /**

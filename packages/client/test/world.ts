@@ -11,7 +11,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { MEDIA_TYPE, mindId } from "@oip/core";
+import { MEDIA_TYPE, mindId, type SyncSigner } from "@oip/core";
 import { Host, HOST_MIGRATIONS, hostApp } from "@oip/host";
 import { Broker, Indexer, INDEXER_MIGRATIONS, indexerApp } from "@oip/indexer";
 import { RESOLVER_MIGRATIONS, resolverApp } from "@oip/resolver";
@@ -143,11 +143,16 @@ export class World {
    *
    * @param options.admits - The minds it takes on when they bring their bundle. Default: any.
    * @param options.maxPage - The most entries it serves in one page of a feed. Default: 100.
+   * @param options.signer - The key it signs with for a mind, if the mind gave it one (13.2).
    */
   host(
     origin: string,
-    options: { admits?: (mind: string) => boolean; maxPage?: number } = {},
-  ): { host: Host } {
+    options: {
+      admits?: (mind: string) => boolean;
+      maxPage?: number;
+      signer?: (mind: string) => SyncSigner | undefined;
+    } = {},
+  ): { host: Host; archive: LogArchive } {
     const db = Database.open(
       {
         path: join(this.#directory, `host-${String(this.#databases.length)}.db`),
@@ -161,7 +166,11 @@ export class World {
     const generous = (): RateLimiter =>
       new RateLimiter({ burst: 10_000, perMinute: 600_000 }, this.clock);
     const archive = new LogArchive({ db, clock: this.clock });
-    const host = new Host({ db, archive });
+    const host = new Host({
+      db,
+      archive,
+      ...(options.signer === undefined ? {} : { signer: options.signer }),
+    });
     const app = hostApp({
       host,
       archive,
@@ -177,7 +186,7 @@ export class World {
       ready: { database: () => true },
     });
     this.put(origin, (request) => app.fetch(request, { address: "203.0.113.7" }));
-    return { host };
+    return { host, archive };
   }
 
   /**
@@ -188,7 +197,7 @@ export class World {
    * @param name - The name its mind's keys are made from.
    * @returns The indexer's own mind.
    */
-  indexer(origin: string, name = "indexer"): { mind: KeyMind } {
+  indexer(origin: string, name = "indexer"): { mind: KeyMind; broker: Broker } {
     const db = Database.open(
       {
         path: join(this.#directory, `indexer-${String(this.#databases.length)}.db`),
@@ -243,7 +252,7 @@ export class World {
       ready: { database: () => true },
     });
     this.put(origin, (request) => app.fetch(request, { address: "203.0.113.7" }));
-    return { mind };
+    return { mind, broker };
   }
 
   /** Publishes a mind's log to a resolver, as the mind would, at the present of this world. */

@@ -26,6 +26,8 @@ import {
   utf8,
 } from "@oip/core";
 import { judgeRecord } from "@oip/identity";
+import type { Randomness } from "@oip/keystore";
+import type { SealedOpener } from "@oip/net";
 import {
   type Entry,
   type JsonValue,
@@ -130,8 +132,16 @@ export interface Own {
   /** The indexers the client names. */
   readonly indexers: readonly string[];
   readonly clock: Clock;
+  /** Where nonces and the randomness of a sealing come from. */
+  readonly randomness: Randomness;
   readonly lookup: Lookup;
   readonly memory: Memory;
+  /**
+   * What opens a record sealed to one of the mind's agreement keys, or
+   * `undefined` if the keystore does not hold the key. The key stays in the
+   * keystore.
+   */
+  opener(key: string): SealedOpener | undefined;
   /** The mind as it was last resolved. */
   resolved(): Resolved;
   /** Resolves the mind afresh. */

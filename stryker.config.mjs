@@ -39,6 +39,7 @@ export default {
     "packages/server/src/**/*.ts",
     "packages/resolver/src/**/*.ts",
     "packages/host/src/**/*.ts",
+    "packages/indexer/src/**/*.ts",
     "packages/schema/src/**/*.ts",
     // Generated from the schemas, and tested through them.
     "!packages/schema/src/generated/**",

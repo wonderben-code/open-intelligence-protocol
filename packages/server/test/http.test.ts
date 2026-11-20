@@ -11,6 +11,7 @@ import {
   HttpFailure,
   problemResponse,
   readBody,
+  readJson,
   readRecord,
   recordResponse,
   responseFor,
@@ -297,5 +298,46 @@ describe(`${clause("core 10.1", "core 10.2")} the record a request carries`, () 
     expect(error).toBeInstanceOf(Unavailable);
     expect(responseFor(error).response.status).toBe(503);
     expect(await readRecord(post(JSON.stringify(intent)), LIMIT)).toStrictEqual(intent);
+  });
+});
+
+describe("a body that is JSON and no record", () => {
+  const sending = (body: string, type = "application/json"): Request =>
+    new Request("https://service.example/query", {
+      method: "POST",
+      body,
+      headers: { "content-type": type },
+    });
+
+  it("is read within the JSON profile, when it is said to be JSON and is no longer than the limit", async () => {
+    expect(await readJson(sending('{"want":"a lease","limit":3}'), 100)).toStrictEqual({
+      want: "a lease",
+      limit: 3,
+    });
+    expect(await readJson(sending("[]", "Application/JSON; charset=utf-8"), 100)).toStrictEqual([]);
+    for (const [body, code] of [
+      ["{", "invalid-record"],
+      ['{"n":1.5}', "invalid-record"],
+      ['{"a":1,"a":2}', "invalid-record"],
+      [`"${"x".repeat(200)}"`, "too-large"],
+    ] as const) {
+      const error = await thrownBy(() => readJson(sending(body), 100));
+      expect(error, body).toBeInstanceOf(OipError);
+      expect((error as OipError).code, body).toBe(code);
+    }
+    for (const type of ["application/oip+json", "text/plain", ""]) {
+      const refused = (await thrownBy(() => readJson(sending("{}", type), 100))) as HttpFailure;
+      expect(refused.status, type).toBe(415);
+      expect(refused.headers, type).toStrictEqual({ accept: "application/json" });
+    }
+  });
+
+  it("is not called malformed where the check was cut short: the client asks again", async () => {
+    vi.spyOn(TextDecoder.prototype, "decode").mockImplementationOnce(() => {
+      noteCutShort(new RangeError("Maximum call stack size exceeded"));
+      throw new RangeError("Maximum call stack size exceeded");
+    });
+    expect(await thrownBy(() => readJson(sending("{}"), 100))).toBeInstanceOf(Unavailable);
+    expect(await readJson(sending("{}"), 100)).toStrictEqual({});
   });
 });

@@ -21,6 +21,7 @@ export {
   type Artifact,
   type Ask,
   cancelTask,
+  type Get,
   getTask,
   MAX_ARTIFACTS,
   MAX_ID,
@@ -65,3 +66,10 @@ export {
   verifySignatures,
 } from "./signature.ts";
 export { BridgeError, type Bridged, Gateway, type GatewayEdges, PROTOCOL } from "./gateway.ts";
+export {
+  MAX_CARRIED_BYTES,
+  MAX_FETCHED,
+  MAX_FOLLOWED_SECONDS,
+  MAX_OPEN_TASKS,
+  type Relayed,
+} from "./relay.ts";

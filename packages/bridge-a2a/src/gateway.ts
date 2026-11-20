@@ -23,21 +23,22 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { httpsOrigin, Mind } from "@oip/client";
+import { httpsOrigin, Mind, systemClock } from "@oip/client";
 import { contentId, formatRecordRef, sha256 } from "@oip/core";
 import { Keystore } from "@oip/keystore";
 import { fileStorage } from "@oip/keystore/node";
-import { Home, lockOf, openMind, optionsOf, UsageError, type Where } from "@oip/local";
+import { Home, keepRecords, lockOf, openMind, optionsOf, UsageError, type Where } from "@oip/local";
 
-import type { Ask } from "./a2a.ts";
+import type { Ask, Get } from "./a2a.ts";
 import { type AgentInterface, CARD_PATH, interfaceOf, readCard, supports } from "./card.ts";
 import { capabilitiesOf, OIP_EXTENSION } from "./mapping.ts";
+import { Relay, type Relayed } from "./relay.ts";
 import { type KeySource, verifySignatures } from "./signature.ts";
 
 /** What a gateway reaches outside itself with. Each goes through the gateway's guard. */
 export interface GatewayEdges {
-  /** Gets a URL: an agent's card. The answer is given whatever its status. */
-  readonly get: (url: string) => Promise<{ readonly status: number; readonly body: Uint8Array }>;
+  /** Gets a URL: an agent's card, or a file an agent names. The answer is given whatever its status. */
+  readonly get: Get;
   /** Makes a request of an agent. */
   readonly ask: Ask;
   /** The keys that may verify the signatures on a card: see `KeySource`. */
@@ -257,6 +258,37 @@ export class Gateway {
       }
     } finally {
       gateway.mind.close();
+    }
+  }
+
+  /**
+   * Relays once between a bridged mind and its agent (Layer 0, 3.1): reads
+   * the mind's mailbox, sends the agent what is asked of it, and says in
+   * OIP what the agent answered and what became of its tasks.
+   *
+   * What one packet or one task could not be done with is in the result's
+   * `failed`, and is tried again by the next pass.
+   *
+   * @throws UsageError if the gateway does not bridge the agent. Whatever
+   *   keeps the mind from being opened or its mailbox from being read.
+   */
+  async relay(origin: string): Promise<Relayed> {
+    const bridged = this.bridged(origin);
+    if (bridged === undefined) {
+      throw new UsageError(`${origin} is not an agent this gateway bridges: bridge it first`);
+    }
+    const opened = await openMind({ edges: this.#where.edges, dir: this.#directory(origin) });
+    try {
+      const { ask, get } = this.#edges;
+      const clock = this.#where.edges.clock ?? systemClock;
+      return await new Relay(opened, bridged, { ask, get, clock }).pass();
+    } finally {
+      try {
+        // What the mind signed, it signed: its records are written down whatever became of the pass.
+        keepRecords(opened);
+      } finally {
+        opened.mind.close();
+      }
     }
   }
 }

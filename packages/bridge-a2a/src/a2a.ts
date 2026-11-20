@@ -64,6 +64,9 @@ export type Ask = (asked: {
   readonly headers: Readonly<Record<string, string>>;
 }) => Promise<{ readonly status: number; readonly body: Uint8Array }>;
 
+/** Gets a URL. The answer is given whatever its status. */
+export type Get = (url: string) => Promise<{ readonly status: number; readonly body: Uint8Array }>;
+
 /** Thrown when an agent answers with an error of A2A or of JSON-RPC, or with what is no answer. */
 export class A2aError extends Error {
   override readonly name = "A2aError";

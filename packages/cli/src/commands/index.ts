@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Command } from "../command.ts";
+import { collectiveCreate, collectiveSign } from "./collective.ts";
+import { commit, intent, offer, receipt, status } from "./deal.ts";
+import { delegate, revoke } from "./delegation.ts";
 import { demo } from "./demo.ts";
 import { find } from "./find.ts";
 import { addKey, fork, revokeKey, rotate } from "./identity.ts";
@@ -27,5 +30,14 @@ export const COMMANDS: readonly Command[] = [
   find,
   send,
   inbox,
+  intent,
+  offer,
+  commit,
+  receipt,
+  status,
+  delegate,
+  revoke,
+  collectiveCreate,
+  collectiveSign,
   demo,
 ];

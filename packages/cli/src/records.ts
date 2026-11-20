@@ -136,6 +136,14 @@ export class KeptRecords {
     return isObject(record) ? record : undefined;
   }
 
+  /**
+   * Keeps a record that came from outside a mind that is open, unless it is
+   * kept already: what is kept of when its proofs first came is left as it is.
+   */
+  add(record: object, seen: Readonly<Record<string, Instant>>): void {
+    if (this.get(contentId(record)) === undefined) this.keep(record, seen);
+  }
+
   /** Keeps a record under its content ID, with when its proofs were first obtained. */
   keep(record: object, seen: Readonly<Record<string, Instant>>): void {
     const times = Object.fromEntries(

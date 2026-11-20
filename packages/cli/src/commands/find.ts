@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Found, Lookup } from "@oip/client";
+import { type Instant, proofDigest } from "@oip/core";
 import type { CapabilityQuery } from "@oip/schema";
 
 import { type Command, has, many, one, UsageError } from "../command.ts";
+import { Home } from "../home.ts";
 import { lookupOptions, servicesOf } from "../mind.ts";
+import { KeptRecords } from "../records.ts";
 import { row } from "./describe.ts";
 import { networkDirectory } from "./init.ts";
 
@@ -20,7 +23,11 @@ function saying(found: Found): string {
       ? record.name
       : `${record.name}: ${capability.summary} (${capability.id})`;
   }
-  return record.type === "Offer" ? record.terms.summary : record.want;
+  if (record.type === "Intent") return record.want;
+  const { price } = record.terms;
+  return price === undefined
+    ? record.provides
+    : `${record.provides} (${price.amount} ${price.currency})`;
 }
 
 export const find: Command = {
@@ -55,6 +62,7 @@ export const find: Command = {
     "An indexer's answer is a claim. Every record it names is fetched from its author's hosts and",
     "verified here before it is shown, and what does not check out is told, with why.",
     "The ranking is the indexer's own, and so are its reasons.",
+    "Asked from a mind's directory, what is found is kept there: `oip commit --offer` takes one up.",
   ],
   example: 'oip find --want "translate a lease into German" --tag domain:legal',
   async run(context, given) {
@@ -88,7 +96,22 @@ export const find: Command = {
         "the mind names no indexer to ask: `oip init --indexer` names one when a mind is made",
       );
     }
-    const finding = await new Lookup(lookupOptions(context, config)).find(query);
+    const lookup = new Lookup(lookupOptions(context, config));
+    const finding = await lookup.find(query);
+    if (!has(given, "local")) {
+      // What was found is kept for the commands that follow, as `oip commit --offer`: each
+      // with when it was first obtained, which is now.
+      const kept = new KeptRecords(new Home(context.dir).records);
+      for (const { record } of finding.found) {
+        const seen: Record<string, Instant> = {};
+        for (const proof of record.proof) {
+          const digest = proofDigest(proof);
+          const first = lookup.seen.proofSeen(digest);
+          if (first !== undefined) seen[digest] = first;
+        }
+        kept.add(record, seen);
+      }
+    }
     const answered = finding.sources.filter(({ results }) => results !== undefined).length;
     return {
       lines: [

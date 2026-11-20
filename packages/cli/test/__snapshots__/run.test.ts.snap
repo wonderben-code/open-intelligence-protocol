@@ -16,6 +16,111 @@ Example:
 "
 `;
 
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > collective create 1`] = `
+"oip collective create [options]
+
+Founds a collective with other minds: drafts its first event, and signs it as a member
+
+The collective exists once every founder has signed its first event, and the event is
+published. Each founder signs with \`oip collective sign\`, and the last adds --publish.
+The event is held by this mind, under the ID this prints. Send it to the others: --send-to.
+It is signed with an invocation key, which the same lock opens as the keys of everyday work.
+
+Options:
+  --member <address>   A founding member besides this mind. It may be given several times
+  --threshold <count>  How many members act for it: a majority of them
+  --host <origin>      A host that will serve the collective's records
+  --out <file>         Write the event to this file too, with the proofs it has
+  --send-to <address>  Send it to this mind, sealed. It may be given several times
+
+Example:
+  oip collective create --member did:oip:bciqexample --member did:oip:bciqother --threshold 2 --send-to did:oip:bciqexample
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > collective sign 1`] = `
+"oip collective sign <record> [options]
+
+Signs, as a member of a collective, one of its identity events or a record in its name
+
+The record is named by the ID of one the mind holds, as \`oip inbox\` shows it, or by a file.
+Read what you sign. An event changes who the collective is, and a key signs one event for
+each position of a collective's log, and no other. A record is the collective's once the
+number of members it acts by have signed it.
+The proofs of every copy this mind has received are put together. Published, a log goes
+to the resolvers this mind trusts: anyone may publish a log, which stands by its signatures.
+
+Options:
+  --publish            An event: publish the collective's log with it. A record: put it on this mind's feed
+  --out <file>         Write the event to this file too, with the proofs it has
+  --send-to <address>  Send it to this mind, sealed. It may be given several times
+
+Example:
+  oip collective sign bciqexample --publish
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > commit 1`] = `
+"oip commit [commitment] [options]
+
+Makes a promise between minds: writes a Commitment, or signs one another wrote
+
+A Commitment binds each mind whose signature on it counts, and is accepted once every
+debtor and creditor has signed. Read what you sign: it cannot be taken back, only answered
+with a Receipt.
+Given a Commitment, by the ID of one the mind holds or by a file, this signs it as it is.
+Otherwise it writes one, from an Offer or from the options, and signs that.
+
+Options:
+  --offer <offer>           Take up this Offer: its author owes, this mind is owed, on the Offer's terms
+  --debtor <address>        A mind that owes what is promised. \`me\` is this mind
+  --creditor <address>      A mind that is owed it. \`me\` is this mind
+  --witness <address>       A mind that witnesses it
+  --promise <text>          What is promised, in words
+  --deadline <time>         By when, as 2026-01-31T12:00:00Z
+  --price <amount>          What is paid, as 120 or 99.50
+  --currency <code>         What the price is counted in: USD
+  --payer <address>         Who pays. Default: the first creditor
+  --payee <address>         Who is paid. Default: the first debtor
+  --resolves <record>       An Intent or an Offer it resolves: an ID or a file
+  --closes-intent           Once accepted, the Intent it resolves is satisfied
+  --for <address>           The mind it is signed for, in place of this one: a collective this mind is a member of
+  --authority <delegation>  A delegation that lets this mind sign for another: an ID or a file. A chain, root first
+  --charter <charter>       The charter that gives this mind a role in the collective it signs for
+  --publish                 Put it on the mind's public feed, at its hosts, where anyone may read it
+  --send-to <address>       Send it to this mind, sealed. It may be given several times
+
+Example:
+  oip commit --offer bciqexample --send-to did:oip:bciqexample
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > delegate 1`] = `
+"oip delegate <delegate> [options]
+
+Lets another mind sign for this one, within limits: signs a Delegation
+
+What the delegate signs within the delegation binds this mind. A policy constrains only
+what it selects: constrain every term that matters, and exclude the delegate as a party.
+No longer than its purpose needs: expiry is what bounds a revocation that is missed.
+With --authority, the chain that lets this mind act, it passes part of that on.
+Give it to the delegate, who names it in what it signs: --send-to.
+
+Options:
+  --command <command>       What it may do: /oip/sign/Commitment, /oip/sign/Offer, /oip/send…
+  --days <count>            For how many days from now
+  --expires <time>          Or until when, as 2026-01-31T12:00:00Z
+  --not-before <time>       From when. Default: from now
+  --policy <file>           What must hold of each record it signs so: a file with a JSON array of statements
+  --authority <delegation>  A delegation that lets this mind sign for another: an ID or a file. A chain, root first
+  --send-to <address>       Send it to this mind, sealed. It may be given several times
+  --publish                 Put it on the mind's public feed, at its hosts, where anyone may read it
+
+Example:
+  oip delegate did:oip:bciqexample --command /oip/sign/Commitment --days 30 --policy policy.json --send-to did:oip:bciqexample
+"
+`;
+
 exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > demo 1`] = `
 "oip demo [options]
 
@@ -40,6 +145,7 @@ Finds minds by what they can do: asks the indexers, and verifies what they name
 An indexer's answer is a claim. Every record it names is fetched from its author's hosts and
 verified here before it is shown, and what does not check out is told, with why.
 The ranking is the indexer's own, and so are its reasons.
+Asked from a mind's directory, what is found is kept there: \`oip commit --offer\` takes one up.
 
 Options:
   --want <text>            What is wanted, in words
@@ -119,6 +225,64 @@ Example:
 "
 `;
 
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > intent 1`] = `
+"oip intent [options]
+
+Says what the mind wants: signs an Intent
+
+An Intent binds nobody. It is what an Offer answers, and what a Commitment resolves.
+With --publish it goes on the mind's feed and to its indexers, for others to find.
+
+Options:
+  --want <text>             The outcome wanted, in words
+  --deadline <time>         By when, as 2026-01-31T12:00:00Z
+  --budget <amount>         The most it may cost, as 500 or 99.50
+  --currency <code>         What the budget is counted in: USD
+  --require <text>          Something an answer must meet. It may be given several times
+  --audience <address>      Who it is meant for: public, or a mind. It may be given several times
+  --expires <time>          Until when it stands, as 2026-01-31T12:00:00Z
+  --for <address>           The mind it is signed for, in place of this one: a collective this mind is a member of
+  --authority <delegation>  A delegation that lets this mind sign for another: an ID or a file. A chain, root first
+  --charter <charter>       The charter that gives this mind a role in the collective it signs for
+  --publish                 Put it on the mind's public feed, at its hosts, where anyone may read it
+  --send-to <address>       Send it to this mind, sealed. It may be given several times
+
+Example:
+  oip intent --want "A Swahili lease translated into English" --budget 150 --currency USD --publish
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > offer 1`] = `
+"oip offer [options]
+
+Says what the mind provides, and on what terms: signs an Offer
+
+An Offer binds nobody until a Commitment takes it up: \`oip commit --offer\`.
+With --publish it goes on the mind's feed and to its indexers, for others to find.
+
+Options:
+  --provides <text>         What is provided, in words
+  --summary <text>          The terms in a line. Default: what is provided
+  --price <amount>          What it costs, as 120 or 99.50
+  --currency <code>         What the price is counted in: USD
+  --delivery-by <time>      By when it is delivered
+  --quantity <count>        How many times it can be taken up
+  --condition <text>        A condition of the terms. It may be given several times
+  --answers <intent>        The Intent it answers: the ID of one the mind holds, or a file
+  --capability <id>         The capability of the mind's profile it is an offer of
+  --audience <address>      Who it is meant for: public, or a mind. It may be given several times
+  --expires <time>          Until when it stands, as 2026-01-31T12:00:00Z
+  --for <address>           The mind it is signed for, in place of this one: a collective this mind is a member of
+  --authority <delegation>  A delegation that lets this mind sign for another: an ID or a file. A chain, root first
+  --charter <charter>       The charter that gives this mind a role in the collective it signs for
+  --publish                 Put it on the mind's public feed, at its hosts, where anyone may read it
+  --send-to <address>       Send it to this mind, sealed. It may be given several times
+
+Example:
+  oip offer --provides "An English translation of a lease" --price 120 --currency USD --publish
+"
+`;
+
 exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > publish location 1`] = `
 "oip publish location [options]
 
@@ -172,6 +336,30 @@ Example:
 "
 `;
 
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > receipt 1`] = `
+"oip receipt <record> [options]
+
+Says what became of a record, usually a Commitment: signs a Receipt
+
+The record is named by the ID of one the mind holds, or by a file.
+A Commitment is fulfilled once a mind that is owed it says so, and broken or disputed
+by the word of any party. A Receipt is a statement by its author, and no more.
+
+Options:
+  --outcome <outcome>       What became of it: accepted, progress, fulfilled, broken, cancelled, disputed, or one of a namespace
+  --statement <text>        More of it, in words
+  --score <decimal>         A rating from 0 to 1, as 0.9
+  --for <address>           The mind it is signed for, in place of this one: a collective this mind is a member of
+  --authority <delegation>  A delegation that lets this mind sign for another: an ID or a file. A chain, root first
+  --charter <charter>       The charter that gives this mind a role in the collective it signs for
+  --publish                 Put it on the mind's public feed, at its hosts, where anyone may read it
+  --send-to <address>       Send it to this mind, sealed. It may be given several times
+
+Example:
+  oip receipt bciqexample --outcome fulfilled --score 1 --send-to did:oip:bciqexample
+"
+`;
+
 exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > resolve 1`] = `
 "oip resolve <address> [options]
 
@@ -187,6 +375,23 @@ Options:
 
 Example:
   oip resolve did:oip:bciqexample --aliases
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > revoke 1`] = `
+"oip revoke <delegation> [options]
+
+Takes a delegation back: signs a Revocation, and puts it on the mind's feed
+
+The delegation is named by the ID of one the mind holds, or by a file.
+It takes effect for a verifier from when that verifier first sees it: what the delegate
+signed before stands. Send it to whoever relies on the delegate, as well as publishing it.
+
+Options:
+  --send-to <address>  Send it to this mind, sealed. It may be given several times
+
+Example:
+  oip revoke bciqexample --send-to did:oip:bciqexample
 "
 `;
 
@@ -258,26 +463,49 @@ Example:
 "
 `;
 
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > status 1`] = `
+"oip status <record>
+
+Says where a record stands: its status, and whom it binds
+
+The record is named by the ID of one the mind holds, or by a file.
+A status is computed from the records this mind holds, and from the logs of the minds they
+name, fetched now. Another verifier, holding other records, may compute another.
+
+Example:
+  oip status bciqexample
+"
+`;
+
 exports[`oip, asked for nothing or for help > lists its commands, and says how to learn more of one 1`] = `
 "oip <command> [options]
 
 A mind of the Open Intelligence Protocol, from a terminal.
 
 Commands:
-  init              Makes a mind: its keys, sealed in its directory, and its first event with its resolvers
-  show              Shows the mind of this directory, as its resolvers have it
-  rotate            Rotates the mind's control keys: the next are revealed, and new ones committed to
-  add-key           Makes a new key of everyday work, and adds it to the mind's keys
-  revoke-key        Takes a key of everyday work from the mind's keys for good, and destroys it here
-  fork              Makes a child of this mind in a directory of its own, and acknowledges it
-  publish profile   Publishes what the mind is and can do: its profile, which others find it by
-  publish location  Publishes where the mind takes packets, and whether it takes them now
-  publish record    Puts a record on the mind's public feed, at its hosts
-  resolve           Resolves any mind by its address: fetches its log from the resolvers, and verifies it
-  find              Finds minds by what they can do: asks the indexers, and verifies what they name
-  send              Sends a packet to one mind or several: signed, and sealed to each
-  inbox             Reads the mind's mailboxes: the packets that arrived, each verified, and kept
-  demo              Runs a network on this machine: a resolver, a host and an indexer, until it is stopped
+  init               Makes a mind: its keys, sealed in its directory, and its first event with its resolvers
+  show               Shows the mind of this directory, as its resolvers have it
+  rotate             Rotates the mind's control keys: the next are revealed, and new ones committed to
+  add-key            Makes a new key of everyday work, and adds it to the mind's keys
+  revoke-key         Takes a key of everyday work from the mind's keys for good, and destroys it here
+  fork               Makes a child of this mind in a directory of its own, and acknowledges it
+  publish profile    Publishes what the mind is and can do: its profile, which others find it by
+  publish location   Publishes where the mind takes packets, and whether it takes them now
+  publish record     Puts a record on the mind's public feed, at its hosts
+  resolve            Resolves any mind by its address: fetches its log from the resolvers, and verifies it
+  find               Finds minds by what they can do: asks the indexers, and verifies what they name
+  send               Sends a packet to one mind or several: signed, and sealed to each
+  inbox              Reads the mind's mailboxes: the packets that arrived, each verified, and kept
+  intent             Says what the mind wants: signs an Intent
+  offer              Says what the mind provides, and on what terms: signs an Offer
+  commit             Makes a promise between minds: writes a Commitment, or signs one another wrote
+  receipt            Says what became of a record, usually a Commitment: signs a Receipt
+  status             Says where a record stands: its status, and whom it binds
+  delegate           Lets another mind sign for this one, within limits: signs a Delegation
+  revoke             Takes a delegation back: signs a Revocation, and puts it on the mind's feed
+  collective create  Founds a collective with other minds: drafts its first event, and signs it as a member
+  collective sign    Signs, as a member of a collective, one of its identity events or a record in its name
+  demo               Runs a network on this machine: a resolver, a host and an indexer, until it is stopped
 
 Options of every command:
   --dir <path>  The mind's directory. Default: OIP_DIR, or .oip in your home directory

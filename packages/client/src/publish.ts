@@ -155,6 +155,11 @@ export interface Own {
   /** Signs a request as the mind (Layer 1, 13.3). */
   signed(asking: Asking): Promise<Asking>;
   /**
+   * Answers a server's challenge (Layer 1, 13.3): a `Hello` the mind signs
+   * for the challenge and for the origin the client connected to.
+   */
+  hello(challenge: string, domain: string): Promise<object>;
+  /**
    * Signs a request that brings the mind's log, with a key a service can
    * judge by the log it holds or by the log it is brought (Layer 1, 17.3):
    * after a `Retire`, as the mind was before it.

@@ -82,6 +82,14 @@ import { type Acting, Dealings, type Fields, type Grant } from "./dealings.ts";
 import { type Inbox, type Message, Messaging, type Sent } from "./messages.ts";
 import { checkInstance, SessionBook, type SessionView } from "./sessions.ts";
 import {
+  listen,
+  type Listening,
+  type ListenOptions,
+  type OpenSocket,
+  platformSleep,
+  platformSocket,
+} from "./socket.ts";
+import {
   homeEndpoints,
   type LocationFields,
   type Own,
@@ -121,6 +129,13 @@ export interface MindOptions extends LookupOptions {
    * are one instance.
    */
   readonly instance?: string;
+  /**
+   * Opens a WebSocket, for `listen`. Default: the platform's own
+   * `WebSocket`, which a browser has, and Node.js from version 22.
+   */
+  readonly webSocket?: OpenSocket;
+  /** Waits a number of milliseconds, between one connection and the next. Default: the platform's timer. */
+  readonly sleep?: (ms: number) => Promise<void>;
 }
 
 /** What a new mind is made with. */
@@ -214,6 +229,7 @@ export class Mind {
   readonly #lookup: Lookup;
   readonly #operational: OperationalKeys;
   readonly #agreement: AgreementKeys;
+  readonly #own: Own;
   readonly #publishing: Publishing;
   readonly #messaging: Messaging;
   readonly #sessions: SessionBook;
@@ -247,11 +263,13 @@ export class Mind {
       },
       sign: (record, authority) => this.sign(record, authority),
       signed: (asking) => this.#signed(asking),
+      hello: (challenge, domain) => this.#hello(challenge, domain),
       signedForLog: (asking) => this.#signedForLog(asking),
       told: (publications) => {
         this.#published = publications;
       },
     };
+    this.#own = own;
     this.#publishing = new Publishing(own);
     this.#sessions = new SessionBook(own, options.instance);
     this.#messaging = new Messaging(own, this.#sessions);
@@ -483,6 +501,24 @@ export class Mind {
   }
 
   /** A request signed by the mind, with the key it signs records with (Layer 1, 13.3). */
+  /** Layer 1, 13.3: a `Hello` for a server's challenge, signed for the origin given. */
+  async #hello(challenge: string, domain: string): Promise<object> {
+    const key = this.signingKey();
+    const created = formatTimestamp(this.#clock.now());
+    const hello = { oip: "1", type: "Hello", author: this.address, created };
+    const proof = await createProof(
+      hello,
+      {
+        verificationMethod: formatKeyRef(this.address, this.state.versionId, key),
+        created,
+        challenge,
+        domain,
+      },
+      this.#operational.signer(key),
+    );
+    return { ...hello, proof: [proof] };
+  }
+
   #signed(asking: Asking): Promise<Asking> {
     const key = this.signingKey();
     return signedAsking(
@@ -620,6 +656,36 @@ export class Mind {
       received.push(sentFor === undefined ? arrived : { ...arrived, sentFor });
     }
     return { ...inbox, received };
+  }
+
+  /**
+   * Holds a socket open to the mind's own host (Layer 1, 13.4), so that
+   * packets arrive as they are sent. The host sends what the mind's
+   * mailbox holds, and then what arrives. Each record is judged as
+   * `receive` judges it, and `received` is called with what was found. The
+   * mind tells its host that it has a record with an acknowledgement of
+   * its own, and the host keeps the record until then: a connection that
+   * drops loses nothing.
+   *
+   * A connection that ends is opened again after a wait, which doubles
+   * from one second to a minute and starts again once the host has
+   * welcomed the mind. The socket is the first the mind's location record
+   * names, or that of its first home.
+   *
+   * @returns What stops the listening, and tells when it has ended.
+   * @throws TypeError if the platform has no `WebSocket` and none is given.
+   */
+  listen(options: ListenOptions): Listening {
+    return listen(
+      {
+        own: this.#own,
+        open: this.#options.webSocket ?? platformSocket,
+        sleep: this.#options.sleep ?? platformSleep,
+        take: (records) => this.#messaging.take(records),
+        receive: () => this.receive(),
+      },
+      options,
+    );
   }
 
   /**

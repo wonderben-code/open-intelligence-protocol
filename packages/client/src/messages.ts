@@ -31,6 +31,7 @@ import { KeystoreError } from "@oip/keystore";
 import {
   acknowledges,
   type ChainEquivocation,
+  draftAck,
   endpointsToTry,
   lacking,
   postUrl,
@@ -297,6 +298,8 @@ const WINDOW = BigInt(MAX_EXPIRES_IN) * SECOND;
 const RECORD = "application/oip+json";
 /** The name of what is remembered of the packets accepted. */
 const ACCEPTED = "client-accepted";
+/** How often the list of them is written again after another process wrote it first. */
+const MOST_MERGES = 4;
 
 type Failure = OipError | TransportError;
 const codeOf = (failure: Failure): string =>
@@ -313,7 +316,11 @@ interface Item {
 /** What became of an item of a mailbox. */
 type Outcome =
   /** Accepted: this packet and, in a session, those that had waited on it. */
-  | { readonly kind: "received"; readonly received: readonly Received[] }
+  | {
+      readonly kind: "received";
+      readonly received: readonly Received[];
+      readonly taken: readonly Taken[];
+    }
   /** Ahead of a gap in its chain (14.3): it stays in the mailbox until the gap is filled. */
   | { readonly kind: "ahead"; readonly id: string; readonly chain: ChainOf }
   | {
@@ -321,9 +328,16 @@ type Outcome =
       readonly why: { readonly clause: string; readonly message: string };
     }
   /** Accepted before: it is removed, and not returned again. */
-  | { readonly kind: "duplicate" }
+  | { readonly kind: "duplicate"; readonly taken: readonly Taken[] }
   /** Not judged yet: the log of a mind that signed it could not be asked for. */
   | { readonly kind: "waiting" };
+
+/** A packet the mind has, and the `Sealed` record it arrived in, if it arrived in one. */
+interface Taken {
+  readonly packet: ReceivedPacket;
+  /** The content ID of the `Sealed` record, by which a host knows what it keeps (13.2). */
+  readonly sealed: string | undefined;
+}
 
 /** Why a packet of a chain that is equivocated is refused (14.3). */
 const TWO_FOR_ONE_PLACE = {
@@ -338,11 +352,32 @@ interface ChainOf {
   readonly instance?: string;
 }
 
+/** What a reading of what arrived starts with: nothing yet. */
+const emptyInbox = () => ({
+  received: [] as Received[],
+  refused: [] as { clause: string; message: string }[],
+  waiting: 0,
+  sessions: [] as SessionEvent[],
+  sources: [] as MailboxAnswer[],
+});
+
 /** A value as an object, or `undefined`. */
 const objectOf = (value: unknown): JsonObject | undefined =>
   typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as JsonObject)
     : undefined;
+
+/** The packets accepted, as they were written down, or `undefined` if that is no such list. */
+function readAccepted(stored: JsonObject): Map<string, Instant> | undefined {
+  const ids = objectOf(stored["ids"]);
+  if (ids === undefined) return undefined;
+  const known = new Map<string, Instant>();
+  for (const [id, until] of Object.entries(ids)) {
+    if (typeof until !== "string" || !/^\d{1,30}$/u.test(until)) return undefined;
+    known.set(id, BigInt(until));
+  }
+  return known;
+}
 
 /** A page of a mailbox as it was served, or `undefined` if it is none. */
 function pageOf(served: JsonValue): { items: Item[]; next: string | undefined } | undefined {
@@ -420,8 +455,10 @@ export class Messaging {
   /** The packets accepted, each with the time until which it is remembered. */
   #accepted: Map<string, Instant> | undefined;
   #version: string | undefined;
-  /** Whether each packet that waits ahead of a gap arrived sealed. */
-  readonly #ahead = new Map<string, boolean>();
+  /** The `Sealed` record each packet that waits ahead of a gap arrived in, if it arrived in one. */
+  readonly #ahead = new Map<string, { readonly sealed: string | undefined }>();
+  /** The readings of what arrived, one after another: each judges by what the last one kept. */
+  #reading: Promise<unknown> = Promise.resolve();
   /** The gaps a `Resume` was sent for. */
   readonly #asked = new Set<string>();
 
@@ -656,8 +693,19 @@ export class Messaging {
     return verified.value.ack;
   }
 
+  /** Runs one reading of what arrived after the one before it. */
+  #inTurn<T>(work: () => Promise<T>): Promise<T> {
+    const next = this.#reading.then(work);
+    this.#reading = next.catch(() => undefined);
+    return next;
+  }
+
   /** Reads the mind's mailboxes: see `Mind.receive`. */
-  async receive(): Promise<Inbox> {
+  receive(): Promise<Inbox> {
+    return this.#inTurn(() => this.#receive());
+  }
+
+  async #receive(): Promise<Inbox> {
     const own = this.#own;
     const resolved = await own.refresh();
     const endpoints =
@@ -669,13 +717,7 @@ export class Messaging {
     ];
     const known = await this.#remembered();
     const following = await this.#sessions.ready();
-    const inbox = {
-      received: [] as Received[],
-      refused: [] as { clause: string; message: string }[],
-      waiting: 0,
-      sessions: [] as SessionEvent[],
-      sources: [] as MailboxAnswer[],
-    };
+    const inbox = emptyInbox();
     /** The chains of the packets that stay in a mailbox, ahead of a gap. */
     const ahead: ChainOf[] = [];
     for (const mailbox of mailboxes) {
@@ -688,29 +730,12 @@ export class Messaging {
         continue;
       }
       inbox.sources.push({ mailbox, items: items.length });
-      const judged = await this.#judge(items, known, following, inbox.sessions);
+      const fresh = new Set<string>();
+      const judged = await this.#judge(items, known, following, inbox.sessions, fresh);
       // What was accepted is remembered before it is removed from the mailbox: a process
-      // that stops between the two finds a duplicate, and not a packet it never saw. The
-      // place of each chain goes first: a packet that is remembered has its place.
-      await this.#sessions.save();
-      await this.#remember(known);
-      for (const { item, outcome } of judged) {
-        if (outcome.kind === "waiting") {
-          inbox.waiting++;
-          continue;
-        }
-        // A packet ahead of a gap stays until the gap is filled, so that nothing is lost if
-        // the process stops. One that was since returned in its place is done with.
-        if (outcome.kind === "ahead" && !known.has(outcome.id)) {
-          if (!following.equivocated(outcome.chain)) {
-            ahead.push(outcome.chain);
-            continue;
-          }
-          // Its chain was found to be two chains while it waited: it has no place (14.3).
-          inbox.refused.push(TWO_FOR_ONE_PLACE);
-        }
-        if (outcome.kind === "received") inbox.received.push(...outcome.received);
-        if (outcome.kind === "refused") inbox.refused.push(outcome.why);
+      // that stops between the two finds a duplicate, and not a packet it never saw.
+      const elsewhere = await this.#keep(known, fresh);
+      for (const { item } of this.#sorted(judged, known, following, inbox, ahead, elsewhere)) {
         await this.#remove(mailbox, item.cursor);
       }
     }
@@ -719,6 +744,99 @@ export class Messaging {
     }
     await this.#tend(inbox, following);
     return inbox;
+  }
+
+  /**
+   * Judges records the mind's host sent it over a socket (13.4): see
+   * `Mind.listen`. They are judged as the items of a mailbox are.
+   *
+   * @returns What `receive` returns, the mind's own acknowledgement of each
+   *   record it now has, by which its host knows to keep it no longer, and
+   *   whether a record was refused: such a one stays with the host.
+   */
+  take(
+    records: readonly JsonValue[],
+  ): Promise<{ readonly inbox: Inbox; readonly acks: readonly Ack[]; readonly refused: boolean }> {
+    return this.#inTurn(async () => {
+      const own = this.#own;
+      const known = await this.#remembered();
+      const following = await this.#sessions.ready();
+      const inbox = emptyInbox();
+      const ahead: ChainOf[] = [];
+      const items = records.map((record) => ({ cursor: "", record }));
+      const fresh = new Set<string>();
+      const judged = await this.#judge(items, known, following, inbox.sessions, fresh);
+      // Kept before the host is told: see `receive`.
+      const elsewhere = await this.#keep(known, fresh);
+      const done = this.#sorted(judged, known, following, inbox, ahead, elsewhere);
+      for (const chain of ahead) {
+        noteGap(inbox.sessions, { kind: "gap", ...chain, next: following.received(chain) });
+      }
+      await this.#tend(inbox, following);
+      const now = formatTimestamp(own.clock.now());
+      const acks: Ack[] = [];
+      for (const { packet, sealed } of done.flatMap(({ taken }) => taken)) {
+        acks.push(
+          await own.sign(
+            draftAck({
+              received: packet,
+              recipient: own.address,
+              at: now,
+              created: now,
+              ...(sealed === undefined ? {} : { sealed }),
+            }),
+          ),
+        );
+      }
+      return { inbox, acks, refused: done.some(({ refused }) => refused) };
+    });
+  }
+
+  /**
+   * Sorts what was judged into what the mind is told, and what is done
+   * with: an item that was accepted, was accepted before, or is refused. An
+   * item that could not be judged yet, and a packet ahead of a gap in its
+   * chain, stay where they are.
+   *
+   * @param elsewhere - The packets another process of the mind accepted
+   *   while this one judged them (`#keep`).
+   */
+  #sorted(
+    judged: readonly { readonly item: Item; readonly outcome: Outcome }[],
+    known: ReadonlyMap<string, Instant>,
+    following: Following,
+    inbox: ReturnType<typeof emptyInbox>,
+    ahead: ChainOf[],
+    elsewhere: ReadonlySet<string>,
+  ): { item: Item; taken: readonly Taken[]; refused: boolean }[] {
+    const done: { item: Item; taken: readonly Taken[]; refused: boolean }[] = [];
+    for (const { item, outcome } of judged) {
+      if (outcome.kind === "waiting") {
+        inbox.waiting++;
+        continue;
+      }
+      let refused = outcome.kind === "refused";
+      // A packet ahead of a gap stays until the gap is filled, so that nothing is lost if
+      // the process stops. One that was since returned in its place is done with.
+      if (outcome.kind === "ahead" && !known.has(outcome.id)) {
+        if (!following.equivocated(outcome.chain)) {
+          ahead.push(outcome.chain);
+          continue;
+        }
+        // Its chain was found to be two chains while it waited: it has no place (14.3).
+        inbox.refused.push(TWO_FOR_ONE_PLACE);
+        refused = true;
+      }
+      if (outcome.kind === "received") {
+        // One that another process of the mind accepted meanwhile is that process's to return.
+        inbox.received.push(...outcome.received.filter(({ id }) => !elsewhere.has(id)));
+      }
+      if (outcome.kind === "refused") inbox.refused.push(outcome.why);
+      const taken =
+        outcome.kind === "received" || outcome.kind === "duplicate" ? outcome.taken : [];
+      done.push({ item, taken, refused });
+    }
+    return done;
   }
 
   /**
@@ -833,12 +951,16 @@ export class Messaging {
    * reading of the clock. The logs of the minds that signed are then
    * fetched afresh, and each item is judged by them: a log held from before
    * a packet was first seen does not judge it (core 9.4).
+   *
+   * @param fresh - Filled with the packets accepted now that are of no
+   *   session: those the client tells from a duplicate by what it remembers.
    */
   async #judge(
     items: readonly Item[],
     known: Map<string, Instant>,
     following: Following,
     events: SessionEvent[],
+    fresh: Set<string>,
   ): Promise<{ item: Item; outcome: Outcome }[]> {
     const own = this.#own;
     const now = own.clock.now();
@@ -912,6 +1034,11 @@ export class Messaging {
         continue;
       }
       const { id, packet, duplicate, forgetAfter } = verdict.value;
+      // The record it arrived in, by the name a host keeps it under (13.2).
+      const arrived: Taken = {
+        packet: verdict.value,
+        sealed: sealed ? contentId(item.record) : undefined,
+      };
       const asReceived = (one: ReceivedPacket, wasSealed: boolean): Received => ({
         id: one.id,
         packet: one.packet,
@@ -922,15 +1049,7 @@ export class Messaging {
       });
       if (packet.session !== undefined) {
         // A packet of a session is told by its place in its chain, a duplicate too (14.3).
-        const outcome = this.#placed(
-          verdict.value,
-          packet.session,
-          sealed,
-          known,
-          following,
-          events,
-          asReceived,
-        );
+        const outcome = this.#placed(arrived, packet.session, known, following, events, asReceived);
         // A session that is not held may be one another process took up since this one read
         // its memory. The packet is then not refused: it is judged again, by what is written.
         if (
@@ -947,13 +1066,18 @@ export class Messaging {
         continue;
       }
       if (duplicate) {
-        judged.push({ item, outcome: { kind: "duplicate" } });
+        judged.push({ item, outcome: { kind: "duplicate", taken: [arrived] } });
         continue;
       }
       known.set(id, forgetAfter);
+      fresh.add(id);
       judged.push({
         item,
-        outcome: { kind: "received", received: [asReceived(verdict.value, sealed)] },
+        outcome: {
+          kind: "received",
+          received: [asReceived(verdict.value, sealed)],
+          taken: [arrived],
+        },
       });
     }
     return judged;
@@ -961,14 +1085,14 @@ export class Messaging {
 
   /** Puts an accepted packet of a session in its place (14.2, 14.3), and says what became of it. */
   #placed(
-    received: ReceivedPacket,
+    arrived: Taken,
     session: string,
-    sealed: boolean,
     known: Map<string, Instant>,
     following: Following,
     events: SessionEvent[],
     asReceived: (one: ReceivedPacket, sealed: boolean) => Received,
   ): Outcome {
+    const received = arrived.packet;
     const { id, packet } = received;
     const placed = following.take(received, session);
     if (!placed.ok) {
@@ -983,9 +1107,9 @@ export class Messaging {
     const answer = placed.value;
     switch (answer.kind) {
       case "duplicate":
-        return { kind: "duplicate" };
+        return { kind: "duplicate", taken: [arrived] };
       case "waiting":
-        this.#ahead.set(id, sealed);
+        this.#ahead.set(id, { sealed: arrived.sealed });
         return { kind: "ahead", id, chain };
       case "equivocation":
         noteEquivocation(events, { ...chain, ...answer });
@@ -994,14 +1118,19 @@ export class Messaging {
         if (answer.equivocation !== undefined) {
           noteEquivocation(events, { ...chain, ...answer.equivocation });
         }
-        const delivered = answer.delivered.map((one) =>
-          asReceived(one, one.id === id ? sealed : this.#ahead.get(one.id) === true),
+        // Each as it arrived: this one now, and those that waited on it when they did.
+        const taken = answer.delivered.map((one): Taken =>
+          one.id === id ? arrived : { packet: one, sealed: this.#ahead.get(one.id)?.sealed },
         );
         for (const one of answer.delivered) {
           known.set(one.id, one.forgetAfter);
           this.#ahead.delete(one.id);
         }
-        return { kind: "received", received: delivered };
+        return {
+          kind: "received",
+          received: taken.map((one) => asReceived(one.packet, one.sealed !== undefined)),
+          taken,
+        };
       }
     }
   }
@@ -1024,16 +1153,7 @@ export class Messaging {
   async #remembered(): Promise<Map<string, Instant>> {
     const own = this.#own;
     if (this.#accepted === undefined) {
-      const held = await own.memory.get(ACCEPTED, (stored) => {
-        const ids = objectOf(stored["ids"]);
-        if (ids === undefined) return undefined;
-        const known = new Map<string, Instant>();
-        for (const [id, until] of Object.entries(ids)) {
-          if (typeof until !== "string" || !/^\d{1,30}$/u.test(until)) return undefined;
-          known.set(id, BigInt(until));
-        }
-        return known;
-      });
+      const held = await own.memory.get(ACCEPTED, readAccepted);
       this.#accepted = held.value ?? new Map<string, Instant>();
       this.#version = held.version;
     }
@@ -1042,10 +1162,51 @@ export class Messaging {
     return this.#accepted;
   }
 
-  /** Writes down the packets accepted. */
-  async #remember(known: Map<string, Instant>): Promise<void> {
-    const ids: Record<string, string> = {};
-    for (const [id, until] of known) ids[id] = String(until);
-    this.#version = await this.#own.memory.put(ACCEPTED, { ids }, this.#version);
+  /**
+   * Keeps what a reading found, before anything is removed or told: where
+   * each chain stands, then the packets accepted.
+   *
+   * @returns The packets, of those accepted now, that another process of
+   *   the mind had accepted meanwhile.
+   * @throws KeystoreError if it could not be kept. Nothing is then removed
+   *   or told, and what the client holds is read again before the next
+   *   reading: a packet judged in this one is judged again, not forgotten.
+   */
+  async #keep(known: Map<string, Instant>, fresh: ReadonlySet<string>): Promise<Set<string>> {
+    try {
+      await this.#sessions.save();
+      return await this.#remember(known, fresh);
+    } catch (error) {
+      this.#accepted = undefined;
+      this.#version = undefined;
+      throw error;
+    }
+  }
+
+  /**
+   * Writes down the packets accepted. Where another process of the mind has
+   * written since this one read, what it accepted is kept as well: the two
+   * are one mind, and what either accepted is accepted.
+   */
+  async #remember(known: Map<string, Instant>, fresh: ReadonlySet<string>): Promise<Set<string>> {
+    const { memory } = this.#own;
+    const elsewhere = new Set<string>();
+    for (let attempt = 0; ; attempt++) {
+      const ids: Record<string, string> = {};
+      for (const [id, until] of known) ids[id] = String(until);
+      try {
+        this.#version = await memory.put(ACCEPTED, { ids }, this.#version);
+        return elsewhere;
+      } catch (error) {
+        const behind = error instanceof KeystoreError && error.code === "changed";
+        if (!behind || attempt === MOST_MERGES) throw error;
+      }
+      const held = await memory.get(ACCEPTED, readAccepted);
+      for (const [id, until] of held.value ?? []) {
+        if (fresh.has(id)) elsewhere.add(id);
+        if (!known.has(id)) known.set(id, until);
+      }
+      this.#version = held.version;
+    }
   }
 }

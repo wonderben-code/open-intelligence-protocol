@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { contentId, MEDIA_TYPE, mindId, signerFromPrivateKey } from "@oip/core";
+import { contentId, MEDIA_TYPE, mindId, signerFromPrivateKey, utf8 } from "@oip/core";
 import { judgeRecord, ownSignedTime } from "@oip/identity";
-import { memoryStorage } from "@oip/keystore";
+import { KeystoreError, memoryStorage } from "@oip/keystore";
 import { ackEvidence, verifyAck } from "@oip/net";
 import { clause } from "@oip/testkit";
 import { at, KeyMind, T } from "@oip/testkit/minds";
@@ -601,6 +601,85 @@ describe(`${clause("L1 12.4")} what a mind finds in its mailbox`, () => {
     expect((await forgetful.receive()).received.map((received) => received.id)).toStrictEqual([
       sent.id,
     ]);
+  });
+
+  it("is not forgotten where it could not be written down: the next reading has it", async () => {
+    const ada = await at_(ONE);
+    const bob = await at_(TWO);
+    const sent = await ada.mind.send(hello([bob.mind.address]));
+    world.clock.at = at(160);
+    // The client's memory fails as the packet is to be remembered, once.
+    const put = bob.memory.put.bind(bob.memory);
+    bob.memory.put = () => {
+      bob.memory.put = put;
+      return Promise.reject(new KeystoreError("damaged", "the storage could not be written"));
+    };
+    expect(await refusal(() => bob.mind.receive())).toBe("keystore: damaged");
+    // Nothing was removed, and nothing is held of a packet that was never returned.
+    const inbox = await bob.mind.receive();
+    expect(inbox.received.map((received) => received.id)).toStrictEqual([sent.id]);
+    expect((await bob.mind.receive()).sources[0]?.items).toBe(0);
+  });
+
+  it("is returned by one of two processes that read at once, and what each accepted is kept by both", async () => {
+    const ada = await at_(ONE);
+    const bob = await at_(TWO);
+    const one = await ada.mind.send(hello([bob.mind.address]));
+    world.clock.at = at(160);
+    /** Another process of Bob writes what it accepted, while this one reads the mailbox. */
+    const meanwhile = (ids: Record<string, string>): void => {
+      world.before = async (request) => {
+        if (request.method !== "GET" || !request.url.endsWith("/mailbox")) return;
+        world.before = undefined;
+        const held = await bob.memory.get("client-accepted");
+        await bob.memory.put(
+          "client-accepted",
+          utf8(JSON.stringify({ ids, mind: bob.mind.address })),
+          held?.version,
+        );
+      };
+    };
+    const until = String(at(9000));
+    const other = contentId({ another: "packet" });
+    // It accepted another packet: this process returns its own, and remembers both.
+    meanwhile({ [other]: until });
+    expect((await bob.mind.receive()).received.map(({ id }) => id)).toStrictEqual([one.id]);
+    const kept = async (): Promise<string[]> =>
+      Object.keys(
+        (
+          JSON.parse(
+            new TextDecoder().decode((await bob.memory.get("client-accepted"))?.value),
+          ) as { ids: Record<string, string> }
+        ).ids,
+      ).sort();
+    expect(await kept()).toStrictEqual([one.id, other].sort());
+    // It accepted the very packet this process is reading: that one is the other's to return.
+    const two = await ada.mind.send(hello([bob.mind.address]));
+    world.clock.at = at(170);
+    meanwhile({ [one.id]: until, [other]: until, [two.id]: until });
+    const inbox = await bob.mind.receive();
+    expect(inbox.received).toStrictEqual([]);
+    expect(inbox.refused).toStrictEqual([]);
+    // It is removed all the same: the mind has it.
+    expect((await bob.mind.receive()).sources[0]?.items).toBe(0);
+  });
+
+  it("is told to be behind where another process keeps writing first, and nothing is lost by it", async () => {
+    const ada = await at_(ONE);
+    const bob = await at_(TWO);
+    const sent = await ada.mind.send(hello([bob.mind.address]));
+    world.clock.at = at(160);
+    const put = bob.memory.put.bind(bob.memory);
+    let refused = 0;
+    bob.memory.put = (name, value, expected) => {
+      if (name !== "client-accepted") return put(name, value, expected);
+      refused++;
+      return Promise.reject(new KeystoreError("changed", "another process wrote it"));
+    };
+    expect(await refusal(() => bob.mind.receive())).toBe("keystore: changed");
+    expect(refused).toBe(5);
+    bob.memory.put = put;
+    expect((await bob.mind.receive()).received.map(({ id }) => id)).toStrictEqual([sent.id]);
   });
 
   it(`${clause("core 9.4")} waits where its sender's log cannot be asked for, and is judged when it can`, async () => {

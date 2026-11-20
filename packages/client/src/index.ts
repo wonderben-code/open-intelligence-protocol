@@ -75,6 +75,13 @@ export {
 } from "./mind.ts";
 export { type ChainView, type SessionView } from "./sessions.ts";
 export {
+  type Listening,
+  type ListenOptions,
+  type OpenSocket,
+  type SocketLike,
+  type SocketState,
+} from "./socket.ts";
+export {
   DEFAULT_TTL,
   type Endpoint,
   homeEndpoints,

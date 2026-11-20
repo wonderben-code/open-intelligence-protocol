@@ -11,8 +11,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { MEDIA_TYPE, mindId, type SyncSigner } from "@oip/core";
-import { Host, HOST_MIGRATIONS, hostApp } from "@oip/host";
+import { isContentId, MEDIA_TYPE, mindAddress, mindId, type SyncSigner } from "@oip/core";
+import { type Connection, Host, HOST_MIGRATIONS, hostApp, Sockets, type Wire } from "@oip/host";
 import { Broker, Indexer, INDEXER_MIGRATIONS, indexerApp } from "@oip/indexer";
 import { RESOLVER_MIGRATIONS, resolverApp } from "@oip/resolver";
 import {
@@ -26,7 +26,7 @@ import {
 } from "@oip/server";
 import { at, KeyMind, type Mind } from "@oip/testkit/minds";
 
-import type { Clock, Fetch } from "../src/index.ts";
+import type { Clock, Fetch, OpenSocket, SocketLike } from "../src/index.ts";
 
 /** A clock a test sets. */
 export interface TestClock extends Clock {
@@ -44,6 +44,12 @@ export class World {
   readonly #databases: Database[] = [];
   /** The requests made, as `METHOD url`. */
   readonly asked: string[] = [];
+  /** What each host says over a socket (Layer 1, 13.4), by its origin. */
+  readonly #sockets = new Map<string, { sockets: Sockets; host: Host }>();
+  /** What ends each connection that is open, as a network that fails would. */
+  readonly #connections = new Set<{ origin: string; drop: (code: number) => void }>();
+  /** The sockets opened, by URL, and what was sent over each from either end. */
+  readonly sockets: { url: string; fromClient: string[]; fromHost: string[] }[] = [];
 
   constructor(seconds = 1000) {
     const clock: TestClock = { at: at(seconds), now: () => clock.at };
@@ -92,6 +98,94 @@ export class World {
     if (answering === undefined) return;
     this.#down.set(origin, answering);
     this.#origins.delete(origin);
+  }
+
+  /**
+   * Opens a socket to a host of this world. The other end is the host's own
+   * binding, and nothing in between is a network: a message is handed over
+   * when the one before it has been.
+   */
+  readonly socket: OpenSocket = (url, protocol) => {
+    const said = { url, fromClient: [] as string[], fromHost: [] as string[] };
+    this.sockets.push(said);
+    const { host: authority, pathname } = new URL(url);
+    const origin = `https://${authority}`;
+    const id = /^\/oip\/v1\/minds\/([^/]+)\/ws$/u.exec(pathname)?.[1];
+    let open = true;
+    let connection: Connection | undefined;
+    const client: SocketLike = {
+      onopen: null,
+      onmessage: null,
+      onclose: null,
+      onerror: null,
+      send: (text) => {
+        if (!open) throw new Error("the socket is closed");
+        said.fromClient.push(text);
+        queueMicrotask(() => {
+          if (open) connection?.message(text);
+        });
+      },
+      close: (code, reason) => {
+        if (!open) return;
+        open = false;
+        this.#connections.delete(held);
+        queueMicrotask(() => {
+          connection?.closed();
+          client.onclose?.({
+            ...(code === undefined ? {} : { code }),
+            ...(reason === undefined ? {} : { reason }),
+          });
+        });
+      },
+    };
+    /** The connection ends without the client having closed it. */
+    const ended = (code: number, reason?: string): void => {
+      if (!open) return;
+      open = false;
+      this.#connections.delete(held);
+      connection?.closed();
+      client.onerror?.({});
+      client.onclose?.({ code, ...(reason === undefined ? {} : { reason }) });
+    };
+    const held = { origin, drop: ended };
+    queueMicrotask(() => {
+      const there = this.#origins.has(origin) ? this.#sockets.get(origin) : undefined;
+      const mind = id !== undefined && isContentId(id) ? mindAddress(id) : undefined;
+      if (there === undefined || mind === undefined || !there.host.hosts(mind)) {
+        // No such host, or no such mind at it: the handshake fails, as a 404 would make it.
+        ended(1006);
+        return;
+      }
+      if (protocol !== "oip.v1") {
+        ended(1006);
+        return;
+      }
+      const wire: Wire = {
+        send: (text) => {
+          said.fromHost.push(text);
+          queueMicrotask(() => {
+            if (open) client.onmessage?.({ data: text });
+          });
+        },
+        close: (code, reason) => {
+          queueMicrotask(() => {
+            ended(code, reason);
+          });
+        },
+        buffered: 0,
+      };
+      this.#connections.add(held);
+      client.onopen?.({});
+      connection = there.sockets.connect(mind, wire, "203.0.113.7");
+    });
+    return client;
+  };
+
+  /** Drops every connection open to a host, as a network that fails does: no close is said. */
+  cut(origin: string): void {
+    for (const held of [...this.#connections]) {
+      if (held.origin === origin) held.drop(1006);
+    }
   }
 
   /** Brings back what `down` took away. */
@@ -186,6 +280,21 @@ export class World {
       ready: { database: () => true },
     });
     this.put(origin, (request) => app.fetch(request, { address: "203.0.113.7" }));
+    this.#sockets.set(origin, {
+      host,
+      sockets: new Sockets({
+        host,
+        archive,
+        clock: this.clock,
+        randomness: {
+          bytes: (length) => globalThis.crypto.getRandomValues(new Uint8Array(length)),
+        },
+        log,
+        metrics: new Metrics(),
+        origin,
+        deliver: generous(),
+      }),
+    });
     return { host, archive };
   }
 
@@ -273,6 +382,7 @@ export class World {
 
   /** Closes the databases and removes their files. */
   close(): void {
+    for (const { sockets } of this.#sockets.values()) sockets.closeAll();
     for (const db of this.#databases) db.close();
     rmSync(this.#directory, { recursive: true, force: true });
   }

@@ -4,19 +4,24 @@
 
 ```ts
 
+import { Arrival } from '@oip/server';
 import { CapabilityQuery } from '@oip/schema';
 import { Clock } from '@oip/server';
 import { Database } from '@oip/server';
+import { Hono } from 'hono';
 import { Instant } from '@oip/core';
 import { JsonObject } from '@oip/core';
 import { Log } from '@oip/server';
 import { LogArchive } from '@oip/server';
 import { Lookup } from '@oip/server';
+import { LookupOptions } from '@oip/server';
 import { Metrics } from '@oip/server';
 import { Migration } from '@oip/server';
 import { OipRecord } from '@oip/core';
 import { QueryResult } from '@oip/schema';
 import { RateLimiter } from '@oip/server';
+import { Setting } from '@oip/server';
+import { Shutdown } from '@oip/server';
 import { SyncSigner } from '@oip/core';
 
 // @public
@@ -49,6 +54,16 @@ export interface BrokerOptions {
 export const DEFAULT_INDEXER_LIMITS: IndexerLimits;
 
 // @public
+export interface Edges {
+    // (undocumented)
+    readonly clock?: Clock;
+    readonly every?: (work: () => void, ms: number) => () => void;
+    readonly get?: LookupOptions["get"];
+    readonly post?: BrokerOptions["post"];
+    readonly sink?: (line: string) => void;
+}
+
+// @public
 export interface Forwarding {
     // (undocumented)
     readonly forwarding: number;
@@ -79,6 +94,35 @@ export class Indexer {
 
 // @public
 export const INDEXER_MIGRATIONS: readonly Migration[];
+
+// @public
+export function indexerApp(options: IndexerAppOptions): Hono<{
+    Bindings: Arrival;
+}>;
+
+// @public
+export interface IndexerAppOptions {
+    readonly archive: LogArchive;
+    // (undocumented)
+    readonly broker: Broker;
+    // (undocumented)
+    readonly clock: Clock;
+    // (undocumented)
+    readonly indexer: Indexer;
+    readonly limits: {
+        readonly query: RateLimiter;
+        readonly submit: RateLimiter;
+        readonly deliver: RateLimiter;
+    };
+    // (undocumented)
+    readonly log: Log;
+    readonly maxBodyBytes?: number;
+    readonly maxRecords?: number;
+    // (undocumented)
+    readonly metrics: Metrics;
+    readonly ready: Readonly<Record<string, () => boolean>>;
+    readonly shutdown: Shutdown;
+}
 
 // @public
 export interface IndexerLimits {
@@ -131,6 +175,20 @@ export interface Item {
 export type Kind = "Participant" | "Offer" | "Intent";
 
 // @public
+export const PREFIX = "OIP_INDEXER_";
+
+// @public
+export function readKey(path: string): SyncSigner;
+
+// @public
+export interface Running {
+    readonly address: string;
+    readonly port: number;
+    readonly shutdown: Shutdown;
+    stop(reason: string): Promise<boolean>;
+}
+
+// @public
 export interface Search {
     // (undocumented)
     readonly kinds: readonly Kind[];
@@ -144,6 +202,38 @@ export interface Search {
         readonly prefix: boolean;
     }[];
 }
+
+// @public
+export const SETTINGS: {
+    ORIGIN: Setting<string>;
+    HOST: Setting<string>;
+    PORT: Setting<number>;
+    DATABASE: Setting<string>;
+    BUNDLE_FILE: Setting<string>;
+    KEY_FILE: Setting<string>;
+    RESOLVERS: Setting<readonly string[]>;
+    FETCH_ALLOW: Setting<readonly string[]>;
+    MAX_BODY_BYTES: Setting<number>;
+    MAX_RECORDS: Setting<number>;
+    QUERY_BURST: Setting<number>;
+    QUERY_PER_MINUTE: Setting<number>;
+    SUBMIT_BURST: Setting<number>;
+    SUBMIT_PER_MINUTE: Setting<number>;
+    DELIVER_BURST: Setting<number>;
+    DELIVER_PER_MINUTE: Setting<number>;
+    SENDER_BURST: Setting<number>;
+    SENDER_PER_MINUTE: Setting<number>;
+    FANOUT: Setting<number>;
+    OFFERS: Setting<number>;
+    INTENTS: Setting<number>;
+    TRUSTED_PROXIES: Setting<number>;
+    UNDERSTOOD: Setting<readonly string[]>;
+    LOG_LEVEL: Setting<"debug" | "info" | "warn" | "error">;
+    SHUTDOWN_GRACE_MS: Setting<number>;
+};
+
+// @public
+export function start(environment: Readonly<Record<string, string | undefined>>, edges?: Edges): Promise<Running>;
 
 // @public
 export interface Submission {

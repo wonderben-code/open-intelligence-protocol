@@ -13,6 +13,7 @@ import { IdentityView } from '@oip/identity';
 import { Instant } from '@oip/core';
 import type { Issue } from '@oip/schema';
 import { JsonObject } from '@oip/core';
+import { JsonValue } from '@oip/core';
 import { OipError } from '@oip/core';
 import { OipRecord } from '@oip/core';
 import { ProblemDetails } from '@oip/core';
@@ -475,6 +476,9 @@ export function readBody(request: Request, limit: number): Promise<Uint8Array>;
 
 // @public
 export function readConfig<S extends Settings>(prefix: string, settings: S, environment: Readonly<Record<string, string | undefined>>): ConfigOf<S>;
+
+// @public
+export function readJson(request: Request, limit: number): Promise<JsonValue>;
 
 // @public
 export function readRecord(request: Request, limit: number): Promise<OipRecord>;

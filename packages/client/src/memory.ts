@@ -76,6 +76,11 @@ export class Memory {
     return { value, version: held.version };
   }
 
+  /** The names of the documents held whose names start with `prefix`, in order. */
+  async names(prefix: string): Promise<string[]> {
+    return (await this.#storage.list()).filter((name) => name.startsWith(prefix)).sort();
+  }
+
   /**
    * Writes a document in the place of the version that was read.
    *

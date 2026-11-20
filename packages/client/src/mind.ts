@@ -72,6 +72,7 @@ import type {
   Proof,
   Receipt,
   Revocation,
+  Session,
 } from "@oip/schema";
 import type { Status } from "@oip/web";
 
@@ -79,6 +80,7 @@ import { type Clock, Lookup, type LookupOptions, type Resolved, systemClock } fr
 import { Memory } from "./memory.ts";
 import { type Acting, Dealings, type Fields, type Grant } from "./dealings.ts";
 import { type Inbox, type Message, Messaging, type Sent } from "./messages.ts";
+import { checkInstance, SessionBook, type SessionView } from "./sessions.ts";
 import {
   homeEndpoints,
   type LocationFields,
@@ -111,6 +113,14 @@ export interface MindOptions extends LookupOptions {
   readonly memory?: KeyStorage;
   /** Where the nonces of signed requests come from. Default: the platform's generator. */
   readonly randomness?: Randomness;
+  /**
+   * A name for this client among the clients that run as the mind, in at
+   * most 64 characters (Layer 1, 14.3). The packets it sends in a session
+   * carry it, so that each client's packets are a chain of their own. A
+   * mind that runs one client needs none. Clients that share one `memory`
+   * are one instance.
+   */
+  readonly instance?: string;
 }
 
 /** What a new mind is made with. */
@@ -206,6 +216,7 @@ export class Mind {
   readonly #agreement: AgreementKeys;
   readonly #publishing: Publishing;
   readonly #messaging: Messaging;
+  readonly #sessions: SessionBook;
   readonly #dealings: Dealings;
   #resolved: Resolved;
   #published: readonly Publication[] = [];
@@ -242,7 +253,8 @@ export class Mind {
       },
     };
     this.#publishing = new Publishing(own);
-    this.#messaging = new Messaging(own);
+    this.#sessions = new SessionBook(own, options.instance);
+    this.#messaging = new Messaging(own, this.#sessions);
     this.#dealings = new Dealings(own);
   }
 
@@ -264,6 +276,7 @@ export class Mind {
       throw new OipError("forbidden", "the keystore holds the keys of a mind already: open it");
     }
     const clock = options.clock ?? systemClock;
+    checkInstance(options.instance);
     const lookup = new Lookup(options);
     const control = await keystore.unlock("control", fields.control ?? lock);
     try {
@@ -340,6 +353,7 @@ export class Mind {
     if (mind === undefined) {
       throw new OipError("not-found", "the keystore holds no mind's keys yet: create one");
     }
+    checkInstance(options.instance);
     const lookup = new Lookup(options);
     const resolved = await lookup.resolve(mind);
     return new Mind(options, lookup, await Mind.#everyday(options), resolved);
@@ -563,9 +577,15 @@ export class Mind {
    * It does not throw for a recipient that could not be reached:
    * `deliveries` says what became of the packet for each.
    *
+   * With `session`, the packet is one of a session (Section 14): it takes
+   * the next place in this mind's chain there, and is written down in the
+   * client's memory before it leaves, so that it can be sent again to a
+   * participant that missed it.
+   *
    * @returns The packet, and what became of it for each recipient.
    * @throws OipError `invalid-record` if the message makes no packet;
-   *   `forbidden` if the mind has no key to sign with.
+   *   `forbidden` if the mind has no key to sign with; `not-found` if it
+   *   names a session the mind is not in.
    */
   send(message: Message): Promise<Sent> {
     return this.#messaging.send(message);
@@ -582,6 +602,12 @@ export class Mind {
    * (`memory`), so a packet that is found again is a duplicate, and is not
    * returned again.
    *
+   * The packets of a session are returned in the order of their sender's
+   * chain (14.3). One that came ahead of a packet that is missing stays in
+   * the mailbox, and a `Resume` is sent to ask for what is missing (14.4).
+   * A participant's `Resume` is answered: what it lacks of this mind's
+   * packets is sent to it again. `sessions` says what was found and done.
+   *
    * @returns The packets accepted, what was refused, and what waits.
    */
   async receive(): Promise<Inbox> {
@@ -594,6 +620,56 @@ export class Mind {
       received.push(sentFor === undefined ? arrived : { ...arrived, sentFor });
     }
     return { ...inbox, received };
+  }
+
+  /**
+   * Makes a session with other minds (Layer 1, Section 14): an unsigned
+   * `Session` record that names its participants, this mind among them.
+   * Nothing is sent. The first packet this mind sends in it carries the
+   * record, and the other participants follow the session from then on.
+   *
+   * A session another mind opened needs no call: the client follows it
+   * from the first packet of it that arrives.
+   *
+   * @param others - The other participants: 1 to 255 addresses.
+   * @returns The session's ID, to send in it by, and the record.
+   * @throws OipError `invalid-record` if they make no session.
+   */
+  openSession(others: readonly string[]): Promise<{ id: string; session: Session }> {
+    return this.#sessions.open(others);
+  }
+
+  /**
+   * The sessions the mind is in, as the client's memory has them: how many
+   * packets it sent in each, and where the chain of each other sender
+   * stands.
+   */
+  sessions(): Promise<SessionView[]> {
+    return this.#sessions.views();
+  }
+
+  /**
+   * Sends a `Resume` to the participants of a session (Layer 1, 14.4): it
+   * says where each chain stands for this mind, so that each participant
+   * sends again what this mind lacks of its packets. `receive` sends one by
+   * itself when it finds a gap, once. This asks again.
+   *
+   * @returns The packet that carries it, a packet of the session like any other.
+   * @throws OipError `not-found` if the mind is in no such session.
+   */
+  resume(session: string): Promise<Sent> {
+    return this.#messaging.resume(session);
+  }
+
+  /**
+   * Forgets a session: where its chains stand, and the packets this mind
+   * sent in it. A packet of it that arrives later is refused, unless it
+   * carries the `Session` record: then the session is followed anew.
+   *
+   * @returns Whether the mind was in it.
+   */
+  leaveSession(session: string): Promise<boolean> {
+    return this.#sessions.leave(session);
   }
 
   /**

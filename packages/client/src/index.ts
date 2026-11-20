@@ -60,6 +60,7 @@ export {
   type Message,
   type Received,
   type Sent,
+  type SessionEvent,
 } from "./messages.ts";
 export {
   type CollectiveChanges,
@@ -72,6 +73,7 @@ export {
   type NewCollective,
   type NewMind,
 } from "./mind.ts";
+export { type ChainView, type SessionView } from "./sessions.ts";
 export {
   DEFAULT_TTL,
   type Endpoint,

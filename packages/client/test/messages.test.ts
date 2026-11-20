@@ -130,6 +130,7 @@ describe(`${clause("L1 12.1")} a packet that is sent`, () => {
       ],
       refused: [],
       waiting: 0,
+      sessions: [],
       sources: [{ mailbox: mailboxOf(TWO, bob.mind), items: 1 }],
     });
     // It is gone from the mailbox.
@@ -137,6 +138,7 @@ describe(`${clause("L1 12.1")} a packet that is sent`, () => {
       received: [],
       refused: [],
       waiting: 0,
+      sessions: [],
       sources: [{ mailbox: mailboxOf(TWO, bob.mind), items: 0 }],
     });
     // The sender finds nothing of it in its own.
@@ -678,6 +680,7 @@ describe(`${clause("L1 12.4")} what a mind finds in its mailbox`, () => {
       received: [],
       refused: [],
       waiting: 0,
+      sessions: [],
       sources: [],
     });
   });

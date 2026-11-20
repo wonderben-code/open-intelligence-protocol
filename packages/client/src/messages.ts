@@ -27,12 +27,17 @@ import {
 } from "@oip/core";
 import { authorityOf } from "@oip/delegation";
 import { judgeRecord } from "@oip/identity";
+import { KeystoreError } from "@oip/keystore";
 import {
   acknowledges,
+  type ChainEquivocation,
   endpointsToTry,
+  lacking,
   postUrl,
+  type ReceivedPacket,
   receivePacket,
   receiveSealed,
+  recordsCarried,
   type SealedOpener,
   type SealedReceiver,
   sealPacket,
@@ -44,12 +49,14 @@ import {
   type JsonValue,
   type Packet,
   type Sealed,
+  type Session,
   validateRecordOfType,
   type Validation,
 } from "@oip/schema";
 
 import { accepted } from "./accepted.ts";
 import { homeEndpoints, type Own } from "./publish.ts";
+import type { Following, Place, SessionBook } from "./sessions.ts";
 import { askJson, exchange, recordBody, refusalOf, TransportError } from "./transport.ts";
 
 /** What a mind says to others: the members of a packet that are the sender's to choose (Layer 1, 12.1). */
@@ -72,8 +79,19 @@ export interface Message {
   readonly content: Packet["content"];
   /** What it is for, in at most 256 characters. */
   readonly goal?: string;
-  /** How long it may be delivered, in seconds: at most seven days. Default: an hour. */
+  /**
+   * How long it may be delivered, in seconds: at most seven days. Default:
+   * an hour, and for a packet of a session no limit, so that it can be sent
+   * again whenever a participant asks (14.4).
+   */
   readonly expiresIn?: number;
+  /**
+   * The session it is a packet of (Section 14), by the session's ID. The
+   * packet takes the next place in this mind's chain in that session, and
+   * `to` lists every other participant. The first packet of the chain
+   * carries the `Session` record, which the client adds to its content.
+   */
+  readonly session?: string;
   /**
    * Whether it is sealed to each recipient (12.6), so that only the
    * recipient reads it. Default: `true`. A packet is not sent unsealed to a
@@ -161,9 +179,92 @@ export interface Inbox {
    * asked for the log of their sender. They stay in the mailbox.
    */
   readonly waiting: number;
+  /**
+   * What came of the sessions the mind is in (Section 14): chains with a
+   * gap, a `Resume` sent to ask for what is missing, packets sent again to
+   * a participant that asked, and senders found to have signed two packets
+   * for one place.
+   */
+  readonly sessions: readonly SessionEvent[];
   /** What each mailbox served. */
   readonly sources: readonly MailboxAnswer[];
 }
+
+/** Something that reading the mailboxes found, or did, about a session (Layer 1, Section 14). */
+export type SessionEvent =
+  | {
+      /**
+       * Packets of a chain are missing (14.3). The packets that came after
+       * them stay in the mailbox, and are returned in order once the
+       * missing ones have come.
+       */
+      readonly kind: "gap";
+      readonly session: string;
+      /** The sender whose chain it is, and its instance if it names one. */
+      readonly mind: string;
+      readonly instance?: string;
+      /** The `seq` of the first packet that is missing. */
+      readonly next: number;
+    }
+  | {
+      /**
+       * A `Resume` was sent to the session's participants (14.4), for the
+       * gaps found. One is sent for each gap once. `Mind.resume` asks again.
+       */
+      readonly kind: "asked";
+      readonly session: string;
+      /** The packet that carried it. */
+      readonly sent: Sent;
+    }
+  | {
+      /**
+       * A participant's `Resume` showed that it lacks packets of this
+       * mind's chain, and they were sent to it again, as they were (14.4).
+       */
+      readonly kind: "sent-again";
+      readonly session: string;
+      /** The participant. */
+      readonly to: string;
+      /** The `seq` of the first packet sent again. */
+      readonly from: number;
+      /** What became of each, in order. */
+      readonly deliveries: readonly Delivery[];
+    }
+  | {
+      /**
+       * A `Resume` names a packet this mind did not send at that place
+       * (14.4). It is not answered.
+       */
+      readonly kind: "invalid-resume";
+      readonly session: string;
+      /** The participant that sent it. */
+      readonly mind: string;
+      /** The packet that carried it. */
+      readonly packet: string;
+    }
+  | {
+      /**
+       * What a session asked for could not be done: a `Resume` could not be
+       * sent, or the packets a participant lacks could not be sent again.
+       * The packets that arrived are returned all the same.
+       */
+      readonly kind: "failed";
+      readonly session: string;
+      /** What was being done. */
+      readonly doing: "asked" | "sent-again";
+      /** Why it failed: the code of a problem, of the keystore's error, or of the transport's failure. */
+      readonly failure: string;
+    }
+  | ({
+      /**
+       * A sender signed two packets for one place of its chain (14.3). The
+       * two are the evidence. Nothing of the chain is in order after that.
+       */
+      readonly session: string;
+      /** The sender, and its instance if it names one. */
+      readonly mind: string;
+      readonly instance?: string;
+    } & ChainEquivocation);
 
 /** What one mailbox served. */
 export interface MailboxAnswer {
@@ -185,8 +286,15 @@ export const MAX_QUERY_EXPIRES_IN = 3600;
 export const MAX_MAILBOX_ITEMS = 1000;
 
 const SECOND = 1_000_000_000n;
-/** How long a packet is remembered for at least, to tell a duplicate (12.4): an hour. */
-const WINDOW = 3600n * SECOND;
+/**
+ * How far back a packet that states no `expires` is taken, and remembered
+ * to tell a duplicate (12.4): seven days, as long as any packet may be
+ * delivered. A mind that reads its mailbox once a day finds the session
+ * someone opened with it yesterday.
+ */
+const WINDOW = BigInt(MAX_EXPIRES_IN) * SECOND;
+/** core 10.1: the media type with which a packet's content is a record (12.2). */
+const RECORD = "application/oip+json";
 /** The name of what is remembered of the packets accepted. */
 const ACCEPTED = "client-accepted";
 
@@ -204,7 +312,10 @@ interface Item {
 
 /** What became of an item of a mailbox. */
 type Outcome =
-  | { readonly kind: "received"; readonly received: Received }
+  /** Accepted: this packet and, in a session, those that had waited on it. */
+  | { readonly kind: "received"; readonly received: readonly Received[] }
+  /** Ahead of a gap in its chain (14.3): it stays in the mailbox until the gap is filled. */
+  | { readonly kind: "ahead"; readonly id: string; readonly chain: ChainOf }
   | {
       readonly kind: "refused";
       readonly why: { readonly clause: string; readonly message: string };
@@ -213,6 +324,19 @@ type Outcome =
   | { readonly kind: "duplicate" }
   /** Not judged yet: the log of a mind that signed it could not be asked for. */
   | { readonly kind: "waiting" };
+
+/** Why a packet of a chain that is equivocated is refused (14.3). */
+const TWO_FOR_ONE_PLACE = {
+  clause: "L1 14.3",
+  message: "its sender signed two packets for one place of the chain",
+};
+
+/** A sending chain of a session, as an event names it. */
+interface ChainOf {
+  readonly session: string;
+  readonly mind: string;
+  readonly instance?: string;
+}
 
 /** A value as an object, or `undefined`. */
 const objectOf = (value: unknown): JsonObject | undefined =>
@@ -238,26 +362,114 @@ function pageOf(served: JsonValue): { items: Item[]; next: string | undefined } 
   return { items, next: typeof next === "string" ? next : undefined };
 }
 
+/** @throws OipError `invalid-record` if a message is none for the session it names (14.3). */
+function inSession(message: Message, place: Place, self: string): void {
+  const to: readonly unknown[] = Array.isArray(message.to) ? message.to : [];
+  if (!place.session.participants.every((mind) => mind === self || to.includes(mind))) {
+    throw new OipError(
+      "invalid-record",
+      "a packet of a session is addressed to every other participant of it",
+      { clause: "L1 14.3" },
+    );
+  }
+}
+
+/** Content with the `Session` record of its session in it, as a part, if it is not there yet (14.2). */
+function carrying(session: Session, id: string, content: Packet["content"]): Packet["content"] {
+  const parts = "parts" in content ? content.parts : [content];
+  const carried = parts.some((part) => {
+    if (!("body" in part) || part.mediaType !== RECORD) return false;
+    const record = validateRecordOfType("Session", part.body);
+    return record.ok && contentId(record.value) === id;
+  });
+  return carried ? content : { parts: [{ mediaType: RECORD, body: session }, ...parts] };
+}
+
+/** Notes a gap in a chain, once for each place it starts at. */
+function noteGap(events: SessionEvent[], gap: Extract<SessionEvent, { kind: "gap" }>): void {
+  const noted = events.some(
+    (event) =>
+      event.kind === "gap" &&
+      event.session === gap.session &&
+      event.mind === gap.mind &&
+      event.instance === gap.instance &&
+      event.next === gap.next,
+  );
+  if (!noted) events.push(gap);
+}
+
+/** Notes an equivocation, once for each chain. */
+function noteEquivocation(
+  events: SessionEvent[],
+  found: Extract<SessionEvent, { kind: "equivocation" }>,
+): void {
+  const noted = events.some(
+    (event) =>
+      event.kind === "equivocation" &&
+      event.session === found.session &&
+      event.mind === found.mind &&
+      event.instance === found.instance,
+  );
+  if (!noted) events.push(found);
+}
+
 /** What a mind sends and receives. */
 export class Messaging {
   readonly #own: Own;
+  readonly #sessions: SessionBook;
   /** The packets accepted, each with the time until which it is remembered. */
   #accepted: Map<string, Instant> | undefined;
   #version: string | undefined;
+  /** Whether each packet that waits ahead of a gap arrived sealed. */
+  readonly #ahead = new Map<string, boolean>();
+  /** The gaps a `Resume` was sent for. */
+  readonly #asked = new Set<string>();
 
-  constructor(own: Own) {
+  constructor(own: Own, sessions: SessionBook) {
     this.#own = own;
+    this.#sessions = sessions;
   }
 
   /** Sends a packet: see `Mind.send`. */
-  async send(message: Message): Promise<Sent> {
+  send(message: Message): Promise<Sent> {
+    const { session } = message;
+    return session === undefined
+      ? this.#send(message, undefined)
+      : this.#sessions.sending(session, (place) => this.#send(message, place));
+  }
+
+  /** Sends a `Resume` for a session: see `Mind.resume`. */
+  resume(session: string): Promise<Sent> {
     const own = this.#own;
-    const lasting = message.expiresIn ?? DEFAULT_EXPIRES_IN;
-    if (!Number.isSafeInteger(lasting) || lasting < 1 || lasting > MAX_EXPIRES_IN) {
+    return this.#sessions.sending(session, (place) =>
+      this.#send(
+        {
+          to: place.session.participants.filter((mind) => mind !== own.address),
+          verb: "resume",
+          content: {
+            mediaType: RECORD,
+            body: place.resume(formatTimestamp(own.clock.now())),
+          },
+          session,
+        },
+        place,
+      ),
+    );
+  }
+
+  /** Signs a packet and brings it to whom it is for. In a session, at the place it was given. */
+  async #send(message: Message, place: Place | undefined): Promise<Sent> {
+    const own = this.#own;
+    const lasting = message.expiresIn ?? (place === undefined ? DEFAULT_EXPIRES_IN : undefined);
+    if (
+      lasting !== undefined &&
+      (!Number.isSafeInteger(lasting) || lasting < 1 || lasting > MAX_EXPIRES_IN)
+    ) {
       throw new OipError("invalid-record", "a packet may be delivered for up to seven days", {
         clause: "L1 12.1",
       });
     }
+    if (place !== undefined) inSession(message, place, own.address);
     await own.refresh();
     const now = own.clock.now();
     const behalf = message.onBehalfOf;
@@ -267,13 +479,25 @@ export class Messaging {
       from: own.address,
       to: Array.isArray(message.to) ? [...(message.to as readonly string[])] : message.to,
       created: formatTimestamp(now),
-      expires: formatTimestamp(now + BigInt(lasting) * SECOND),
+      ...(lasting === undefined
+        ? {}
+        : { expires: formatTimestamp(now + BigInt(lasting) * SECOND) }),
       nonce: bytesToBase64url(this.#random(16)),
+      ...(place === undefined
+        ? {}
+        : {
+            session: place.id,
+            seq: place.seq,
+            ...(place.prev === undefined ? {} : { prev: place.prev }),
+            ...(place.instance === undefined ? {} : { instance: place.instance }),
+          }),
       purpose: {
         verb: message.verb,
         ...(message.goal === undefined ? {} : { goal: message.goal }),
       },
-      content: message.content,
+      // The first packet of a chain carries the Session record (14.2).
+      content:
+        place?.seq === 0 ? carrying(place.session, place.id, message.content) : message.content,
       ...(message.thread === undefined ? {} : { thread: message.thread }),
       ...(message.replyTo === undefined ? {} : { replyTo: message.replyTo }),
       ...(message.context === undefined ? {} : { context: message.context }),
@@ -292,7 +516,11 @@ export class Messaging {
     const id = contentId(packet);
     if (!Array.isArray(packet.to)) {
       // For whoever a query finds: each indexer the client names is asked to forward it.
-      if (!Object.hasOwn(packet.to, "query") || lasting > MAX_QUERY_EXPIRES_IN) {
+      if (
+        !Object.hasOwn(packet.to, "query") ||
+        lasting === undefined ||
+        lasting > MAX_QUERY_EXPIRES_IN
+      ) {
         throw new OipError(
           "invalid-record",
           "a packet is sent to the minds it lists, or to a query for an hour at most",
@@ -306,6 +534,9 @@ export class Messaging {
       return { packet, id, deliveries: brokered };
     }
     const seal = message.seal !== false;
+    // In a session the packet has its place before it leaves: a process that stops after
+    // this sends the same packet again, and never another at the same place (14.3).
+    await place?.keep(packet, seal);
     const deliveries = await Promise.all(packet.to.map((to) => this.#deliver(packet, to, seal)));
     return { packet, id, deliveries };
   }
@@ -437,12 +668,16 @@ export class Messaging {
       ),
     ];
     const known = await this.#remembered();
+    const following = await this.#sessions.ready();
     const inbox = {
       received: [] as Received[],
       refused: [] as { clause: string; message: string }[],
       waiting: 0,
+      sessions: [] as SessionEvent[],
       sources: [] as MailboxAnswer[],
     };
+    /** The chains of the packets that stay in a mailbox, ahead of a gap. */
+    const ahead: ChainOf[] = [];
     for (const mailbox of mailboxes) {
       let items: Item[];
       try {
@@ -453,21 +688,119 @@ export class Messaging {
         continue;
       }
       inbox.sources.push({ mailbox, items: items.length });
-      const judged = await this.#judge(items, known);
+      const judged = await this.#judge(items, known, following, inbox.sessions);
       // What was accepted is remembered before it is removed from the mailbox: a process
-      // that stops between the two finds a duplicate, and not a packet it never saw.
+      // that stops between the two finds a duplicate, and not a packet it never saw. The
+      // place of each chain goes first: a packet that is remembered has its place.
+      await this.#sessions.save();
       await this.#remember(known);
       for (const { item, outcome } of judged) {
         if (outcome.kind === "waiting") {
           inbox.waiting++;
           continue;
         }
-        if (outcome.kind === "received") inbox.received.push(outcome.received);
+        // A packet ahead of a gap stays until the gap is filled, so that nothing is lost if
+        // the process stops. One that was since returned in its place is done with.
+        if (outcome.kind === "ahead" && !known.has(outcome.id)) {
+          if (!following.equivocated(outcome.chain)) {
+            ahead.push(outcome.chain);
+            continue;
+          }
+          // Its chain was found to be two chains while it waited: it has no place (14.3).
+          inbox.refused.push(TWO_FOR_ONE_PLACE);
+        }
+        if (outcome.kind === "received") inbox.received.push(...outcome.received);
         if (outcome.kind === "refused") inbox.refused.push(outcome.why);
         await this.#remove(mailbox, item.cursor);
       }
     }
+    for (const chain of ahead) {
+      noteGap(inbox.sessions, { kind: "gap", ...chain, next: following.received(chain) });
+    }
+    await this.#tend(inbox, following);
     return inbox;
+  }
+
+  /**
+   * What the sessions ask of the mind after its mailboxes are read (14.4):
+   * to send again what a participant says it lacks, and to say what this
+   * mind lacks itself.
+   *
+   * The packets that arrived are remembered and removed by now, so nothing
+   * here stops them being returned: what cannot be done is told.
+   */
+  async #tend(
+    inbox: { readonly received: readonly Received[]; readonly sessions: SessionEvent[] },
+    following: Following,
+  ): Promise<void> {
+    const events = inbox.sessions;
+    const attempt = async (
+      session: string,
+      doing: "asked" | "sent-again",
+      work: () => Promise<SessionEvent>,
+    ): Promise<boolean> => {
+      try {
+        events.push(await work());
+        return true;
+      } catch (error) {
+        if (!isFailure(error) && !(error instanceof KeystoreError)) throw error;
+        const failure = error instanceof KeystoreError ? error.code : codeOf(error);
+        events.push({ kind: "failed", session, doing, failure });
+        return false;
+      }
+    };
+    for (const arrived of inbox.received) {
+      const { packet } = arrived;
+      const { session } = packet;
+      if (session === undefined || packet.purpose.verb !== "resume") continue;
+      const head = following.head(session);
+      const resume = recordsCarried(packet, "Resume").find(
+        (carried) => carried.session === session,
+      );
+      if (head === undefined || resume === undefined) continue;
+      const own = following.own(head);
+      const from = lacking(resume, own);
+      if (!from.ok) {
+        events.push({ kind: "invalid-resume", session, mind: packet.from, packet: arrived.id });
+        continue;
+      }
+      if (from.value < own.sent.length) {
+        await attempt(session, "sent-again", async () => {
+          const deliveries: Delivery[] = [];
+          for (const { packet: again, seal } of await this.#sessions.sent(head, from.value)) {
+            deliveries.push(await this.#deliver(again, packet.from, seal));
+          }
+          return { kind: "sent-again", session, to: packet.from, from: from.value, deliveries };
+        });
+      }
+      // Its sender has sent more than is held here: a gap that no later packet has shown.
+      const { lastSent } = resume;
+      if (lastSent !== undefined && following.against(resume, packet.from) === "behind") {
+        const { instance } = lastSent;
+        const chain = {
+          session,
+          mind: packet.from,
+          ...(instance === undefined ? {} : { instance }),
+        };
+        noteGap(events, { kind: "gap", ...chain, next: following.received(chain) });
+      }
+    }
+    // One Resume for each session with a gap that has not been asked about (14.3).
+    const gaps = new Map<string, string[]>();
+    for (const event of events) {
+      if (event.kind !== "gap") continue;
+      const key = JSON.stringify([event.session, event.mind, event.instance, event.next]);
+      gaps.set(event.session, [...(gaps.get(event.session) ?? []), key]);
+    }
+    for (const [session, keys] of gaps) {
+      if (keys.every((key) => this.#asked.has(key))) continue;
+      const asked = await attempt(session, "asked", async () => ({
+        kind: "asked",
+        session,
+        sent: await this.resume(session),
+      }));
+      if (asked) for (const key of keys) this.#asked.add(key);
+    }
   }
 
   /** The items of a mailbox, page by page, as many as are read in one call (13.5). */
@@ -504,6 +837,8 @@ export class Messaging {
   async #judge(
     items: readonly Item[],
     known: Map<string, Instant>,
+    following: Following,
+    events: SessionEvent[],
   ): Promise<{ item: Item; outcome: Outcome }[]> {
     const own = this.#own;
     const now = own.clock.now();
@@ -515,6 +850,7 @@ export class Messaging {
       seen: own.lookup.seen,
       accepted: (id) => known.has(id),
       window: WINDOW,
+      holdsChain: following.holdsChain,
       agreementKey: (key) => {
         const open = own.opener(key);
         if (open === undefined) return undefined;
@@ -564,14 +900,7 @@ export class Messaging {
     }
     const judged: { item: Item; outcome: Outcome }[] = [];
     for (const { item, sealed, signers } of seen) {
-      const verdict: Validation<{
-        id: string;
-        packet: Packet;
-        time: Instant;
-        duplicate: boolean;
-        broker: string | undefined;
-        forgetAfter: Instant;
-      }> = await once(item.record);
+      const verdict: Validation<ReceivedPacket> = await once(item.record);
       if (!verdict.ok) {
         const [first] = verdict.issues;
         judged.push({
@@ -582,7 +911,41 @@ export class Messaging {
         });
         continue;
       }
-      const { id, packet, time, duplicate, broker, forgetAfter } = verdict.value;
+      const { id, packet, duplicate, forgetAfter } = verdict.value;
+      const asReceived = (one: ReceivedPacket, wasSealed: boolean): Received => ({
+        id: one.id,
+        packet: one.packet,
+        from: one.packet.from,
+        sealed: wasSealed,
+        ...(one.broker === undefined ? {} : { broker: one.broker }),
+        time: one.time,
+      });
+      if (packet.session !== undefined) {
+        // A packet of a session is told by its place in its chain, a duplicate too (14.3).
+        const outcome = this.#placed(
+          verdict.value,
+          packet.session,
+          sealed,
+          known,
+          following,
+          events,
+          asReceived,
+        );
+        // A session that is not held may be one another process took up since this one read
+        // its memory. The packet is then not refused: it is judged again, by what is written.
+        if (
+          outcome.kind === "refused" &&
+          outcome.why.clause === "L1 14.2" &&
+          (await this.#sessions.behind(packet.session))
+        ) {
+          throw new KeystoreError(
+            "changed",
+            "another process has followed a session since this one read its memory: read the mailbox again",
+          );
+        }
+        judged.push({ item, outcome });
+        continue;
+      }
       if (duplicate) {
         judged.push({ item, outcome: { kind: "duplicate" } });
         continue;
@@ -590,20 +953,57 @@ export class Messaging {
       known.set(id, forgetAfter);
       judged.push({
         item,
-        outcome: {
-          kind: "received",
-          received: {
-            id,
-            packet,
-            from: packet.from,
-            sealed,
-            ...(broker === undefined ? {} : { broker }),
-            time,
-          },
-        },
+        outcome: { kind: "received", received: [asReceived(verdict.value, sealed)] },
       });
     }
     return judged;
+  }
+
+  /** Puts an accepted packet of a session in its place (14.2, 14.3), and says what became of it. */
+  #placed(
+    received: ReceivedPacket,
+    session: string,
+    sealed: boolean,
+    known: Map<string, Instant>,
+    following: Following,
+    events: SessionEvent[],
+    asReceived: (one: ReceivedPacket, sealed: boolean) => Received,
+  ): Outcome {
+    const { id, packet } = received;
+    const placed = following.take(received, session);
+    if (!placed.ok) {
+      const [first] = placed.issues;
+      return { kind: "refused", why: { clause: first.clause, message: first.message } };
+    }
+    const chain = {
+      session,
+      mind: packet.from,
+      ...(packet.instance === undefined ? {} : { instance: packet.instance }),
+    };
+    const answer = placed.value;
+    switch (answer.kind) {
+      case "duplicate":
+        return { kind: "duplicate" };
+      case "waiting":
+        this.#ahead.set(id, sealed);
+        return { kind: "ahead", id, chain };
+      case "equivocation":
+        noteEquivocation(events, { ...chain, ...answer });
+        return { kind: "refused", why: TWO_FOR_ONE_PLACE };
+      case "in order": {
+        if (answer.equivocation !== undefined) {
+          noteEquivocation(events, { ...chain, ...answer.equivocation });
+        }
+        const delivered = answer.delivered.map((one) =>
+          asReceived(one, one.id === id ? sealed : this.#ahead.get(one.id) === true),
+        );
+        for (const one of answer.delivered) {
+          known.set(one.id, one.forgetAfter);
+          this.#ahead.delete(one.id);
+        }
+        return { kind: "received", received: delivered };
+      }
+    }
   }
 
   /** Removes an item from a mailbox (13.5). One that stays is found again, and is a duplicate then. */

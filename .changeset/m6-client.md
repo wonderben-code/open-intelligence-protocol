@@ -24,3 +24,4 @@ First version, in parts as M6 builds them.
 - `Mind.close` stops what the mind listens to. The public interface, as `etc/client.api.md` has it, is frozen for 0.x.
 - `NewMind.parents`: a mind may be made as a fork of another (Layer 1, 8.1). `Mind.fork` on the parent acknowledges it (8.2).
 - `Mind.sightings` and a second argument of `Mind.hold`: the client's own record of when it first obtained each proof of a record (core 9.4, item 1), to keep with the record between runs. Until now a record held again in a later run was judged as if it had only then arrived, so a signature made under a delegation that had since expired, or been revoked, stopped counting when the program restarted.
+- `Mind.publishRecord` submits an Offer or an Intent of the mind's own to the indexers the client names, once a home serves it (Layer 1, 18.1), so that `Lookup.find` can find it. `publications` says what each indexer answered. Until now only a profile was submitted.

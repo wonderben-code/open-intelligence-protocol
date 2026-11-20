@@ -104,6 +104,15 @@ export interface Publication {
   readonly failure?: string;
 }
 
+/** The location record and the profile a mind has now, as a bundle carries them. */
+function mine(resolved: Resolved): { location?: Location; participant?: Participant } {
+  const { location, participant } = resolved;
+  return {
+    ...(location === undefined ? {} : { location: location.record }),
+    ...(participant === undefined ? {} : { participant: participant.record }),
+  };
+}
+
 /** How long a location record is good for, unless the mind says otherwise: an hour. */
 export const DEFAULT_TTL = 3600;
 
@@ -348,7 +357,7 @@ export class Publishing {
     const offered = [
       ...(await this.#bundle(resolved, others)),
       // The indexers learn of the mind as it is now, once it is published.
-      ...(await this.#submit(resolved, others)),
+      ...(await this.#submit(resolved, others, held === undefined ? [] : [held])),
     ];
     own.told(offered.map(({ publication }) => publication));
     const resolvers = offered.filter(({ publication }) => publication.service === "resolver");
@@ -484,10 +493,7 @@ export class Publishing {
     for (const home of fresh) {
       const [adopted] = await this.#bundle(
         current,
-        {
-          ...(current.location === undefined ? {} : { location: current.location.record }),
-          ...(current.participant === undefined ? {} : { participant: current.participant.record }),
-        },
+        mine(current),
         false,
         (asking) => own.signedForLog(asking),
         [home],
@@ -515,13 +521,15 @@ export class Publishing {
   }
 
   /**
-   * Submits the mind's bundle, and its profile to be listed, to the
-   * indexers the client names (Layer 1, 18.1). An indexer says what became
-   * of each record: one it refused is the failure of the submission.
+   * Submits the mind's bundle, and what is to be listed, to the indexers
+   * the client names (Layer 1, 18.1): its profile, or an Offer or an Intent
+   * of its own. An indexer says what became of each record: one it refused
+   * is the failure of the submission.
    */
   #submit(
     resolved: Resolved,
-    others: { location: Location; participant?: Participant },
+    others: { location?: Location; participant?: Participant },
+    listed: readonly object[],
   ): Promise<Offered[]> {
     const own = this.#own;
     const bundle = {
@@ -531,7 +539,7 @@ export class Publishing {
       log: resolved.log.entries.map((entry) => entry.event),
       ...others,
     };
-    const records = others.participant === undefined ? [bundle] : [bundle, others.participant];
+    const records = [bundle, ...listed];
     const body = { bytes: utf8(JSON.stringify({ records })), mediaType: "application/json" };
     return Promise.all(
       own.indexers.map(async (origin): Promise<Offered> => {
@@ -708,8 +716,16 @@ export class Publishing {
         return bring(home);
       }),
     );
-    own.told(offered.map(({ publication }) => publication));
     const taken = offered.some(({ publication }) => publication.taken);
+    // An Offer or an Intent of the mind's own is for others to find: once a home serves it, the
+    // indexers the client names are told of it (18.1). One that cannot be told changes nothing
+    // of the feed, and `publications` says which.
+    const { type, author } = record as { type?: unknown; author?: unknown };
+    const told =
+      taken && (type === "Offer" || type === "Intent") && author === own.address
+        ? await this.#submit(resolved, mine(resolved), [record])
+        : [];
+    own.told([...offered, ...told].map(({ publication }) => publication));
     const failures = offered.flatMap(({ failure }) => (failure === undefined ? [] : [failure]));
     const parted = failures.find(
       (failure) => failure instanceof OipError && failure.code === "duplicity",

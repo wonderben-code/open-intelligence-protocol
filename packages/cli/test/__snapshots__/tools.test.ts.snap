@@ -68,7 +68,7 @@ complete -c oip -n '__fish_seen_subcommand_from find' -l limit -r -d 'The most r
 complete -c oip -n '__fish_seen_subcommand_from find' -l local -d 'Ask the network \`oip demo\` runs on this machine, with no mind of your own'
 complete -c oip -n '__fish_seen_subcommand_from find' -l network -r -d 'The directory of that network. Default: ~/.oip-demo'
 complete -c oip -n '__fish_seen_subcommand_from send' -l text -r -d 'What to say, as plain text'
-complete -c oip -n '__fish_seen_subcommand_from send' -l record -r -d 'A record to carry, as JSON: an offer, a commitment, a delegation'
+complete -c oip -n '__fish_seen_subcommand_from send' -l record -r -d 'A record to carry: the ID of one the mind holds, or a file. It may be given several times'
 complete -c oip -n '__fish_seen_subcommand_from send' -l verb -r -d 'What kind of message it is: inform, request, propose, accept… Default: inform'
 complete -c oip -n '__fish_seen_subcommand_from send' -l goal -r -d 'What it is for, in a line'
 complete -c oip -n '__fish_seen_subcommand_from send' -l reply-to -r -d 'The packet it answers, by its ID'

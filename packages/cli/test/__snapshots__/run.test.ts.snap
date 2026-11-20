@@ -513,7 +513,7 @@ for as long as the packet may be delivered.
 
 Options:
   --text <text>           What to say, as plain text
-  --record <file>         A record to carry, as JSON: an offer, a commitment, a delegation
+  --record <file>         A record to carry: the ID of one the mind holds, or a file. It may be given several times
   --verb <verb>           What kind of message it is: inform, request, propose, accept… Default: inform
   --goal <text>           What it is for, in a line
   --reply-to <id>         The packet it answers, by its ID

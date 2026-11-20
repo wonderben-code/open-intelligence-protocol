@@ -151,6 +151,13 @@ export interface NewMind {
   readonly homes?: readonly string[];
   /** Other names of the mind (Layer 1, 5.3). Each is verified by whoever reads it. */
   readonly alsoKnownAs?: readonly string[];
+  /**
+   * The minds this one is forked from, each with the version it was forked
+   * at: `IdentityState.versionId` of the parent then (Layer 1, 8.1). Only
+   * the child says so, until the parent acknowledges it: with `fork`, or
+   * with a `Lineage` record (8.2).
+   */
+  readonly parents?: readonly { readonly mind: string; readonly at: string }[];
 }
 
 /** What changes with an identity event. What is left out stays as it is. */
@@ -330,6 +337,9 @@ export class Mind {
             agreement: [{ key: await held(agreement) }],
             ...(fields.homes === undefined ? {} : { homes: [...fields.homes] }),
             ...(fields.alsoKnownAs === undefined ? {} : { alsoKnownAs: [...fields.alsoKnownAs] }),
+            ...(fields.parents === undefined
+              ? {}
+              : { parents: fields.parents.map(({ mind, at }) => ({ mind, at })) }),
           });
         } finally {
           for (const keys of unlocked) keys.lock();

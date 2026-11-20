@@ -31,6 +31,7 @@ An ADR records a decision that is hard to reverse: what was decided, why, and wh
 | [0025](0025-the-clients-outbox.md)                | The client's outbox                                                           |
 | [0026](0026-the-command.md)                       | The `oip` command                                                             |
 | [0027](0027-a-mind-on-one-machine.md)             | A mind on one machine: `@oip/local`                                           |
+| [0028](0028-the-mcp-server.md)                    | The MCP server                                                                |
 
 ## Writing one
 

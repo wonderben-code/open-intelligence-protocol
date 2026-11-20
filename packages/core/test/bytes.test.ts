@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   bytesEqual,
   bytesToHex,
+  concatBytes,
   decodeUtf8,
   ed25519PublicKey,
   hexToBytes,
@@ -115,6 +116,16 @@ describe("bytes", () => {
     expect(bytesEqual(Uint8Array.of(1, 2, 3), Uint8Array.of(1, 2))).toBe(false);
     expect(bytesEqual(Uint8Array.of(1, 2), Uint8Array.of(1, 2, 3))).toBe(false);
     expect(bytesEqual(new Uint8Array(), Uint8Array.of(0))).toBe(false);
+  });
+
+  it("joins byte strings, one after another, in a new array", () => {
+    const [one, two] = [Uint8Array.of(1, 2), Uint8Array.of(3)];
+    const joined = concatBytes(one, new Uint8Array(), two);
+    expect([...joined]).toEqual([1, 2, 3]);
+    joined[0] = 9;
+    expect([...one]).toEqual([1, 2]);
+    expect(concatBytes()).toHaveLength(0);
+    expect(() => concatBytes(one, "three" as unknown as Uint8Array)).toThrow();
   });
 
   it("writes and reads hex", () => {

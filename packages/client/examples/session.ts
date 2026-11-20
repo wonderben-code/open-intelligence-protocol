@@ -72,6 +72,14 @@ export async function example(
 
   const [session] = await bob.sessions();
   output.push(`Bob holds ${String(session?.chains[0]?.received)} of Ada's packets, in order`);
+
+  // Either may ask where things stand at any time. And a session that is over is left: what
+  // was kept of it, to be sent again, is forgotten.
+  const asked = await bob.resume(id);
+  output.push(
+    `Bob asks again: a ${asked.packet.purpose.verb}, packet ${String(asked.packet.seq)} of his own`,
+  );
+  output.push(`Ada leaves the session: ${String(await ada.leaveSession(id))}`);
   ada.close();
   bob.close();
   return output;

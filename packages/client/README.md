@@ -2,7 +2,7 @@
 
 The library applications use for the [Open Intelligence Protocol](../../README.md): it makes and manages a mind, publishes, resolves, finds, sends and receives, and verifies everything it receives before it returns it ([BUILD.md](../../BUILD.md), M6).
 
-It is being built in milestone M6, one part at a time. What is here is finished and tested; the rest of the list in BUILD.md follows.
+Every public method of a `Mind` and of a `Lookup` is used in one of the examples below. Each example is a file in [`examples/`](examples), and a test runs it and checks what this page says it prints.
 
 ## An example
 
@@ -74,6 +74,89 @@ after an update it is at event 1, at https://new-home.example
 a backup is due for: control, operational, invocation, agreement
 ```
 
+## A mind's keys
+
+[`examples/keys.ts`](examples/keys.ts) follows a mind's keys through its life: a key added and one revoked, the mind opened again, a child acknowledged, and the mind retired.
+
+```ts
+import { type Clock, type Fetch, Mind, type MindOptions } from "@oip/client";
+import { OipError } from "@oip/core";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * The life of a mind's keys: one added, one revoked, the mind opened again,
+ * a child acknowledged, and the mind retired.
+ *
+ * @param resolvers - The HTTPS origins of the resolvers the mind trusts.
+ * @param lock - What the mind's keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const fresh = async (): Promise<MindOptions> => ({
+    keystore: await Keystore.create({ storage: memoryStorage(), locks: lock }),
+    lock,
+    resolvers,
+    ...edges,
+  });
+  const options = await fresh();
+  const mind = await Mind.create(options, { kind: "agent" });
+  const laptop = mind.signingKey();
+
+  // A second device gets an operational key of its own. Each change takes the control keys.
+  const phone = await mind.addKey({ control: lock, label: "phone" });
+  output.push(`a key is added: the mind has ${String(mind.state.keys.length)}`);
+
+  // The first is lost with its laptop. It signs nothing that counts from now on.
+  const state = await mind.revokeKey(laptop, { control: lock });
+  output.push(`the first is revoked: ${String(state.keys.length)} is left`);
+  output.push(`the mind signs with the one it added: ${String(mind.signingKey() === phone)}`);
+
+  // Closed, the keys are locked. The mind is opened again from what the keystore holds.
+  mind.close();
+  const again = await Mind.open(options);
+  output.push(`opened again, the same mind: ${String(again.address === mind.address)}`);
+
+  // Another mind is made from this one, and this one says so in its log (Layer 1, 3.8).
+  const child = await Mind.create(await fresh(), { kind: "agent" });
+  await again.fork(child.address, { control: lock, terms: { received: "the lease archive" } });
+  output.push(`it acknowledges ${String(again.resolved.log.children.length)} child`);
+
+  // `refresh` reads the mind's own log from the resolvers again: here, to see it is all there.
+  output.push(`the resolvers have its log up to event ${String((await again.refresh()).seq)}`);
+
+  // Retired, it names the mind that follows it. No event comes after, and its keys sign nothing.
+  const retired = await again.retire({ control: lock, successor: child.address });
+  output.push(`retired: ${String(retired.retired)}`);
+  try {
+    again.signingKey();
+  } catch (error) {
+    if (!(error instanceof OipError)) throw error;
+    output.push(`asked for a key to sign with, it is ${error.code}`);
+  }
+  again.close();
+  child.close();
+  return output;
+}
+```
+
+It gives:
+
+```
+a key is added: the mind has 2
+the first is revoked: 1 is left
+the mind signs with the one it added: true
+opened again, the same mind: true
+it acknowledges 1 child
+the resolvers have its log up to event 3
+retired: true
+asked for a key to sign with, it is forbidden
+```
+
 ## Publishing
 
 [`examples/publish.ts`](examples/publish.ts) publishes what a mind is, where it can be reached, and a record on its feed, to two resolvers and a host:
@@ -122,6 +205,12 @@ export async function example(
   const entry = await mind.publishRecord(profile);
   output.push(`its feed has an entry at ${String(entry.seq)} for a ${entry.objectType}`);
 
+  // A home that could not be reached when something was published is brought it afterwards.
+  const brought = await mind.bringHomes();
+  output.push(
+    `its home is brought all of it again: ${String(brought.every(({ taken }) => taken))}`,
+  );
+
   // The next location record says the mind is away, and keeps the rest of the one before.
   const location = await mind.publishLocation({ status: "paused" });
   output.push(
@@ -149,6 +238,7 @@ It gives:
 a profile is published: Ada, agent
 taken by: resolver, resolver, home
 its feed has an entry at 0 for a Participant
+its home is brought all of it again: true
 location record 1: paused, 2 endpoints, feed at 0
 another client reads: Ada, paused
 and its feed: 1 entry that verifies
@@ -226,6 +316,59 @@ listed by 1 indexer
 the indexer named 1 record
 found: Ada, for "Translation of legal texts", score 1
 named and not returned: 0
+```
+
+## Names
+
+A mind lists the other names it goes by, and [`examples/names.ts`](examples/names.ts) checks them: a name is the mind's only if what answers for the name says so too (Layer 1, 5.3).
+
+```ts
+import { type Clock, type Fetch, Lookup, Mind } from "@oip/client";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * A mind says which other names are its own, and another client checks each.
+ *
+ * @param resolvers - The HTTPS origins of the resolvers the mind trusts.
+ * @param sites - Two websites the mind says are its own. The first is expected to say so too.
+ * @param lock - What the mind's keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  sites: readonly [string, string],
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<{ address: string; output: string[] }> {
+  const output: string[] = [];
+  const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+  // Listing a name proves nothing: anyone can list any name.
+  const mind = await Mind.create(
+    { keystore, lock, resolvers, ...edges },
+    { kind: "agent", alsoKnownAs: [...sites] },
+  );
+  const { address } = mind;
+  output.push(`the mind lists ${String(mind.state.alsoKnownAs.length)} names`);
+
+  // A website is the mind's if it says so itself: its `/.well-known/oip/did` holds the
+  // mind's address (Layer 1, 5.3). Put it there, and then ask.
+  const lookup = new Lookup({ resolvers, ...edges });
+  const { checks } = await lookup.aliases(address);
+  for (const check of checks) {
+    const said = check.verified ? "its own" : `not shown to be (${String(check.reason)})`;
+    output.push(`${check.alias}: ${said}`);
+  }
+  mind.close();
+  return { address, output };
+}
+```
+
+With a first website that answers with the mind's address, and a second that names another mind, it gives:
+
+```
+the mind lists 2 names
+https://ada.example: its own
+https://famous.example: not shown to be (not-pointing-back)
 ```
 
 ## Sending and receiving
@@ -546,6 +689,14 @@ export async function example(
 
   const [session] = await bob.sessions();
   output.push(`Bob holds ${String(session?.chains[0]?.received)} of Ada's packets, in order`);
+
+  // Either may ask where things stand at any time. And a session that is over is left: what
+  // was kept of it, to be sent again, is forgotten.
+  const asked = await bob.resume(id);
+  output.push(
+    `Bob asks again: a ${asked.packet.purpose.verb}, packet ${String(asked.packet.seq)} of his own`,
+  );
+  output.push(`Ada leaves the session: ${String(await ada.leaveSession(id))}`);
   ada.close();
   bob.close();
   return output;
@@ -566,9 +717,11 @@ Ada sends 2 packets again
 Bob has packet 1: Two.
 Bob has packet 2: Three.
 Bob holds 3 of Ada's packets, in order
+Bob asks again: a resume, packet 1 of his own
+Ada leaves the session: true
 ```
 
-With nothing lost, Bob has all three at his first reading, and nobody asks for anything.
+With nothing lost, Bob has all three at his first reading, nobody asks for anything, and the `Resume` Bob sends at the end is the first packet of his own.
 
 ## Changing hosts
 
@@ -747,6 +900,111 @@ the firm says it delivered: claimed-fulfilled
 Amina confirms: fulfilled
 ```
 
+## Delegation
+
+[`examples/delegation.ts`](examples/delegation.ts) follows one mandate: a firm lets its agent make offers for it, the agent passes part of that on, and the firm takes it back.
+
+```ts
+import { carried, type Clock, type Fetch, Mind, systemClock } from "@oip/client";
+import { formatTimestamp } from "@oip/core";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * A firm lets its agent make offers for it, the agent passes part of that on
+ * to a junior, and the firm takes it all back.
+ *
+ * @param resolvers - The HTTPS origins of the resolvers all of them trust.
+ * @param home - The HTTPS origin of the host that takes them on.
+ * @param lock - What their keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  home: string,
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const clock = edges.clock ?? systemClock;
+  const mindOf = async (kind: string): Promise<Mind> => {
+    const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+    const mind = await Mind.create(
+      { keystore, lock, resolvers, memory: memoryStorage(), ...edges },
+      { kind, homes: [home] },
+    );
+    await mind.publishLocation();
+    return mind;
+  };
+  const firm = await mindOf("institution");
+  const agent = await mindOf("agent");
+  const junior = await mindOf("agent");
+  const amina = await mindOf("human");
+  const month = formatTimestamp(clock.now() + 30n * 86_400_000_000_000n);
+  const offerOf = (amount: string) => ({
+    author: firm.address,
+    provides: "An English translation of a Swahili commercial lease.",
+    terms: { summary: "Within two days.", price: { amount, currency: "USD" } },
+  });
+
+  // The firm lets its agent make offers in its name.
+  const mandate = await firm.delegate({
+    delegate: agent.address,
+    command: "/oip/sign/Offer",
+    expires: month,
+  });
+  // The agent passes that on to a junior, for less: offers of 100 at most.
+  const passed = await agent.subDelegate([mandate], {
+    delegate: junior.address,
+    command: "/oip/sign/Offer",
+    policy: [["<=", ".terms.price.amount", "100"]],
+    expires: month,
+  });
+  const chain = [mandate, passed];
+
+  // The junior offers for the firm, and sends Amina the offer. Its proof carries the chain.
+  const offer = await junior.offer(offerOf("80"), { chain });
+  await junior.send({ to: [amina.address], verb: "propose", content: carried(offer) });
+  await amina.receive();
+  // What a packet carried is held, to be judged when it is asked about.
+  output.push(
+    `Amina holds ${String(amina.records().length)} record, an ${amina.records()[0]?.type}`,
+  );
+  output.push(`it is the firm's offer: ${String(await amina.countsFor(offer, firm.address))}`);
+
+  // More than the junior may offer is the junior's word, and not the firm's.
+  const dear = await junior.offer(offerOf("150"), { chain });
+  output.push(`one of 150 is the firm's: ${String(await amina.countsFor(dear, firm.address))}`);
+
+  // The firm takes the mandate back. The revocation is signed, and goes on its feed.
+  const revocation = await firm.revoke(mandate);
+  const { feed } = await amina.lookup.feed(firm.address);
+  output.push(`the firm's feed has a ${String(feed.entries[0]?.entry.objectType)}`);
+  // Amina fetches it from the firm's home, and holds it: she now knows.
+  const fetched = await amina.lookup.record(firm.address, feed.entries[0]?.entry.object ?? "");
+  const held = amina.hold(fetched.record);
+  output.push(`it is the record the firm signed: ${String(held === amina.hold(revocation))}`);
+
+  // What the junior offers after that is not the firm's. What it offered before still is.
+  const late = await junior.offer(offerOf("60"), { chain });
+  output.push(`a later offer is the firm's: ${String(await amina.countsFor(late, firm.address))}`);
+  output.push(`the first still is: ${String(await amina.countsFor(offer, firm.address))}`);
+  for (const mind of [firm, agent, junior, amina]) mind.close();
+  return output;
+}
+```
+
+It gives:
+
+```
+Amina holds 1 record, an Offer
+it is the firm's offer: true
+one of 150 is the firm's: false
+the firm's feed has a Revocation
+it is the record the firm signed: true
+a later offer is the firm's: false
+the first still is: true
+```
+
 ## A collective
 
 [`examples/collective.ts`](examples/collective.ts) founds a collective of three, and signs for it:
@@ -800,6 +1058,104 @@ It gives:
 a collective of 3, of whom 2 act
 signed by one: the collective's? false
 signed by two: the collective's? true
+```
+
+## A charter
+
+[`examples/charter.ts`](examples/charter.ts) gives a member of a collective a role, which the member then acts in alone, and takes in a fourth member.
+
+```ts
+import { type Clock, type Fetch, Mind, systemClock } from "@oip/client";
+import { formatTimestamp } from "@oip/core";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * A collective gives one member a role, which that member then acts in
+ * alone, and takes in a fourth member.
+ *
+ * @param resolvers - The HTTPS origins of the resolvers they trust.
+ * @param lock - What their keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const clock = edges.clock ?? systemClock;
+  const person = async (): Promise<Mind> => {
+    const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+    return Mind.create({ keystore, lock, resolvers, ...edges }, { kind: "human" });
+  };
+  const [ada, bo, cy, dee] = [await person(), await person(), await person(), await person()];
+  const members = [ada.address, bo.address, cy.address];
+  let genesis = await ada.foundCollective({ members, threshold: 2 }, { invocation: lock });
+  genesis = await bo.signEvent(genesis, { invocation: lock });
+  genesis = await cy.signEvent(genesis, { invocation: lock });
+  const club = await ada.publishLog([genesis]);
+
+  // A charter says what its members may do alone (Layer 2, 6.2). It is the collective's
+  // record, so two of the three sign it.
+  const draft = await ada.charter(club.mind, {
+    name: "The club",
+    purpose: "To meet in spring.",
+    roles: {
+      buyer: {
+        purpose: "Books what the club needs.",
+        powers: [
+          { command: "/oip/sign/Intent", policy: [["<=", ".constraints.budget.max", "100"]] },
+        ],
+      },
+    },
+    assignments: [{ mind: cy.address, role: "buyer" }],
+    expires: formatTimestamp(clock.now() + 365n * 86_400_000_000_000n),
+  });
+  const charter = await bo.cosign(draft);
+  cy.hold(charter);
+
+  // Cy is the buyer, and signs for the club alone, as far as the role goes.
+  const wanting = (max: string) =>
+    cy.intent(
+      {
+        author: club.mind,
+        want: "A hall for the spring meeting.",
+        constraints: { budget: { max } },
+      },
+      { charter },
+    );
+  output.push(
+    `the buyer, within the budget: ${String(await cy.countsFor(await wanting("80"), club.mind))}`,
+  );
+  output.push(
+    `the buyer, beyond it: ${String(await cy.countsFor(await wanting("150"), club.mind))}`,
+  );
+
+  // Dee joins, and three of the four must now agree. The members that are sign the change,
+  // by their threshold, and so does the member that is new (Layer 1, 9.3).
+  let update = await ada.changeCollective(
+    club.mind,
+    { members: [...members, dee.address], threshold: 3 },
+    { invocation: lock },
+  );
+  update = await bo.signEvent(update, { invocation: lock });
+  update = await dee.signEvent(update, { invocation: lock });
+  const { state } = await ada.publishLog([genesis, update]);
+  if (state.controller.kind === "member") {
+    const { members: now, threshold } = state.controller;
+    output.push(`now a collective of ${String(now.length)}, of whom ${String(threshold)} act`);
+  }
+  for (const mind of [ada, bo, cy, dee]) mind.close();
+  return output;
+}
+```
+
+It gives:
+
+```
+the buyer, within the budget: true
+the buyer, beyond it: false
+now a collective of 4, of whom 3 act
 ```
 
 ## What it exports

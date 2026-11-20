@@ -1,20 +1,24 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { type Keychain, keychainLock } from "@oip/keystore";
 import { repoRoot } from "@oip/testkit";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { example as chartering } from "../examples/charter.ts";
 import { example as founding } from "../examples/collective.ts";
 import { example as dealing } from "../examples/deal.ts";
+import { example as delegating } from "../examples/delegation.ts";
 import { example as finding } from "../examples/find.ts";
+import { example as living } from "../examples/keys.ts";
 import { example as hearing } from "../examples/listen.ts";
 import { example } from "../examples/first-mind.ts";
 import { example as messaging } from "../examples/messages.ts";
 import { example as moving } from "../examples/move.ts";
+import { example as naming } from "../examples/names.ts";
 import { example as keeping } from "../examples/outbox.ts";
 import { example as publishing } from "../examples/publish.ts";
 import { example as talking } from "../examples/session.ts";
@@ -51,6 +55,10 @@ describe("the README", () => {
   it("shows its examples unchanged", () => {
     for (const name of [
       "first-mind.ts",
+      "keys.ts",
+      "names.ts",
+      "delegation.ts",
+      "charter.ts",
       "publish.ts",
       "find.ts",
       "messages.ts",
@@ -68,6 +76,96 @@ describe("the README", () => {
     }
   });
 
+  it("shows the output the example of delegation really gives, with time that passes", async () => {
+    world.resolver("https://resolver.example");
+    world.host("https://home.example");
+    const output = await delegating(
+      ["https://resolver.example"],
+      "https://home.example",
+      keychainLock(memoryKeychain(), "example"),
+      // Each reading of the clock is later than the last: a revocation counts from when it is seen.
+      { fetch: world.fetch, clock: { now: () => (world.clock.at += 1_000_000n) } },
+    );
+    expect(output).toStrictEqual([
+      "Amina holds 1 record, an Offer",
+      "it is the firm's offer: true",
+      "one of 150 is the firm's: false",
+      "the firm's feed has a Revocation",
+      "it is the record the firm signed: true",
+      "a later offer is the firm's: false",
+      "the first still is: true",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+  });
+
+  it("shows the output the example of a charter really gives, with time that passes", async () => {
+    world.resolver("https://resolver.example");
+    const output = await chartering(
+      ["https://resolver.example"],
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock: { now: () => (world.clock.at += 1_000_000n) } },
+    );
+    expect(output).toStrictEqual([
+      "the buyer, within the budget: true",
+      "the buyer, beyond it: false",
+      "now a collective of 4, of whom 3 act",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+  });
+
+  it("shows the output the example of names really gives, with one site that points back", async () => {
+    world.resolver("https://resolver.example");
+    const sites = ["https://ada.example", "https://famous.example"] as const;
+    // The mind's address is not known until the mind is made: the site answers with it then.
+    let address = "";
+    world.put(
+      sites[0],
+      () => new Response(`${address}\n`, { headers: { "content-type": "text/plain" } }),
+    );
+    world.put(
+      sites[1],
+      () => new Response("did:oip:another", { headers: { "content-type": "text/plain" } }),
+    );
+    world.before = (request) => {
+      const made = /\/oip\/v1\/resolve\/([a-z0-9]+)/u.exec(request.url)?.[1];
+      if (made !== undefined && address === "") address = `did:oip:${made}`;
+    };
+    const result = await naming(
+      ["https://resolver.example"],
+      sites,
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock: world.clock },
+    );
+    world.before = undefined;
+    expect(result.address).toBe(address);
+    expect(result.output).toStrictEqual([
+      "the mind lists 2 names",
+      "https://ada.example: its own",
+      "https://famous.example: not shown to be (not-pointing-back)",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${result.output.join("\n")}\n\`\`\``);
+  });
+
+  it("shows the output the example of a mind's keys really gives", async () => {
+    world.resolver("https://resolver.example");
+    const output = await living(
+      ["https://resolver.example"],
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock: world.clock },
+    );
+    expect(output).toStrictEqual([
+      "a key is added: the mind has 2",
+      "the first is revoked: 1 is left",
+      "the mind signs with the one it added: true",
+      "opened again, the same mind: true",
+      "it acknowledges 1 child",
+      "the resolvers have its log up to event 3",
+      "retired: true",
+      "asked for a key to sign with, it is forbidden",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+  });
+
   it("shows the output the example of publishing really gives, against two resolvers and a host", async () => {
     const resolvers = ["https://resolver-one.example", "https://resolver-two.example"];
     for (const resolver of resolvers) world.resolver(resolver);
@@ -82,6 +180,7 @@ describe("the README", () => {
       "a profile is published: Ada, agent",
       "taken by: resolver, resolver, home",
       "its feed has an entry at 0 for a Participant",
+      "its home is brought all of it again: true",
       "location record 1: paused, 2 endpoints, feed at 0",
       "another client reads: Ada, paused",
       "and its feed: 1 entry that verifies",
@@ -226,6 +325,8 @@ describe("the README", () => {
       "Bob has packet 1: Two.",
       "Bob has packet 2: Three.",
       "Bob holds 3 of Ada's packets, in order",
+      "Bob asks again: a resume, packet 1 of his own",
+      "Ada leaves the session: true",
     ]);
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
     // With nothing lost there is nothing to ask for.
@@ -237,6 +338,8 @@ describe("the README", () => {
       "Bob has packet 1: Two.",
       "Bob has packet 2: Three.",
       "Bob holds 3 of Ada's packets, in order",
+      "Bob asks again: a resume, packet 0 of his own",
+      "Ada leaves the session: true",
     ]);
   });
 
@@ -370,6 +473,30 @@ describe("the README", () => {
         "TransportOptions",
       ].sort(),
     );
+  });
+
+  it("has a runnable example for every public method of a mind and of a lookup", () => {
+    const examples = readdirSync(join(packageRoot, "examples"))
+      .map((name) => readFileSync(join(packageRoot, "examples", name), "utf8"))
+      .join("\n");
+    /** The methods of a class: those of its instances, and its own. Not what is read as a value. */
+    const methodsOf = (made: { prototype: object }): string[] =>
+      [made.prototype, made].flatMap((holder) =>
+        Object.entries(Object.getOwnPropertyDescriptors(holder))
+          .filter(
+            ([name, described]) => typeof described.value === "function" && name !== "constructor",
+          )
+          .map(([name]) => name),
+      );
+    const methods = [...methodsOf(client.Mind), ...methodsOf(client.Lookup)];
+    expect(methods).toContain("retire");
+    expect(methods).toContain("create");
+    expect(methods).toContain("aliases");
+    expect(methods.filter((name) => !examples.includes(`.${name}(`))).toStrictEqual([]);
+    // And each example is one the README shows, with what it gives.
+    for (const name of readdirSync(join(packageRoot, "examples"))) {
+      expect(readme, name).toContain(`(examples/${name})`);
+    }
   });
 
   it("gives the bounds the code has", () => {

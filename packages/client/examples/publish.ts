@@ -44,6 +44,12 @@ export async function example(
   const entry = await mind.publishRecord(profile);
   output.push(`its feed has an entry at ${String(entry.seq)} for a ${entry.objectType}`);
 
+  // A home that could not be reached when something was published is brought it afterwards.
+  const brought = await mind.bringHomes();
+  output.push(
+    `its home is brought all of it again: ${String(brought.every(({ taken }) => taken))}`,
+  );
+
   // The next location record says the mind is away, and keeps the rest of the one before.
   const location = await mind.publishLocation({ status: "paused" });
   output.push(

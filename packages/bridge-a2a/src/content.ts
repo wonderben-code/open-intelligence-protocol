@@ -1,0 +1,203 @@
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+// SPDX-License-Identifier: Apache-2.0
+
+/**
+ * What a packet carries and what an A2A message or artifact holds, each as
+ * the other (Layer 0, 3.1; Layer 1, 12.2).
+ *
+ * A2A has four kinds of part: a text, bytes, a file by its URL, and data.
+ * A packet's content is a body with its media type, or a reference with
+ * the digest of its bytes. A text is a text on both sides, and data is
+ * JSON on both. A file by its URL is a reference where the gateway can say
+ * which bytes were there, and a URL in a text where it cannot. A packet
+ * has no place for bytes: they are attested by their digest, and left out.
+ */
+
+import { type JsonObject, sha256Digest } from "@oip/core";
+import type { InlineContent, Packet, ReferencedContent } from "@oip/schema";
+
+import type { Get, Part } from "./a2a.ts";
+import { OIP_MEDIA_TYPE } from "./mapping.ts";
+
+/** One piece of a packet's content: carried, or named with its digest. */
+export type Content = InlineContent | ReferencedContent;
+
+/** The most parts of a packet's content (Layer 1, 12.2). */
+const MAX_CONTENT_PARTS = 32;
+/** The most evidence items of a Receipt (Layer 2, 6.1). */
+const MAX_EVIDENCE = 64;
+/** The most of another's content one packet carries, in bytes: a packet is a record, of a megabyte at most. */
+export const MAX_CARRIED_BYTES = 262_144;
+/** The most files of one answer the gateway fetches to say which bytes were there. */
+export const MAX_FETCHED = 8;
+
+export const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text);
+
+/**
+ * A text as Unicode. Half of a pair of surrogates on its own becomes U+FFFD,
+ * as an encoder makes it: a record holds no text that is none (core 1.1).
+ */
+export const wellFormed = (text: string): string => new TextDecoder().decode(utf8(text));
+
+/** A media type as a stranger gives it, without parameters, or another where it gives none that can be told. */
+export function mediaTypeOf(part: Part, otherwise: string): string {
+  const given = (part.mediaType ?? "").replace(/;.*$/su, "").trim().toLowerCase();
+  const told = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,63}$/u.test(given);
+  // Who speaks A2A signs nothing: what it calls a record is carried as the data it is.
+  return told && given !== OIP_MEDIA_TYPE ? given : otherwise;
+}
+
+/** A URL of the web as a stranger gives it, or `undefined` for what is none. */
+function webUrl(text: string): string | undefined {
+  if (text.length > 2048 || !URL.canParse(text)) return undefined;
+  const { protocol } = new URL(text);
+  return protocol === "https:" || protocol === "http:" ? text : undefined;
+}
+
+/** The name of the file a URL of the web ends in, if it ends in one. */
+function fileOf(ref: string): string | undefined {
+  if (webUrl(ref) === undefined) return undefined;
+  const last = new URL(ref).pathname.split("/").at(-1) ?? "";
+  try {
+    const name = decodeURIComponent(last);
+    return name === "" || name.length > 255 ? undefined : name;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The parts of an A2A message or artifact that say what a packet's content
+ * says. A message has one part at least: content that says nothing a part
+ * can is one empty text.
+ */
+export function partsOf(content: Packet["content"]): Part[] {
+  const pieces: readonly Content[] = "parts" in content ? content.parts : [content];
+  const said = pieces.flatMap((piece): Part[] => {
+    const { mediaType } = piece;
+    if ("ref" in piece) {
+      const filename = fileOf(piece.ref);
+      return [{ url: piece.ref, mediaType, ...(filename === undefined ? {} : { filename }) }];
+    }
+    // The record that names a session is the session's own business, and nothing anyone is asked or told.
+    const { body } = piece as { body: unknown };
+    if (
+      mediaType === OIP_MEDIA_TYPE &&
+      typeof body === "object" &&
+      body !== null &&
+      (body as { type?: unknown }).type === "Session"
+    ) {
+      return [];
+    }
+    return [typeof body === "string" ? { text: body, mediaType } : { data: body, mediaType }];
+  });
+  return said.length === 0 ? [{ text: "" }] : said;
+}
+
+/** What is made of the parts a stranger gave: content to carry, and evidence of what was there. */
+export interface Gathered {
+  readonly content: Content[];
+  /** Evidence items (Layer 2, Section 9). None unless the bytes were to be attested. */
+  readonly evidence: JsonObject[];
+  /** How many parts are not carried: bytes, and what is too large or too much. */
+  readonly left: number;
+}
+
+/** The digest of the bytes at a URL, or `undefined` if they cannot be had. */
+async function digestAt(url: string, get: Get): Promise<string | undefined> {
+  try {
+    const got = await get(url);
+    return got.status === 200 ? sha256Digest(got.body) : undefined;
+  } catch {
+    // Nothing is said of a file that could not be fetched.
+    return undefined;
+  }
+}
+
+/**
+ * Makes content for a packet of the parts of an A2A message or artifact.
+ *
+ * @param parts - Each part, with the name evidence of it is given under.
+ * @param attest - How a file is fetched. Given, the gateway attests what
+ *   it was shown: each part is evidence of kind `hash`, and a file the
+ *   gateway could fetch is evidence of kind `uri` and is carried as a
+ *   reference. Left out, nothing is fetched and no evidence is made.
+ */
+export async function gather(
+  parts: readonly { readonly part: Part; readonly ref: string }[],
+  attest?: Get,
+): Promise<Gathered> {
+  const content: Content[] = [];
+  const evidence: JsonObject[] = [];
+  let room = MAX_CARRIED_BYTES;
+  let fetched = 0;
+  let left = 0;
+  const carry = (one: Content, size: number): void => {
+    // Two places are kept: for a word about what is left out, and for a Receipt.
+    if (content.length < MAX_CONTENT_PARTS - 2 && size <= room) {
+      content.push(one);
+      room -= size;
+    } else {
+      left += 1;
+    }
+  };
+  const attested = (item: JsonObject): void => {
+    if (attest !== undefined && evidence.length < MAX_EVIDENCE) evidence.push(item);
+  };
+  for (const { part, ref } of parts) {
+    if ("text" in part || "data" in part) {
+      // Data may hold what a record cannot, a fraction for one: it is carried as its JSON text.
+      const text = "text" in part ? wellFormed(part.text) : JSON.stringify(part.data);
+      const mediaType = mediaTypeOf(part, "text" in part ? "text/plain" : "application/json");
+      const bytes = utf8(text);
+      carry({ mediaType, body: text }, bytes.length);
+      attested({ kind: "hash", ref, digest: sha256Digest(bytes), mediaType });
+    } else if ("raw" in part) {
+      // Bytes are attested by their digest, and not carried: a packet has no place for them.
+      const bytes = new Uint8Array(Buffer.from(part.raw, "base64"));
+      const mediaType = mediaTypeOf(part, "application/octet-stream");
+      left += 1;
+      attested({ kind: "hash", ref, digest: sha256Digest(bytes), mediaType });
+    } else {
+      const url = webUrl(part.url);
+      if (url === undefined) {
+        left += 1;
+        continue;
+      }
+      // A file that is named. The gateway says which bytes were there, if it can get them.
+      let digest: string | undefined;
+      if (attest !== undefined && url.startsWith("https://") && fetched < MAX_FETCHED) {
+        fetched += 1;
+        digest = await digestAt(url, attest);
+      }
+      if (digest === undefined) {
+        carry({ mediaType: "text/uri-list", body: url }, url.length);
+      } else {
+        const mediaType = mediaTypeOf(part, "application/octet-stream");
+        carry({ mediaType, ref: url, digest }, url.length);
+        attested({ kind: "uri", ref: url, digest, mediaType });
+      }
+    }
+  }
+  return { content, evidence, left };
+}
+
+/**
+ * A word about what a packet does not carry, if there is any such.
+ *
+ * @param whose - What the parts are of: "the agent's answer", say.
+ * @param attested - Whether a Receipt has the digests of what is left out.
+ */
+export function leftOut(left: number, whose: string, attested: boolean): InlineContent[] {
+  if (left === 0) return [];
+  const what = left === 1 ? "one part" : `${String(left)} parts`;
+  return [
+    {
+      mediaType: "text/plain",
+      body:
+        `The gateway left ${what} of ${whose} out of this packet: ` +
+        "bytes, and what is too large or too much for one packet, are not carried." +
+        (attested ? " The Receipt has their digests." : ""),
+    },
+  ];
+}

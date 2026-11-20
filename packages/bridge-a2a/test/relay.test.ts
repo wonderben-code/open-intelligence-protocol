@@ -657,7 +657,8 @@ describe("a request to a bridged mind", () => {
     expect((lexis.asked.at(-1)?.params["message"] as JsonObject)["parts"]).toStrictEqual([
       { text: "hello", mediaType: "text/markdown" },
       { data: { pages: [1, 2] }, mediaType: "application/json" },
-      { url: LEASE, mediaType: "application/pdf" },
+      // A file is named as its URL names it.
+      { url: LEASE, mediaType: "application/pdf", filename: "lease.pdf" },
     ]);
     await inbox();
   });

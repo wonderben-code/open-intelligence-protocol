@@ -23,10 +23,12 @@ export {
   cancelTask,
   type Get,
   getTask,
+  Malformed,
   MAX_ARTIFACTS,
   MAX_ID,
   MAX_PARTS,
   type Part,
+  readMessage,
   sendMessage,
   type Task,
 } from "./a2a.ts";
@@ -67,9 +69,14 @@ export {
 } from "./signature.ts";
 export { BridgeError, type Bridged, Gateway, type GatewayEdges, PROTOCOL } from "./gateway.ts";
 export {
-  MAX_CARRIED_BYTES,
-  MAX_FETCHED,
-  MAX_FOLLOWED_SECONDS,
-  MAX_OPEN_TASKS,
-  type Relayed,
-} from "./relay.ts";
+  type Asked,
+  type Held,
+  MAX_KEPT_SECONDS,
+  MAX_UNANNOUNCED_SECONDS,
+  type Page,
+} from "./book.ts";
+export { Fault } from "./fault.ts";
+export { Front, type FrontOptions, type ServedMind, type Taking } from "./front.ts";
+export { A2aServer, type Answer, type Asking, MAX_REQUEST_BYTES } from "./server.ts";
+export { MAX_CARRIED_BYTES, MAX_FETCHED } from "./content.ts";
+export { MAX_FOLLOWED_SECONDS, MAX_OPEN_TASKS, type Relayed } from "./relay.ts";

@@ -36,10 +36,8 @@ import {
   formatTimestamp,
   type JsonObject,
   parseTimestamp,
-  sha256Digest,
 } from "@oip/core";
-import { keptFrom, keptOf, type KeptPacket, type Opened, printableJson } from "@oip/local";
-import type { InlineContent, ReferencedContent } from "@oip/schema";
+import { type KeptPacket, type Opened, printableJson } from "@oip/local";
 
 import {
   A2aError,
@@ -49,10 +47,11 @@ import {
   type Ask,
   type Get,
   getTask,
-  type Part,
   sendMessage,
   type Task,
 } from "./a2a.ts";
+import { Arrivals } from "./arrivals.ts";
+import { type Content, gather, leftOut, partsOf, wellFormed } from "./content.ts";
 import type { Bridged } from "./gateway.ts";
 import { OIP_EXTENSION, OIP_MEDIA_TYPE, saidOf } from "./mapping.ts";
 import { Store } from "./store.ts";
@@ -65,8 +64,6 @@ export interface RelayEdges {
   readonly get: Get;
   readonly clock: Clock;
 }
-
-type Content = InlineContent | ReferencedContent;
 
 /** What was signed for the end of a task, until it is published and sent. */
 interface Settled {
@@ -132,62 +129,18 @@ export interface Relayed {
 
 /** The media types of answers the gateway can pass on. */
 const ACCEPTED = ["text/plain", "application/json", OIP_MEDIA_TYPE];
-/** The most parts of a packet's content (Layer 1, 12.2). */
-const MAX_CONTENT_PARTS = 32;
-/** The most evidence items of a Receipt (Layer 2, 6.1). */
-const MAX_EVIDENCE = 64;
 /** The longest of an agent's words quoted in a Receipt or said for it. */
 const MAX_QUOTED = 1024;
 /** The longest statement of a Receipt (Layer 2, 6.1). */
 const MAX_STATEMENT = 8192;
-/** The most of an agent's content one packet carries, in bytes: a packet is a record, of a megabyte at most. */
-export const MAX_CARRIED_BYTES = 262_144;
-/** The most files of one task the gateway fetches to say which bytes were there. */
-export const MAX_FETCHED = 8;
 /** The most tasks of one agent the gateway follows at a time. */
 export const MAX_OPEN_TASKS = 256;
 /** How long the gateway follows a task that does not end: thirty days. */
 export const MAX_FOLLOWED_SECONDS = 2_592_000;
+/** What an agent's parts are of, in a word to a requester about those that are left out. */
+const ANSWER = "the agent's answer";
 /** A2A, Section 5.4: the agent has no such task. */
 const TASK_NOT_FOUND = -32001;
-
-const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text);
-
-/**
- * A text as Unicode. Half of a pair of surrogates on its own becomes U+FFFD,
- * as an encoder makes it: a record holds no text that is none (core 1.1).
- */
-const wellFormed = (text: string): string => new TextDecoder().decode(utf8(text));
-
-/** A media type as an agent gives it, without parameters, or another where it gives none that can be told. */
-function mediaTypeOf(part: Part, otherwise: string): string {
-  const given = (part.mediaType ?? "").replace(/;.*$/su, "").trim().toLowerCase();
-  const told = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,63}$/u.test(given);
-  // A bridged agent signs nothing: what it calls a record is carried as the data it is.
-  return told && given !== OIP_MEDIA_TYPE ? given : otherwise;
-}
-
-/** The parts of an A2A message that say what a packet's content says. */
-function partsOf(packet: KeptPacket["packet"]): Part[] {
-  const { content } = packet;
-  const parts: readonly Content[] = "parts" in content ? content.parts : [content];
-  const said = parts.flatMap((part): Part[] => {
-    const { mediaType } = part;
-    if ("ref" in part) return [{ url: part.ref, mediaType }];
-    // The record that names a session is the session's own business, and nothing the agent is asked.
-    const { body } = part as { body: unknown };
-    if (
-      mediaType === OIP_MEDIA_TYPE &&
-      typeof body === "object" &&
-      body !== null &&
-      (body as { type?: unknown }).type === "Session"
-    ) {
-      return [];
-    }
-    return [typeof body === "string" ? { text: body, mediaType } : { data: body, mediaType }];
-  });
-  return said.length === 0 ? [{ text: "" }] : said;
-}
 
 /** The agent's own words in a message, as one text, cut short. */
 function wordsOf(message: A2aMessage | undefined): string {
@@ -196,29 +149,13 @@ function wordsOf(message: A2aMessage | undefined): string {
   return text.length > MAX_QUOTED ? `${text.slice(0, MAX_QUOTED - 1)}…` : text;
 }
 
-/** A URL of the web as an agent gives it, or `undefined` for what is none. */
-function webUrl(text: string): string | undefined {
-  if (text.length > 2048 || !URL.canParse(text)) return undefined;
-  const { protocol } = new URL(text);
-  return protocol === "https:" || protocol === "http:" ? text : undefined;
-}
-
-/** What is made of an agent's parts: content to carry, and evidence of what was there. */
-interface Gathered {
-  readonly content: Content[];
-  readonly evidence: JsonObject[];
-  /** How many parts are not carried: bytes, and what is too large or too much. */
-  readonly left: number;
-}
-
 /** One pass of relaying for one bridged mind. */
 export class Relay {
-  readonly #opened: Opened;
   readonly #mind: Mind;
   readonly #bridged: Bridged;
   readonly #edges: RelayEdges;
   readonly #agent: Agent;
-  readonly #pending: Store<JsonObject>;
+  readonly #arrivals: Arrivals;
   readonly #tasks: Store<Followed>;
   readonly #questions: Store<Question>;
   readonly #contexts: Store<string>;
@@ -237,7 +174,6 @@ export class Relay {
    * @param bridged - What the gateway's directory records of the agent.
    */
   constructor(opened: Opened, bridged: Bridged, edges: RelayEdges) {
-    this.#opened = opened;
     this.#mind = opened.mind;
     this.#bridged = bridged;
     this.#edges = edges;
@@ -247,7 +183,7 @@ export class Relay {
       ...(bridged.extension ? { extensions: [OIP_EXTENSION] } : {}),
     };
     const dir = opened.home.dir;
-    this.#pending = new Store(join(dir, "pending"));
+    this.#arrivals = new Arrivals(opened, dir);
     this.#tasks = new Store(join(dir, "tasks"));
     this.#questions = new Store(join(dir, "questions"));
     this.#contexts = new Store(join(dir, "contexts"));
@@ -255,25 +191,7 @@ export class Relay {
 
   /** Reads the mailbox, passes on what is asked of the agent, and follows the tasks that are open. */
   async pass(): Promise<Relayed> {
-    const read = await this.#mind.receive();
-    for (const received of read.received) {
-      const kept = keptOf(received);
-      // A packet is dealt with once, however often it arrives.
-      if (this.#opened.inbox.get(kept.id) !== undefined) continue;
-      // Written down before anything is done with it: a mailbox gives a packet once.
-      this.#pending.put(kept.id, kept as unknown as JsonObject);
-      this.#opened.inbox.put(kept.id, kept);
-    }
-    const waiting = this.#pending.all().flatMap(({ key, value }) => {
-      const kept = keptFrom(value);
-      // What is written there is no packet: nothing can be done with it, now or later.
-      if (kept?.id !== key) this.#pending.delete(key);
-      return kept?.id === key ? [kept] : [];
-    });
-    // Oldest first, and in one order whatever the directory gives them in. What one reading of
-    // the mailbox found has one time: there, the time each sender gave its packet decides.
-    const place = ({ time, id, packet }: KeptPacket): string => `${time} ${packet.created} ${id}`;
-    waiting.sort((one, other) => (place(one) < place(other) ? -1 : 1));
+    const waiting = await this.#arrivals.waiting();
     for (const kept of waiting) {
       await this.#attempt({ packet: kept.id }, () => this.#handle(kept));
     }
@@ -343,7 +261,7 @@ export class Relay {
     // Layer 0, 3.1: a `request` is a message to the agent. So is the answer to what the agent asked.
     if (packet.purpose.verb !== "request" && question === undefined) {
       this.#did.ignored.push(id);
-      this.#pending.delete(id);
+      this.#arrivals.done(id);
       return;
     }
     if (question === undefined && this.#tasks.all().length >= MAX_OPEN_TASKS) {
@@ -351,7 +269,7 @@ export class Relay {
         about,
         "The gateway follows as many tasks of this agent as it can. Ask again later.",
       );
-      this.#pending.delete(id);
+      this.#arrivals.done(id);
       return;
     }
     // A context is one requester's: two minds that name one session do not share what the agent keeps.
@@ -363,7 +281,7 @@ export class Relay {
       messageId: id,
       role: "ROLE_USER",
       parts: [
-        ...partsOf(packet),
+        ...partsOf(packet.content),
         // Layer 0, 3.3: the whole packet, signed, for an agent that declares the extension.
         ...(this.#bridged.extension
           ? [{ data: packet as unknown, mediaType: OIP_MEDIA_TYPE }]
@@ -379,7 +297,7 @@ export class Relay {
       if (!(error instanceof A2aError)) throw error;
       // The requester is told that the agent did not take it, in the gateway's own words.
       await this.#tell(about, `The gateway could not pass this on: ${error.message}.`);
-      this.#pending.delete(id);
+      this.#arrivals.done(id);
       return;
     }
     const answer = "task" in answered ? answered.task : answered.message;
@@ -389,14 +307,13 @@ export class Relay {
     }
     if ("message" in answered) {
       // The agent has answered: from here on the packet is not sent to it again.
-      this.#pending.delete(id);
+      this.#arrivals.done(id);
       this.#finishQuestion(packet.replyTo, question);
       this.#did.passed.push(id);
-      const { content, left } = await this.#gather(
+      const { content, left } = await gather(
         answered.message.parts.map((part) => ({ part, ref: "" })),
-        false,
       );
-      await this.#send(about, "inform", [...content, ...this.#leftOut(left, false)]);
+      await this.#send(about, "inform", [...content, ...leftOut(left, ANSWER, false)]);
       return;
     }
     const { task } = answered;
@@ -415,7 +332,7 @@ export class Relay {
     // said is said again by the next pass if this one stops, and the agent is not asked twice.
     this.#tasks.put(task.id, followed);
     this.#told.add(task.id);
-    this.#pending.delete(id);
+    this.#arrivals.done(id);
     this.#finishQuestion(packet.replyTo, question);
     this.#did.passed.push(id);
     await this.#attempt({ task: task.id }, () => this.#settle(task, followed));
@@ -463,92 +380,6 @@ export class Relay {
     await this.#settle(task, followed);
   }
 
-  /** What is made of the parts an agent gave: content for a packet and, with `attesting`, evidence. */
-  async #gather(
-    parts: readonly { readonly part: Part; readonly ref: string }[],
-    attesting: boolean,
-  ): Promise<Gathered> {
-    const content: Content[] = [];
-    const evidence: JsonObject[] = [];
-    let room = MAX_CARRIED_BYTES;
-    let fetched = 0;
-    let left = 0;
-    const carry = (one: Content, size: number): void => {
-      // Two places are kept: for a word about what is left out, and for a Receipt.
-      if (content.length < MAX_CONTENT_PARTS - 2 && size <= room) {
-        content.push(one);
-        room -= size;
-      } else {
-        left += 1;
-      }
-    };
-    const attest = (item: JsonObject): void => {
-      if (attesting && evidence.length < MAX_EVIDENCE) evidence.push(item);
-    };
-    for (const { part, ref } of parts) {
-      if ("text" in part || "data" in part) {
-        // Data may hold what a record cannot, a fraction for one: it is carried as its JSON text.
-        const text = "text" in part ? wellFormed(part.text) : JSON.stringify(part.data);
-        const mediaType = mediaTypeOf(part, "text" in part ? "text/plain" : "application/json");
-        const bytes = utf8(text);
-        carry({ mediaType, body: text }, bytes.length);
-        attest({ kind: "hash", ref, digest: sha256Digest(bytes), mediaType });
-      } else if ("raw" in part) {
-        // Bytes are attested by their digest, and not carried: a packet has no place for them.
-        const bytes = new Uint8Array(Buffer.from(part.raw, "base64"));
-        const mediaType = mediaTypeOf(part, "application/octet-stream");
-        left += 1;
-        attest({ kind: "hash", ref, digest: sha256Digest(bytes), mediaType });
-      } else {
-        const url = webUrl(part.url);
-        if (url === undefined) {
-          left += 1;
-          continue;
-        }
-        // A file the agent names. The gateway says which bytes were there, if it can get them.
-        let digest: string | undefined;
-        if (attesting && url.startsWith("https://") && fetched < MAX_FETCHED) {
-          fetched += 1;
-          digest = await this.#digestAt(url);
-        }
-        if (digest === undefined) {
-          carry({ mediaType: "text/uri-list", body: url }, url.length);
-        } else {
-          const mediaType = mediaTypeOf(part, "application/octet-stream");
-          carry({ mediaType, ref: url, digest }, url.length);
-          attest({ kind: "uri", ref: url, digest, mediaType });
-        }
-      }
-    }
-    return { content, evidence, left };
-  }
-
-  /** The digest of the bytes at a URL, or `undefined` if they cannot be had. */
-  async #digestAt(url: string): Promise<string | undefined> {
-    try {
-      const got = await this.#edges.get(url);
-      return got.status === 200 ? sha256Digest(got.body) : undefined;
-    } catch {
-      // Nothing is said of a file that could not be fetched.
-      return undefined;
-    }
-  }
-
-  /** A word to the requester about what a packet does not carry, if there is any such. */
-  #leftOut(left: number, attested: boolean): InlineContent[] {
-    if (left === 0) return [];
-    const what = left === 1 ? "one part" : `${String(left)} parts`;
-    return [
-      {
-        mediaType: "text/plain",
-        body:
-          `The gateway left ${what} of the agent's answer out of this packet: ` +
-          "bytes, and what is too large or too much for one packet, are not carried." +
-          (attested ? " The Receipt has their digests." : ""),
-      },
-    ];
-  }
-
   /** Says in OIP what a task's state maps to, once for each state, and follows the task while it is open. */
   async #settle(task: Task, followed: Followed): Promise<void> {
     const said = saidOf(task.state);
@@ -582,14 +413,14 @@ export class Relay {
     }
     // A Receipt: what the gateway observed, and no more (Layer 0, 1.4).
     const name = encodeURIComponent(wellFormed(task.id));
-    const { content, evidence, left } = await this.#gather(
+    const { content, evidence, left } = await gather(
       task.artifacts.flatMap((artifact) =>
         artifact.parts.map((part, index) => ({
           part,
           ref: `a2a:task/${name}/artifact/${encodeURIComponent(wellFormed(artifact.artifactId))}/part/${String(index)}`,
         })),
       ),
-      true,
+      this.#edges.get,
     );
     const reported = { fulfilled: "completed", broken: "failed", cancelled: "canceled" }[
       said.outcome
@@ -610,7 +441,7 @@ export class Relay {
       receipt,
       outcome: said.outcome,
       verb: said.outcome === "fulfilled" ? "deliver" : "inform",
-      content: [...content, ...this.#leftOut(left, true)],
+      content: [...content, ...leftOut(left, ANSWER, true)],
     };
     // Written down before it leaves: a task has one Receipt, whatever stops the pass.
     this.#tasks.put(task.id, { ...followed, settled });

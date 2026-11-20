@@ -106,8 +106,8 @@ export function cardFor(profile: Participant, served: Served): Record<string, un
         },
       ],
     },
-    defaultInputModes: ["text/plain", OIP_MEDIA_TYPE],
-    defaultOutputModes: ["text/plain", OIP_MEDIA_TYPE],
+    defaultInputModes: ["text/plain", "application/json", OIP_MEDIA_TYPE],
+    defaultOutputModes: ["text/plain", "application/json", OIP_MEDIA_TYPE],
     skills: (profile.capabilities ?? []).map((capability) => ({
       id: capability.id,
       name: capability.summary.length <= MAX_SKILL_NAME ? capability.summary : capability.id,

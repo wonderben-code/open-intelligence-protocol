@@ -96,8 +96,24 @@ const isObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
 const invalid = (what: string): A2aError =>
   new A2aError(undefined, `the agent's answer is not what A2A says it is: ${what}`);
 
+/** Thrown where something is read that is not what A2A says it is, with what is wrong with it. */
+export class Malformed extends Error {
+  override readonly name = "Malformed";
+}
+
+const no = (what: string): Malformed => new Malformed(what);
+
+/** Reads what an agent answered with: what is wrong with it is an answer that is none. */
+function answered<T>(read: () => T): T {
+  try {
+    return read();
+  } catch (error) {
+    throw error instanceof Malformed ? invalid(error.message) : error;
+  }
+}
+
 function id(value: unknown, what: string): string {
-  if (typeof value !== "string" || value === "" || value.length > MAX_ID) throw invalid(what);
+  if (typeof value !== "string" || value === "" || value.length > MAX_ID) throw no(what);
   return value;
 }
 
@@ -106,26 +122,26 @@ function optionalId(value: unknown, what: string): string | undefined {
 }
 
 function partOf(value: unknown): Part {
-  if (!isObject(value)) throw invalid("a part is no object");
+  if (!isObject(value)) throw no("a part is no object");
   const { text, raw, url, data, mediaType, filename } = value;
   const more = {
     ...(typeof mediaType === "string" && mediaType !== "" ? { mediaType } : {}),
     ...(typeof filename === "string" && filename !== "" ? { filename } : {}),
   };
   const given = [text, raw, url, data].filter((one) => one !== undefined).length;
-  if (given !== 1) throw invalid("a part holds one of a text, bytes, a URL or data");
+  if (given !== 1) throw no("a part holds one of a text, bytes, a URL or data");
   if (text !== undefined) {
-    if (typeof text !== "string") throw invalid("the text of a part is no text");
+    if (typeof text !== "string") throw no("the text of a part is no text");
     return { text, ...more };
   }
   if (raw !== undefined) {
     if (typeof raw !== "string" || !/^[A-Za-z0-9+/_-]*={0,2}$/u.test(raw)) {
-      throw invalid("the bytes of a part are not base64");
+      throw no("the bytes of a part are not base64");
     }
     return { raw, ...more };
   }
   if (url !== undefined) {
-    if (typeof url !== "string" || url === "") throw invalid("the URL of a part is no text");
+    if (typeof url !== "string" || url === "") throw no("the URL of a part is no text");
     return { url, ...more };
   }
   return { data, ...more };
@@ -133,15 +149,21 @@ function partOf(value: unknown): Part {
 
 function partsOf(value: unknown, what: string): Part[] {
   if (!Array.isArray(value) || value.length > MAX_PARTS) {
-    throw invalid(`${what} has no list of at most ${String(MAX_PARTS)} parts`);
+    throw no(`${what} has no list of at most ${String(MAX_PARTS)} parts`);
   }
   return (value as readonly unknown[]).map((part) => partOf(part));
 }
 
-function messageOf(value: unknown): A2aMessage {
-  if (!isObject(value)) throw invalid("a message is no object");
+/**
+ * Reads a message (A2A, `Message`), as far as a gateway reads one: within
+ * limits, and member by member.
+ *
+ * @throws Malformed if it is none.
+ */
+export function readMessage(value: unknown): A2aMessage {
+  if (!isObject(value)) throw no("a message is no object");
   const { role } = value;
-  if (role !== "ROLE_USER" && role !== "ROLE_AGENT") throw invalid("a message has no role");
+  if (role !== "ROLE_USER" && role !== "ROLE_AGENT") throw no("a message has no role");
   const contextId = optionalId(value["contextId"], "a context ID is no identifier");
   const taskId = optionalId(value["taskId"], "a task ID is no identifier");
   return {
@@ -154,22 +176,22 @@ function messageOf(value: unknown): A2aMessage {
 }
 
 function taskOf(value: unknown): Task {
-  if (!isObject(value)) throw invalid("a task is no object");
+  if (!isObject(value)) throw no("a task is no object");
   const { status, artifacts } = value;
-  if (!isObject(status)) throw invalid("a task has no status");
+  if (!isObject(status)) throw no("a task has no status");
   const state = TASK_STATES.find((known) => known === status["state"]);
-  if (typeof status["state"] !== "string") throw invalid("a task's status has no state");
+  if (typeof status["state"] !== "string") throw no("a task's status has no state");
   if (artifacts !== undefined && (!Array.isArray(artifacts) || artifacts.length > MAX_ARTIFACTS)) {
-    throw invalid(`a task has no list of at most ${String(MAX_ARTIFACTS)} artifacts`);
+    throw no(`a task has no list of at most ${String(MAX_ARTIFACTS)} artifacts`);
   }
   const contextId = optionalId(value["contextId"], "a context ID is no identifier");
   return {
     id: id(value["id"], "a task has no ID"),
     ...(contextId === undefined ? {} : { contextId }),
     state,
-    ...(status["message"] === undefined ? {} : { said: messageOf(status["message"]) }),
+    ...(status["message"] === undefined ? {} : { said: readMessage(status["message"]) }),
     artifacts: ((artifacts ?? []) as readonly unknown[]).map((artifact) => {
-      if (!isObject(artifact)) throw invalid("an artifact is no object");
+      if (!isObject(artifact)) throw no("an artifact is no object");
       const { name } = artifact;
       return {
         artifactId: id(artifact["artifactId"], "an artifact has no ID"),
@@ -259,17 +281,18 @@ export async function sendMessage(
     ...(accepted.length === 0 ? {} : { configuration: { acceptedOutputModes: [...accepted] } }),
   });
   if (result["task"] !== undefined && result["message"] === undefined) {
-    return { task: taskOf(result["task"]) };
+    return { task: answered(() => taskOf(result["task"])) };
   }
   if (result["message"] !== undefined && result["task"] === undefined) {
-    return { message: messageOf(result["message"]) };
+    return { message: answered(() => readMessage(result["message"])) };
   }
   throw invalid("it holds one of a task or a message");
 }
 
 /** Asks an agent where a task stands (A2A, `GetTask`). */
 export async function getTask(agent: Agent, taskId: string): Promise<Task> {
-  const task = taskOf(await call(agent, "GetTask", { id: taskId }));
+  const result = await call(agent, "GetTask", { id: taskId });
+  const task = answered(() => taskOf(result));
   // A task that is not the one asked about says nothing of it.
   if (task.id !== taskId) throw invalid("it is another task than was asked about");
   return task;
@@ -277,7 +300,8 @@ export async function getTask(agent: Agent, taskId: string): Promise<Task> {
 
 /** Asks an agent to cancel a task (A2A, `CancelTask`). */
 export async function cancelTask(agent: Agent, taskId: string): Promise<Task> {
-  const task = taskOf(await call(agent, "CancelTask", { id: taskId }));
+  const result = await call(agent, "CancelTask", { id: taskId });
+  const task = answered(() => taskOf(result));
   if (task.id !== taskId) throw invalid("it is another task than was asked about");
   return task;
 }

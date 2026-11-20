@@ -50,7 +50,7 @@
     "@oip/schema": "workspace:*",
     "@oip/server": "workspace:*",
     "hono": "4.13.18",
-    "ws": "8.22.2"
+    "ws": "8.23.0"
   },
   "devDependencies": {
     "@oip/testkit": "workspace:*",

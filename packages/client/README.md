@@ -2,7 +2,7 @@
 
 The library applications use for the [Open Intelligence Protocol](../../README.md): it makes and manages a mind, publishes, resolves, finds, sends and receives, and verifies everything it receives before it returns it ([BUILD.md](../../BUILD.md), M6).
 
-Every public method of a `Mind` and of a `Lookup` is used in one of the examples below. Each example is a file in [`examples/`](examples), and a test runs it and checks what this page says it prints.
+Every public method of a `Mind` and of a `Lookup` is used in one of the examples below. Each example is a file in `examples/`, and a test runs it and checks what this page says it prints.
 
 ## An example
 

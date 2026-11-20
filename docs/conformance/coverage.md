@@ -15,10 +15,10 @@ This page lists every numbered clause of the specifications (revision 2026-11-17
 | Document | Clauses | Gated | Gated with a passing test | MUST-level | MUST-level with a passing test |
 |---|---:|---:|---:|---:|---:|
 | [core](../../spec/core.md) | 47 | 46 | 46 | 26 | 26 |
-| [L0](../../spec/layer-0-bridge.md) | 17 | 12 | 0 | 6 | 0 |
-| [L1](../../spec/layer-1-mind-network.md) | 96 | 95 | 92 | 47 | 44 |
+| [L0](../../spec/layer-0-bridge.md) | 17 | 12 | 2 | 6 | 1 |
+| [L1](../../spec/layer-1-mind-network.md) | 96 | 95 | 95 | 47 | 47 |
 | [L2](../../spec/layer-2-mind-web.md) | 28 | 24 | 24 | 11 | 11 |
-| **All** | 188 | 177 | 162 | 90 | 81 |
+| **All** | 188 | 177 | 167 | 90 | 85 |
 
 ## Golden vectors
 
@@ -131,13 +131,13 @@ Cases the implementation cannot answer yet are pending, never passed.
 | core 7 | MUST | M1 | 19 | tested | Common fields (table) |
 | core 8.1 |  | M1 | 6 | tested | `ext` is an object whose member names are namespaces and whose values are objects. A namespace… |
 | core 8.2 | MAY | M1 | 1 | tested | An extension block MAY contain a member `v` giving its own version. |
-| core 8.3 | MUST | M1 | 20 | tested | `critical` is an array of namespaces, each of which MUST also appear in `ext`. Naming a namespa… |
+| core 8.3 | MUST | M1 | 21 | tested | `critical` is an array of namespaces, each of which MUST also appear in `ext`. Naming a namespa… |
 | core 8.4 | MUST | M1 | 1 | tested | Extensions MUST NOT change the validity of a record under this specification unless they are li… |
 | core 8.5 | MUST | M1 | 2 | tested | Within major version `"1"`, later revisions MAY add OPTIONAL members. A member whose being igno… |
 | core 9.1 | MUST | M2 | 2 | tested | Implementations MUST tolerate clock skew of up to 300 seconds when checking whether a record is… |
 | core 9.2 |  | M2 | 2 | tested | `created`, in a record or in a proof, is asserted by the signer. A signer holding a stolen, rem… |
 | core 9.3 | MUST | M2 | 11 | tested | Evaluation time. Every rule that depends on when a proof was made (key removal and compromise,… |
-| core 9.4 | MUST | M2 | 56 | tested | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
+| core 9.4 | MUST | M2 | 58 | tested | Evidence that a proof existed at time `t` is one of: 1. the verifier's own record that it obtai… |
 | core 9.5 |  | M2 | 44 | tested | Identity events. The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where… |
 | core 9.6 |  | M2 | 8 | tested | Expiry. A proof whose evaluation time is more than 300 seconds after its record's `expires` doe… |
 | core 9.7 |  | M2 | 2 | tested | Consequence. A verifier that first sees a record long after it was made can count its proofs on… |
@@ -162,8 +162,8 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L0 3.1 |  | M9 | 0 | pending M9 | A2A agents as participants. A gateway bridging an A2A agent fetches its Agent Card from `/.well… |
 | L0 3.2 | MAY | M9 | 0 | pending M9 | OIP minds as A2A agents. A host MAY publish an A2A Agent Card for a mind it serves, generated f… |
 | L0 3.3 | MAY | M9 | 0 | pending M9 | OIP extension for A2A. A2A messages MAY carry a complete OIP packet as a data part with media t… |
-| L0 4.1 |  | M6 | 0 | pending M6 | A mind proves an alias by listing it in `alsoKnownAs` and having the alias point back (Layer 1,… |
-| L0 4.2 | MUST | M6 | 0 | pending M6 | Gateways and clients MUST verify aliases before displaying them as belonging to a mind. |
+| L0 4.1 |  | M6 | 9 | tested | A mind proves an alias by listing it in `alsoKnownAs` and having the alias point back (Layer 1,… |
+| L0 4.2 | MUST | M6 | 1 | tested | Gateways and clients MUST verify aliases before displaying them as belonging to a mind. |
 | L0 5 |  |  | 0 | informative | HTTP APIs and the web (informative) (list) |
 | L0 6 |  |  | 0 | informative | People (informative) (list) |
 | L0 7 |  |  | 0 | informative | OAuth and credentials (informative) (list) |
@@ -190,10 +190,10 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 3.7 | MUST | M2 | 16 | tested | `Update`. In addition to the common fields of 3.2: `controller` (REQUIRED for key-controlled mi… |
 | L1 3.8 | MUST | M2 | 5 | tested | `Fork`. In addition to the common fields: `child` (REQUIRED, the address of the child mind), `c… |
 | L1 3.9 | MUST | M2 | 6 | tested | `Merge` is reserved. A verifier of this revision MUST reject a log that contains a `Merge` even… |
-| L1 3.10 | MAY | M2 | 9 | tested | `Retire`. In addition to the common fields: `controller` (as in 3.7, with `next` empty for key-… |
+| L1 3.10 | MAY | M2 | 12 | tested | `Retire`. In addition to the common fields: `controller` (as in 3.7, with `next` empty for key-… |
 | L1 3.11 | MUST | M6 | 24 | tested | Identity events are signed with `proofPurpose` `capabilityInvocation`. Proofs by control keys u… |
 | L1 3.12 | MUST | M2 | 3 | tested | Reserved names. The member name `recovery` is reserved in identity events for key recovery in a… |
-| L1 3.13 |  | M2 | 1 | tested | HTTPS origins. An HTTPS origin is a string that matches `^https://[A-Za-z0-9.:\[\]-]+$` from it… |
+| L1 3.13 |  | M2 | 2 | tested | HTTPS origins. An HTTPS origin is a string that matches `^https://[A-Za-z0-9.:\[\]-]+$` from it… |
 | L1 4 | MUST | M2 | 9 | tested | A verifier MUST reject a log unless all of the following hold. |
 | L1 4.1 |  | M2 | 8 | tested | Genesis. The first event has `type` `Genesis` and no `mind`, `seq` or `prev`, and its controlle… |
 | L1 4.2 |  | M2 | 8 | tested | Chain. Every later event has `mind` equal to the address, `seq` equal to the previous `seq` plu… |
@@ -205,9 +205,9 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 4.8 | MUST | M2 | 3 | tested | Well-formed events. Every event is a well-formed record of its type: it satisfies core, Section… |
 | L1 4.9 | MUST | M2 | 44 | tested | Invalid, and undecided. A log with an event that fails this section is rejected. What a verifie… |
 | L1 5.1 |  | M2 | 2 | tested | Replaying a log produces the identity state: address, kind, controller state (`next` and `nextT… |
-| L1 5.2 |  | M2 | 7 | tested | DID document. Resolving a `did:oip` address produces a DID Core document: - `id`: the address.… |
-| L1 5.3 | MUST | M6 | 0 | pending M6 | Aliases. An entry in `alsoKnownAs` is verified only when the alias points back to the mind: ano… |
-| L1 6.1 |  | M2 | 24 | tested | A proof `p` on a record of type `T`, whose verification method is `did:oip:X?versionId=V#K`, is… |
+| L1 5.2 |  | M2 | 9 | tested | DID document. Resolving a `did:oip` address produces a DID Core document: - `id`: the address.… |
+| L1 5.3 | MUST | M6 | 9 | tested | Aliases. An entry in `alsoKnownAs` is verified only when the alias points back to the mind: ano… |
+| L1 6.1 |  | M2 | 26 | tested | A proof `p` on a record of type `T`, whose verification method is `did:oip:X?versionId=V#K`, is… |
 | L1 6.2 |  | M2 | 6 | tested | Removing a key stops it signing anything new while leaving what it signed earlier valid, provid… |
 | L1 6.3 | MUST | M2 | 1 | tested | When a verifier encounters a `versionId` it does not have, it SHOULD fetch the missing events f… |
 | L1 6.4 |  | M2 | 11 | tested | Member proofs on identity events. A proof `p` by member `M` on another mind's identity event `e… |
@@ -225,52 +225,52 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 9.3 |  | M2 | 3 | tested | Changes. Later identity events require the threshold of current members, plus every newly added… |
 | L1 9.4 |  | M2 | 8 | tested | Members sign with their own keys. A member signs a collective's identity events with its own in… |
 | L1 9.5 | MAY | M2 | 23 | tested | Acting as one. The state of a collective at time `T` is its identity state after the last event… |
-| L1 9.6 | MUST | M5 | 8 | tested | Keeping a collective verifiable. Unlike control keys, which sign once and are destroyed, member… |
-| L1 10.1 |  | M4 | 18 | tested | A mind's public feed is a sequence of `Entry` records: \| Member \| Required \| Value \| \|---\|---\|-… |
-| L1 10.2 | MUST | M5 | 5 | tested | A feed MAY list records authored by other minds, such as Commitments the mind is a party to, th… |
-| L1 10.3 |  | M4 | 4 | tested | A feed has a single writer at a time: a mind that runs several instances coordinates them so th… |
-| L1 10.4 |  | M4 | 2 | tested | After an operational key is revoked with a compromise time, entries it signed whose evaluation… |
+| L1 9.6 | MUST | M5 | 9 | tested | Keeping a collective verifiable. Unlike control keys, which sign once and are destroyed, member… |
+| L1 10.1 |  | M4 | 22 | tested | A mind's public feed is a sequence of `Entry` records: \| Member \| Required \| Value \| \|---\|---\|-… |
+| L1 10.2 | MUST | M5 | 8 | tested | A feed MAY list records authored by other minds, such as Commitments the mind is a party to, th… |
+| L1 10.3 |  | M4 | 17 | tested | A feed has a single writer at a time: a mind that runs several instances coordinates them so th… |
+| L1 10.4 |  | M4 | 3 | tested | After an operational key is revoked with a compromise time, entries it signed whose evaluation… |
 | L1 10.5 |  | M4 | 15 | tested | A `Checkpoint` has `author`, `created`, `size` (the number of entries covered, from `seq` 0), `… |
 | L1 10.6 | MAY | M4 | 4 | tested | A checkpoint MAY be anchored in a public append-only log or in the Bitcoin blockchain through O… |
-| L1 11.1 | MUST | M3 | 16 | tested | A `Delegation` record: \| Member \| Required \| Value \| UCAN 1.0 \| \|---\|---\|---\|---\| \| `author` \|… |
-| L1 11.2 | MUST | M3 | 22 | tested | Commands match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` covers a command `c` when… |
-| L1 11.3 | SHOULD | M3 | 50 | tested | Policies. A policy is an array of at most 64 statements, all of which must hold for the record… |
-| L1 11.4 |  | M3 | 21 | tested | Validity of a delegation chain for a record `r` carrying a proof `p` by a valid operational key… |
-| L1 11.5 | SHOULD | M3 | 13 | tested | A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco… |
-| L1 11.6 | MUST | M3 | 15 | tested | Use. A proof that relies on delegation lists, in its own `authority` member (core 5.2), exactly… |
-| L1 12.1 | MUST | M4 | 28 | tested | A `Packet`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `from` \| yes \| Sender's address; the… |
+| L1 11.1 | MUST | M3 | 17 | tested | A `Delegation` record: \| Member \| Required \| Value \| UCAN 1.0 \| \|---\|---\|---\|---\| \| `author` \|… |
+| L1 11.2 | MUST | M3 | 24 | tested | Commands match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` covers a command `c` when… |
+| L1 11.3 | SHOULD | M3 | 51 | tested | Policies. A policy is an array of at most 64 statements, all of which must hold for the record… |
+| L1 11.4 |  | M3 | 23 | tested | Validity of a delegation chain for a record `r` carrying a proof `p` by a valid operational key… |
+| L1 11.5 | SHOULD | M3 | 15 | tested | A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco… |
+| L1 11.6 | MUST | M3 | 16 | tested | Use. A proof that relies on delegation lists, in its own `authority` member (core 5.2), exactly… |
+| L1 12.1 | MUST | M4 | 39 | tested | A `Packet`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `from` \| yes \| Sender's address; the… |
 | L1 12.2 | MUST | M4 | 12 | tested | Content. Exactly one of: - `{ "mediaType": <media type>, "body": <JSON value> }`. With `applica… |
 | L1 12.3 | MUST | M4 | 4 | tested | Verbs (advisory): `inform`, `request`, `query`, `propose`, `accept`, `decline`, `deliver`, `ack… |
-| L1 12.4 | MUST | M4 | 51 | tested | Receiving. A receiver MUST verify the packet's proof and, if `to` lists addresses, that it is o… |
-| L1 12.5 | MUST | M4 | 1 | tested | Treat content as data. Receivers MUST NOT treat the content of a packet as conferring authority… |
-| L1 12.6 | MUST | M4 | 30 | tested | `Sealed`. To send a packet privately, the sender encrypts it to one of the recipient's agreemen… |
-| L1 13.1 | MUST | M5 | 29 | tested | Well-known resources. A host serving mind `M` (with content ID `m`) MUST serve: - `GET /.well-k… |
-| L1 13.2 | SHOULD | M5 | 48 | tested | Inbox and acknowledgement. `POST {endpoint}/inbox` with a body of a `Packet`, a `Sealed` record… |
-| L1 13.3 | MUST | M5 | 64 | tested | Authentication. - A `Hello` record `{ "oip": "1", "type": "Hello", "author": <mind>, "created":… |
+| L1 12.4 | MUST | M4 | 59 | tested | Receiving. A receiver MUST verify the packet's proof and, if `to` lists addresses, that it is o… |
+| L1 12.5 | MUST | M4 | 2 | tested | Treat content as data. Receivers MUST NOT treat the content of a packet as conferring authority… |
+| L1 12.6 | MUST | M4 | 34 | tested | `Sealed`. To send a packet privately, the sender encrypts it to one of the recipient's agreemen… |
+| L1 13.1 | MUST | M5 | 45 | tested | Well-known resources. A host serving mind `M` (with content ID `m`) MUST serve: - `GET /.well-k… |
+| L1 13.2 | SHOULD | M5 | 52 | tested | Inbox and acknowledgement. `POST {endpoint}/inbox` with a body of a `Packet`, a `Sealed` record… |
+| L1 13.3 | MUST | M5 | 70 | tested | Authentication. - A `Hello` record `{ "oip": "1", "type": "Hello", "author": <mind>, "created":… |
 | L1 13.4 | SHOULD | M5 | 31 | tested | WebSocket. A client opens the WebSocket URL given by the mind's location record (Section 15.1)… |
-| L1 13.5 | SHOULD | M5 | 26 | tested | Mailbox. A mailbox endpoint accepts `POST {mailbox}` with a `Sealed`, `Packet` or `Forwarded` r… |
+| L1 13.5 | SHOULD | M5 | 31 | tested | Mailbox. A mailbox endpoint accepts `POST {mailbox}` with a `Sealed`, `Packet` or `Forwarded` r… |
 | L1 13.6 |  | M5 | 2 | tested | Further bindings (DIDComm, libp2p, iroh, NATS, MQTT) are reserved for later revisions. Every bi… |
 | L1 14.1 |  | M4 | 9 | tested | A `Session` record is unsigned: `{ "oip": "1", "type": "Session", "participants": [addresses, s… |
 | L1 14.2 | MUST | M4 | 4 | tested | The first packet of each sending chain (14.3) in a session MUST include the `Session` record in… |
 | L1 14.3 | MUST | M4 | 16 | tested | Each sending chain in a session is identified by the sender's address and its `instance` (absen… |
 | L1 14.4 |  | M4 | 6 | tested | `Resume` (the content of a packet with verb `resume`): `{ "oip": "1", "type": "Resume", "sessio… |
 | L1 14.5 | MUST | M4 | 8 | tested | `Branch` (the content of a packet with verb `branch`): `{ "oip": "1", "type": "Branch", "parent… |
-| L1 15.1 | MUST | M4 | 16 | tested | A `Location` record: \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The mind \|… |
-| L1 15.2 | SHOULD | M4 | 17 | tested | Among the location records of a mind whose proofs are valid under the current-state rule (Secti… |
-| L1 15.3 | SHOULD | M4 | 7 | tested | Senders SHOULD try endpoints in priority order and SHOULD use `mailbox` endpoints when no other… |
-| L1 15.4 | MUST | M6 | 0 | pending M6 | Changing hosts. Anyone holding one of the mind's operational keys can publish location records… |
-| L1 16.1 | MUST | M4 | 12 | tested | A `Participant` record: \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The mind… |
+| L1 15.1 | MUST | M4 | 23 | tested | A `Location` record: \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The mind \|… |
+| L1 15.2 | SHOULD | M4 | 23 | tested | Among the location records of a mind whose proofs are valid under the current-state rule (Secti… |
+| L1 15.3 | SHOULD | M4 | 9 | tested | Senders SHOULD try endpoints in priority order and SHOULD use `mailbox` endpoints when no other… |
+| L1 15.4 | MUST | M6 | 7 | tested | Changing hosts. Anyone holding one of the mind's operational keys can publish location records… |
+| L1 16.1 | MUST | M4 | 15 | tested | A `Participant` record: \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The mind… |
 | L1 16.2 | MUST | M4 | 7 | tested | A capability object: `id` (REQUIRED, at most 128 characters, unique within the profile), `summa… |
 | L1 16.3 |  | M4 | 1 | tested | Tag namespaces include `oasf` (the OASF skills and domains taxonomy), `domain`, `lang` (BCP 47)… |
-| L1 16.4 |  | M4 | 5 | tested | The current profile is the one referenced by the current location record; failing that, the mos… |
+| L1 16.4 |  | M4 | 9 | tested | The current profile is the one referenced by the current location record; failing that, the mos… |
 | L1 17.1 | MUST | M5 | 49 | tested | A resolver MUST implement: - `GET /oip/v1/resolve/<mindId>`: returns a `Bundle` (13.1) with the… |
 | L1 17.2 | MUST | M5 | 38 | tested | A resolver MUST verify every record before storing or serving it, evaluating proofs at the time… |
-| L1 17.3 | MAY | M5 | 7 | tested | Resolvers MAY require authenticated publication (13.3) and MAY rate-limit. A resolver that requ… |
-| L1 18.1 | MUST | M5 | 15 | tested | An indexer MUST implement: - `POST /oip/v1/submit` with body `{ "records": [ … ] }` containing… |
-| L1 18.2 | MUST | M5 | 23 | tested | A capability query is an object whose members are all optional: `want` (free text, at most 1024… |
-| L1 18.3 |  | M5 | 17 | tested | A `QueryResult`: `{ "oip": "1", "type": "QueryResult", "author": <indexer's address>, "created"… |
-| L1 18.4 | MUST | M6 | 0 | pending M6 | Clients MUST fetch and verify the records named in results before acting on them. Ranking is th… |
-| L1 18.5 | MUST | M5 | 33 | tested | Brokered delivery. An indexer MAY accept `POST {endpoint}/inbox` packets whose `to` is a capabi… |
+| L1 17.3 | MAY | M5 | 19 | tested | Resolvers MAY require authenticated publication (13.3) and MAY rate-limit. A resolver that requ… |
+| L1 18.1 | MUST | M5 | 17 | tested | An indexer MUST implement: - `POST /oip/v1/submit` with body `{ "records": [ … ] }` containing… |
+| L1 18.2 | MUST | M5 | 28 | tested | A capability query is an object whose members are all optional: `want` (free text, at most 1024… |
+| L1 18.3 |  | M5 | 20 | tested | A `QueryResult`: `{ "oip": "1", "type": "QueryResult", "author": <indexer's address>, "created"… |
+| L1 18.4 | MUST | M6 | 10 | tested | Clients MUST fetch and verify the records named in results before acting on them. Ranking is th… |
+| L1 18.5 | MUST | M5 | 35 | tested | Brokered delivery. An indexer MAY accept `POST {endpoint}/inbox` packets whose `to` is a capabi… |
 | L1 19 |  | M4 | 12 | tested | Limits (table) |
 
 ## L2
@@ -286,20 +286,20 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L2 3 |  |  | 0 | informative | The Participant record is defined in Layer 1, Section 16. |
 | L2 4.1 | MUST | M3 | 6 | tested | `Intent`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `want` \| yes \| Plain-language statement… |
 | L2 4.2 | MUST | M3 | 10 | tested | `Offer`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `provides` \| yes \| Plain-language statem… |
-| L2 4.3 |  | M3 | 1 | tested | Withdrawals and edits. A withdrawal is a superseding record (Section 2) with `status` `withdraw… |
+| L2 4.3 |  | M3 | 2 | tested | Withdrawals and edits. A withdrawal is a superseding record (Section 2) with `status` `withdraw… |
 | L2 5.1 | MUST | M3 | 8 | tested | `Commitment`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `parties` \| yes \| 2–64 objects `{ "… |
 | L2 5.2 | MUST | M3 | 6 | tested | The `author` of a Commitment MUST be one of its parties, or a mind whose proof on it counts for… |
 | L2 5.3 | SHOULD | M3 | 3 | tested | Additional signatures are added by appending proofs. Adding proofs does not change the content… |
-| L2 5.4 | SHOULD | M3 | 1 | tested | Parties bound through a delegate. A party whose proof on a Commitment counts only through a del… |
+| L2 5.4 | SHOULD | M3 | 2 | tested | Parties bound through a delegate. A party whose proof on a Commitment counts only through a del… |
 | L2 6.1 | MUST | M3 | 10 | tested | `Receipt`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `about` \| yes \| `record-ref` of the re… |
 | L2 6.2 | MUST | M3 | 15 | tested | `Collective` (a charter): \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The co… |
-| L2 7.1 | SHOULD | M3 | 21 | tested | A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an… |
+| L2 7.1 | SHOULD | M3 | 23 | tested | A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an… |
 | L2 7.2 |  | M3 | 1 | tested | Delegable types are `Intent`, `Offer`, `Commitment` and `Receipt`. Every other signed record (i… |
-| L2 7.3 |  | M3 | 3 | tested | A Commitment is accepted when it counts for its `author`, its author is a party or signs for on… |
+| L2 7.3 |  | M3 | 4 | tested | A Commitment is accepted when it counts for its `author`, its author is a party or signs for on… |
 | L2 8 | MUST | M3 | 10 | tested | Status is computed from the records known to the verifier and the time of computation, and so c… |
-| L2 8.1 |  | M3 | 12 | tested | Intent. `withdrawn` or `satisfied` if a valid superseding Intent by the same author has that `s… |
-| L2 8.2 |  | M3 | 7 | tested | Offer. `withdrawn` if a valid superseding Offer by the same author has that status; otherwise `… |
-| L2 8.3 | SHOULD | M3 | 24 | tested | Commitment. Let `R` be the set of Receipts about the Commitment whose `author` is a party and t… |
+| L2 8.1 |  | M3 | 14 | tested | Intent. `withdrawn` or `satisfied` if a valid superseding Intent by the same author has that `s… |
+| L2 8.2 |  | M3 | 8 | tested | Offer. `withdrawn` if a valid superseding Offer by the same author has that status; otherwise `… |
+| L2 8.3 | SHOULD | M3 | 25 | tested | Commitment. Let `R` be the set of Receipts about the Commitment whose `author` is a party and t… |
 | L2 8.4 |  | M3 | 2 | tested | Collective charter. `dissolved` if the collective's identity log is retired; otherwise `active`. |
 | L2 9 | MUST | M3 | 6 | tested | An evidence item is an object: \| Member \| Required \| Value \| \|---\|---\|---\| \| `kind` \| yes \| `oi… |
 | L2 10.1 | MAY |  | 0 | informative | Records MAY be published in feeds (Layer 1, Section 10), exchanged privately in packets, or bot… |

@@ -24,6 +24,7 @@ import {
   decodeX25519Multikey,
   HPKE_SUITE,
   hpkeOpen,
+  type HpkeOpenInput,
   hpkeSeal,
   parseJsonBytes,
   utf8,
@@ -113,14 +114,25 @@ async function sealed(draft: SealDraft): Promise<Validation<Sealed>> {
   return no("the recipient has no agreement key that a packet can be sealed to", "L1 12.6", "/to");
 }
 
+/**
+ * Opens what was sealed to an agreement key, for a receiver that does not
+ * hand its keys out: a keystore, or a device. It is given everything of the
+ * sealing but the key, and answers with the plaintext, or `undefined` if it
+ * does not open.
+ */
+export type SealedOpener = (
+  sealed: Omit<HpkeOpenInput, "recipientPrivateKey">,
+) => Promise<Uint8Array | undefined>;
+
 /** A recipient of sealed records: a receiver, and the agreement keys it holds. */
 export interface SealedReceiver extends Receiver {
   /**
-   * The private key of one of the receiver's agreement keys, named as its
-   * identity log lists it (a Multikey), or `undefined` if the receiver does
-   * not hold it. The key is used to open one record and is kept nowhere.
+   * One of the receiver's agreement keys, named as its identity log lists it
+   * (a Multikey): its private key, or what opens with it. Or `undefined` if
+   * the receiver does not hold the key. A private key is used to open one
+   * record and is kept nowhere.
    */
-  readonly agreementKey: (key: string) => Uint8Array | undefined;
+  readonly agreementKey: (key: string) => Uint8Array | SealedOpener | undefined;
 }
 
 /** A packet that arrived sealed. */
@@ -177,18 +189,17 @@ async function opened(
   if (ciphertext === undefined) {
     return no("`ciphertext` is not base64url without padding", "L1 12.6", "/ciphertext");
   }
-  const recipientPrivateKey = receiver.agreementKey(record.key);
-  if (recipientPrivateKey === undefined) {
+  const held = receiver.agreementKey(record.key);
+  if (held === undefined) {
     return no("the record is sealed to a key this receiver does not hold", "L1 12.6", "/key");
   }
-  const plaintext = await hpkeOpen({
-    recipientPrivateKey,
-    enc,
-    info: INFO,
-    aad: utf8(receiver.address),
-    ciphertext,
-  });
-  if (plaintext === undefined) {
+  const sealing = { enc, info: INFO, aad: utf8(receiver.address), ciphertext };
+  const plaintext: unknown =
+    typeof held === "function"
+      ? await held(sealing)
+      : await hpkeOpen({ ...sealing, recipientPrivateKey: held });
+  // An opener is the receiver's own code, and what it answers is checked all the same.
+  if (!(plaintext instanceof Uint8Array)) {
     return no("the record does not open with the key it names", "L1 12.6", "/ciphertext");
   }
   const NOT_A_PACKET = "the record does not open to the canonical form of a packet";

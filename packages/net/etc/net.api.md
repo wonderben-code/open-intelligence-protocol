@@ -9,6 +9,7 @@ import { Branch } from '@oip/schema';
 import type { Endpoint } from '@oip/schema';
 import type { Entry } from '@oip/schema';
 import { FirstSeen } from '@oip/identity';
+import { HpkeOpenInput } from '@oip/core';
 import { IdentityView } from '@oip/identity';
 import { Instant } from '@oip/core';
 import type { Issue } from '@oip/schema';
@@ -353,8 +354,11 @@ export interface SealDraft {
 }
 
 // @public
+export type SealedOpener = (sealed: Omit<HpkeOpenInput, "recipientPrivateKey">) => Promise<Uint8Array | undefined>;
+
+// @public
 export interface SealedReceiver extends Receiver {
-    readonly agreementKey: (key: string) => Uint8Array | undefined;
+    readonly agreementKey: (key: string) => Uint8Array | SealedOpener | undefined;
 }
 
 // @public

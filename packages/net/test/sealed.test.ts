@@ -8,6 +8,7 @@ import {
   contentId,
   encodeX25519Multikey,
   hexToBytes,
+  hpkeOpen,
   hpkeSeal,
   sha256,
   utf8,
@@ -20,7 +21,13 @@ import { at, KeyMind, LATER, type Mind, T, witness } from "@oip/testkit/minds";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { draftAck, receiveSealed, type SealedReceiver, sealPacket } from "../src/index.ts";
+import {
+  draftAck,
+  receiveSealed,
+  type SealedOpener,
+  type SealedReceiver,
+  sealPacket,
+} from "../src/index.ts";
 
 type Signed = JsonObject & { proof: JsonObject[] };
 
@@ -286,6 +293,41 @@ describe(`${clause("L1 12.6", "L1 12.4")} receiving a sealed packet`, () => {
     expect(
       await refusal(sealed, receiverOf(bob, { agreementKey: () => secretOf("other") })),
     ).toStrictEqual({ clause: "L1 12.6", path: "/ciphertext" });
+  });
+
+  it("opens with what the receiver gives in place of a key: an opener that keeps the key to itself", async () => {
+    const sealed = await sealFor(bob, packet);
+    const asked: Parameters<SealedOpener>[0][] = [];
+    const opener: SealedOpener = (sealing) => {
+      asked.push(sealing);
+      return hpkeOpen({ ...sealing, recipientPrivateKey: secretOf("bob") });
+    };
+    const withKey = await receiveSealed(sealed, receiverOf(bob));
+    const withOpener = await receiveSealed(
+      sealed,
+      receiverOf(bob, { agreementKey: (key) => (key === publicOf("bob") ? opener : undefined) }),
+    );
+    expect(withOpener.ok).toBe(true);
+    expect(withOpener).toStrictEqual(withKey);
+    // It is given the sealing, with the receiver's address as the associated data, and no key.
+    expect(asked).toHaveLength(1);
+    expect(Object.keys(asked[0] ?? {}).sort()).toStrictEqual(["aad", "ciphertext", "enc", "info"]);
+    expect(asked[0]?.aad).toStrictEqual(utf8(bob.address));
+    // What it does not open, and what it answers that is no bytes, is a record that does not open.
+    for (const answer of [undefined, "text", {}, [1, 2, 3]]) {
+      const receiver = receiverOf(bob, {
+        agreementKey: () => () => Promise.resolve(answer as never),
+      });
+      expect(await refusal(sealed, receiver), JSON.stringify(answer)).toStrictEqual({
+        clause: "L1 12.6",
+        path: "/ciphertext",
+      });
+    }
+    // An opener that fails is the receiver's own failure, and the caller hears of it.
+    const locked = receiverOf(bob, {
+      agreementKey: () => () => Promise.reject(new Error("the keys are locked")),
+    });
+    await expect(receiveSealed(sealed, locked)).rejects.toThrow("the keys are locked");
   });
 
   it("does not open under another recipient's name, though that recipient holds the key", async () => {

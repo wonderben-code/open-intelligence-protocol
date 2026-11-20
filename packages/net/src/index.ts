@@ -71,6 +71,7 @@ export {
   type ReceivedSealed,
   receiveSealed,
   type SealDraft,
+  type SealedOpener,
   type SealedReceiver,
   sealPacket,
 } from "./sealed.ts";

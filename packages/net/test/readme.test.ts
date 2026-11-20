@@ -56,6 +56,7 @@ describe("the README", () => {
         "RequestSignature",
         "RequestVerifier",
         "SealDraft",
+        "SealedOpener",
         "SealedReceiver",
         "SeenNonces",
         "SendingChain",

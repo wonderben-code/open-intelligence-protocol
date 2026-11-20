@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./minds": "./src/minds.ts",
     "./http-fuzz": "./src/http-fuzz.ts",
-    "./load": "./src/load.ts"
+    "./load": "./src/load.ts",
+    "./ratio": "./src/ratio.ts"
   },
   "engines": {
     "node": ">=24"

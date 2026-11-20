@@ -16,6 +16,7 @@ import { contentId, forgetVerifiedSignatures, formatRecordRef, proofDigest } fro
 import { FirstSeen, judgeRecord, LogBook } from "@oip/identity";
 import type { JsonObject } from "@oip/testkit";
 import { at, intentBy, KeyMind, LATER, T } from "@oip/testkit/minds";
+import { ratiosOver, reportMeasured } from "@oip/testkit/ratio";
 import { describe, expect, test } from "vitest";
 
 import {
@@ -47,15 +48,6 @@ export const BUDGETS = {
    */
   policy: 0.007,
 } as const;
-
-/** How many times each ratio is measured. Odd, so that one of them is the middle. */
-const ROUNDS = 3;
-
-/** The middle of an odd number of values. */
-function middle(values: readonly number[]): number {
-  const sorted = values.toSorted((a, b) => a - b);
-  return sorted[(sorted.length - 1) / 2] ?? Number.NaN;
-}
 
 type Signed = JsonObject & { proof: JsonObject[] };
 
@@ -125,41 +117,37 @@ describe("a record signed through a delegation chain", () => {
     return judged.ok ? delegatedTime(judged.value, principal, context) : undefined;
   };
 
-  test("stays close to the signatures it must check", async ({ bench }) => {
+  test("stays close to the signatures it must check", async () => {
     expect(chain).toHaveLength(8);
     expect(counts(whole)).toBe(at(100));
     expect(counts(named)).toBe(at(100));
     expect(evaluatePolicy(policy, content as never).ok).toBe(true);
-    const ratios = { whole: [] as number[], named: [] as number[], policy: [] as number[] };
     const [first] = chain;
-    for (let round = 1; round <= ROUNDS; round++) {
-      // What is timed is the checking of signatures: none is remembered from the call before.
-      const measure = async (name: string, run: () => unknown): Promise<number> =>
-        (
-          await bench(`${name} (round ${round})`, () => {
-            forgetVerifiedSignatures();
-            return run();
-          }).run()
-        ).latency.p50;
-      const one = await measure("judgeRecord: one delegation, one proof", () => judgeRecord(first));
-      ratios.whole.push(
-        (await measure("judgeRecord + delegatedTime: a chain of eight, given whole", () =>
-          counts(whole),
-        )) / one,
-      );
-      ratios.named.push(
-        (await measure("judgeRecord + delegatedTime: a chain of eight, named", () =>
-          counts(named),
-        )) / one,
-      );
-      ratios.policy.push(
-        (await measure("evaluatePolicy: five statements, one record", () =>
+    // What is timed is the checking of signatures: none is remembered from the call before.
+    const afresh =
+      (run: () => unknown): (() => unknown) =>
+      () => {
+        forgetVerifiedSignatures();
+        return run();
+      };
+    const measured = await ratiosOver(
+      afresh(() => judgeRecord(first)),
+      {
+        "judgeRecord + delegatedTime: a chain of eight, given whole": afresh(() => counts(whole)),
+        "judgeRecord + delegatedTime: a chain of eight, named": afresh(() => counts(named)),
+        "evaluatePolicy: five statements, one record": afresh(() =>
           evaluatePolicy(policy, content),
-        )) / one,
-      );
-    }
-    expect(middle(ratios.whole)).toBeLessThan(BUDGETS.chainGivenWhole);
-    expect(middle(ratios.named)).toBeLessThan(BUDGETS.chainNamed);
-    expect(middle(ratios.policy)).toBeLessThan(BUDGETS.policy);
+        ),
+      },
+    );
+    reportMeasured("@oip/delegation", "judgeRecord: one delegation, one proof", measured);
+    const { ratios } = measured;
+    expect(ratios["judgeRecord + delegatedTime: a chain of eight, given whole"]).toBeLessThan(
+      BUDGETS.chainGivenWhole,
+    );
+    expect(ratios["judgeRecord + delegatedTime: a chain of eight, named"]).toBeLessThan(
+      BUDGETS.chainNamed,
+    );
+    expect(ratios["evaluatePolicy: five statements, one record"]).toBeLessThan(BUDGETS.policy);
   });
 });

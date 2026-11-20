@@ -8,7 +8,9 @@
  *
  * The time is the caller's clock, and the arithmetic is in whole
  * nanoseconds: the same requests at the same times always get the same
- * answers.
+ * answers. The clock is the one the service tells the time by, which may be
+ * set back: a limiter then gives no client more than its allowance, and
+ * keeps none out for longer than an empty allowance takes to fill.
  */
 
 import type { Instant } from "@oip/core";
@@ -84,7 +86,15 @@ export class RateLimiter {
     if (!Number.isSafeInteger(cost) || cost < 1)
       throw new TypeError("a cost is a whole number, at least 1");
     const now = this.#clock.now();
-    const held = this.#clients.get(client);
+    let held = this.#clients.get(client);
+    // A request is taken only if its time stays within the allowance of now, so a clock that
+    // goes forward never finds a time further ahead than that. One that does was written
+    // before the clock was set back. The client then has nothing left and gains at the steady
+    // rate from now: it is not kept out for as long as the clock went back.
+    if (held !== undefined && held - now > this.#tolerance) {
+      held = now + this.#tolerance;
+      this.#clients.set(client, held);
+    }
     const from = held === undefined || held < now ? now : held;
     const next = from + this.#interval * BigInt(cost);
     if (next - now > this.#tolerance) {

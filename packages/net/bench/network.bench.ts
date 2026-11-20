@@ -26,6 +26,7 @@ import {
 import { judgeRecord, LogBook } from "@oip/identity";
 import type { JsonObject } from "@oip/testkit";
 import { at, intentBy, KeyMind, LATER, T, witness } from "@oip/testkit/minds";
+import { ratiosOver, reportMeasured } from "@oip/testkit/ratio";
 import { describe, expect, test } from "vitest";
 
 import {
@@ -42,14 +43,12 @@ import {
 } from "../src/index.ts";
 
 /**
- * Each budget is a ratio to judging one record with one proof, measured in
- * the same run. The figures in the comments are the middle ratios of three
- * quiet runs on the machine of ADR-0006. A budget is a third above its
- * figure where the work is a signature: the two times of a ratio are taken
- * seconds apart, and one run in four on that machine, while it did other
- * work, moved the ratio of the sealed packet from 2.4 to 3.2. What a budget
- * is there to catch is a second signature check, or a second agreement,
- * and that moves a ratio by 1.0.
+ * Each budget is a ratio to judging one record with one proof, measured
+ * turn about with it (ADR-0020). The figures in the comments are from quiet
+ * runs on the machine of ADR-0006. A budget is a third above its figure
+ * where the work is a signature. What a budget is there to catch is a
+ * second signature check, or a second agreement, and that moves a ratio by
+ * 1.0.
  */
 export const BUDGETS = {
   /**
@@ -82,15 +81,6 @@ export const BUDGETS = {
    */
   request: 1.3,
 } as const;
-
-/** How many times each ratio is measured. Odd, so that one of them is the middle. */
-const ROUNDS = 3;
-
-/** The middle of an odd number of values. */
-function middle(values: readonly number[]): number {
-  const sorted = values.toSorted((a, b) => a - b);
-  return sorted[(sorted.length - 1) / 2] ?? Number.NaN;
-}
 
 type Signed = JsonObject & { proof: JsonObject[] };
 
@@ -175,7 +165,7 @@ describe("the hot paths of the Mind Network", () => {
     headers: [["Accept", "application/oip+json"]],
   };
 
-  test("stay close to the signature each must check", async ({ bench }) => {
+  test("stay close to the signature each must check", async () => {
     const sealed = await sealPacket({
       packet: second,
       to: bob.address,
@@ -207,59 +197,43 @@ describe("the hot paths of the Mind Network", () => {
     expect(
       verifyRequest(request, { now: at(110), view: book, nonces: new RequestNonces() }).ok,
     ).toBe(true);
-    const ratios = {
-      receive: [] as number[],
-      take: [] as number[],
-      open: [] as number[],
-      feed: [] as number[],
-      request: [] as number[],
-    };
-    for (let round = 1; round <= ROUNDS; round++) {
-      // What is timed is the checking of signatures: none is remembered from the call before.
-      const measure = async (name: string, run: () => unknown): Promise<number> =>
-        (
-          await bench(`${name} (round ${round})`, () => {
-            forgetVerifiedSignatures();
-            return run();
-          }).run()
-        ).latency.p50;
-      const one = await measure("judgeRecord: one packet, one proof", () => judgeRecord(first));
-      ratios.receive.push(
-        (await measure("receivePacket: one packet, one proof", () =>
-          receivePacket(first, receiver),
-        )) / one,
-      );
-      ratios.take.push(
-        (await measure("Sessions.take: two packets of a chain, for each", () => {
+    // What is timed is the checking of signatures: none is remembered from the call before.
+    const afresh =
+      (run: () => unknown): (() => unknown) =>
+      () => {
+        forgetVerifiedSignatures();
+        return run();
+      };
+    const measured = await ratiosOver(
+      afresh(() => judgeRecord(first)),
+      {
+        "receivePacket: one packet, one proof": afresh(() => receivePacket(first, receiver)),
+        "Sessions.take: two packets of a chain": afresh(() => {
           const sessions = new Sessions(bob.address);
           sessions.take(arrived.value);
           sessions.take(next.value);
-        })) /
-          2 /
-          one,
-      );
-      ratios.open.push(
-        (await measure("receiveSealed: open and judge one packet", () =>
+        }),
+        "receiveSealed: open and judge one packet": afresh(() =>
           receiveSealed(sealed.value, sealedReceiver),
-        )) / one,
-      );
-      ratios.feed.push(
-        (await measure(`verifyFeed: ${FEED} entries, for each`, () =>
+        ),
+        [`verifyFeed: ${String(FEED)} entries`]: afresh(() =>
           verifyFeed(entries, ada.address, book),
-        )) /
-          FEED /
-          one,
-      );
-      ratios.request.push(
-        (await measure("verifyRequest: one signed request", () =>
+        ),
+        "verifyRequest: one signed request": afresh(() =>
           verifyRequest(request, { now: at(110), view: book, nonces: new RequestNonces() }),
-        )) / one,
-      );
-    }
-    expect(middle(ratios.receive), "receive").toBeLessThan(BUDGETS.receive);
-    expect(middle(ratios.take), "take").toBeLessThan(BUDGETS.take);
-    expect(middle(ratios.open), "open").toBeLessThan(BUDGETS.open);
-    expect(middle(ratios.feed), "feed").toBeLessThan(BUDGETS.feedPerEntry);
-    expect(middle(ratios.request), "request").toBeLessThan(BUDGETS.request);
+        ),
+      },
+      // The feed takes a tenth of a second: a few seconds more give it enough turns.
+      { budgetMs: 4000 },
+    );
+    reportMeasured("@oip/net", "judgeRecord: one packet, one proof", measured);
+    const ratio = (name: string): number => measured.ratios[name] ?? Number.NaN;
+    expect(ratio("receivePacket: one packet, one proof"), "receive").toBeLessThan(BUDGETS.receive);
+    expect(ratio("Sessions.take: two packets of a chain") / 2, "take").toBeLessThan(BUDGETS.take);
+    expect(ratio("receiveSealed: open and judge one packet"), "open").toBeLessThan(BUDGETS.open);
+    expect(ratio(`verifyFeed: ${String(FEED)} entries`) / FEED, "feed").toBeLessThan(
+      BUDGETS.feedPerEntry,
+    );
+    expect(ratio("verifyRequest: one signed request"), "request").toBeLessThan(BUDGETS.request);
   });
 });

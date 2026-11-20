@@ -22,3 +22,21 @@ it(`${clause("L1 11.1")} rejects a delegation to its own author`, () => {
 ## Reading the vectors
 
 `readVectors()` returns `spec/test-vectors/vectors.json`, and `positiveVectorRecords()` every record in its positive part. Packages below `@oip/conformance` use these for samples. The typed loader and the runners are in [`@oip/conformance`](../conformance).
+
+## Measuring a ratio
+
+A benchmark that compares two pieces of work measures them turn about, with `ratiosOver` of `@oip/testkit/ratio`, so that what else the machine does touches both alike ([ADR-0020](../../docs/adr/0020-ratios-turn-about.md)):
+
+```ts
+import { ratiosOver, reportMeasured } from "@oip/testkit/ratio";
+
+const measured = await ratiosOver(() => checkOneSignature(), {
+  "a packet received": () => receive(packet),
+});
+reportMeasured("@oip/net", "one signature", measured);
+expect(measured.ratios["a packet received"]).toBeLessThan(1.3);
+```
+
+- `ratios` has, for each piece of work, the middle of its time over the reference's, turn by turn.
+- `fastest` has the fastest sample of each, in milliseconds: what a ceiling in milliseconds is compared with.
+- `reportMeasured` writes the figures to the output of the run.

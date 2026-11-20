@@ -16,6 +16,7 @@
 
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { positiveVectorRecords } from "@oip/testkit";
+import { ratiosOver, reportMeasured } from "@oip/testkit/ratio";
 import { describe, expect, test } from "vitest";
 
 import {
@@ -42,12 +43,11 @@ import {
  * fastest sample is the steadiest measure of what the code costs, and a
  * regression moves it as surely as it moves the median.
  *
- * A ratio is of two medians measured one after the other, taken in several
- * rounds, and the middle ratio is compared. Other work on the machine while
- * one side is measured moves that round's ratio, up or down. Where it touches
- * one round of the three, the middle ratio stays where it was. Where it
- * touches two the same way, the middle moves with them: the check can then
- * fail a good build or pass a bad one, and a second run tells.
+ * A ratio is measured turn about (ADR-0020): one sample of each side, then
+ * one of each again, and the middle of the ratios of all the turns is
+ * compared. A shared machine slows for seconds at a time, and two sides
+ * measured one after the other meet different weather. The two sides of a
+ * turn run within milliseconds of each other, and meet the same.
  */
 export const BUDGETS = {
   /** Verify a record with two proofs, read from text. */
@@ -123,15 +123,6 @@ const signature = signer.sign(message);
 const selfMethod = `did:key:${signer.publicKey}#${signer.publicKey}`;
 let fresh = 0;
 
-/** How many times each ratio is measured. Odd, so that one of them is the middle. */
-const ROUNDS = 3;
-
-/** The middle of an odd number of values. */
-function middle(values: readonly number[]): number {
-  const sorted = values.toSorted((a, b) => a - b);
-  return sorted[(sorted.length - 1) / 2] ?? Number.NaN;
-}
-
 describe("the budgets of BUILD.md 3.8", () => {
   test("verify a record with two proofs, from text", async ({ bench }) => {
     expect((commitment["proof"] as unknown[]).length).toBe(2);
@@ -167,38 +158,28 @@ describe("the budgets of BUILD.md 3.8", () => {
     expect(result.latency.p50).toBeLessThan(BUDGETS.verifiedBefore);
   });
 
-  test("stay close to the bare library: the regression check that does not depend on the machine", async ({
-    bench,
-  }) => {
+  test("stay close to the bare library: the regression check that does not depend on the machine", async () => {
     // core 4.4 adds one scalar multiplication, the order check of R, to the library's two.
     // The other two ratios are the two budgets: what this package adds to the signatures.
-    const ratios = { overLibrary: [] as number[], record: [] as number[], event: [] as number[] };
-    for (let round = 1; round <= ROUNDS; round++) {
-      const measure = async (name: string, run: () => unknown): Promise<number> =>
-        (await bench(`${name} (round ${round})`, run).run()).latency.p50;
-      const bare = await measure("the library alone: one signature, strict mode", () =>
-        libraryVerify(signature, message, publicKey, { zip215: false }),
-      );
-      ratios.overLibrary.push(
-        (await measure(
-          "verifyEd25519: one signature, public key seen before",
-          afresh(() => verify(signature, message, publicKey)),
-        )) / bare,
-      );
-      ratios.record.push(
-        (await measure("parseRecord + verifyProofs: two proofs, for the ratio", () =>
-          receive(commitmentText),
-        )) / bare,
-      );
-      ratios.event.push(
-        (await measure("parseRecord + verifyProofs: one event, for the ratio", () =>
-          receive(genesisText),
-        )) / bare,
-      );
-    }
-    expect(middle(ratios.overLibrary)).toBeLessThan(BUDGETS.overLibrary);
-    expect(middle(ratios.record)).toBeLessThan(BUDGETS.recordOverLibrary);
-    expect(middle(ratios.event)).toBeLessThan(BUDGETS.eventOverLibrary);
+    const measured = await ratiosOver(
+      () => libraryVerify(signature, message, publicKey, { zip215: false }),
+      {
+        "verifyEd25519: one signature, public key seen before": afresh(() =>
+          verify(signature, message, publicKey),
+        ),
+        "parseRecord + verifyProofs: two proofs": () => receive(commitmentText),
+        "parseRecord + verifyProofs: one event": () => receive(genesisText),
+      },
+    );
+    reportMeasured("@oip/core", "the library alone: one signature, strict mode", measured);
+    const { ratios } = measured;
+    expect(ratios["verifyEd25519: one signature, public key seen before"]).toBeLessThan(
+      BUDGETS.overLibrary,
+    );
+    expect(ratios["parseRecord + verifyProofs: two proofs"]).toBeLessThan(
+      BUDGETS.recordOverLibrary,
+    );
+    expect(ratios["parseRecord + verifyProofs: one event"]).toBeLessThan(BUDGETS.eventOverLibrary);
   });
 });
 

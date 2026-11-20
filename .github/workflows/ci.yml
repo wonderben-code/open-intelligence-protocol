@@ -168,8 +168,8 @@ jobs:
       - name: The scenario of the papers runs in a page
         run: pnpm exec vitest run --project @oip/client test/browser.real.test.ts --reporter=default --reporter=json --outputFile.json=browser.json
       # A run in which the tests were skipped would be green too.
-      - name: All three tests ran
-        run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('browser.json', 'utf8')); if (numPassedTests !== 3) { console.error(numPassedTests + ' tests passed, and 3 were to'); process.exit(1); }"
+      - name: All four tests ran
+        run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('browser.json', 'utf8')); if (numPassedTests !== 4) { console.error(numPassedTests + ' tests passed, and 4 were to'); process.exit(1); }"
 
   test:
     name: Test (Node ${{ matrix.node }})

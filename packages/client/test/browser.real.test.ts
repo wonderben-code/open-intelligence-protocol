@@ -11,7 +11,7 @@
  * a socket.
  *
  * What it shows: that the client and the keystore run in a browser as they
- * are, with its `fetch`, its randomness, its clock and its IndexedDB, and
+ * are, with its `fetch`, its `WebSocket`, its randomness, its clock and its IndexedDB, and
  * need nothing of Node.js; and that the services let a page of another
  * origin read what they answer.
  *
@@ -178,6 +178,25 @@ describe.skipIf(CHROMIUM === undefined)("the client in a browser", () => {
         await route.abort("connectionrefused");
       }
     });
+    // A WebSocket the page opens is the browser's own. Its other end is the host's binding.
+    await page.routeWebSocket(/^wss:/u, (socket) => {
+      const inner = world.socket(socket.url(), "oip.v1");
+      inner.onmessage = ({ data }) => {
+        socket.send(String(data));
+      };
+      inner.onclose = ({ code, reason }) => {
+        void socket.close({
+          ...(code === undefined ? {} : { code }),
+          ...(reason === undefined ? {} : { reason }),
+        });
+      };
+      socket.onMessage((message) => {
+        inner.send(String(message));
+      });
+      socket.onClose(() => {
+        inner.close();
+      });
+    });
     await page.goto(`${APP}/`);
   });
   afterEach(async () => {
@@ -225,6 +244,26 @@ describe.skipIf(CHROMIUM === undefined)("the client in a browser", () => {
     ]);
     expect(asked.some((request) => request === `POST ${X}/oip/v1/query`)).toBe(true);
     expect(await withoutLeave()).toStrictEqual([]);
+  }, 120_000);
+
+  it(`${clause("L1 13.4")} listens at its host over the browser's own WebSocket, and hears what is sent`, async () => {
+    const output = await page.evaluate(([resolvers, home]) => oip.listen(resolvers, home), [
+      [A],
+      HOME,
+    ] as const);
+    expect(output).toStrictEqual([
+      "the socket is connecting",
+      "the socket is open",
+      "Bob hears from Ada: Sent while you were away.",
+      "Bob hears from Ada: Sent while you listen.",
+      "Bob heard 2 packets, and listens no more",
+    ]);
+    // The socket was the page's, and what it sent was signed there: a Hello, and its own Acks.
+    expect(world.sockets).toHaveLength(1);
+    const said = (world.sockets[0]?.fromClient ?? []).map(
+      (text) => (JSON.parse(text) as { type: string }).type,
+    );
+    expect(said).toStrictEqual(["Hello", "Ack", "Ack"]);
   }, 120_000);
 
   it(`${clause("L1 3.11")} keeps a mind's keys in the browser's own storage, sealed, and opens the mind from it again`, async () => {

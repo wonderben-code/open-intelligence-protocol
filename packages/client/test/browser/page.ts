@@ -12,6 +12,7 @@ import { indexedDbStorage, Keystore, memoryStorage, passphrase } from "@oip/keys
 
 import { example as deal } from "../../examples/deal.ts";
 import { example as find } from "../../examples/find.ts";
+import { example as listen } from "../../examples/listen.ts";
 
 /** A passphrase with the least work factor that is accepted: the test is of the browser, not of scrypt. */
 const lock = () => passphrase("correct horse battery staple", { n: 2 ** 14 });
@@ -20,6 +21,10 @@ const page = {
   /** The scenario of the papers. */
   deal: (resolvers: readonly string[], home: string): Promise<string[]> =>
     deal(resolvers, home, lock()),
+
+  /** A mind that listens at its host, over the browser's own WebSocket. */
+  listen: (resolvers: readonly string[], home: string): Promise<string[]> =>
+    listen(resolvers, { ada: home, bob: home }, lock()),
 
   /** A mind that is listed, and found. */
   find: (services: Parameters<typeof find>[0]): Promise<string[]> => find(services, lock()),

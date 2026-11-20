@@ -48,7 +48,7 @@ export {
   type NotFound,
   type Ranking,
 } from "./find.ts";
-export { type Acting, carried, type Fields, type Grant } from "./dealings.ts";
+export { type Acting, carried, type Fields, type Grant, type Sightings } from "./dealings.ts";
 export {
   DEFAULT_EXPIRES_IN,
   type Delivery,
@@ -59,16 +59,30 @@ export {
   MAX_QUERY_EXPIRES_IN,
   type Message,
   type Received,
+  type Retried,
   type Sent,
+  type SessionEvent,
 } from "./messages.ts";
 export {
+  type CollectiveChanges,
   type ControlOptions,
   type IdentityChanges,
   type KeyEntry,
+  type MemberOptions,
   Mind,
   type MindOptions,
+  type NewCollective,
   type NewMind,
 } from "./mind.ts";
+export { type ChainView, type SessionView } from "./sessions.ts";
+export {
+  type Listening,
+  type ListenOptions,
+  type OpenSocket,
+  type SocketLike,
+  type SocketState,
+} from "./socket.ts";
+export { MAX_QUEUED, type Queued } from "./outbox.ts";
 export {
   DEFAULT_TTL,
   type Endpoint,

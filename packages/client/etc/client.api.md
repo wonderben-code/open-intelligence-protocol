@@ -9,6 +9,8 @@ import { AgreementKeys } from '@oip/keystore';
 import type { AuthorityItem } from '@oip/schema';
 import { Capability } from '@oip/schema';
 import { CapabilityQuery } from '@oip/schema';
+import { ChainEquivocation } from '@oip/net';
+import { Collective } from '@oip/schema';
 import type { Commitment } from '@oip/schema';
 import { Delegation } from '@oip/schema';
 import { DidResolution } from '@oip/identity';
@@ -16,6 +18,7 @@ import type { Entry } from '@oip/schema';
 import { FirstSeen } from '@oip/identity';
 import { HeldLocation } from '@oip/net';
 import { HeldParticipant } from '@oip/net';
+import type { IdentityEvent } from '@oip/schema';
 import { IdentityState } from '@oip/identity';
 import { IdentityView } from '@oip/identity';
 import { Instant } from '@oip/core';
@@ -35,14 +38,17 @@ import type { Proof } from '@oip/schema';
 import { Randomness } from '@oip/keystore';
 import type { Receipt } from '@oip/schema';
 import type { Revocation } from '@oip/schema';
+import { Session } from '@oip/schema';
 import type { Status } from '@oip/web';
+import { Unsigned } from '@oip/identity';
 import { VerifiedFeed } from '@oip/net';
 import { VerifiedLog } from '@oip/identity';
 
 // @public
 export interface Acting {
     readonly as?: "records" | "references";
-    readonly chain: readonly Delegation[];
+    readonly chain?: readonly Delegation[];
+    readonly charter?: Collective;
 }
 
 // @public
@@ -91,8 +97,24 @@ export function carried(record: object): {
 };
 
 // @public
+export interface ChainView {
+    readonly equivocation?: ChainEquivocation;
+    readonly instance?: string;
+    readonly mind: string;
+    readonly received: number;
+}
+
+// @public
 export interface Clock {
     now(): Instant;
+}
+
+// @public
+export interface CollectiveChanges {
+    readonly alsoKnownAs?: readonly string[];
+    readonly homes?: readonly string[];
+    readonly members?: readonly string[];
+    readonly threshold?: number;
 }
 
 // @public
@@ -123,6 +145,7 @@ export interface Delivery {
     readonly ack?: Ack;
     readonly endpoint?: string;
     readonly failure?: string;
+    readonly queued?: true;
     readonly sealed: boolean;
     readonly stored: boolean;
     readonly to: string;
@@ -209,6 +232,8 @@ export interface Inbox {
         readonly clause: string;
         readonly message: string;
     }[];
+    readonly retried: readonly Retried[];
+    readonly sessions: readonly SessionEvent[];
     readonly sources: readonly MailboxAnswer[];
     readonly waiting: number;
 }
@@ -229,6 +254,20 @@ export interface KeyEntry {
 
 // @public
 export type Listed = Participant | Offer | Intent;
+
+// @public
+export interface Listening {
+    close(): Promise<void>;
+    readonly closed: Promise<void>;
+}
+
+// @public
+export interface ListenOptions {
+    readonly changed?: (state: SocketState) => void;
+    readonly maxRetryMs?: number;
+    readonly received: (inbox: Inbox) => void | Promise<void>;
+    readonly retryMs?: number;
+}
 
 // @public
 export interface LocationFields {
@@ -282,7 +321,15 @@ export const MAX_MAILBOX_ITEMS = 1000;
 export const MAX_QUERY_EXPIRES_IN = 3600;
 
 // @public
+export const MAX_QUEUED = 1000;
+
+// @public
 export const MAX_RESULTS = 100;
+
+// @public
+export interface MemberOptions {
+    readonly invocation: Lock;
+}
 
 // @public
 export interface Message {
@@ -295,8 +342,10 @@ export interface Message {
         readonly mind: string;
         readonly chain: readonly Delegation[];
     };
+    readonly queue?: boolean;
     readonly replyTo?: string;
     readonly seal?: boolean;
+    readonly session?: string;
     readonly thread?: string;
     readonly to: readonly string[] | Exclude<Packet["to"], readonly string[]>;
     readonly verb: string;
@@ -304,12 +353,15 @@ export interface Message {
 
 // @public
 export class Mind {
+    abandon(packet: string): Promise<boolean>;
     addKey(options: ControlOptions & {
         readonly label?: string;
     }): Promise<string>;
     get address(): string;
     get agreement(): AgreementKeys;
     bringHomes(): Promise<readonly Publication[]>;
+    changeCollective(collective: string, changes: CollectiveChanges, options: MemberOptions): Promise<IdentityEvent>;
+    charter(collective: string, fields: Omit<Fields<Collective>, "author">): Promise<Collective>;
     close(): void;
     commitment(fields: Fields<Commitment>, acting?: Acting): Promise<Commitment>;
     cosign<T extends object>(record: T, acting?: Acting): Promise<T>;
@@ -320,16 +372,25 @@ export class Mind {
         readonly terms?: JsonObject;
         readonly changes?: IdentityChanges;
     }): Promise<IdentityState>;
-    hold(record: unknown): string;
+    foundCollective(fields: NewCollective, options: MemberOptions): Promise<IdentityEvent>;
+    hold(record: unknown, seen?: Sightings): string;
     intent(fields: Fields<Intent>, acting?: Acting): Promise<Intent>;
+    leaveSession(session: string): Promise<boolean>;
+    listen(options: ListenOptions): Listening;
     get lookup(): Lookup;
     moveHomes(homes: readonly string[], options: ControlOptions & {
         readonly revoke?: readonly string[];
     }): Promise<IdentityState>;
     offer(fields: Fields<Offer>, acting?: Acting): Promise<Offer>;
     static open(options: MindOptions): Promise<Mind>;
+    openSession(others: readonly string[]): Promise<{
+        id: string;
+        session: Session;
+    }>;
+    outbox(): Promise<Queued[]>;
     get publications(): readonly Publication[];
     publishLocation(fields?: LocationFields): Promise<Location>;
+    publishLog(events: readonly object[]): Promise<Resolved>;
     publishProfile(fields: ProfileFields): Promise<Participant>;
     publishRecord(record: object): Promise<Entry>;
     receipt(fields: Fields<Receipt>, acting?: Acting): Promise<Receipt>;
@@ -337,18 +398,23 @@ export class Mind {
     records(): OipRecord[];
     refresh(): Promise<IdentityState>;
     get resolved(): Resolved;
+    resume(session: string): Promise<Sent>;
     retire(options: ControlOptions & {
         readonly successor?: string;
         readonly reason?: string;
     }): Promise<IdentityState>;
+    retry(): Promise<Retried[]>;
     revoke(delegation: Delegation): Promise<Revocation>;
     revokeKey(key: string, options: ControlOptions & {
         readonly compromisedSince?: string;
     }): Promise<IdentityState>;
     send(message: Message): Promise<Sent>;
+    sessions(): Promise<SessionView[]>;
+    sightings(id: string): Sightings;
     sign<T extends object>(record: T, authority?: readonly AuthorityItem[]): Promise<T & {
         proof: Proof[];
     }>;
+    signEvent(event: IdentityEvent | Unsigned<IdentityEvent>, options: MemberOptions): Promise<IdentityEvent>;
     signingKey(): string;
     get state(): IdentityState;
     statusOf(record: unknown): Promise<Status>;
@@ -358,10 +424,21 @@ export class Mind {
 
 // @public
 export interface MindOptions extends LookupOptions {
+    readonly instance?: string;
     readonly keystore: Keystore;
     readonly lock: Lock;
     readonly memory?: KeyStorage;
     readonly randomness?: Randomness;
+    readonly sleep?: (ms: number) => Promise<void>;
+    readonly webSocket?: OpenSocket;
+}
+
+// @public
+export interface NewCollective {
+    readonly alsoKnownAs?: readonly string[];
+    readonly homes?: readonly string[];
+    readonly members: readonly string[];
+    readonly threshold: number;
 }
 
 // @public
@@ -371,6 +448,10 @@ export interface NewMind {
     readonly homes?: readonly string[];
     readonly invocation?: Lock;
     readonly kind: string;
+    readonly parents?: readonly {
+        readonly mind: string;
+        readonly at: string;
+    }[];
 }
 
 // @public
@@ -380,6 +461,9 @@ export interface NotFound {
     readonly mind: string;
     readonly record: string;
 }
+
+// @public
+export type OpenSocket = (url: string, protocol: string) => SocketLike;
 
 // @public
 export interface ProfileFields {
@@ -398,6 +482,19 @@ export interface Publication {
     readonly origin: string;
     readonly service: "resolver" | "home" | "indexer";
     readonly taken: boolean;
+}
+
+// @public
+export interface Queued {
+    readonly id: string;
+    readonly next: Instant;
+    readonly packet: Packet;
+    readonly sealed: boolean;
+    readonly to: readonly {
+        readonly mind: string;
+        readonly failure: string;
+    }[];
+    readonly tries: number;
 }
 
 // @public
@@ -454,11 +551,96 @@ export interface ResolverAnswer {
 }
 
 // @public
+export interface Retried {
+    readonly deliveries: readonly Delivery[];
+    readonly expired: boolean;
+    readonly id: string;
+    readonly waiting: number;
+}
+
+// @public
 export interface Sent {
     readonly deliveries: readonly Delivery[];
     readonly id: string;
     readonly packet: Packet;
 }
+
+// @public
+export type SessionEvent = {
+    readonly kind: "gap";
+    readonly session: string;
+    readonly mind: string;
+    readonly instance?: string;
+    readonly next: number;
+} | {
+    readonly kind: "asked";
+    readonly session: string;
+    readonly sent: Sent;
+} | {
+    readonly kind: "sent-again";
+    readonly session: string;
+    readonly to: string;
+    readonly from: number;
+    readonly deliveries: readonly Delivery[];
+} | {
+    readonly kind: "invalid-resume";
+    readonly session: string;
+    readonly mind: string;
+    readonly packet: string;
+} | {
+    readonly kind: "failed";
+    readonly session: string;
+    readonly doing: "asked" | "sent-again";
+    readonly failure: string;
+} | ({
+    readonly session: string;
+    readonly mind: string;
+    readonly instance?: string;
+} & ChainEquivocation);
+
+// @public
+export interface SessionView {
+    readonly chains: readonly ChainView[];
+    readonly id: string;
+    readonly sent: number;
+    readonly session: Session;
+}
+
+// @public
+export type Sightings = Readonly<Record<string, Instant>>;
+
+// @public
+export interface SocketLike {
+    close(code?: number, reason?: string): void;
+    onclose: ((event: {
+        readonly code?: number;
+        readonly reason?: string;
+    }) => void) | null;
+    onerror: ((event: unknown) => void) | null;
+    onmessage: ((event: {
+        readonly data: unknown;
+    }) => void) | null;
+    onopen: ((event: unknown) => void) | null;
+    send(data: string): void;
+}
+
+// @public
+export type SocketState = {
+    readonly state: "connecting";
+    readonly url: string;
+} | {
+    readonly state: "open";
+    readonly url: string;
+} | {
+    readonly state: "closed";
+    readonly url: string;
+    readonly code?: number;
+    readonly reason?: string;
+    readonly retryIn: number;
+} | {
+    readonly state: "nowhere";
+    readonly retryIn: number;
+};
 
 // @public
 export const systemClock: Clock;

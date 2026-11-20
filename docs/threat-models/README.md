@@ -7,6 +7,8 @@ One for each service and each tool (BUILD.md 3.7). Each says what the thing prot
 | [resolver.md](resolver.md) | `@oip/resolver`: publication, resolution, the stream, duplicity evidence                   |
 | [host.md](host.md)         | `@oip/host`: well-known resources, the inbox, the mailbox, sockets, asking resolvers       |
 | [indexer.md](indexer.md)   | `@oip/indexer`: submission, capability queries, signed results, brokered delivery, its key |
+| [keystore.md](keystore.md) | `@oip/keystore`: the roles of a mind's keys, their locks, storage, backup and the keychain |
+| [client.md](client.md)     | `@oip/client`: resolving, publishing, finding, packets, dealing, and the client's memory   |
 
 ## How they are written
 

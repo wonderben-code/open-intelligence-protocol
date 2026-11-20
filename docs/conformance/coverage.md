@@ -184,7 +184,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 3.1 |  | M2 | 4 | tested | An identity log is an ordered array of events. The first is a `Genesis`; each later event is an… |
 | L1 3.2 | MUST | M2 | 7 | tested | Common fields of later events. Every event after the genesis MUST contain `mind` (the address),… |
 | L1 3.3 |  | M2 | 1 | tested | Version identifiers. The version identifier of an event is `<seq>-<contentId>`, with `seq` = 0… |
-| L1 3.4 | MUST | M2 | 21 | tested | Controllers. A mind is either key-controlled or member-controlled, fixed at genesis: every late… |
+| L1 3.4 | MUST | M2 | 22 | tested | Controllers. A mind is either key-controlled or member-controlled, fixed at genesis: every late… |
 | L1 3.5 | MUST | M2 | 11 | tested | Key entries. Three key sets appear at the top level of events, each as an array of objects `{ "… |
 | L1 3.6 | MUST | M2 | 17 | tested | `Genesis`. \| Member \| Required \| Value \| \|---\|---\|---\| \| `oip`, `type`, `created`, `proof` \| ye… |
 | L1 3.7 | MUST | M2 | 16 | tested | `Update`. In addition to the common fields of 3.2: `controller` (REQUIRED for key-controlled mi… |
@@ -213,7 +213,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 6.4 |  | M2 | 11 | tested | Member proofs on identity events. A proof `p` by member `M` on another mind's identity event `e… |
 | L1 7.1 |  | M2 | 120 | tested | Two events with different content IDs in logs with the same genesis, at the same `seq`, each va… |
 | L1 7.2 | MUST | M5 | 12 | tested | Resolvers MUST retain the first valid event they saw at each position of each log, MUST record… |
-| L1 7.3 | MUST | M2 | 35 | tested | Resolution. A verifier MUST NOT choose between conflicting branches by their length or by which… |
+| L1 7.3 | MUST | M2 | 36 | tested | Resolution. A verifier MUST NOT choose between conflicting branches by their length or by which… |
 | L1 7.4 | MUST | M6 | 17 | tested | Protecting the log. Implementations MUST destroy a control key's private part once the event it… |
 | L1 8.1 |  | M2 | 4 | tested | A fork is a new mind whose genesis lists a parent in `parents`, with `at` naming the version of… |
 | L1 8.2 |  | M2 | 6 | tested | Lineage is acknowledged when the child's `at` names a version of the parent and either the pare… |
@@ -221,10 +221,10 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 8.4 |  | M2 | 1 | tested | A fork does not inherit its parent's operational keys, delegations, commitments or sessions. |
 | L1 8.5 |  | M2 | 1 | tested | Merges are reserved (Section 3.9). |
 | L1 9.1 |  | M2 | 8 | tested | A collective is a mind with a member controller. |
-| L1 9.2 | MUST | M2 | 3 | tested | Genesis consent. Every founding member MUST sign the genesis with one of its own invocation key… |
-| L1 9.3 |  | M2 | 3 | tested | Changes. Later identity events require the threshold of current members, plus every newly added… |
+| L1 9.2 | MUST | M2 | 8 | tested | Genesis consent. Every founding member MUST sign the genesis with one of its own invocation key… |
+| L1 9.3 |  | M2 | 4 | tested | Changes. Later identity events require the threshold of current members, plus every newly added… |
 | L1 9.4 |  | M2 | 8 | tested | Members sign with their own keys. A member signs a collective's identity events with its own in… |
-| L1 9.5 | MAY | M2 | 23 | tested | Acting as one. The state of a collective at time `T` is its identity state after the last event… |
+| L1 9.5 | MAY | M2 | 25 | tested | Acting as one. The state of a collective at time `T` is its identity state after the last event… |
 | L1 9.6 | MUST | M5 | 9 | tested | Keeping a collective verifiable. Unlike control keys, which sign once and are destroyed, member… |
 | L1 10.1 |  | M4 | 22 | tested | A mind's public feed is a sequence of `Entry` records: \| Member \| Required \| Value \| \|---\|---\|-… |
 | L1 10.2 | MUST | M5 | 8 | tested | A feed MAY list records authored by other minds, such as Commitments the mind is a party to, th… |
@@ -252,7 +252,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 13.6 |  | M5 | 2 | tested | Further bindings (DIDComm, libp2p, iroh, NATS, MQTT) are reserved for later revisions. Every bi… |
 | L1 14.1 |  | M4 | 9 | tested | A `Session` record is unsigned: `{ "oip": "1", "type": "Session", "participants": [addresses, s… |
 | L1 14.2 | MUST | M4 | 4 | tested | The first packet of each sending chain (14.3) in a session MUST include the `Session` record in… |
-| L1 14.3 | MUST | M4 | 16 | tested | Each sending chain in a session is identified by the sender's address and its `instance` (absen… |
+| L1 14.3 | MUST | M4 | 23 | tested | Each sending chain in a session is identified by the sender's address and its `instance` (absen… |
 | L1 14.4 |  | M4 | 6 | tested | `Resume` (the content of a packet with verb `resume`): `{ "oip": "1", "type": "Resume", "sessio… |
 | L1 14.5 | MUST | M4 | 8 | tested | `Branch` (the content of a packet with verb `branch`): `{ "oip": "1", "type": "Branch", "parent… |
 | L1 15.1 | MUST | M4 | 23 | tested | A `Location` record: \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The mind \|… |
@@ -292,8 +292,8 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L2 5.3 | SHOULD | M3 | 3 | tested | Additional signatures are added by appending proofs. Adding proofs does not change the content… |
 | L2 5.4 | SHOULD | M3 | 2 | tested | Parties bound through a delegate. A party whose proof on a Commitment counts only through a del… |
 | L2 6.1 | MUST | M3 | 10 | tested | `Receipt`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `about` \| yes \| `record-ref` of the re… |
-| L2 6.2 | MUST | M3 | 15 | tested | `Collective` (a charter): \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The co… |
-| L2 7.1 | SHOULD | M3 | 23 | tested | A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an… |
+| L2 6.2 | MUST | M3 | 16 | tested | `Collective` (a charter): \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The co… |
+| L2 7.1 | SHOULD | M3 | 26 | tested | A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an… |
 | L2 7.2 |  | M3 | 1 | tested | Delegable types are `Intent`, `Offer`, `Commitment` and `Receipt`. Every other signed record (i… |
 | L2 7.3 |  | M3 | 4 | tested | A Commitment is accepted when it counts for its `author`, its author is a party or signs for on… |
 | L2 8 | MUST | M3 | 10 | tested | Status is computed from the records known to the verifier and the time of computation, and so c… |

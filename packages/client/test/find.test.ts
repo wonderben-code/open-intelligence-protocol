@@ -491,6 +491,55 @@ describe(`${clause("L1 18.4")} Offers and Intents`, () => {
     ).toStrictEqual(["invalid-record"]);
   });
 
+  it(`${clause("L1 18.1")} are submitted to the indexers the client names, once a home serves them`, async () => {
+    const ada = await listed("Ada", "Translation", ["lang:pt"], [X]);
+    world.clock.at = at(200);
+    const offer = await ada.mind.offer({
+      provides: "A lease translated into Portuguese.",
+      terms: { summary: "Within two days." },
+    });
+    await ada.mind.publishRecord(offer);
+    expect(ada.mind.publications).toStrictEqual([
+      { service: "home", origin: HOME, taken: true },
+      { service: "indexer", origin: X, taken: true },
+    ]);
+    const intent = await ada.mind.intent({ want: "A hall for the spring meeting." });
+    await ada.mind.publishRecord(intent);
+    world.clock.at = at(300);
+    const found = async (kind: "Offer" | "Intent"): Promise<string[]> =>
+      (await seeker([X]).find({ kinds: [kind] })).found.map(({ id }) => id);
+    expect(await found("Offer")).toStrictEqual([contentId(offer)]);
+    expect(await found("Intent")).toStrictEqual([contentId(intent)]);
+    // What is not the mind's to list goes on its feed, and no indexer is told of it: a record
+    // of another type, and another mind's Offer.
+    const mandate = await ada.mind.delegate({
+      delegate: iy.address,
+      command: "/oip/sign/Offer",
+      expires: T(5000),
+    });
+    await ada.mind.publishRecord(mandate);
+    expect(ada.mind.publications).toStrictEqual([{ service: "home", origin: HOME, taken: true }]);
+    const bo = await listed("Bo", "Catering", [], []);
+    const theirs = await bo.mind.offer({ provides: "Lunch.", terms: { summary: "For forty." } });
+    await ada.mind.publishRecord(theirs);
+    expect(ada.mind.publications).toStrictEqual([{ service: "home", origin: HOME, taken: true }]);
+    expect(await found("Offer")).toStrictEqual([contentId(offer)]);
+    // An indexer that cannot be told changes nothing of the feed: the entry stands, and
+    // `publications` says which service did not take it.
+    const away = "https://indexer-away.example";
+    ada.mind.close();
+    const again = await Mind.open({ ...ada.options, indexers: [away] });
+    const second = await again.offer({ provides: "A deed.", terms: { summary: "In a week." } });
+    const entry = await again.publishRecord(second);
+    expect(entry.object).toBe(contentId(second));
+    expect(again.publications).toStrictEqual([
+      { service: "home", origin: HOME, taken: true },
+      { service: "indexer", origin: away, taken: false, failure: "unreachable" },
+    ]);
+    const { feed } = await seeker([X]).feed(ada.mind.address);
+    expect(feed.entries.at(-1)?.entry.object).toBe(contentId(second));
+  });
+
   it("are not returned where their author's key did not sign them, or once they have expired", async () => {
     const { mind, intent } = await asking({ expires: T(500) });
     const named = (record: OipRecord) => () => [

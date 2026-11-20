@@ -6,14 +6,15 @@ This file is the live status of the Open Intelligence Protocol project, so that 
 
 ## Where the build stands on this branch (20 November)
 
-This branch is `m5-servers`. It is stacked on `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
+This branch is `m6-client`. It is stacked on `m5-servers`, `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
 
 | Milestone | Branch | Built | `pnpm run ci` | Still owed before its pull request |
 |---|---|---|---|---|
 | M2. Identity | `m2-identity`, pushed | Yes | Green | The sixteenth review round (fifteen are done and fixed), the mutation score, the review record |
 | M3. Delegation and Layer 2 | `m3-delegation-web`, pushed | Yes | Green | Two more reviews, the mutation score, the review record. [OEP-0003](oeps/oep-0003-delegation-and-mind-web-clarifications.md) needs Eks |
 | M4. Network records and sealing | `m4-network`, pushed | Yes | Green | Two reviews, the mutation score, the review record |
-| M5. Servers | `m5-servers` | Yes, see below | Next | Reviews, the mutation score, the review record |
+| M5. Servers | `m5-servers`, pushed | Yes, see below | Green | Reviews, the mutation score, the review record |
+| M6. Client and keystore | `m6-client` | In part, see below | Green for what is built | The rest of the build list, then reviews, the mutation score, the review record |
 
 Reviews are made by fresh agents, which were not to be had between 19 and 21 November (a usage limit). The build went on with what does not need them.
 
@@ -34,7 +35,36 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
 - **Two gaps in the specification, which the conformance suite showed** ([OEP-0005](oeps/oep-0005-service-clarifications.md), items 4 and 13): what "no two events first seen at one time" asks of a resolver, and what media type a submission and a query have.
 - **A signed request was judged at two readings of the clock**, and failed on a clock that moves. Fixed in the host and the resolver.
 
-**For Eks, besides what is listed further down:** OEP-0002, OEP-0003, OEP-0004 and OEP-0005 each change normative text and wait for your word, as OEP-0001 does (E13). Nothing else in M2 to M5 needs you yet.
+**What M6 has so far:**
+
+- **`@oip/keystore`** ([ADR-0017](docs/adr/0017-the-keystore.md), [0018](docs/adr/0018-the-keystore-in-a-browser.md), [0019](docs/adr/0019-the-system-keychain.md); [threat model](docs/threat-models/keystore.md)): each role of a mind's keys sealed apart with scrypt and XChaCha20-Poly1305, a control key bound to one event and destroyed once that event is published, an encrypted backup, a directory, IndexedDB and the system keychain as storage.
+- **`@oip/client`** ([ADR-0021](docs/adr/0021-the-client.md), [threat model](docs/threat-models/client.md), [README](packages/client/README.md) with six examples that run as tests). A `Mind` can:
+  - be made and opened; rotate, add and revoke keys; fork and retire, each identity change in an order that survives a process that stops;
+  - publish its location, its profile and a feed, and move to other hosts with its feed (Layer 1, 15.4);
+  - resolve any mind with the witness rule of core 9.4 applied, read a feed, check aliases (5.3), and find minds through indexers with every record they name verified (18.4);
+  - send packets, sealed unless told otherwise, and read its mailbox; send to whoever a query finds, through a broker; send for another mind under a delegation;
+  - delegate, pass a delegation on and revoke one; make Intents, Offers, Commitments and Receipts, for itself or for the mind it acts for; co-sign; and say whether a record counts for a mind and what its status is.
+  - found a collective with other minds, change it, and sign for it: by the threshold of its members, or alone by a role of its charter;
+  - keep a packet that did not arrive, and try it again ([ADR-0025](docs/adr/0025-the-clients-outbox.md));
+  - listen at its host over a socket ([ADR-0024](docs/adr/0024-the-clients-socket.md)): what arrives is judged as a mailbox is, acknowledged over the socket, and a connection that ends is opened again;
+  - talk in a session ([ADR-0023](docs/adr/0023-sessions-in-the-client.md)): each packet has its place in the mind's chain before it leaves, what arrives is returned in order, a gap is asked about with a `Resume`, and a participant's `Resume` is answered with what it lacks.
+- **The scenario of the papers runs through the client** against the real resolver, host and indexer in one process (`packages/client/test/dealings.test.ts`, `examples/deal.ts`).
+- **It runs in a browser too** ([ADR-0022](docs/adr/0022-the-client-in-a-browser.md)): a page of Chromium runs the README's examples against the same services, with its keys sealed in IndexedDB, and the test checks that each service would have let a browser make every request the page made (`packages/client/test/browser.real.test.ts`, the `browser` job of CI).
+
+**Everything on M6's build list is built**, and every public method of `Mind` and of `Lookup` is called in a runnable example the README shows, which a test holds. The API report was read through and is frozen for 0.x: the reading found that closing a mind left its sockets open, which it no longer does. What remains before the milestone closes: the independent reviews and the mutation run.
+
+**What M6 found:**
+
+- **A mind could not publish its own retirement to a resolver that asks for signed requests**, nor the event that removes the key it signs with. The archive judged a mind's own request by the log in its bundle alone, where Layer 1, 17.3 also takes a key that is valid by the logs the resolver holds. Fixed in `@oip/server`, and 17.3 now says it in so many words ([OEP-0005](oeps/oep-0005-service-clarifications.md), item 5).
+- **A page could not list a mind at the indexer.** The indexer's answer to a browser's preflight did not allow the headers of a signed request, which submitting needs. Found by the run in a browser, and fixed in `@oip/indexer`.
+- **GitHub's CI had failed on every branch since M2, and never on the machine the code is written on.** Two tests place a call a chosen number of frames above the end of the call stack. They measured the stack with code the engine then compiled again at another frame size, and whether that happened depended on the machine. The testkit now asks the engine to leave that code as it is (`keepFramesOneSize`), and the tests give the same answers on Node.js 24, 26 and 27. A third test compared HTTP headers by prototype, which Node.js 27 changed. The fixes are on the `m2-identity` and `m5-servers` branches and merged upwards. The keychain job passed on macOS and Windows on its first run there.
+- **A packet could be lost where the client's memory could not be written.** A reading that judged a packet and then failed to write left it remembered in the process, and the next reading removed it as a duplicate, unreturned. Found by the tests of the socket, and fixed in the client.
+- **A program that kept its records between runs lost the evidence of when they came.** The client's own record of when it first obtained a proof is evidence under core 9.4, and for most proofs the only evidence. It was held in the process alone, so a Commitment signed under a delegation that later expired, or was revoked, stopped counting when the program started again. Found while the `oip` command was given a directory to keep records in. `Mind.sightings` now gives that record, and `Mind.hold` takes it back. A mind may also now be made as a fork of another (`NewMind.parents`), which the client could acknowledge but not make.
+- **A rate limiter kept a client out for as long as the clock had been set back.** It now keeps it out for no longer than its own tolerance.
+- **How a mind brings a host its records is not in Layer 1.** The client speaks the reference host's own interface. A second host would have to offer the same, which is a matter for an OEP when one exists.
+- **A host learns that a mind it serves has retired only if the mind brings it the event.** A host that follows the resolvers for the minds it serves would close this. It is noted in the client's threat model, and is for a later milestone.
+
+**For Eks, besides what is listed further down:** OEP-0002, OEP-0003, OEP-0004 and OEP-0005 each change normative text and wait for your word, as OEP-0001 does (E13). OEP-0005 has one more sentence since M6, on 17.3. The keychain storage of the keystore is tested on Linux here; its tests on macOS and Windows run for the first time when this branch reaches GitHub.
 
 ## Where the v1 build stands on `main`
 

@@ -29,6 +29,7 @@ import {
   type JsonObject,
   keyHash,
   mindAddress,
+  mindId,
   OipError,
   type OipRecord,
   parseTimestamp,
@@ -59,6 +60,7 @@ import {
 } from "@oip/keystore";
 import type {
   AuthorityItem,
+  Collective as Charter,
   Commitment,
   Delegation,
   Entry,
@@ -70,13 +72,24 @@ import type {
   Proof,
   Receipt,
   Revocation,
+  Session,
 } from "@oip/schema";
 import type { Status } from "@oip/web";
 
 import { type Clock, Lookup, type LookupOptions, type Resolved, systemClock } from "./lookup.ts";
 import { Memory } from "./memory.ts";
-import { type Acting, Dealings, type Fields, type Grant } from "./dealings.ts";
-import { type Inbox, type Message, Messaging, type Sent } from "./messages.ts";
+import { type Acting, Dealings, type Fields, type Grant, type Sightings } from "./dealings.ts";
+import { type Inbox, type Message, Messaging, type Retried, type Sent } from "./messages.ts";
+import { Outbox, type Queued } from "./outbox.ts";
+import { checkInstance, SessionBook, type SessionView } from "./sessions.ts";
+import {
+  listen,
+  type Listening,
+  type ListenOptions,
+  type OpenSocket,
+  platformSleep,
+  platformSocket,
+} from "./socket.ts";
 import {
   homeEndpoints,
   type LocationFields,
@@ -109,6 +122,21 @@ export interface MindOptions extends LookupOptions {
   readonly memory?: KeyStorage;
   /** Where the nonces of signed requests come from. Default: the platform's generator. */
   readonly randomness?: Randomness;
+  /**
+   * A name for this client among the clients that run as the mind, in at
+   * most 64 characters (Layer 1, 14.3). The packets it sends in a session
+   * carry it, so that each client's packets are a chain of their own. A
+   * mind that runs one client needs none. Clients that share one `memory`
+   * are one instance.
+   */
+  readonly instance?: string;
+  /**
+   * Opens a WebSocket, for `listen`. Default: the platform's own
+   * `WebSocket`, which a browser has, and Node.js from version 22.
+   */
+  readonly webSocket?: OpenSocket;
+  /** Waits a number of milliseconds, between one connection and the next. Default: the platform's timer. */
+  readonly sleep?: (ms: number) => Promise<void>;
 }
 
 /** What a new mind is made with. */
@@ -123,6 +151,13 @@ export interface NewMind {
   readonly homes?: readonly string[];
   /** Other names of the mind (Layer 1, 5.3). Each is verified by whoever reads it. */
   readonly alsoKnownAs?: readonly string[];
+  /**
+   * The minds this one is forked from, each with the version it was forked
+   * at: `IdentityState.versionId` of the parent then (Layer 1, 8.1). Only
+   * the child says so, until the parent acknowledges it: with `fork`, or
+   * with a `Lineage` record (8.2).
+   */
+  readonly parents?: readonly { readonly mind: string; readonly at: string }[];
 }
 
 /** What changes with an identity event. What is left out stays as it is. */
@@ -158,6 +193,36 @@ export interface ControlOptions {
   readonly control: Lock;
 }
 
+/** What a collective is founded with (Layer 1, Section 9). */
+export interface NewCollective {
+  /** Its founding members, this mind among them: distinct addresses. Each of them signs the genesis. */
+  readonly members: readonly string[];
+  /** How many members act for it: a majority of them (Layer 1, 3.4). */
+  readonly threshold: number;
+  /** The HTTPS origins that will serve its records. */
+  readonly homes?: readonly string[];
+  /** Other names of the collective. */
+  readonly alsoKnownAs?: readonly string[];
+}
+
+/** What changes with an identity event of a collective. What is left out stays as it is. */
+export interface CollectiveChanges {
+  /** Its members from now on. Every member that is new signs the event too (Layer 1, 9.3). */
+  readonly members?: readonly string[];
+  /** Its threshold from now on. */
+  readonly threshold?: number;
+  /** Its homes from now on. */
+  readonly homes?: readonly string[];
+  /** Its other names from now on. */
+  readonly alsoKnownAs?: readonly string[];
+}
+
+/** What signing an identity event of a collective needs. */
+export interface MemberOptions {
+  /** What opens this mind's invocation keys. They are unlocked for the one signature and locked again. */
+  readonly invocation: Lock;
+}
+
 /** The keys of everyday work, unlocked. */
 interface Everyday {
   readonly operational: OperationalKeys;
@@ -172,8 +237,13 @@ export class Mind {
   readonly #lookup: Lookup;
   readonly #operational: OperationalKeys;
   readonly #agreement: AgreementKeys;
+  readonly #own: Own;
   readonly #publishing: Publishing;
   readonly #messaging: Messaging;
+  readonly #sessions: SessionBook;
+  readonly #outbox: Outbox;
+  /** What the mind listens to, for as long as it does. */
+  readonly #listening = new Set<Listening>();
   readonly #dealings: Dealings;
   #resolved: Resolved;
   #published: readonly Publication[] = [];
@@ -204,13 +274,19 @@ export class Mind {
       },
       sign: (record, authority) => this.sign(record, authority),
       signed: (asking) => this.#signed(asking),
+      hello: (challenge, domain) => this.#hello(challenge, domain),
       signedForLog: (asking) => this.#signedForLog(asking),
       told: (publications) => {
         this.#published = publications;
       },
     };
+    this.#own = own;
     this.#publishing = new Publishing(own);
-    this.#messaging = new Messaging(own);
+    this.#outbox = new Outbox(own);
+    this.#sessions = new SessionBook(own, options.instance, (packets) =>
+      this.#outbox.forget(packets),
+    );
+    this.#messaging = new Messaging(own, this.#sessions, this.#outbox);
     this.#dealings = new Dealings(own);
   }
 
@@ -232,6 +308,7 @@ export class Mind {
       throw new OipError("forbidden", "the keystore holds the keys of a mind already: open it");
     }
     const clock = options.clock ?? systemClock;
+    checkInstance(options.instance);
     const lookup = new Lookup(options);
     const control = await keystore.unlock("control", fields.control ?? lock);
     try {
@@ -260,6 +337,9 @@ export class Mind {
             agreement: [{ key: await held(agreement) }],
             ...(fields.homes === undefined ? {} : { homes: [...fields.homes] }),
             ...(fields.alsoKnownAs === undefined ? {} : { alsoKnownAs: [...fields.alsoKnownAs] }),
+            ...(fields.parents === undefined
+              ? {}
+              : { parents: fields.parents.map(({ mind, at }) => ({ mind, at })) }),
           });
         } finally {
           for (const keys of unlocked) keys.lock();
@@ -308,6 +388,7 @@ export class Mind {
     if (mind === undefined) {
       throw new OipError("not-found", "the keystore holds no mind's keys yet: create one");
     }
+    checkInstance(options.instance);
     const lookup = new Lookup(options);
     const resolved = await lookup.resolve(mind);
     return new Mind(options, lookup, await Mind.#everyday(options), resolved);
@@ -363,10 +444,12 @@ export class Mind {
   }
 
   /**
-   * Locks the mind's keys. The mind signs nothing more: open it again for
-   * that.
+   * Locks the mind's keys, and stops what it listens to. The mind signs
+   * nothing more: open it again for that.
    */
   close(): void {
+    // A socket that stayed open would hear what it could not acknowledge: that takes a key.
+    for (const listening of this.#listening) void listening.close();
     this.#operational.lock();
     this.#agreement.lock();
   }
@@ -437,6 +520,24 @@ export class Mind {
   }
 
   /** A request signed by the mind, with the key it signs records with (Layer 1, 13.3). */
+  /** Layer 1, 13.3: a `Hello` for a server's challenge, signed for the origin given. */
+  async #hello(challenge: string, domain: string): Promise<object> {
+    const key = this.signingKey();
+    const created = formatTimestamp(this.#clock.now());
+    const hello = { oip: "1", type: "Hello", author: this.address, created };
+    const proof = await createProof(
+      hello,
+      {
+        verificationMethod: formatKeyRef(this.address, this.state.versionId, key),
+        created,
+        challenge,
+        domain,
+      },
+      this.#operational.signer(key),
+    );
+    return { ...hello, proof: [proof] };
+  }
+
   #signed(asking: Asking): Promise<Asking> {
     const key = this.signingKey();
     return signedAsking(
@@ -531,9 +632,15 @@ export class Mind {
    * It does not throw for a recipient that could not be reached:
    * `deliveries` says what became of the packet for each.
    *
+   * With `session`, the packet is one of a session (Section 14): it takes
+   * the next place in this mind's chain there, and is written down in the
+   * client's memory before it leaves, so that it can be sent again to a
+   * participant that missed it.
+   *
    * @returns The packet, and what became of it for each recipient.
    * @throws OipError `invalid-record` if the message makes no packet;
-   *   `forbidden` if the mind has no key to sign with.
+   *   `forbidden` if the mind has no key to sign with; `not-found` if it
+   *   names a session the mind is not in.
    */
   send(message: Message): Promise<Sent> {
     return this.#messaging.send(message);
@@ -550,6 +657,12 @@ export class Mind {
    * (`memory`), so a packet that is found again is a duplicate, and is not
    * returned again.
    *
+   * The packets of a session are returned in the order of their sender's
+   * chain (14.3). One that came ahead of a packet that is missing stays in
+   * the mailbox, and a `Resume` is sent to ask for what is missing (14.4).
+   * A participant's `Resume` is answered: what it lacks of this mind's
+   * packets is sent to it again. `sessions` says what was found and done.
+   *
    * @returns The packets accepted, what was refused, and what waits.
    */
   async receive(): Promise<Inbox> {
@@ -565,6 +678,129 @@ export class Mind {
   }
 
   /**
+   * The packets that wait in the outbox: each did not reach a recipient,
+   * for a reason that may pass, and is kept in the client's memory to be
+   * tried again. `send` says so in its `deliveries`, as `queued`.
+   */
+  outbox(): Promise<Queued[]> {
+    return this.#outbox.list();
+  }
+
+  /**
+   * Tries again every packet that waits in the outbox, now. `receive` and
+   * `listen` try those that are due by themselves: after 30 seconds the
+   * first time, then twice as long each time, up to an hour.
+   *
+   * A packet is given up for a recipient that now refuses it for what it
+   * is, and dropped once it has expired: nobody would accept it then.
+   *
+   * @returns What came of each packet.
+   */
+  retry(): Promise<Retried[]> {
+    return this.#messaging.retry(true);
+  }
+
+  /**
+   * Gives up a packet that waits in the outbox: it is not tried again.
+   *
+   * @param packet - The packet's content ID.
+   * @returns Whether it waited.
+   */
+  async abandon(packet: string): Promise<boolean> {
+    return (await this.#outbox.forget([packet])) > 0;
+  }
+
+  /**
+   * Holds a socket open to the mind's own host (Layer 1, 13.4), so that
+   * packets arrive as they are sent. The host sends what the mind's
+   * mailbox holds, and then what arrives. Each record is judged as
+   * `receive` judges it, and `received` is called with what was found. The
+   * mind tells its host that it has a record with an acknowledgement of
+   * its own, and the host keeps the record until then: a connection that
+   * drops loses nothing.
+   *
+   * A connection that ends is opened again after a wait, which doubles
+   * from one second to a minute and starts again once the host has
+   * welcomed the mind. The socket is the first the mind's location record
+   * names, or that of its first home.
+   *
+   * Closing the mind stops it.
+   *
+   * @returns What stops the listening, and tells when it has ended.
+   * @throws TypeError if the platform has no `WebSocket` and none is given.
+   */
+  listen(options: ListenOptions): Listening {
+    const listening = listen(
+      {
+        own: this.#own,
+        open: this.#options.webSocket ?? platformSocket,
+        sleep: this.#options.sleep ?? platformSleep,
+        take: (records) => this.#messaging.take(records),
+        receive: () => this.receive(),
+        retry: () => this.#messaging.retry(false),
+      },
+      options,
+    );
+    // Kept until it ends, however it ends, so that closing the mind ends it.
+    this.#listening.add(listening);
+    const ended = (): void => {
+      this.#listening.delete(listening);
+    };
+    listening.closed.then(ended, ended);
+    return listening;
+  }
+
+  /**
+   * Makes a session with other minds (Layer 1, Section 14): an unsigned
+   * `Session` record that names its participants, this mind among them.
+   * Nothing is sent. The first packet this mind sends in it carries the
+   * record, and the other participants follow the session from then on.
+   *
+   * A session another mind opened needs no call: the client follows it
+   * from the first packet of it that arrives.
+   *
+   * @param others - The other participants: 1 to 255 addresses.
+   * @returns The session's ID, to send in it by, and the record.
+   * @throws OipError `invalid-record` if they make no session.
+   */
+  openSession(others: readonly string[]): Promise<{ id: string; session: Session }> {
+    return this.#sessions.open(others);
+  }
+
+  /**
+   * The sessions the mind is in, as the client's memory has them: how many
+   * packets it sent in each, and where the chain of each other sender
+   * stands.
+   */
+  sessions(): Promise<SessionView[]> {
+    return this.#sessions.views();
+  }
+
+  /**
+   * Sends a `Resume` to the participants of a session (Layer 1, 14.4): it
+   * says where each chain stands for this mind, so that each participant
+   * sends again what this mind lacks of its packets. `receive` sends one by
+   * itself when it finds a gap, once. This asks again.
+   *
+   * @returns The packet that carries it, a packet of the session like any other.
+   * @throws OipError `not-found` if the mind is in no such session.
+   */
+  resume(session: string): Promise<Sent> {
+    return this.#messaging.resume(session);
+  }
+
+  /**
+   * Forgets a session: where its chains stand, and the packets this mind
+   * sent in it. A packet of it that arrives later is refused, unless it
+   * carries the `Session` record: then the session is followed anew.
+   *
+   * @returns Whether the mind was in it.
+   */
+  leaveSession(session: string): Promise<boolean> {
+    return this.#sessions.leave(session);
+  }
+
+  /**
    * Holds a record, for the client to judge others by: a delegation a
    * proof names, a Receipt about a Commitment, a record that supersedes
    * another. A record held in several copies is one record, with the
@@ -572,13 +808,33 @@ export class Mind {
    *
    * What the mind signs is held, and so are the records carried by the
    * packets it accepts. They are kept while the mind is open: keep what
-   * matters yourself, and hold it again.
+   * matters yourself, with its `sightings`, and hold it again.
    *
+   * @param seen - When this client first obtained the record's proofs, by
+   *   its own record of an earlier run: what `sightings` returned then.
+   *   Without it, a proof is first seen now, and one that was signed under a
+   *   delegation which has since expired, or with a key since removed,
+   *   counts no longer (core 9.3). A time later than now is not believed.
    * @returns The record's content ID.
    * @throws OipError `invalid-record` for what is no record.
    */
-  hold(record: unknown): string {
-    return this.#dealings.hold(record);
+  hold(record: unknown, seen?: Sightings): string {
+    return this.#dealings.hold(record, seen);
+  }
+
+  /**
+   * When this client first obtained each proof of a record it holds, by
+   * the proof's digest: the client's own record, which is evidence that the
+   * proof existed then (core 9.4, item 1). A proof's `created` is none.
+   *
+   * The client keeps it while the mind is open. A program that keeps a
+   * record between runs keeps this with it, and gives both to `hold`.
+   *
+   * @param id - The record's content ID.
+   * @returns The times, in nanoseconds of the Unix epoch. Empty for a record the mind does not hold.
+   */
+  sightings(id: string): Sightings {
+    return this.#dealings.sightings(id);
   }
 
   /** The records the mind holds, each as the copy with every proof seen of it. */
@@ -674,6 +930,204 @@ export class Mind {
    */
   cosign<T extends object>(record: T, acting?: Acting): Promise<T> {
     return this.#dealings.cosign(record, acting);
+  }
+
+  /**
+   * Founds a collective (Layer 1, Section 9): drafts its genesis, and signs
+   * it as one of its founding members. The collective exists once every
+   * founder has signed (9.2) and the genesis is published: give the event
+   * to each of the others for `signEvent`, and then `publishLog`.
+   *
+   * @returns The genesis, with this mind's proof.
+   * @throws OipError `invalid-record` if the fields make no genesis, such
+   *   as a threshold that is no majority; `forbidden` if this mind is not
+   *   among the members, or the keystore holds none of its invocation keys.
+   */
+  foundCollective(fields: NewCollective, options: MemberOptions): Promise<IdentityEvent> {
+    if (!fields.members.includes(this.address)) {
+      return Promise.reject(
+        new OipError("forbidden", "a collective is founded by its members: name this mind", {
+          clause: "L1 9.2",
+        }),
+      );
+    }
+    // What makes no genesis is found out when it is signed: a draft is checked by nothing.
+    const genesis = draftGenesis(formatTimestamp(this.#clock.now()), {
+      kind: "collective",
+      controller: { members: [...fields.members], threshold: fields.threshold },
+      ...(fields.homes === undefined ? {} : { homes: [...fields.homes] }),
+      ...(fields.alsoKnownAs === undefined ? {} : { alsoKnownAs: [...fields.alsoKnownAs] }),
+    });
+    return this.signEvent(genesis, options);
+  }
+
+  /**
+   * Drafts the next identity event of a collective this mind is a member
+   * of, an `Update`, and signs it as a member (Layer 1, 9.3). It takes
+   * effect once the threshold of the members has signed, and every member
+   * that is new, and the log is published.
+   *
+   * @returns The event, with this mind's proof.
+   * @throws OipError `forbidden` if the collective is retired, shows
+   *   duplicity, or is no collective. What `resolve` throws.
+   */
+  async changeCollective(
+    collective: string,
+    changes: CollectiveChanges,
+    options: MemberOptions,
+  ): Promise<IdentityEvent> {
+    const { state, duplicitous } = await this.#lookup.resolve(collective);
+    const { controller } = state;
+    if (state.retired || duplicitous || controller.kind !== "member") {
+      throw new OipError("forbidden", "that mind's log is not a collective's to extend", {
+        clause: "L1 9.3",
+      });
+    }
+    const now = this.#clock.now();
+    const membership = changes.members !== undefined || changes.threshold !== undefined;
+    // Not earlier than the event before it (Layer 1, 3.2), whatever this clock says.
+    const created = formatTimestamp(now > state.created ? now : state.created);
+    const event = draftUpdate(state, created, {
+      ...(membership
+        ? {
+            controller: {
+              members: [...(changes.members ?? controller.members)],
+              threshold: changes.threshold ?? controller.threshold,
+            },
+          }
+        : {}),
+      ...(changes.homes === undefined ? {} : { homes: [...changes.homes] }),
+      ...(changes.alsoKnownAs === undefined ? {} : { alsoKnownAs: [...changes.alsoKnownAs] }),
+    });
+    return this.signEvent(event, options);
+  }
+
+  /**
+   * Signs an identity event of a collective as one of its members, with
+   * one of this mind's invocation keys (Layer 1, 9.4). The proofs the
+   * event has stay.
+   *
+   * The keystore remembers which event the key signed for each position of
+   * each collective's log, and signs no other for that position: two would
+   * be duplicity, and would name this mind.
+   *
+   * Read what you sign: an event changes who the collective is.
+   *
+   * @returns The event with the proofs it had and this mind's.
+   * @throws OipError `invalid-record` if it is no identity event that can
+   *   be signed so; `forbidden` if the keystore holds none of the mind's
+   *   invocation keys. KeystoreError `already-signed` if the key signed
+   *   another event for the position.
+   */
+  async signEvent(
+    event: IdentityEvent | Unsigned<IdentityEvent>,
+    options: MemberOptions,
+  ): Promise<IdentityEvent> {
+    await this.refresh();
+    const { proof: before = [], ...unsigned } = event as Unsigned<IdentityEvent> & {
+      proof?: Proof[];
+    };
+    // One proof of a member is enough, and a second by the same key says nothing more.
+    const mine = before.some((proof) => proof.verificationMethod.startsWith(`${this.address}?`));
+    if (mine) return event as IdentityEvent;
+    const invocation = await this.#options.keystore.unlock("invocation", options.invocation);
+    try {
+      const key = this.state.invocation.find((candidate) => invocation.has(candidate));
+      if (key === undefined) {
+        throw new OipError(
+          "forbidden",
+          "the keystore holds none of the mind's current invocation keys",
+          { clause: "L1 6.4" },
+        );
+      }
+      const now = this.#clock.now();
+      const said = parseTimestamp((unsigned as { created?: unknown }).created);
+      const signed = await invocation.sign(
+        unsigned,
+        { member: this.address, publicKey: key, versionId: this.state.versionId },
+        // A proof is not dated before its event (core 5.7), whatever this clock says.
+        formatTimestamp(said !== undefined && said > now ? said : now),
+      );
+      return { ...unsigned, proof: [...before, ...signed.proof] } as unknown as IdentityEvent;
+    } catch (error) {
+      if (error instanceof KeystoreError && error.code === "argument") throw asInvalid(error);
+      throw error;
+    } finally {
+      invocation.lock();
+    }
+  }
+
+  /**
+   * Publishes an identity log this mind has a copy of, such as that of a
+   * collective it is a member of, to every resolver the client trusts, and
+   * resolves it. Anyone may publish a log: it is evidence, and stands by
+   * its own signatures.
+   *
+   * The log is verified here first, as any verifier would, with the logs
+   * of the members it names fetched afresh.
+   *
+   * @param events - The log, from its genesis.
+   * @returns The mind the log is of, as the resolvers now serve it.
+   * @throws OipError `invalid-record` if it is no log, or does not verify:
+   *   a founder has not signed, or the threshold is not met. What
+   *   publishing an identity event of one's own throws.
+   */
+  async publishLog(events: readonly object[]): Promise<Resolved> {
+    // The logs of the members it names, afresh: its events are judged by them. A member is
+    // named by an address, and what names anything else is found out below, by the judge.
+    const members = new Set<string>();
+    for (const event of events) {
+      const named = (event as { controller?: { members?: unknown } }).controller?.members;
+      for (const member of Array.isArray(named) ? (named as unknown[]) : []) {
+        if (typeof member === "string" && mindId(member) !== undefined) members.add(member);
+      }
+    }
+    // The log is seen now, and its members' logs are fetched after: a log held from before
+    // an event was first seen does not judge the proofs on it (core 9.4).
+    const now = this.#clock.now();
+    for (const member of members) await this.#lookup.resolve(member);
+    const own = verifyLog(events, {
+      // Each event is seen now at the latest, unless a resolver saw it before.
+      evidence: earliestEvidence(this.#lookup.view.evidence, {
+        eventSeen: () => now,
+        proofSeen: () => undefined,
+      }),
+      asOf: now,
+      memberLog: (member) => this.#lookup.view.log(member),
+    });
+    if (!own.ok) {
+      const [first] = own.issues;
+      throw new OipError("invalid-record", `the log does not verify: ${first.message}`, {
+        clause: first.clause,
+        issues: own.issues,
+      });
+    }
+    const address = own.value.mind;
+    const { resolved, published } = await publishAndConfirm(
+      this.#options,
+      this.#lookup,
+      address,
+      events,
+      (asking) => this.#signed(asking),
+    );
+    this.#published = published;
+    return resolved;
+  }
+
+  /**
+   * Writes a collective's charter (Layer 2, 6.2), and signs it as a member.
+   * It is the collective's once the threshold of its members has signed
+   * it, each with `cosign`, and it is in force from then.
+   *
+   * A charter names roles and what each may do. A member assigned to a
+   * role signs records for the collective with `{ charter }` in place of a
+   * chain of delegations. Give a charter an `expires`: it bounds when it
+   * can still be signed.
+   *
+   * @param collective - The collective's address.
+   */
+  charter(collective: string, fields: Omit<Fields<Charter>, "author">): Promise<Charter> {
+    return this.#dealings.make<Charter>("Collective", { ...fields, author: collective }, undefined);
   }
 
   /**
@@ -1037,6 +1491,11 @@ function publisher(
   const old = held(earlier);
   if (before === undefined || old === undefined) return undefined;
   return { keyRef: formatKeyRef(mind, before.versionId, old), signer: operational.signer(old) };
+}
+
+/** What a caller gave that makes no record: its mistake, as the protocol names it. */
+function asInvalid(error: Error): OipError {
+  return new OipError("invalid-record", error.message, { clause: "L1 3", cause: error });
 }
 
 /** The members of an event that the changes fill in. */

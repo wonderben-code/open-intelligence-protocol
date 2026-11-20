@@ -24,6 +24,11 @@ An ADR records a decision that is hard to reverse: what was decided, why, and wh
 | [0018](0018-the-keystore-in-a-browser.md)         | The keystore in a browser                                                     |
 | [0019](0019-the-system-keychain.md)               | The keychain of the operating system                                          |
 | [0020](0020-ratios-turn-about.md)                 | Benchmark ratios are measured turn about                                      |
+| [0021](0021-the-client.md)                        | The client                                                                    |
+| [0022](0022-the-client-in-a-browser.md)           | The client's test in a browser                                                |
+| [0023](0023-sessions-in-the-client.md)            | Sessions in the client                                                        |
+| [0024](0024-the-clients-socket.md)                | The client's socket to its host                                               |
+| [0025](0025-the-clients-outbox.md)                | The client's outbox                                                           |
 
 ## Writing one
 

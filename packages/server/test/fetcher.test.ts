@@ -169,7 +169,9 @@ describe("a fetch for a stranger", () => {
   it("sends nothing of the service with the request", async () => {
     await fetcherFor().get(at("/ok"), "application/oip+json");
     expect(requests).toHaveLength(1);
-    expect(requests[0]?.headers).toStrictEqual({
+    // Compared as a plain object: the headers Node.js gives have a prototype of their own
+    // in some versions and none in others, and it is the headers that are asked about.
+    expect({ ...requests[0]?.headers }).toStrictEqual({
       accept: "application/oip+json",
       "accept-encoding": "identity",
       "user-agent": "oip-server",

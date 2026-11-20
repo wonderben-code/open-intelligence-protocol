@@ -23,7 +23,7 @@ export {
   sampleRecords,
   T0,
 } from "./samples.ts";
-export { withStackSpent } from "./stack.ts";
+export { keepFramesOneSize, withStackSpent } from "./stack.ts";
 export {
   copy,
   type JsonObject,

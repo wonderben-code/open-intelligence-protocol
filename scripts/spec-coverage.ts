@@ -46,6 +46,8 @@ interface VitestReport {
     /** The test file's path. */
     readonly name: string;
     readonly status: string;
+    /** Why the file did not pass, where no test of it failed: it could not be loaded, or a hook of it failed. */
+    readonly message?: string;
     readonly assertionResults: readonly TestResult[];
   }[];
 }
@@ -148,11 +150,16 @@ for (const test of tests) {
 if (!report.success || report.numFailedTests > 0 || report.numFailedTestSuites > 0) {
   const broken = report.testResults.filter((file) => file.status !== "passed").length;
   // Name the tests: a failure that happens once in ten runs must be found from this line.
-  const failed = report.testResults.flatMap((file) =>
-    file.assertionResults
+  // And name a file that did not pass though no test of it failed, with what it said: a
+  // hook that ran out of time, or a file that could not be loaded.
+  const failed = report.testResults.flatMap((file) => {
+    const tests = file.assertionResults
       .filter((test) => test.status === "failed")
-      .map((test) => `${relative(repoRoot, file.name)}: ${test.fullName}`),
-  );
+      .map((test) => `${relative(repoRoot, file.name)}: ${test.fullName}`);
+    if (tests.length > 0 || file.status === "passed") return tests;
+    const [why = "it did not say why"] = (file.message ?? "").trim().split("\n");
+    return [`${relative(repoRoot, file.name)}: the file did not pass: ${why.slice(0, 300)}`];
+  });
   problems.push(
     `the test run failed: ${report.numFailedTests} tests failed and ${broken} test files did not pass. Coverage read from a failed run means nothing${failed.map((name) => `\n      ${name}`).join("")}`,
   );

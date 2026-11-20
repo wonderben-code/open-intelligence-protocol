@@ -338,13 +338,13 @@ describe(`${clause("core 4.4")} the first signature a process checks, near the e
     // decodes the key and R and multiplies the base point, a spent stack included. Each depth
     // is asked of a process of its own, where the code is cold and the frames at their largest.
     expectNoSilentNo(answersAt(DEPTHS));
-  }, 120_000);
+  });
 
   it("is never called invalid so by the check of its key's order either", () => {
     // The key is one the process has not checked before, so the first thing to find no room
     // is the check that its point has order L, which this package makes itself.
     expectNoSilentNo(answersAt(DEPTHS, "cold"));
-  }, 120_000);
+  });
 
   it("is never called invalid so by code that has verified often, whose frames are other sizes", () => {
     // The steps the library guards are taken again from deeper than the library took them.
@@ -363,7 +363,7 @@ describe(`${clause("core 4.4")} the first signature a process checks, near the e
       "true, nothing noted",
     ]);
     expect(report.afterwards).toBe(true);
-  }, 120_000);
+  });
 });
 
 describe(`${clause("core 4.4")} a spent stack inside what this package calls`, () => {

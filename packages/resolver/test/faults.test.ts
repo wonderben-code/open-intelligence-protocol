@@ -196,7 +196,7 @@ describe(`${clause("L1 17.2", "L1 7.2")} a resolver whose process is killed`, ()
     for (const mind of later) {
       if (!kept.includes(mind)) expect(await publish(http, mind)).toBe(202);
     }
-  }, 60_000);
+  });
 });
 
 describe(`${clause("L1 17.2")} a resolver whose database another process has locked`, () => {
@@ -233,5 +233,5 @@ describe(`${clause("L1 17.2")} a resolver whose database another process has loc
     expect(served?.log).toEqual(bob.events);
     expect(Date.parse(served?.firstSeen[idOf(bob)] ?? "")).toBeGreaterThanOrEqual(from - 1);
     expect(await resolved(http, ada)).toEqual(before);
-  }, 60_000);
+  });
 });

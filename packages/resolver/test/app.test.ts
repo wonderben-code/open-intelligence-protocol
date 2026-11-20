@@ -5,7 +5,18 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { formatKeyRef, MEDIA_TYPE, mindId, parseRecord, PROBLEM_MEDIA_TYPE, utf8 } from "@oip/core";
+import {
+  contentId,
+  formatKeyRef,
+  formatTimestamp,
+  MEDIA_TYPE,
+  mindId,
+  parseRecord,
+  parseTimestamp,
+  PROBLEM_MEDIA_TYPE,
+  utf8,
+} from "@oip/core";
+import { FirstSeen, LogBook } from "@oip/identity";
 import { signRequest } from "@oip/net";
 import {
   Database,
@@ -223,6 +234,95 @@ describe(`${clause("L1 7.2", "L1 17.1")} a published log that shows duplicity`, 
     // The log served is the one seen first.
     const served = (await (await ask(pathOf(first))).json()) as { log: unknown[] };
     expect(served.log).toStrictEqual(first.events);
+  });
+});
+
+describe(`${clause("L1 9.6", "L1 17.2")} the times a resolver serves`, () => {
+  // Three minds found a club at 5, and two of them, A and B, sign its second event at 20.
+  // The resolver sees the members' logs at 100, 101 and 102, and the club's at 110. At 300 A replaces the
+  // invocation key it signed with, which the resolver sees at 400.
+  /** A bundle as the resolver serves it: the log, and when it first saw each event. */
+  interface Served {
+    readonly log: readonly unknown[];
+    readonly firstSeen: Readonly<Record<string, string>>;
+  }
+
+  async function served() {
+    const [a, b, c] = ["a", "b", "c"].map((name) => new KeyMind(name)) as [
+      KeyMind,
+      KeyMind,
+      KeyMind,
+    ];
+    const club = new Collective("club", [a, b, c], 2, 5).update(20, [a, b]);
+    const { ask } = service();
+    for (const [n, member] of [a, b, c].entries()) {
+      clock.at = at(100 + n);
+      expect((await ask(pathOf(member), put(bundleOf(member)))).status).toBe(202);
+    }
+    clock.at = at(110);
+    expect((await ask(pathOf(club), put(bundleOf(club)))).status).toBe(202);
+    a.update(300, { invocation: [{ key: a.invocation(1).publicKey }] });
+    clock.at = at(400);
+    expect((await ask(pathOf(a), put(bundleOf(a)))).status).toBe(202);
+    clock.at = at(500);
+    const bundles: Served[] = [];
+    for (const mind of [club, a, b, c]) {
+      const bundle = parseRecord(await (await ask(pathOf(mind))).text());
+      if (!bundle.ok) throw new Error(JSON.stringify(bundle.issues));
+      bundles.push(bundle.value as unknown as Served);
+    }
+    return { club, a, b, c, bundles };
+  }
+
+  it("are of each event of a collective's log, and of each event of its members' logs", async () => {
+    const { club, a, bundles } = await served();
+    const [ofClub, ofA, ofB, ofC] = bundles;
+    // The times are served by the content ID of each event (Section 17.1).
+    const times = (bundle: Served | undefined, mind: Mind) =>
+      mind.events.map((event) => bundle?.firstSeen[contentId(event)]);
+    expect(times(ofClub, club)).toStrictEqual([at(110), at(110)].map(formatTimestamp));
+    expect(times(ofA, a)).toStrictEqual([at(100), at(400)].map(formatTimestamp));
+    expect(Object.values(ofB?.firstSeen ?? {})).toStrictEqual([formatTimestamp(at(101))]);
+    expect(Object.values(ofC?.firstSeen ?? {})).toStrictEqual([formatTimestamp(at(102))]);
+  });
+
+  it("let a verifier that trusts it verify a collective's log after a member has removed a key that signed it", async () => {
+    const { club, a, b, c, bundles } = await served();
+    // With the resolver's times, the club's second event is judged at 110, when A's key was A's.
+    const trusting = new FirstSeen();
+    for (const bundle of bundles) {
+      for (const [event, time] of Object.entries(bundle.firstSeen)) {
+        const seen = parseTimestamp(time);
+        if (seen === undefined) throw new Error(`${time} is no time`);
+        trusting.sawEvent(event, seen);
+      }
+    }
+    const book = new LogBook(trusting);
+    for (const bundle of bundles) expect(book.hold(bundle.log, at(500)).ok).toBe(true);
+    const verified = book.log(club.address);
+    expect(verified.ok && verified.value.entries).toHaveLength(2);
+
+    // Without them, the verifier first saw every event at 500, after A's key was gone. It
+    // cannot tell an event A signed with that key from one forged since, and every founder
+    // signs a genesis (9.2): it records no sight of the club's first event, and holds no log of it.
+    const alone = new FirstSeen();
+    const late = new LogBook(alone);
+    // The members' logs first: a collective's event is judged with them.
+    const [ofClub, ...ofMembers] = bundles;
+    for (const bundle of ofMembers) expect(late.witness(bundle.log, at(500), alone).ok).toBe(true);
+    // It follows the members' logs, so they are known up to this reading (core 9.4).
+    const following = [a, b, c].map((member) => member.address);
+    expect(late.witness(ofClub?.log, at(500), alone, { following }).ok).toBe(true);
+    expect(alone.eventSeen(contentId(club.events[0]))).toBeUndefined();
+    expect(late.log(club.address)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "core 9.5", path: "/0" }],
+    });
+    // The members' own logs it holds whole: only the collective's rests on the key that is gone.
+    for (const member of [a, b, c]) {
+      const own = late.log(member.address);
+      expect(own.ok && own.value.entries).toHaveLength(member.events.length);
+    }
   });
 });
 

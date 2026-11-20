@@ -5,10 +5,25 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { base64urlToBytes, contentId, type JsonObject, mindId, type OipRecord } from "@oip/core";
+import {
+  base64urlToBytes,
+  contentId,
+  type JsonObject,
+  MEDIA_TYPE,
+  mindId,
+  type OipRecord,
+} from "@oip/core";
 import { Challenges } from "@oip/net";
 import { type Bundle, noteCutShort } from "@oip/schema";
-import { Database, Log, LogArchive, Metrics, RateLimiter } from "@oip/server";
+import {
+  Database,
+  Log,
+  LogArchive,
+  Metrics,
+  RateLimiter,
+  Shutdown,
+  StoredNonces,
+} from "@oip/server";
 import { clause } from "@oip/testkit";
 import { at, intentBy, KeyMind, type Mind, T } from "@oip/testkit/minds";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,6 +32,7 @@ import {
   CLOSE,
   Host,
   HOST_MIGRATIONS,
+  hostApp,
   type HostOptions,
   Sockets,
   type SocketsOptions,
@@ -31,6 +47,7 @@ let clock: { at: bigint; now: () => bigint };
 let lines: Record<string, unknown>[];
 let metrics: Metrics;
 let host: Host;
+let archive: LogArchive;
 let drawn = 0;
 
 const ada = new KeyMind("ada");
@@ -57,7 +74,7 @@ afterEach(() => {
 
 /** The binding of a host that holds the logs of Ada, Bob and Eve, and serves Bob. */
 function binding(more: Partial<SocketsOptions> = {}, made: Partial<HostOptions> = {}): Sockets {
-  const archive = new LogArchive({ db, clock });
+  archive = new LogArchive({ db, clock });
   for (const mind of [ada, bob, eve]) {
     archive.publish(mindId(mind.address) ?? "", {
       oip: "1",
@@ -396,6 +413,90 @@ describe(`${clause("L1 13.4", "L1 13.2")} a record sent over a socket`, () => {
     connection.message(JSON.stringify(packet(ada, [bob])));
     expect(state.closed).toStrictEqual([1011, "internal error"]);
     expect(lines.at(-1)).toMatchObject({ level: "error", event: "socket failed" });
+  });
+});
+
+describe(`${clause("L1 13.6")} the bindings of a host`, () => {
+  /** The HTTPS binding of the host the sockets are of. */
+  function inbox() {
+    const log = new Log({ service: "host", clock, sink: () => undefined });
+    const generous = (): RateLimiter => new RateLimiter({ burst: 1000, perMinute: 60_000 }, clock);
+    const app = hostApp({
+      host,
+      archive,
+      clock,
+      log,
+      metrics,
+      origin: ORIGIN,
+      nonces: new StoredNonces(db),
+      limits: { read: generous(), deliver: generous(), owner: generous() },
+      shutdown: new Shutdown({ log }),
+      ready: { database: () => true },
+    });
+    return (record: OipRecord): Promise<Response> =>
+      Promise.resolve(
+        app.fetch(
+          new Request(`http://10.0.0.7:8080/oip/v1/minds/${mindId(bob.address) ?? ""}/inbox`, {
+            method: "POST",
+            body: JSON.stringify(record),
+            headers: { "content-type": MEDIA_TYPE },
+          }),
+          { address: "203.0.113.7" },
+        ),
+      );
+  }
+
+  it("carry the same records: a packet, a sealed record and one a broker forwarded", async () => {
+    const sockets = binding();
+    const post = inbox();
+    const { connection } = welcomed(sockets, ada);
+    const forwarded = (nonce: string) =>
+      eve.sign({
+        oip: "1",
+        type: "Forwarded",
+        broker: eve.address,
+        to: bob.address,
+        packet: packet(ada, [], { to: { query: {} }, nonce }),
+        created: T(105),
+      }) as unknown as OipRecord;
+    // One of each kind by the inbox, and another of each by the socket.
+    const byInbox = [packet(ada, [bob]), sealed(bob, "AAAA"), forwarded("nonce-0003")];
+    const bySocket = [
+      packet(ada, [bob], { nonce: "nonce-0002" }),
+      sealed(bob, "BBBB"),
+      forwarded("nonce-0004"),
+    ];
+    for (const [n, record] of byInbox.entries()) {
+      expect((await post(record)).status).toBe(202);
+      connection.message(JSON.stringify(bySocket[n]));
+    }
+    // The mailbox holds each as it was sent, and nothing says which binding carried it.
+    expect(mailbox()).toStrictEqual(byInbox.flatMap((record, n) => [record, bySocket[n]]));
+  });
+
+  it("answer for a packet alike: the Ack of one binding is the Ack of the other", async () => {
+    const sockets = binding({}, { signer: () => bob.operational() });
+    const post = inbox();
+    const { connection, sent } = welcomed(sockets, ada);
+    const first = packet(ada, [bob]);
+    const second = packet(ada, [bob], { nonce: "nonce-0002" });
+    const answered = await post(first);
+    expect(answered.status).toBe(202);
+    const acknowledged = (await answered.json()) as JsonObject;
+    connection.message(JSON.stringify(second));
+    expect(acknowledged).toMatchObject({
+      type: "Ack",
+      author: bob.address,
+      packet: contentId(first),
+    });
+    expect(sent[2]).toMatchObject({ type: "Ack", author: bob.address, packet: contentId(second) });
+    expect(Object.keys(sent[2] ?? {}).sort()).toStrictEqual(Object.keys(acknowledged).sort());
+    // A packet that came by one binding is known when it comes by the other: it is answered
+    // with the Ack it had, and kept once.
+    connection.message(JSON.stringify(first));
+    expect(sent[3]).toStrictEqual(acknowledged);
+    expect(await (await post(second)).json()).toStrictEqual(sent[2]);
+    expect(mailbox()).toStrictEqual([first, second]);
   });
 });
 

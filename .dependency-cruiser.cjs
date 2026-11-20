@@ -77,10 +77,11 @@ module.exports = {
     },
     {
       name: "source-not-to-dev-dependencies",
-      comment: "Published source imports only what the package declares under dependencies.",
+      comment:
+        "Published source imports only what the package declares under dependencies, or as a peer. A peer is installed for the package's own tests too, which does not make it undeclared.",
       severity: "error",
       from: { path: "^packages/[^/]+/src/", pathNot: `^packages/${group(TEST_ONLY)}/` },
-      to: { dependencyTypes: ["npm-dev"], dependencyTypesNot: ["type-only"] },
+      to: { dependencyTypes: ["npm-dev"], dependencyTypesNot: ["type-only", "npm-peer"] },
     },
     {
       name: "no-circular",

@@ -100,6 +100,50 @@ jobs:
         if: always()
         run: docker compose down --volumes
 
+  keychain:
+    name: The keystore under the system's keychain (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      # The tests of the real keychain are skipped without this.
+      OIP_KEYCHAIN: real
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install with a frozen lockfile
+        run: pnpm install --frozen-lockfile
+      # macOS and Windows have a keychain for the user the job runs as. Linux has one in a
+      # desktop session: the Secret Service, which GNOME Keyring provides here (ADR-0019).
+      - name: A Secret Service to test against
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends gnome-keyring
+      - name: The keychain keeps and gives a keystore's keys (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          dbus-run-session -- bash -c '
+            echo -n "an unlocked keyring for the test" | gnome-keyring-daemon --unlock --components=secrets
+            pnpm exec vitest run --project @oip/keystore test/keychain.real.test.ts --reporter=default --reporter=json --outputFile.json=keychain.json
+          '
+      - name: The keychain keeps and gives a keystore's keys (macOS, Windows)
+        if: runner.os != 'Linux'
+        run: pnpm exec vitest run --project @oip/keystore test/keychain.real.test.ts --reporter=default --reporter=json --outputFile.json=keychain.json
+      # A run in which the tests were skipped would be green too.
+      - name: Both tests ran
+        run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('keychain.json', 'utf8')); if (numPassedTests !== 2) { console.error(numPassedTests + ' tests passed, and 2 were to'); process.exit(1); }"
+
   test:
     name: Test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest

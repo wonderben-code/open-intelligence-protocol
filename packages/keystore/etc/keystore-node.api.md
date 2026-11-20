@@ -13,6 +13,25 @@ export interface FileStorageOptions {
 }
 
 // @public
+export interface Keychain {
+    delete(service: string, account: string): Promise<void>;
+    get(service: string, account: string): Promise<string | undefined>;
+    set(service: string, account: string, secret: string): Promise<void>;
+}
+
+// @public
+export interface KeyringEntry {
+    deleteCredential(): Promise<boolean>;
+    getPassword(): Promise<string | null>;
+    setPassword(password: string): Promise<void>;
+}
+
+// @public
+export interface KeyringLibrary {
+    readonly AsyncEntry: new (service: string, account: string) => KeyringEntry;
+}
+
+// @public
 export interface KeyStorage {
     delete(name: string, expected: string): Promise<void>;
     get(name: string): Promise<Stored | undefined>;
@@ -29,6 +48,14 @@ export interface Randomness {
 export interface Stored {
     readonly value: Uint8Array;
     readonly version: string;
+}
+
+// @public
+export function systemKeychain(options?: SystemKeychainOptions): Promise<Keychain>;
+
+// @public
+export interface SystemKeychainOptions {
+    readonly load?: () => Promise<KeyringLibrary>;
 }
 
 ```

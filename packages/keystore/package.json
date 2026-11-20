@@ -56,7 +56,16 @@
     "@oip/identity": "workspace:*",
     "@oip/schema": "workspace:*"
   },
+  "peerDependencies": {
+    "@napi-rs/keyring": "^2.1.2"
+  },
+  "peerDependenciesMeta": {
+    "@napi-rs/keyring": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@napi-rs/keyring": "2.1.2",
     "@oip/testkit": "workspace:*",
     "fake-indexeddb": "6.2.8"
   }

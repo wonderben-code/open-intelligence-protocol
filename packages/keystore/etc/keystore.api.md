@@ -183,6 +183,7 @@ export const KEYSTORE_ERRORS: {
     readonly "already-signed": "this key has been asked to sign another identity event";
     readonly "weak-lock": "the lock is too weak to keep keys under";
     readonly unsafe: "where the keys would be kept is open to others";
+    readonly "no-keychain": "the keychain of this machine could not be used";
     readonly argument: "an argument is not what the keystore takes";
 };
 

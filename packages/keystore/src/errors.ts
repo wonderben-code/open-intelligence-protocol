@@ -21,6 +21,7 @@ export const KEYSTORE_ERRORS = {
   "already-signed": "this key has been asked to sign another identity event",
   "weak-lock": "the lock is too weak to keep keys under",
   unsafe: "where the keys would be kept is open to others",
+  "no-keychain": "the keychain of this machine could not be used",
   argument: "an argument is not what the keystore takes",
 } as const;
 

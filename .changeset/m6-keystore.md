@@ -5,7 +5,7 @@
 First version: the private keys of a mind, sealed and kept apart by role ([ADR-0017](../docs/adr/0017-the-keystore.md)).
 
 - `Keystore`: four roles, each a sealed document of its own, unlocked by itself and under a lock of its own if its owner wants one. Control keys can be kept in another storage.
-- `passphrase`, `keychainLock`: a lock that is a passphrase, stretched with scrypt, and one that is a random key a keychain keeps. A sealed document is XChaCha20-Poly1305 over canonical JSON, with its whole header authenticated.
+- `passphrase`, `keychainLock`: a lock that is a passphrase, stretched with scrypt, and one that is a random key a keychain keeps. `systemKeychain`, from `@oip/keystore/node`, is the keychain of the operating system, through the optional peer `@napi-rs/keyring` ([ADR-0019](../docs/adr/0019-the-system-keychain.md)). A sealed document is XChaCha20-Poly1305 over canonical JSON, with its whole header authenticated.
 - `ControlKeys`: a control key is bound, in storage, to the identity event it signs before it signs, signs no other, and is destroyed by `published` (Layer 1, 3.11 and 7.4). `pending` gives back an event that was signed and not yet published.
 - `InvocationKeys`: remembers the event signed for each position of each collective's log, and signs no other for it.
 - `OperationalKeys`, `AgreementKeys`: a signer over an operational key; opening what was sealed to an agreement key.

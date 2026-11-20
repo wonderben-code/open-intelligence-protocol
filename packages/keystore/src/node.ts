@@ -8,6 +8,13 @@
  */
 
 export { fileStorage, type FileStorageOptions } from "./file.ts";
+export {
+  type KeyringEntry,
+  type KeyringLibrary,
+  systemKeychain,
+  type SystemKeychainOptions,
+} from "./keychain.ts";
+export type { Keychain } from "./lock.ts";
 // The types its interface names, so that this entry stands by itself.
 export type { Randomness } from "./randomness.ts";
 export type { KeyStorage, Stored } from "./storage.ts";

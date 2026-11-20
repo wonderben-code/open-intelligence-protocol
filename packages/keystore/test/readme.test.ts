@@ -75,6 +75,8 @@ describe("the README", () => {
         "KeyRole",
         "KeyStorage",
         "Keychain",
+        "KeyringEntry",
+        "KeyringLibrary",
         "KeychainHeader",
         "KeystoreErrorCode",
         "KeystoreOptions",
@@ -91,6 +93,7 @@ describe("the README", () => {
         "SealedKind",
         "SealedToKey",
         "Stored",
+        "SystemKeychainOptions",
       ].sort(),
     );
   });

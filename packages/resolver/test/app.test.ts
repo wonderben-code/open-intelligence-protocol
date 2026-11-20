@@ -353,8 +353,17 @@ describe(`${clause("L1 17.3")} what a resolver asks of its clients`, () => {
     expect((await ask(pathOf(ada), put(bundleOf(ada)), "2001:db8:1:2::3")).status).toBe(429);
   });
 
-  /** A publication signed by a mind for the resolver's own origin. */
-  async function signedPut(mind: Mind, by: Mind, nonce = "nonce-0001"): Promise<RequestInit> {
+  /**
+   * A publication signed by a mind for the resolver's own origin.
+   *
+   * @param version - The version of the signer's identity that the key is named at. Default: its latest.
+   */
+  async function signedPut(
+    mind: Mind,
+    by: Mind,
+    nonce = "nonce-0001",
+    version = by.versionId(),
+  ): Promise<RequestInit> {
     const body = utf8(bundleOf(mind));
     const added = await signRequest(
       {
@@ -364,7 +373,7 @@ describe(`${clause("L1 17.3")} what a resolver asks of its clients`, () => {
         body,
       },
       {
-        keyRef: formatKeyRef(by.address, by.versionId(), by.operational().publicKey),
+        keyRef: formatKeyRef(by.address, version, by.operational().publicKey),
         created: clock.at,
         nonce,
       },
@@ -376,6 +385,57 @@ describe(`${clause("L1 17.3")} what a resolver asks of its clients`, () => {
       headers: [["Content-Type", MEDIA_TYPE], ...added] as [string, string][],
     };
   }
+
+  it("takes the event that retires a mind with a request the mind signed, its key being valid by the log held", async () => {
+    const [ada, bob] = [new KeyMind("ada"), new KeyMind("bob")];
+    const { ask } = service({ authenticatedPublication: true });
+    expect((await ask(pathOf(ada), await signedPut(ada, ada))).status).toBe(202);
+    const before = ada.versionId();
+    ada.retire(60);
+    // By the log in the bundle the mind is retired, and no key of it signs. By the log the
+    // resolver holds, the key is the mind's.
+    expect((await ask(pathOf(ada), await signedPut(ada, ada, "nonce-0002", before))).status).toBe(
+      202,
+    );
+    const served = (await (await ask(pathOf(ada))).json()) as { log: unknown[] };
+    expect(served.log).toHaveLength(2);
+    // The resolver now holds the retirement: the key signs for nothing more.
+    expect(
+      (await problemOf(await ask(pathOf(bob), await signedPut(bob, ada, "nonce-0003", before))))
+        .status,
+    ).toBe(401);
+  });
+
+  it("takes the event that removes a key with a request signed by that key, and after it no other", async () => {
+    const [ada, bob] = [new KeyMind("ada"), new KeyMind("bob")];
+    const { ask } = service({ authenticatedPublication: true });
+    expect((await ask(pathOf(ada), await signedPut(ada, ada))).status).toBe(202);
+    const before = ada.versionId();
+    ada.update(60, { keys: [{ key: ada.operational(1).publicKey }] });
+    expect((await ask(pathOf(ada), await signedPut(ada, ada, "nonce-0002", before))).status).toBe(
+      202,
+    );
+    expect(
+      (await problemOf(await ask(pathOf(bob), await signedPut(bob, ada, "nonce-0003", before))))
+        .status,
+    ).toBe(401);
+  });
+
+  it("does not take a retirement from the mind itself where it holds no log of the mind: no key of it is valid by any log", async () => {
+    const ada = new KeyMind("ada");
+    const { ask } = service({ authenticatedPublication: true });
+    const before = ada.versionId();
+    ada.retire(60);
+    expect(
+      (await problemOf(await ask(pathOf(ada), await signedPut(ada, ada, "nonce-0001", before))))
+        .status,
+    ).toBe(401);
+    expect((await ask(pathOf(ada))).status).toBe(404);
+    // Anyone the resolver knows may publish it: it is evidence.
+    const bob = new KeyMind("bob");
+    expect((await ask(pathOf(bob), await signedPut(bob, bob, "nonce-0002"))).status).toBe(202);
+    expect((await ask(pathOf(ada), await signedPut(ada, bob, "nonce-0003"))).status).toBe(202);
+  });
 
   it("may ask that a mind signs what is published, and a mind may publish its own log so", async () => {
     const [ada, bob, eve] = [new KeyMind("ada"), new KeyMind("bob"), new KeyMind("eve")];

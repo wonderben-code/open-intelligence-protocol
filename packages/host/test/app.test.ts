@@ -129,19 +129,24 @@ const sending = (record: unknown, method = "POST", type = MEDIA_TYPE): RequestIn
   headers: { "content-type": type },
 });
 
-/** A request signed by a mind for the host's own origin (Layer 1, 13.3). */
+/**
+ * A request signed by a mind for the host's own origin (Layer 1, 13.3).
+ *
+ * @param version - The version of the mind's identity that its key is named at. Default: its latest.
+ */
 async function signed(
   by: Mind,
   method: string,
   path: string,
   record?: unknown,
+  version = by.versionId(),
 ): Promise<RequestInit> {
   const body = record === undefined ? undefined : utf8(JSON.stringify(record));
   const headers: [string, string][] = body === undefined ? [] : [["Content-Type", MEDIA_TYPE]];
   const added = await signRequest(
     { method, url: `${ORIGIN}${path}`, headers, ...(body === undefined ? {} : { body }) },
     {
-      keyRef: formatKeyRef(by.address, by.versionId(), by.operational().publicKey),
+      keyRef: formatKeyRef(by.address, version, by.operational().publicKey),
       // A signature is made at a whole second.
       created: clock.at - (clock.at % 1_000_000_000n),
       nonce: `nonce-${String(++nonce).padStart(4, "0")}`,
@@ -579,6 +584,31 @@ describe(`${clause("L1 13.1", "L1 13.3")} a mind that brings its bundle to a hos
     expect(((await (await ask(wellKnown(eve))).json()) as { log: unknown[] }).log).toHaveLength(2);
     // And packets for it are taken from then on.
     expect((await ask(endpoint(eve, "/inbox"), sending(packet(ada, [eve])))).status).toBe(202);
+  });
+
+  it("brings the event that retires it with a request it signed as it was before, and signs nothing after", async () => {
+    const { ask } = service({ admits: () => true });
+    const path = endpoint(eve);
+    const leaving = new KeyMind("eve");
+    expect((await ask(path, await signed(leaving, "PUT", path, bundleOf(leaving)))).status).toBe(
+      201,
+    );
+    const before = leaving.versionId();
+    leaving.retire(115);
+    clock.at = at(120);
+    // By the log in the bundle no key of the mind signs. By the log the host holds, this one does.
+    const retired = await ask(path, await signed(leaving, "PUT", path, bundleOf(leaving), before));
+    expect([retired.status, await retired.json()]).toStrictEqual([200, { added: 1 }]);
+    expect(((await (await ask(wellKnown(eve))).json()) as { log: unknown[] }).log).toHaveLength(2);
+    // The host holds the retirement now, and takes no more requests from the mind.
+    const mailbox = endpoint(eve, "/mailbox");
+    expect(
+      (
+        await problemOf(
+          await ask(mailbox, await signed(leaving, "GET", mailbox, undefined, before)),
+        )
+      ).status,
+    ).toBe(401);
   });
 
   it("is judged at one reading of the clock, as every signed request is, though the clock moves", async () => {

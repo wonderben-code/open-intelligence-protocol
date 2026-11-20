@@ -459,7 +459,7 @@ A cursor of the stream is a string of decimal digits, and cursors rise in the or
 
 **Order.** A resolver MUST NOT record the same first-seen time for two events at one position of a mind's log. Where its clock has not moved since it recorded the first, it records the second a nanosecond later. The evidence must tell which of the two it saw first (7.3), and a resolver that could not would have to call the mind duplicitous on the strength of its own clock. Events that it receives together in one log are evaluated at the time it receives them (core 9.5) and MAY share that time: the log gives their order.
 
-17.3. Resolvers MAY require authenticated publication (13.3) and MAY rate-limit. A resolver that requires it accepts a request signed by a mind whose key is valid by the logs the resolver holds, or by the mind whose bundle is published, judged against the log in that bundle as far as it verified: a mind can so publish its own log for the first time. The signature does not have to be by the mind whose bundle it is: anyone may publish evidence.
+17.3. Resolvers MAY require authenticated publication (13.3) and MAY rate-limit. A resolver that requires it accepts a request signed by a mind whose key is valid by the logs the resolver holds, or by the mind whose bundle is published, judged against the log in that bundle as far as it verified: a mind can so publish its own log for the first time. The logs the resolver holds are those it held before it took the bundle: a mind can so publish the event that removes the key it signs the request with, or the event that retires it, to a resolver that holds its log so far. The signature does not have to be by the mind whose bundle it is: anyone may publish evidence.
 
 ## 18. Indexers and capability routing
 

@@ -13,7 +13,7 @@ import {
   parseTimestamp,
   proofDigest,
 } from "@oip/core";
-import { FirstSeen, LogBook, verifyLog } from "@oip/identity";
+import { FirstSeen, type IdentityView, LogBook, verifyLog } from "@oip/identity";
 import { type Bundle, noteCutShort, type Proof } from "@oip/schema";
 import { clause } from "@oip/testkit";
 import {
@@ -175,6 +175,84 @@ describe(`${clause("L1 17.1", "L1 17.2")} a log published to a resolver`, () => 
     }
     expect(resolver.resolve(idOf(ada))).toBeUndefined();
     expect(resolver.resolve(idOf(bob))).toBeUndefined();
+  });
+});
+
+describe(`${clause("L1 17.3")} who may publish, where a resolver asks`, () => {
+  /** The latest state a view holds of a mind: whether it is retired, or that the view holds no log of it. */
+  const standingOf = (view: IdentityView, mind: Mind): string => {
+    const log = view.log(mind.address);
+    if (!log.ok) return "none";
+    return log.value.entries.at(-1)?.state.retired === true ? "retired" : "current";
+  };
+  const unsigned = () => new OipError("unauthorised", "no key of the logs given signed it");
+
+  it("is asked by the logs held, and only if those do not sign the request by the log published", () => {
+    const ada = new KeyMind("ada");
+    const resolver = new LogArchive({ db, clock });
+    // A mind the resolver has never seen: the logs held hold none of it, the log published does.
+    const first: string[] = [];
+    const published = resolver.publish(idOf(ada), bundleOf(ada), (view) => {
+      first.push(standingOf(view, ada));
+      if (first.length === 1) throw unsigned();
+    });
+    expect(first).toStrictEqual(["none", "current"]);
+    expect(published).toStrictEqual({ outcome: "merged", added: 1 });
+    // The event that retires it: by the log held the mind signs, by the log published it does not.
+    ada.retire(60);
+    const second: string[] = [];
+    resolver.publish(idOf(ada), bundleOf(ada), (view) => {
+      second.push(standingOf(view, ada));
+    });
+    expect(second).toStrictEqual(["current"]);
+    expect(resolver.resolve(idOf(ada))?.log).toHaveLength(2);
+  });
+
+  it("is refused where neither signs the request, and nothing of the bundle is stored", () => {
+    const ada = new KeyMind("ada");
+    const resolver = new LogArchive({ db, clock });
+    const asked: string[] = [];
+    expect(() =>
+      resolver.publish(idOf(ada), bundleOf(ada), (view) => {
+        asked.push(standingOf(view, ada));
+        throw unsigned();
+      }),
+    ).toThrow(/no key of the logs given signed it/u);
+    expect(asked).toStrictEqual(["none", "current"]);
+    expect(resolver.resolve(idOf(ada))).toBeUndefined();
+  });
+
+  it("takes any other refusal as the answer, and asks no second time", () => {
+    const ada = new KeyMind("ada");
+    const resolver = new LogArchive({ db, clock });
+    let asked = 0;
+    expect(() =>
+      resolver.publish(idOf(ada), bundleOf(ada), () => {
+        asked++;
+        throw new OipError("forbidden", "signed, and not by the mind whose bundle it is");
+      }),
+    ).toThrow(/not by the mind whose bundle it is/u);
+    expect(() =>
+      resolver.publish(idOf(ada), bundleOf(ada), () => {
+        asked++;
+        throw new TypeError("not an answer at all");
+      }),
+    ).toThrow(TypeError);
+    expect(asked).toBe(2);
+    expect(resolver.resolve(idOf(ada))).toBeUndefined();
+  });
+
+  it("is asked once where the bundle holds no log that verifies: there is no second log to go by", () => {
+    const ada = new KeyMind("ada");
+    const resolver = new LogArchive({ db, clock });
+    let asked = 0;
+    expect(() =>
+      resolver.publish(idOf(ada), bundleOf(ada, []), () => {
+        asked++;
+        throw unsigned();
+      }),
+    ).toThrow(OipError);
+    expect(asked).toBe(1);
   });
 });
 

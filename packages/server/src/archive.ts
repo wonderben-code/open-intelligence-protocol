@@ -230,14 +230,20 @@ export class LogArchive {
    * Layer 1, 17.1: takes in a bundle published for a mind.
    *
    * @param id - The content ID of the mind's genesis, as the request's path names it.
-   * @param authorise - Called before anything is stored, with the logs the
-   *   resolver holds and the log of the bundle as far as it verified: a
-   *   resolver that asks for authenticated publication (17.3) judges the
-   *   request's signature against them, and throws to refuse. A mind can
-   *   so publish its own log for the first time. It is given the reading of
-   *   the clock those logs are held as of, which is the present to judge
-   *   at: a later reading would be after the logs were obtained, and a
-   *   proof first seen then is not judged by them (core 9.4).
+   * @param authorise - Called before anything is stored: a resolver that
+   *   asks for authenticated publication (17.3) judges the request's
+   *   signature against the logs it is given, and throws to refuse. It is
+   *   called with the logs the resolver holds. If the signature does not
+   *   hold by those, which it says by throwing `unauthorised`, it is called
+   *   again with the log of the bundle, as far as it verified, in the place
+   *   of the one held for that mind, and that answer stands. Anything else
+   *   it throws is its answer. So a mind can publish its own log for the
+   *   first time, which only the second allows, and the event that removes
+   *   the key it signs with, or that retires it, which only the first
+   *   allows. It is given the reading of the clock the logs are held as of,
+   *   which is the present to judge at: a later reading would be after the
+   *   logs were obtained, and a proof first seen then is not judged by them
+   *   (core 9.4).
    * @throws OipError `invalid-record` if the bundle is of another mind.
    * @throws Unavailable if the judging was cut short, or the store could
    *   not be written: nothing was merged, and the publisher asks again.
@@ -265,16 +271,23 @@ export class LogArchive {
     if (authorise !== undefined) {
       const held = this.view(now);
       const published = taken.log;
-      authorise(
-        {
-          evidence: held.evidence,
-          log: (other) =>
-            other === mind && published !== undefined
-              ? { ok: true, value: { ...published, asOf: now } }
-              : held.log(other),
-        },
-        now,
-      );
+      try {
+        // A key that is valid by the logs held (17.3): also for the request that brings the
+        // event which removes that key, or retires the mind.
+        authorise(held, now);
+      } catch (error) {
+        const unsigned = error instanceof OipError && error.code === "unauthorised";
+        if (!unsigned || published === undefined) throw error;
+        // Or a key of the mind that is published, by the log that is published.
+        authorise(
+          {
+            evidence: held.evidence,
+            log: (other) =>
+              other === mind ? { ok: true, value: { ...published, asOf: now } } : held.log(other),
+          },
+          now,
+        );
+      }
     }
     let added = 0;
     let parted: number | undefined;

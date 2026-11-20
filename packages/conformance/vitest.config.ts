@@ -12,6 +12,8 @@ export default defineProject({
     name: "@oip/conformance",
     environment: "node",
     include: ["test/**/*.test.ts"],
+    // The same tests with OpenSSL doing the arithmetic of each signature (ADR-0016).
+    setupFiles: process.env["OIP_ED25519"] === "native" ? ["./test/native.setup.ts"] : [],
     // Hostile inputs of a megabyte take real time on a busy CI machine or
     // under mutation testing; the default of five seconds is too tight.
     testTimeout: 60_000,

@@ -69,6 +69,12 @@ const STEPS: readonly Step[] = [
     name: "Differential tests: feeds, packets, sessions and the records around them",
     command: "OIP_DIFFERENTIAL_NETWORK=500 pnpm test:differential:network",
   },
+  {
+    // ADR-0016: a service has OpenSSL do the arithmetic of a signature. The rule is the
+    // same rule, so the vectors and the Python checker must say the same of it.
+    name: "Golden vectors and differential tests, with OpenSSL doing the arithmetic",
+    command: "OIP_ED25519=native pnpm test:vectors && OIP_ED25519=native pnpm test:differential",
+  },
   { name: "API reference builds", command: "pnpm run docs" },
   { name: "Benchmarks run", command: "pnpm bench" },
   { name: "Licensing (REUSE)", command: "reuse lint", optionalTool: "reuse" },

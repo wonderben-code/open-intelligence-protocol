@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { contentId, proofDigest } from "@oip/core";
+import { contentId, OipError, proofDigest } from "@oip/core";
 import { type FirstSeen, type IdentityView, LogBook } from "@oip/identity";
 import { clause, type JsonObject, readVectors } from "@oip/testkit";
 import { at, Collective, KeyMind, LATER, type Mind, T, witness } from "@oip/testkit/minds";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { AcceptedPackets, type Receiver, receivePacket } from "../src/index.ts";
+import { AcceptedPackets, type Receiver, receivePacket, recordsCarried } from "../src/index.ts";
 
 type Signed = JsonObject & { proof: JsonObject[] };
 
@@ -199,7 +199,7 @@ describe(`${clause("L1 12.4")} receiving a packet`, () => {
 });
 
 describe(`${clause("L1 12.4")} the dates of a packet`, () => {
-  it("rejects a packet made more than 300 seconds in the future", () => {
+  it(`${clause("L1 19")} rejects a packet made more than 300 seconds in the future`, () => {
     const { receiver } = receiverAt(bob, 1000);
     expect(receivePacket(ada.sign(draft(ada, [bob], 1300)), receiver).ok).toBe(true);
     expect(refusal(ada.sign(draft(ada, [bob], 1301)), receiver)).toStrictEqual({
@@ -208,7 +208,7 @@ describe(`${clause("L1 12.4")} the dates of a packet`, () => {
     });
   });
 
-  it("rejects a packet that expired more than 300 seconds ago", () => {
+  it(`${clause("L1 19")} rejects a packet that expired more than 300 seconds ago`, () => {
     const packet = ada.sign(draft(ada, [bob], 10, { expires: T(1000) }));
     expect(receivePacket(packet, receiverAt(bob, 1300).receiver).ok).toBe(true);
     expect(refusal(packet, receiverAt(bob, 1300.000000001).receiver)).toStrictEqual({
@@ -217,7 +217,7 @@ describe(`${clause("L1 12.4")} the dates of a packet`, () => {
     });
   });
 
-  it("rejects a packet that asks to be delivered for more than 7 days", () => {
+  it(`${clause("L1 19")} rejects a packet that asks to be delivered for more than 7 days`, () => {
     const { receiver } = receiverAt(bob, 20);
     const week = ada.sign(draft(ada, [bob], 10, { expires: T(10 + 7 * DAY) }));
     const more = ada.sign(draft(ada, [bob], 10, { expires: T(10 + 7 * DAY + 1) }));
@@ -414,6 +414,33 @@ describe(`${clause("L1 12.4", "L1 18.5")} a packet addressed to a query`, () => 
     expect(seen.proofSeen(proofDigest(wrapped.proof[0] as never))).toBe(at(20));
   });
 
+  it(`${clause("L1 12.1", "L1 19")} asks for at most 50 minds, of at most 8 brokers`, () => {
+    const brokers = Array.from({ length: 9 }, (_, n) => new KeyMind(`broker-${n}`).address);
+    const received = (to: JsonObject) => {
+      const packet = ada.sign(draft(ada, to, 10));
+      return receivePacket(ian.sign(forward(ian, bob, packet, 12)), receiverAt(bob, 20).receiver);
+    };
+    expect(received(query({ maxFanout: 50 })).ok).toBe(true);
+    expect(received(query({ maxFanout: 1 })).ok).toBe(true);
+    expect(received(query({ brokers: [ian.address, ...brokers.slice(0, 7)] })).ok).toBe(true);
+    // Nothing here signs a packet that asks for more, so it carries the proof of one that does not.
+    const asking = (to: JsonObject) => refusedAt(draft(ada, to, 10));
+    for (const maxFanout of [51, 0, -1]) {
+      expect(asking(query({ maxFanout })), String(maxFanout)).toStrictEqual({
+        clause: "L1 12.1",
+        path: "/to/maxFanout",
+      });
+    }
+    expect(asking(query({ brokers: brokers }))).toStrictEqual({
+      clause: "L1 12.1",
+      path: "/to/brokers",
+    });
+    expect(asking(query({ brokers: [] }))).toStrictEqual({
+      clause: "L1 12.1",
+      path: "/to/brokers",
+    });
+  });
+
   it("is rejected where the wrapper is for another mind, or its broker did not sign it", () => {
     const packet = ada.sign(draft(ada, query(), 10));
     const { receiver } = receiverAt(bob, 20);
@@ -578,5 +605,260 @@ describe("the receiver's own arguments", () => {
       }),
       { numRuns: 200 },
     );
+  });
+});
+
+/**
+ * A packet that is not of the form Section 12 gives. Nothing here signs one (the first
+ * test below), so it carries the proof of a packet that is, as a sender's own code might.
+ */
+const malformed = (packet: JsonObject): JsonObject => ({
+  ...packet,
+  proof: (ada.sign(draft(ada, [bob], 10)) as Signed).proof,
+});
+
+/** Where a packet that is not well formed is refused, as a packet is before anything else is judged. */
+function refusedAt(packet: JsonObject) {
+  // A receiver that holds no log and whose clock is far off: the form is judged first.
+  const { receiver } = receiverAt(bob, 10 ** 8, {}, []);
+  const result = receivePacket(malformed(packet), receiver);
+  if (result.ok) throw new Error("the packet was accepted");
+  return { clause: result.issues[0].clause, path: result.issues[0].path };
+}
+
+const accepted = (packet: JsonObject) =>
+  receivePacket(ada.sign(packet), receiverAt(bob, 20).receiver);
+
+describe(`${clause("L1 12.1")} the form of a packet`, () => {
+  it("is not signed by this implementation when it is not of that form", () => {
+    const { nonce: _, ...bare } = draft(ada, [bob], 10);
+    expect(() => ada.sign(bare)).toThrow(OipError);
+    expect(() => ada.sign(draft(ada, [], 10))).toThrow(OipError);
+  });
+
+  it("is identified by its content ID, whatever proofs it carries", () => {
+    const packet = draft(ada, [bob], 10);
+    const once = ada.sign(packet);
+    const twice = ada.sign(once, { created: T(11) });
+    expect(twice.proof).toHaveLength(2);
+    const received = receivePacket(twice, receiverAt(bob, 20).receiver);
+    expect(received.ok && received.value.id).toBe(contentId(packet));
+    expect(contentId(once)).toBe(contentId(twice));
+    // Another nonce is another packet.
+    expect(contentId(draft(ada, [bob], 10, { nonce: "nonce-0002" }))).not.toBe(contentId(packet));
+  });
+
+  it(`${clause("L1 19")} has 1 to 64 recipients`, () => {
+    const others = Array.from({ length: 64 }, (_, n) => new KeyMind(`recipient-${n}`).address);
+    const full = [bob.address, ...others.slice(0, 63)];
+    expect(accepted({ ...draft(ada, [bob], 10), to: full }).ok).toBe(true);
+    const over = { ...draft(ada, [bob], 10), to: [...full, others[63]!] };
+    expect(refusedAt(over)).toStrictEqual({ clause: "L1 12.1", path: "/to" });
+    expect(refusedAt({ ...draft(ada, [bob], 10), to: [] })).toStrictEqual({
+      clause: "L1 12.1",
+      path: "/to",
+    });
+  });
+
+  it("has a nonce of 8 to 64 characters", () => {
+    for (const nonce of ["12345678", "n".repeat(64)]) {
+      expect(accepted(draft(ada, [bob], 10, { nonce })).ok).toBe(true);
+    }
+    for (const nonce of ["1234567", "n".repeat(65)]) {
+      expect(refusedAt(draft(ada, [bob], 10, { nonce }))).toStrictEqual({
+        clause: "L1 12.1",
+        path: "/nonce",
+      });
+    }
+  });
+
+  it("states when it expires, unless it is of a session, and has a purpose and a content", () => {
+    for (const member of ["expires", "purpose", "content", "nonce", "from", "to", "created"]) {
+      const { [member]: _, ...without } = draft(ada, [bob], 10);
+      expect(refusedAt(without), member).toStrictEqual({ clause: "L1 12.1", path: "" });
+    }
+    // A packet of a session needs no `expires` (Section 14).
+    expect(
+      receivePacket(ada.sign(inSession(ada, [bob], 10)), receiverAt(bob, 20).receiver).ok,
+    ).toBe(true);
+    // `seq` and `session` come together.
+    expect(refusedAt(draft(ada, [bob], 10, { seq: 0 }))).toStrictEqual({
+      clause: "L1 12.1",
+      path: "",
+    });
+  });
+
+  it("keeps its short strings short", () => {
+    const cases: [JsonObject, string][] = [
+      [{ instance: "i".repeat(65) }, "/instance"],
+      [{ thread: "t".repeat(129) }, "/thread"],
+      [{ parentThread: "t".repeat(129) }, "/parentThread"],
+      [{ replyTo: "t".repeat(129) }, "/replyTo"],
+      [{ purpose: { verb: "inform", goal: "g".repeat(257) } }, "/purpose/goal"],
+    ];
+    for (const [more, path] of cases) {
+      expect(refusedAt(draft(ada, [bob], 10, more)), path).toStrictEqual({
+        clause: "L1 12.1",
+        path,
+      });
+    }
+    const most = {
+      instance: "i".repeat(64),
+      thread: "t".repeat(128),
+      parentThread: "t".repeat(128),
+      replyTo: "t".repeat(128),
+      purpose: { verb: "inform", goal: "g".repeat(256) },
+    };
+    expect(accepted(draft(ada, [bob], 10, most)).ok).toBe(true);
+  });
+});
+
+describe(`${clause("L1 12.2")} the content of a packet`, () => {
+  const digest = `sha256:${"a".repeat(64)}`;
+  const text = { mediaType: "text/plain", body: "The lease is translated." };
+  const elsewhere = {
+    mediaType: "application/pdf",
+    ref: "https://files.example/lease.pdf",
+    digest,
+  };
+  const withContent = (content: JsonObject) => draft(ada, [bob], 10, { content });
+
+  it("is a body, or a reference with its digest, or up to 32 parts", () => {
+    const bodies: JsonObject["body"][] = ["text", 7, true, null, ["a", "b"], { a: { b: "c" } }];
+    for (const body of bodies) {
+      expect(accepted(withContent({ mediaType: "application/json", body })).ok).toBe(true);
+    }
+    expect(accepted(withContent(elsewhere)).ok).toBe(true);
+    expect(accepted(withContent({ parts: [text, elsewhere] })).ok).toBe(true);
+  });
+
+  it(`${clause("L1 19")} has at most 32 parts`, () => {
+    const parts = (count: number) => ({ parts: Array.from({ length: count }, () => text) });
+    expect(accepted(withContent(parts(32))).ok).toBe(true);
+    expect(refusedAt(withContent(parts(33)))).toStrictEqual({
+      clause: "L1 12.1",
+      path: "/content/parts",
+    });
+  });
+
+  it("is exactly one of them", () => {
+    const { digest: _, ...unpinned } = elsewhere;
+    const cases: [string, JsonObject, string][] = [
+      ["a body and a reference", { ...text, ...elsewhere }, "/content"],
+      ["parts and a body", { parts: [text], ...text }, "/content"],
+      ["a reference without its digest", unpinned, "/content"],
+      ["a body of no media type", { body: "text" }, "/content"],
+      ["a media type and nothing", { mediaType: "text/plain" }, "/content"],
+      ["nothing", {}, "/content"],
+      ["parts within parts", { parts: [{ parts: [text] }] }, "/content/parts/0"],
+    ];
+    for (const [name, content, path] of cases) {
+      expect(refusedAt(withContent(content)), name).toStrictEqual({ clause: "L1 12.1", path });
+    }
+  });
+
+  it("names what is elsewhere by a SHA-256 digest in lower-case hexadecimal", () => {
+    for (const wrong of [
+      `sha256:${"A".repeat(64)}`,
+      `sha256:${"a".repeat(63)}`,
+      `sha256:${"a".repeat(65)}`,
+      `sha512:${"a".repeat(64)}`,
+      "a".repeat(64),
+    ]) {
+      expect(refusedAt(withContent({ ...elsewhere, digest: wrong })), wrong).toStrictEqual({
+        clause: "L1 12.1",
+        path: "/content/digest",
+      });
+    }
+  });
+
+  it("carries a record as the body of a part whose media type is that of records", () => {
+    const session = {
+      oip: "1",
+      type: "Session",
+      participants: [ada.address, bob.address].sort(),
+      nonce: "session-0001",
+      created: T(0),
+    };
+    const carrying = (content: JsonObject) => {
+      const received = accepted(withContent(content));
+      if (!received.ok) throw new Error(JSON.stringify(received.issues));
+      return recordsCarried(received.value.packet, "Session");
+    };
+    const record = { mediaType: "application/oip+json", body: session };
+    expect(carrying(record)).toStrictEqual([session]);
+    expect(carrying({ parts: [text, record, record] })).toStrictEqual([session, session]);
+    // Under another media type the same body is not a record of the protocol.
+    expect(carrying({ mediaType: "application/json", body: session })).toStrictEqual([]);
+    // A body that is not a record is data like any other (12.5): the packet is received, and carries none.
+    expect(carrying({ mediaType: "application/oip+json", body: "not a record" })).toStrictEqual([]);
+    expect(
+      carrying({ mediaType: "application/oip+json", body: { type: "Session" } }),
+    ).toStrictEqual([]);
+  });
+});
+
+describe(`${clause("L1 12.3")} the verb of a packet`, () => {
+  const VERBS = [
+    "inform",
+    "request",
+    "query",
+    "propose",
+    "accept",
+    "decline",
+    "deliver",
+    "ack",
+    "error",
+    "open",
+    "resume",
+    "branch",
+    "close",
+  ];
+  const saying = (verb: string, more: JsonObject = {}) =>
+    draft(ada, [bob], 10, { purpose: { verb }, ...more });
+
+  it("is one of thirteen, or has a namespace", () => {
+    for (const verb of [...VERBS, "acme:quote", "org.example:negotiate"]) {
+      expect(accepted(saying(verb)).ok, verb).toBe(true);
+    }
+    for (const verb of ["dance", "", "acme:", ":quote", "INFORM"]) {
+      expect(refusedAt(saying(verb)), verb).toStrictEqual({
+        clause: "L1 12.1",
+        path: "/purpose/verb",
+      });
+    }
+  });
+
+  it("binds nothing: a packet is received alike whatever its verb says", () => {
+    const received = [...VERBS, "acme:quote"].map((verb) => {
+      const result = accepted(saying(verb));
+      if (!result.ok) throw new Error(JSON.stringify(result.issues));
+      const { id: _, packet: __, judged, ...rest } = result.value;
+      return { ...rest, proofs: judged.proofs.length };
+    });
+    for (const one of received) expect(one).toStrictEqual(received[0]);
+  });
+
+  it("opens, resumes and branches nothing by itself: what counts is the record in `content`", () => {
+    const session = {
+      oip: "1",
+      type: "Session",
+      participants: [ada.address, bob.address].sort(),
+      nonce: "session-0001",
+      created: T(0),
+    };
+    const carried = (packet: JsonObject) => {
+      const result = accepted(packet);
+      if (!result.ok) throw new Error(JSON.stringify(result.issues));
+      return (["Session", "Resume", "Branch"] as const).flatMap((type) =>
+        recordsCarried(result.value.packet, type),
+      );
+    };
+    for (const verb of ["open", "resume", "branch", "accept"]) {
+      expect(carried(saying(verb)), verb).toStrictEqual([]);
+    }
+    // And a record is carried under any verb.
+    const content = { mediaType: "application/oip+json", body: session };
+    expect(carried(saying("inform", { content }))).toStrictEqual([session]);
   });
 });

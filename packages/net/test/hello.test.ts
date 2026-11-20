@@ -68,7 +68,7 @@ describe(`${clause("L1 13.3")} a Hello`, () => {
     });
   });
 
-  it("answers a challenge this server issued within the last 300 seconds", () => {
+  it(`${clause("L1 19")} answers a challenge this server issued within the last 300 seconds`, () => {
     const record = hello(ada, 99);
     expect(verifyHello(record, serverAt(400, 100).server).ok).toBe(true);
     expect(refusal(record, serverAt(400.000000001, 100).server).path).toBe("/proof/0/challenge");

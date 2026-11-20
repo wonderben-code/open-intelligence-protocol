@@ -5,7 +5,7 @@ import { contentId } from "@oip/core";
 import { type IdentityView, type JudgedRecord, judgeRecord } from "@oip/identity";
 import type { Location } from "@oip/schema";
 import { clause, type JsonObject, readVectors } from "@oip/testkit";
-import { at, bookOf, Collective, KeyMind, type Mind, T } from "@oip/testkit/minds";
+import { at, bookOf, Collective, KeyMind, type Mind, rawSign, T } from "@oip/testkit/minds";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -239,6 +239,33 @@ describe(`${clause("L1 15.1", "L1 15.3")} the endpoints a sender tries`, () => {
     expect(tried(endpoints, { status: "migrating" })).toStrictEqual(["w", "h", "spare", "box"]);
     expect(tried(endpoints, { status: "paused" })).toStrictEqual(["spare", "box"]);
     expect(tried([endpoint("https", "h", 1)], { status: "paused" })).toStrictEqual([]);
+  });
+});
+
+describe(`${clause("L1 15.1")} the endpoints of a location record`, () => {
+  const ada = new KeyMind("ada");
+  const endpoints = (count: number) =>
+    Array.from({ length: count }, (_, n) => ({
+      binding: "https",
+      url: `https://host-${n}.example/oip`,
+      priority: n,
+    }));
+
+  it(`${clause("L1 19")} are at most 32, and may be none`, () => {
+    for (const count of [0, 1, 32]) {
+      const record = ada.sign(draft(ada, 1, 10, { endpoints: endpoints(count) }));
+      expect(current(ada, [record])?.record.endpoints, String(count)).toHaveLength(count);
+    }
+    // Nothing here signs a record with more, so it is signed as bytes.
+    const over = rawSign(
+      draft(ada, 1, 10, { endpoints: endpoints(33) }),
+      [{ member: ada.address, versionId: ada.versionId(), invocation: ada.operational() }],
+      { purpose: "assertionMethod" },
+    );
+    expect(judgeRecord(over)).toMatchObject({
+      ok: false,
+      issues: [{ clause: "L1 15.1", path: "/endpoints" }],
+    });
   });
 });
 

@@ -6,6 +6,7 @@
 
 import { Ack } from '@oip/schema';
 import { AgreementKeys } from '@oip/keystore';
+import { Assurance } from '@oip/web';
 import type { AuthorityItem } from '@oip/schema';
 import { Capability } from '@oip/schema';
 import { CapabilityQuery } from '@oip/schema';
@@ -89,6 +90,14 @@ export function askJson(asking: Asking, options?: TransportOptions): Promise<Jso
 
 // @public
 export function askRecord(asking: Asking, options?: TransportOptions): Promise<OipRecord>;
+
+// @public
+export interface Assured {
+    readonly endpoint?: string;
+    readonly gateway?: string;
+    readonly level: Assurance;
+    readonly protocol?: string;
+}
 
 // @public
 export function carried(record: object): {
@@ -284,6 +293,7 @@ export class Lookup {
         checks: AliasCheck[];
         did: DidResolution;
     }>;
+    assurance(mind: string): Promise<Assured>;
     feed(mind: string): Promise<ReadFeed>;
     find(query: CapabilityQuery): Promise<Finding>;
     record(mind: string, id: string): Promise<JudgedRecord>;
@@ -445,6 +455,7 @@ export interface NewCollective {
 export interface NewMind {
     readonly alsoKnownAs?: readonly string[];
     readonly control?: Lock;
+    readonly ext?: Readonly<Record<string, JsonObject>>;
     readonly homes?: readonly string[];
     readonly invocation?: Lock;
     readonly kind: string;
@@ -470,6 +481,7 @@ export interface ProfileFields {
     readonly actsFor?: Participant["actsFor"];
     readonly attestations?: readonly string[];
     readonly capabilities?: Participant["capabilities"];
+    readonly ext?: Readonly<Record<string, JsonObject>>;
     readonly interfaces?: Readonly<Record<string, string>>;
     readonly languages?: readonly string[];
     readonly name: string;

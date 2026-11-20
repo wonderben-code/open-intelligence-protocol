@@ -28,6 +28,7 @@ export {
 } from "./transport.ts";
 export { type AliasCheck, type AliasOptions, type DidLike } from "./aliases.ts";
 export {
+  type Assured,
   type Clock,
   DEFAULT_MAX_FEED_ENTRIES,
   DEFAULT_MAX_LOGS,

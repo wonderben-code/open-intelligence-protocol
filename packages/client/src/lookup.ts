@@ -20,12 +20,15 @@
 import {
   contentId,
   type Instant,
+  isMindAddress,
   mindId,
   OipError,
   type OipRecord,
+  parseRecordRef,
   parseTimestamp,
   proofDigest,
 } from "@oip/core";
+import { RecordSet } from "@oip/delegation";
 import {
   type DidResolution,
   didDocument,
@@ -51,6 +54,7 @@ import {
   verifyParticipant,
 } from "@oip/net";
 import { type Bundle, type CapabilityQuery, type Entry, validateRecordOfType } from "@oip/schema";
+import { type Assurance, assuranceOf, BRIDGE_BLOCK } from "@oip/web";
 
 import { accepted } from "./accepted.ts";
 import { type AliasCheck, type AliasOptions, checkAlias } from "./aliases.ts";
@@ -137,6 +141,25 @@ export interface Resolved {
   readonly participant: HeldParticipant | undefined;
   /** What each resolver answered, in the order the client names them. */
   readonly sources: readonly ResolverAnswer[];
+}
+
+/** What a look at a mind's assurance found (Layer 0, 1.3). */
+export interface Assured {
+  /**
+   * `native`: neither the mind's genesis nor its profile names a gateway.
+   * `bridged`: a gateway acts for an external system, and its own feed
+   * attests the mind. `claimed`: a gateway is named, and nothing shows it.
+   */
+  readonly level: Assurance;
+  /**
+   * The gateway the mind names, whatever the level. Only where the level is
+   * `bridged` has that gateway said so itself.
+   */
+  readonly gateway?: string;
+  /** The protocol of the external system, as the block says: `a2a`, `mcp`. The block's own word. */
+  readonly protocol?: string;
+  /** Where the external system is reached, as the block says. The block's own word. */
+  readonly endpoint?: string;
 }
 
 /** A mind's feed as a client has read it from the mind's homes. The entries were verified. */
@@ -320,6 +343,60 @@ export class Lookup {
           : { home: answer.home, entries: undefined, failure: codeOf(answer.failure) },
       ),
     };
+  }
+
+  /**
+   * The assurance level of a mind (Layer 0, 1.3): whether a gateway acts
+   * for it, and whether the gateway's own feed shows that.
+   *
+   * The mind is resolved. If its profile names a gateway and an
+   * attestation, the gateway is resolved and its feed is read, and the
+   * entry the profile names is looked for there: an entry that is not in
+   * the gateway's feed attests nothing.
+   *
+   * @returns The level, with the gateway, protocol and endpoint the mind
+   *   names. Where the gateway cannot be resolved or its feed cannot be
+   *   read, the level is `claimed`: nothing was shown.
+   * @throws What `resolve` throws for the mind itself.
+   */
+  async assurance(mind: string): Promise<Assured> {
+    const resolved = await this.resolve(mind);
+    const profile = resolved.participant?.record;
+    const blockOf = (record: {
+      readonly ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+    }): Readonly<Record<string, unknown>> | undefined =>
+      record.ext !== undefined && Object.hasOwn(record.ext, BRIDGE_BLOCK)
+        ? record.ext[BRIDGE_BLOCK]
+        : undefined;
+    const own = profile === undefined ? undefined : blockOf(profile);
+    const block = own ?? blockOf(resolved.log.entries[0].event);
+    if (block === undefined) return { level: "native" };
+    const { gateway, protocol, endpoint } = block;
+    const said = {
+      ...(isMindAddress(gateway) ? { gateway } : {}),
+      ...(typeof protocol === "string" ? { protocol } : {}),
+      ...(typeof endpoint === "string" ? { endpoint } : {}),
+    };
+    // A genesis that names a gateway, with no profile to name an attestation.
+    if (profile === undefined || own === undefined) return { level: "claimed", ...said };
+    const records = new RecordSet();
+    const named = parseRecordRef(own["attestation"]);
+    if (named !== undefined && said.gateway !== undefined) {
+      try {
+        const { feed } = await this.feed(said.gateway);
+        const attested = feed.entries.find(({ id }) => id === named.contentId);
+        if (attested !== undefined) records.add(attested.entry);
+      } catch (error) {
+        // A gateway that cannot be asked has shown nothing.
+        if (!(error instanceof OipError || error instanceof TransportError)) throw error;
+      }
+    }
+    const judged = accepted(
+      judgeRecord(profile),
+      "invalid-record",
+      "the mind's profile is no record this client can judge",
+    );
+    return { level: assuranceOf(judged, { identity: this.#book, records }), ...said };
   }
 
   /**

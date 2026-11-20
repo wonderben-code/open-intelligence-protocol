@@ -18,6 +18,7 @@ import { example as hearing } from "../examples/listen.ts";
 import { example } from "../examples/first-mind.ts";
 import { example as messaging } from "../examples/messages.ts";
 import { example as moving } from "../examples/move.ts";
+import { example as bridging } from "../examples/bridged.ts";
 import { example as naming } from "../examples/names.ts";
 import { example as keeping } from "../examples/outbox.ts";
 import { example as publishing } from "../examples/publish.ts";
@@ -57,6 +58,7 @@ describe("the README", () => {
       "first-mind.ts",
       "keys.ts",
       "names.ts",
+      "bridged.ts",
       "delegation.ts",
       "charter.ts",
       "publish.ts",
@@ -145,6 +147,23 @@ describe("the README", () => {
       "https://famous.example: not shown to be (not-pointing-back)",
     ]);
     expect(readme).toContain(`\`\`\`\n${result.output.join("\n")}\n\`\`\``);
+  });
+
+  it("shows the output the example of a bridged mind really gives", async () => {
+    world.resolver("https://resolver.example");
+    world.host("https://host.example");
+    const output = await bridging(
+      ["https://resolver.example"],
+      "https://host.example",
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock: world.clock },
+    );
+    expect(output).toStrictEqual([
+      "named in its genesis alone: claimed",
+      "attested in its gateway's feed: bridged, over a2a",
+      "the gateway itself: native",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });
 
   it("shows the output the example of a mind's keys really gives", async () => {
@@ -426,6 +445,7 @@ describe("the README", () => {
         "AliasOptions",
         "Answer",
         "Asking",
+        "Assured",
         "ChainView",
         "Clock",
         "CollectiveChanges",

@@ -375,6 +375,82 @@ https://ada.example: its own
 https://famous.example: not shown to be (not-pointing-back)
 ```
 
+A mind may stand for a system that is not on the network: a gateway holds its keys and acts for it (Layer 0, Section 1). [`examples/bridged.ts`](examples/bridged.ts) makes such a mind as a gateway does, and asks what any client asks before it relies on one: has the gateway said so itself?
+
+```ts
+import { type Clock, type Fetch, Lookup, Mind } from "@oip/client";
+import { contentId, formatRecordRef, type JsonObject } from "@oip/core";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * A gateway makes a mind for an agent of another protocol, and another
+ * client asks how far that mind is what it says (Layer 0, Section 1).
+ *
+ * @param resolvers - The HTTPS origins of the resolvers the minds trust.
+ * @param home - The HTTPS origin of a host that serves both minds.
+ * @param lock - What the minds' keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  home: string,
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const make = async (ext?: Readonly<Record<string, JsonObject>>): Promise<Mind> => {
+    const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+    const mind = await Mind.create(
+      { keystore, lock, resolvers, ...edges },
+      { kind: "service", homes: [home], ...(ext === undefined ? {} : { ext }) },
+    );
+    await mind.publishLocation();
+    return mind;
+  };
+  const gateway = await make();
+  // The gateway names itself in the genesis of the mind it makes. A genesis cannot be
+  // changed: it is what the address is made from.
+  const block = {
+    protocol: "a2a",
+    endpoint: "https://agent.example/a2a",
+    gateway: gateway.address,
+    assurance: "bridged",
+  };
+  const agent = await make({ "oip.bridge": block });
+  const first = await new Lookup({ resolvers, ...edges }).assurance(agent.address);
+  output.push(`named in its genesis alone: ${first.level}`);
+
+  // The gateway's own word is an entry of its feed that names that genesis.
+  const genesis = agent.resolved.log.entries[0].event;
+  const entry = await gateway.publishRecord(genesis);
+  // The mind's profile names the entry, by reference.
+  const attestation = formatRecordRef(gateway.address, contentId(entry));
+  await agent.publishProfile({
+    name: "An agent of another protocol",
+    ext: { "oip.bridge": { ...block, attestation } },
+  });
+
+  // Anyone can ask. The gateway's feed is read, and the entry is looked for in it.
+  const lookup = new Lookup({ resolvers, ...edges });
+  const found = await lookup.assurance(agent.address);
+  output.push(`attested in its gateway's feed: ${found.level}, over ${String(found.protocol)}`);
+  output.push(`the gateway itself: ${(await lookup.assurance(gateway.address)).level}`);
+  agent.close();
+  gateway.close();
+  return output;
+}
+```
+
+It prints:
+
+```
+named in its genesis alone: claimed
+attested in its gateway's feed: bridged, over a2a
+the gateway itself: native
+```
+
+`native` means that no gateway has declared the mind bridged, and no more than that. `claimed` means that a gateway is named and nothing shows it: treat the name as you would any other claim.
+
 ## Sending and receiving
 
 [`examples/messages.ts`](examples/messages.ts) sends a sealed packet from one mind to another, which reads its mailbox:
@@ -1179,6 +1255,7 @@ now a collective of 4, of whom 3 act
 | `IdentityChanges`, `KeyEntry`, `ControlOptions`                                                                                                          | What changes with an identity event, and what opens the control keys for it: `Mind.update`, `addKey`, `revokeKey`, `fork`, `retire` (Layer 1, 3.7 to 3.10)                                                                                                                                     |
 | `Lookup`, `LookupOptions`, `Resolved`, `ResolverAnswer`, `DEFAULT_MAX_LOGS`                                                                              | Resolves a mind: fetches its identity log from the resolvers the client trusts, takes their first-seen times as evidence, and verifies the log with them (Layer 1, 17.1; core 9.4). With the log come the mind's current location record and profile, if a resolver served them and they count |
 | `ReadFeed`, `HomeAnswer`, `DEFAULT_MAX_FEED_ENTRIES`                                                                                                     | `Lookup.feed` reads a mind's public feed from its homes and verifies it (Layer 1, 10 and 13.1)                                                                                                                                                                                                 |
+| `Assured`                                                                                                                                                | `Lookup.assurance` says whether a gateway acts for a mind, and whether the gateway's own feed shows it (Layer 0, 1.3): `native`, `bridged` or `claimed`                                                                                                                                        |
 | `Finding`, `Found`, `Listed`, `Ranking`, `NotFound`, `IndexerAnswer`, `MAX_RESULTS`                                                                      | `Lookup.find` asks the indexers the client names a capability query, and fetches and verifies every record they name before it returns it (Layer 1, 18.4). `Lookup.record` fetches a record a mind's homes serve, by its content ID                                                            |
 | `AliasCheck`, `AliasOptions`, `DidLike`                                                                                                                  | `Lookup.aliases` checks the other names a mind gives itself: each is the mind's only if it points back (Layer 1, 5.3; Layer 0, Section 4)                                                                                                                                                      |
 | `Message`, `Sent`, `Delivery`, `Inbox`, `Received`, `MailboxAnswer`, `DEFAULT_EXPIRES_IN`, `MAX_EXPIRES_IN`, `MAX_QUERY_EXPIRES_IN`, `MAX_MAILBOX_ITEMS` | `Mind.send` signs a packet, seals it to each recipient and posts it where the recipient takes packets (Layer 1, Section 12; 15.3). `Mind.receive` reads the mind's mailboxes and returns what was judged to be a packet for it (12.4, 13.5)                                                    |

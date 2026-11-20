@@ -40,9 +40,18 @@ import {
   LogBook,
   type VerifiedLog,
   verifyLog,
+  witnessRecord,
 } from "@oip/identity";
-import { currentLocation, type HeldLocation, isStale } from "@oip/net";
-import { type Bundle, validateRecordOfType, type Validation } from "@oip/schema";
+import {
+  currentLocation,
+  type HeldLocation,
+  type HeldParticipant,
+  isStale,
+  type VerifiedFeed,
+  verifyFeed,
+  verifyParticipant,
+} from "@oip/net";
+import { type Bundle, type Entry, validateRecordOfType, type Validation } from "@oip/schema";
 
 import { askRecord, httpsOrigin, TransportError, type TransportOptions } from "./transport.ts";
 
@@ -75,10 +84,16 @@ export interface LookupOptions extends TransportOptions {
    * the members a collective's log rests on, and of their members. Default 64.
    */
   readonly maxLogs?: number;
+  /** The most entries of one feed that are read from one home. Default 10 000. */
+  readonly maxFeedEntries?: number;
 }
 
 /** The most identity logs fetched to judge one mind, unless a client says otherwise. */
 export const DEFAULT_MAX_LOGS = 64;
+/** The most entries of a feed read from one home, unless a client says otherwise. */
+export const DEFAULT_MAX_FEED_ENTRIES = 10_000;
+/** The entries asked for in one page of a feed. A host may give fewer (Layer 1, 13.1). */
+const FEED_PAGE = 100;
 
 /** A mind as a client has resolved it. Everything here was verified. */
 export interface Resolved {
@@ -99,11 +114,39 @@ export interface Resolved {
   readonly did: DidResolution;
   /**
    * Its current location record (Layer 1, 15.2), if a resolver served one
-   * that counts and is not stale.
+   * that counts. It may be stale: see `stale`.
    */
   readonly location: HeldLocation | undefined;
+  /**
+   * Whether the location record is past its `ttl` (Layer 1, 15.2). A stale
+   * record says where the mind was, and is a hint of where it is.
+   */
+  readonly stale: boolean;
+  /**
+   * Its current profile (Layer 1, 16.4): the one its current location record
+   * names, if a resolver served it and it counts.
+   */
+  readonly participant: HeldParticipant | undefined;
   /** What each resolver answered, in the order the client names them. */
   readonly sources: readonly ResolverAnswer[];
+}
+
+/** A mind's feed as a client has read it from the mind's homes. The entries were verified. */
+export interface ReadFeed {
+  /** The feed, as far as it verifies (Layer 1, 10.1 to 10.4). */
+  readonly feed: VerifiedFeed;
+  /** What each home served, in the order the mind names them. */
+  readonly sources: readonly HomeAnswer[];
+}
+
+/** What one home served of a mind's feed. */
+export interface HomeAnswer {
+  /** The home's origin. */
+  readonly home: string;
+  /** How many entries it served, or `undefined` if it served none. */
+  readonly entries: number | undefined;
+  /** Why it served none: the code of its problem, or the failure of the transport. */
+  readonly failure?: string;
 }
 
 /** What one resolver answered for a mind. */
@@ -127,7 +170,7 @@ const rank = (failure: Failure): number =>
   failure instanceof TransportError ? 1 : failure.code === "not-found" ? 2 : 0;
 
 /** The value a judge answered with, or an `OipError` for its refusal. */
-function accepted<T>(judged: Validation<T>, code: ProblemCode, what: string): T {
+export function accepted<T>(judged: Validation<T>, code: ProblemCode, what: string): T {
   if (judged.ok) return judged.value;
   const [first] = judged.issues;
   throw new OipError(code, `${what}: ${first.message}`, {
@@ -149,8 +192,8 @@ export class Lookup {
   /** What this client first saw itself, and when. */
   readonly #seen = new FirstSeen();
   readonly #book: LogBook;
-  /** The location records the resolvers served for each mind, as judged. */
-  readonly #locations = new Map<string, Map<string, JudgedRecord>>();
+  /** The location records and profiles the resolvers served for each mind, as judged. */
+  readonly #others = new Map<string, Map<string, JudgedRecord>>();
 
   /**
    * @throws TypeError if no resolver is given, or one is not an HTTPS origin.
@@ -212,17 +255,115 @@ export class Lookup {
       `the log of ${mind} does not verify`,
     );
     const did = accepted(didDocument(log), "invalid-record", `${mind} has no DID document`);
-    const location = currentLocation(this.#locations.get(mind)?.values() ?? [], mind, this.#book);
-    const fresh = location !== undefined && !isStale(location.record, this.#clock.now());
+    const others = [...(this.#others.get(mind)?.values() ?? [])];
+    const location = currentLocation(others, mind, this.#book);
     return {
       mind,
       log,
       state: latestState(log),
       duplicitous: log.duplicitous,
       did,
-      location: fresh ? location : undefined,
+      location,
+      stale: location !== undefined && isStale(location.record, this.#clock.now()),
+      participant: profileNamed(location, others, this.#book),
       sources,
     };
+  }
+
+  /**
+   * Reads a mind's public feed from its homes (Layer 1, 13.1) and verifies
+   * it (10.1 to 10.4). The mind is resolved first.
+   *
+   * Every home is asked, and what they served is judged together: a home
+   * that withholds the end of a feed is made up for by one that serves it,
+   * and two valid entries for one position are found whichever home each
+   * came from. An entry counts from when this client first saw it, unless it
+   * holds earlier evidence.
+   *
+   * @throws OipError `not-found` if the mind names no home; the failure of
+   *   the first home, if none served the feed. What `resolve` throws.
+   */
+  async feed(mind: string): Promise<ReadFeed> {
+    const { state } = await this.resolve(mind);
+    if (state.homes.length === 0) {
+      throw new OipError("not-found", `${mind} names no home that serves a feed`, {
+        clause: "L1 13.1",
+      });
+    }
+    const answers = await Promise.all(state.homes.map((home) => this.#feedAt(home, mind)));
+    const [failed] = answers.flatMap((answer) => ("failure" in answer ? [answer.failure] : []));
+    if (failed !== undefined && answers.every((answer) => "failure" in answer)) throw failed;
+    const now = this.#clock.now();
+    const entries = answers.flatMap((answer) => ("entries" in answer ? answer.entries : []));
+    for (const entry of entries) {
+      // First seen now, by this client (core 9.4, item 1): a host is no witness.
+      const judged = judgeRecord(entry);
+      if (judged.ok) witnessRecord(judged.value, now, this.#seen);
+    }
+    // The log as it stands no earlier than the entries were first seen: a key that signed one
+    // may have been removed since the homes were looked up (core 9.4).
+    await this.resolve(mind);
+    const feed = accepted(
+      verifyFeed(entries, mind, this.#book),
+      "invalid-record",
+      `the feed of ${mind} cannot be read`,
+    );
+    return {
+      feed,
+      sources: answers.map((answer) =>
+        "entries" in answer
+          ? { home: answer.home, entries: answer.entries.length }
+          : { home: answer.home, entries: undefined, failure: codeOf(answer.failure) },
+      ),
+    };
+  }
+
+  /** The entries one home serves of a mind's feed, page by page, as far as a client reads. */
+  async #feedAt(
+    home: string,
+    mind: string,
+  ): Promise<{ home: string; entries: Entry[] } | { home: string; failure: Failure }> {
+    const most = this.#options.maxFeedEntries ?? DEFAULT_MAX_FEED_ENTRIES;
+    const entries: Entry[] = [];
+    try {
+      if (httpsOrigin(home) !== home) {
+        throw new TransportError("url", home, "a home is an HTTPS origin");
+      }
+      let after: number | undefined;
+      for (;;) {
+        const query = `limit=${String(FEED_PAGE)}${after === undefined ? "" : `&after=${String(after)}`}`;
+        const record = await askRecord(
+          { method: "GET", url: `${home}/.well-known/oip/mind/${idOf(mind)}/feed?${query}` },
+          this.#options,
+        );
+        const page = accepted(
+          validateRecordOfType("FeedPage", record),
+          "invalid-record",
+          `${home} served what is no page of a feed`,
+        );
+        if (page.mind !== mind) {
+          throw new OipError("invalid-record", `${home} served the feed of another mind`, {
+            clause: "L1 13.1",
+          });
+        }
+        entries.push(...page.entries);
+        if (entries.length > most) {
+          throw new OipError("too-large", `${home} serves a longer feed than this client reads`, {
+            clause: "implementation limit",
+          });
+        }
+        // A page that does not go forward ends the reading, whatever it says comes next.
+        if (page.next === undefined || page.entries.length === 0) break;
+        if (after !== undefined && page.next <= after) break;
+        after = page.next;
+      }
+      return { home, entries };
+    } catch (error) {
+      if (error instanceof OipError || error instanceof TransportError) {
+        return { home, failure: error };
+      }
+      throw error;
+    }
   }
 
   /**
@@ -279,17 +420,12 @@ export class Lookup {
       // Held with the others. Two copies that differ at one position are duplicity, which the
       // book finds, and which is the mind's doing and not the resolver's.
       this.#book.hold(bundle.log, now);
-      this.#takeLocation(mind, bundle);
+      this.#takeOthers(mind, bundle);
     }
     return answers.map((answer) =>
       "bundle" in answer
         ? { resolver: answer.resolver, events: answer.bundle.log.length }
-        : {
-            resolver: answer.resolver,
-            events: undefined,
-            failure:
-              answer.failure instanceof OipError ? answer.failure.code : answer.failure.failure,
-          },
+        : { resolver: answer.resolver, events: undefined, failure: codeOf(answer.failure) },
     );
   }
 
@@ -320,7 +456,7 @@ export class Lookup {
   /**
    * Takes a resolver's first-seen times as evidence (core 9.4, item 2): for
    * the events of the log it served, and for the proofs of the location
-   * record it served, and for nothing else it may name.
+   * record and of the profile it served, and for nothing else it may name.
    */
   #takeTimes(bundle: Bundle, now: Instant): void {
     const times = bundle.firstSeen ?? {};
@@ -335,23 +471,48 @@ export class Lookup {
       const at = timeOf(id);
       if (at !== undefined) this.#witnessed.sawEvent(id, at);
     }
-    for (const proof of bundle.location?.proof ?? []) {
+    for (const proof of [...(bundle.location?.proof ?? []), ...(bundle.participant?.proof ?? [])]) {
       const digest = proofDigest(proof);
       const at = timeOf(digest);
       if (at !== undefined) this.#witnessed.sawProof(digest, at);
     }
   }
 
-  /** Keeps the location record a resolver served, to be judged with the others. */
-  #takeLocation(mind: string, bundle: Bundle): void {
-    if (bundle.location?.author !== mind) return;
-    const judged = judgeRecord(bundle.location);
-    if (!judged.ok) return;
-    let held = this.#locations.get(mind);
-    if (held === undefined) this.#locations.set(mind, (held = new Map<string, JudgedRecord>()));
-    // One copy of each record: the one with the most proofs is the same record with more said of it.
-    held.set(contentId(bundle.location), judged.value);
+  /** Keeps the location record and the profile a resolver served, to be judged with the others. */
+  #takeOthers(mind: string, bundle: Bundle): void {
+    for (const record of [bundle.location, bundle.participant]) {
+      if (record?.author !== mind) continue;
+      const judged = judgeRecord(record);
+      if (!judged.ok) continue;
+      let held = this.#others.get(mind);
+      if (held === undefined) this.#others.set(mind, (held = new Map<string, JudgedRecord>()));
+      // One copy of each record: a later copy is the same record, as a resolver holds it now.
+      held.set(contentId(record), judged.value);
+    }
   }
+}
+
+/** The code of a failure: of the service's problem, or of the transport. */
+const codeOf = (failure: Failure): string =>
+  failure instanceof OipError ? failure.code : failure.failure;
+
+/**
+ * Layer 1, 16.4: the profile a location record names, if it is held and
+ * counts for the mind.
+ */
+function profileNamed(
+  location: HeldLocation | undefined,
+  others: readonly JudgedRecord[],
+  view: IdentityView,
+): HeldParticipant | undefined {
+  const named = location?.record.participant;
+  if (named === undefined) return undefined;
+  for (const other of others) {
+    if (other.record.type !== "Participant" || contentId(other.record) !== named) continue;
+    const verified = verifyParticipant(other, view);
+    if (verified.ok) return verified.value;
+  }
+  return undefined;
 }
 
 /** What a resolver served, as a bundle of the mind that was asked for. */

@@ -9,6 +9,7 @@ import { repoRoot } from "@oip/testkit";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { example } from "../examples/first-mind.ts";
+import { example as publishing } from "../examples/publish.ts";
 import * as client from "../src/index.ts";
 import { World } from "./world.ts";
 
@@ -39,11 +40,34 @@ function memoryKeychain(): Keychain {
 }
 
 describe("the README", () => {
-  it("shows examples/first-mind.ts unchanged", () => {
-    const source = readFileSync(join(packageRoot, "examples", "first-mind.ts"), "utf8");
-    // The file's licence header is not part of what the README shows.
-    const code = source.replace(/^(\/\/ SPDX[^\n]*\n)+\n/, "");
-    expect(readme).toContain(`\`\`\`ts\n${code}\`\`\``);
+  it("shows its examples unchanged", () => {
+    for (const name of ["first-mind.ts", "publish.ts"]) {
+      const source = readFileSync(join(packageRoot, "examples", name), "utf8");
+      // The file's licence header is not part of what the README shows.
+      const code = source.replace(/^(\/\/ SPDX[^\n]*\n)+\n/, "");
+      expect(readme, name).toContain(`\`\`\`ts\n${code}\`\`\``);
+    }
+  });
+
+  it("shows the output the example of publishing really gives, against two resolvers and a host", async () => {
+    const resolvers = ["https://resolver-one.example", "https://resolver-two.example"];
+    for (const resolver of resolvers) world.resolver(resolver);
+    world.host("https://home.example");
+    const output = await publishing(
+      resolvers,
+      "https://home.example",
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock: world.clock },
+    );
+    expect(output).toStrictEqual([
+      "a profile is published: Ada, agent",
+      "taken by: resolver, resolver, home",
+      "its feed has an entry at 0 for a Participant",
+      "location record 1: paused, 2 endpoints, feed at 0",
+      "another client reads: Ada, paused",
+      "and its feed: 1 entry that verifies",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });
 
   it("shows the output the example really gives, against two resolvers", async () => {
@@ -84,13 +108,18 @@ describe("the README", () => {
         "Asking",
         "Clock",
         "ControlOptions",
+        "Endpoint",
         "Fetch",
+        "HomeAnswer",
         "IdentityChanges",
         "KeyEntry",
+        "LocationFields",
         "LookupOptions",
         "MindOptions",
         "NewMind",
+        "ProfileFields",
         "Publication",
+        "ReadFeed",
         "Resolved",
         "ResolverAnswer",
         "TransportFailure",
@@ -109,5 +138,9 @@ describe("the README", () => {
     expect(client.MAX_DETAIL_LENGTH).toBe(256);
     expect(readme).toContain("64 logs at most for one mind");
     expect(client.DEFAULT_MAX_LOGS).toBe(64);
+    expect(readme).toContain("10 000 entries of a feed from one home");
+    expect(client.DEFAULT_MAX_FEED_ENTRIES).toBe(10_000);
+    expect(readme).toContain("good for an hour");
+    expect(client.DEFAULT_TTL).toBe(3600);
   });
 });

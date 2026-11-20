@@ -27,7 +27,9 @@ export async function example(
     { keystore, lock, resolvers, ...edges },
     { kind: "agent", homes: ["https://home.example"] },
   );
-  const took = mind.publications.filter((publication) => publication.taken).length;
+  const took = mind.publications.filter(
+    (publication) => publication.service === "resolver" && publication.taken,
+  ).length;
   output.push(`a mind is made, and ${String(took)} resolvers have its genesis`);
 
   // The mind signs a record with its operational key.

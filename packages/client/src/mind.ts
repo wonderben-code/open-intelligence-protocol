@@ -24,6 +24,7 @@ import {
   createProof,
   formatKeyRef,
   formatTimestamp,
+  formatVersionId,
   type Instant,
   type JsonObject,
   keyHash,
@@ -48,13 +49,25 @@ import {
   type InvocationKeys,
   type Keystore,
   KeystoreError,
+  type KeyStorage,
   type Lock,
+  memoryStorage,
   type OperationalKeys,
+  type Randomness,
+  systemRandomness,
 } from "@oip/keystore";
-import type { IdentityEvent, Proof } from "@oip/schema";
+import type { Entry, IdentityEvent, Location, Participant, Proof } from "@oip/schema";
 
 import { type Clock, Lookup, type LookupOptions, type Resolved, systemClock } from "./lookup.ts";
-import { askJson, recordBody, TransportError } from "./transport.ts";
+import { Memory } from "./memory.ts";
+import {
+  type LocationFields,
+  type ProfileFields,
+  type Publication,
+  Publishing,
+} from "./publish.ts";
+import { type RequestKey, signedAsking } from "./signed.ts";
+import { type Asking, askJson, recordBody, TransportError } from "./transport.ts";
 
 /** What a mind of one's own needs: where its keys are, and which resolvers it trusts. */
 export interface MindOptions extends LookupOptions {
@@ -65,6 +78,18 @@ export interface MindOptions extends LookupOptions {
    * agreement keys. They stay unlocked while the mind is open.
    */
   readonly lock: Lock;
+  /**
+   * Where the client remembers its own work between runs: where the mind's
+   * feed stands, and the number of its last location record. None of it is
+   * secret, and all of it keeps the mind from signing two things for one
+   * position. Give it a storage that lasts, and one of its own: not the
+   * keystore's. Default: memory that is gone when the process ends, after
+   * which the client asks the mind's homes and resolvers where things stand
+   * and goes by what they answer.
+   */
+  readonly memory?: KeyStorage;
+  /** Where the nonces of signed requests come from. Default: the platform's generator. */
+  readonly randomness?: Randomness;
 }
 
 /** What a new mind is made with. */
@@ -114,38 +139,51 @@ export interface ControlOptions {
   readonly control: Lock;
 }
 
-/** What each resolver said when an identity event was published to it. */
-export interface Publication {
-  /** The resolver's origin. */
-  readonly resolver: string;
-  /** Whether it took the log. */
-  readonly taken: boolean;
-  /** Why it did not: the code of its problem, or the failure of the transport. */
-  readonly failure?: string;
+/** The keys of everyday work, unlocked. */
+interface Everyday {
+  readonly operational: OperationalKeys;
+  readonly agreement: AgreementKeys;
 }
 
 /** A mind of one's own. */
 export class Mind {
   readonly #options: MindOptions;
   readonly #clock: Clock;
+  readonly #randomness: Randomness;
   readonly #lookup: Lookup;
   readonly #operational: OperationalKeys;
   readonly #agreement: AgreementKeys;
+  readonly #publishing: Publishing;
   #resolved: Resolved;
   #published: readonly Publication[] = [];
 
-  private constructor(
-    options: MindOptions,
-    lookup: Lookup,
-    keys: { operational: OperationalKeys; agreement: AgreementKeys },
-    resolved: Resolved,
-  ) {
+  private constructor(options: MindOptions, lookup: Lookup, keys: Everyday, resolved: Resolved) {
     this.#options = options;
     this.#clock = options.clock ?? systemClock;
+    this.#randomness = options.randomness ?? systemRandomness;
     this.#lookup = lookup;
     this.#operational = keys.operational;
     this.#agreement = keys.agreement;
     this.#resolved = resolved;
+    this.#publishing = new Publishing({
+      address: resolved.mind,
+      transport: options,
+      resolvers: options.resolvers,
+      clock: this.#clock,
+      lookup,
+      memory: new Memory(options.memory ?? memoryStorage(), resolved.mind),
+      resolved: () => this.#resolved,
+      refresh: async () => {
+        await this.refresh();
+        return this.#resolved;
+      },
+      sign: (record) => this.sign(record),
+      signed: (asking) => this.#signed(asking),
+      signedForLog: (asking) => this.#signedForLog(asking),
+      told: (publications) => {
+        this.#published = publications;
+      },
+    });
   }
 
   /**
@@ -200,11 +238,31 @@ export class Mind {
         }
       }
       const signed = await proved(control, lookup, clock.now(), [], genesis);
-      const mind = mindAddress(contentId(signed));
-      const resolved = await publishAndConfirm(options, lookup, mind, [signed]);
-      await control.published(signed);
-      await keystore.setMind(mind);
-      return await Mind.#opened(options, lookup, resolved.resolved, resolved.published);
+      const address = mindAddress(contentId(signed));
+      const keys = await Mind.#everyday(options);
+      try {
+        const key = publisher(address, keys.operational, undefined, signed);
+        const sign = (asking: Asking): Promise<Asking> =>
+          key === undefined
+            ? Promise.resolve(asking)
+            : signedAsking(asking, key, clock.now(), options.randomness ?? systemRandomness);
+        const { resolved, published } = await publishAndConfirm(
+          options,
+          lookup,
+          address,
+          [signed],
+          sign,
+        );
+        await control.published(signed);
+        await keystore.setMind(address);
+        const mind = new Mind(options, lookup, keys, resolved);
+        mind.#published = [...published, ...(await mind.#publishing.bring())];
+        return mind;
+      } catch (error) {
+        keys.operational.lock();
+        keys.agreement.lock();
+        throw error;
+      }
     } finally {
       control.lock();
     }
@@ -223,21 +281,15 @@ export class Mind {
       throw new OipError("not-found", "the keystore holds no mind's keys yet: create one");
     }
     const lookup = new Lookup(options);
-    return Mind.#opened(options, lookup, await lookup.resolve(mind), []);
+    const resolved = await lookup.resolve(mind);
+    return new Mind(options, lookup, await Mind.#everyday(options), resolved);
   }
 
-  static async #opened(
-    options: MindOptions,
-    lookup: Lookup,
-    resolved: Resolved,
-    published: readonly Publication[],
-  ): Promise<Mind> {
+  /** Unlocks the keys of everyday work: both, or neither. */
+  static async #everyday(options: MindOptions): Promise<Everyday> {
     const operational = await options.keystore.unlock("operational", options.lock);
     try {
-      const agreement = await options.keystore.unlock("agreement", options.lock);
-      const mind = new Mind(options, lookup, { operational, agreement }, resolved);
-      mind.#published = published;
-      return mind;
+      return { operational, agreement: await options.keystore.unlock("agreement", options.lock) };
     } catch (error) {
       operational.lock();
       throw error;
@@ -259,7 +311,12 @@ export class Mind {
     return this.#resolved;
   }
 
-  /** What each resolver said when the mind last published an identity event. */
+  /**
+   * What each service said when the mind last published: the resolvers the
+   * client trusts, and the mind's homes. A method that publishes succeeds
+   * when enough of them took what was published, and this tells which did
+   * not.
+   */
   get publications(): readonly Publication[] {
     return this.#published;
   }
@@ -341,6 +398,109 @@ export class Mind {
     );
     const before = (record as { proof?: Proof[] }).proof ?? [];
     return { ...record, proof: [...before, proof] };
+  }
+
+  /** A request signed by the mind, with the key it signs records with (Layer 1, 13.3). */
+  #signed(asking: Asking): Promise<Asking> {
+    const key = this.signingKey();
+    return signedAsking(
+      asking,
+      {
+        keyRef: formatKeyRef(this.address, this.state.versionId, key),
+        signer: this.#operational.signer(key),
+      },
+      this.#clock.now(),
+      this.#randomness,
+    );
+  }
+
+  /**
+   * A request that brings the mind's log, signed with a key that a service
+   * can judge by the log it holds or by the one it is brought: `publisher`
+   * says which.
+   */
+  #signedForLog(asking: Asking): Promise<Asking> {
+    // For the last event of the log, with the state the event before it left.
+    let before: IdentityState | undefined;
+    let key: RequestKey | undefined;
+    for (const { event, state } of this.#resolved.log.entries) {
+      key = publisher(this.address, this.#operational, before, event);
+      before = state;
+    }
+    return key === undefined
+      ? Promise.resolve(asking)
+      : signedAsking(asking, key, this.#clock.now(), this.#randomness);
+  }
+
+  /**
+   * Publishes where the mind can be reached: its next location record
+   * (Layer 1, Section 15), to every resolver the client trusts and to every
+   * home of the mind. A home that does not serve the mind yet takes it on
+   * with this, if it admits it.
+   *
+   * The record names the mind's current profile, and says where its feed
+   * stands as this client remembers it.
+   *
+   * @param fields - What the record says. What is left out stays as the
+   *   mind's current record has it.
+   * @returns The record, signed.
+   * @throws OipError `invalid-record` if the fields make no location record;
+   *   the failure of the first resolver, if none took it. `publications`
+   *   says what each service answered.
+   */
+  publishLocation(fields: LocationFields = {}): Promise<Location> {
+    return this.#publishing.location(fields);
+  }
+
+  /**
+   * Publishes what the mind is and can do: a profile (Layer 1, Section 16),
+   * and a location record that names it, which is what makes it the mind's
+   * current profile (16.4). The profile supersedes the one before it.
+   *
+   * @returns The profile, signed.
+   * @throws As `publishLocation` does.
+   */
+  publishProfile(fields: ProfileFields): Promise<Participant> {
+    return this.#publishing.profile(fields);
+  }
+
+  /**
+   * Puts a record on the mind's public feed (Layer 1, Section 10): signs the
+   * next entry, which names the record and the proofs it has now, and
+   * brings the record and the entry to the mind's homes.
+   *
+   * A feed has one entry at each position, and two are equivocation, which
+   * cannot be taken back (10.3). So the entry is remembered before it
+   * leaves (`memory`), and a call that failed is finished by the next one
+   * with the same entry. Calls are taken one after another.
+   *
+   * The record may be another mind's: a commitment the mind is a party to,
+   * say (10.2).
+   *
+   * @returns The entry, signed.
+   * @throws OipError `forbidden` if the mind names no home; `invalid-record`
+   *   for what is no record; `duplicity` if a home holds another entry at
+   *   the position; the failure of the first home, if none took the entry.
+   */
+  publishRecord(record: object): Promise<Entry> {
+    return this.#publishing.record(record);
+  }
+
+  /**
+   * Brings the mind's homes its identity log, with its current location
+   * record and profile: what a home serves for it at
+   * `/.well-known/oip/mind/m` (Layer 1, 13.1). Every identity change does
+   * this by itself. Call it for a home that could not be reached then.
+   *
+   * A mind that has retired brings its log alone, signed as it was before
+   * it retired. A home takes that for as long as it has not learned of the
+   * retirement, and so learns of it.
+   *
+   * @returns What each home said.
+   */
+  async bringHomes(): Promise<readonly Publication[]> {
+    await this.refresh();
+    return (this.#published = await this.#publishing.bring());
   }
 
   /**
@@ -508,8 +668,8 @@ export class Mind {
           clause: "L1 3.10",
         });
       }
-      await destroyUseless(control, resolved);
       const committed = state.controller.next;
+      await destroyUseless(control, resolved, committed);
       const revealing = control
         .keys()
         .map((key) => key.publicKey)
@@ -558,18 +718,64 @@ export class Mind {
     const before = resolved.log.entries.map((entry) => entry.event);
     const id = contentId(event);
     // Published already, by a call that stopped before it destroyed the keys.
+    let published: readonly Publication[] | undefined;
     if (!before.some((held) => contentId(held) === id)) {
-      const after = await publishAndConfirm(this.#options, this.#lookup, this.address, [
-        ...before,
-        signed ?? (await control.sign(event)),
-      ]);
-      this.#published = after.published;
-      resolved = after.resolved;
+      const key = publisher(this.address, this.#operational, resolved.state, event);
+      const after = await publishAndConfirm(
+        this.#options,
+        this.#lookup,
+        this.address,
+        [...before, signed ?? (await control.sign(event))],
+        (asking) =>
+          key === undefined
+            ? Promise.resolve(asking)
+            : signedAsking(asking, key, this.#clock.now(), this.#randomness),
+      );
+      ({ published, resolved } = after);
     }
     await control.published(event);
     this.#resolved = resolved;
+    // The homes serve the log too, and judge the mind's requests by it.
+    if (published !== undefined) {
+      this.#published = [...published, ...(await this.#publishing.bring())];
+    }
     return resolved;
   }
+}
+
+/**
+ * The key that signs the request that publishes a log (Layer 1, 17.3): a
+ * key the log's last event leaves the mind with, that the keystore holds,
+ * at the version that event makes. A resolver judges the request against
+ * the log it is given, and under the current-state rule (6.1).
+ *
+ * After a `Retire` no key of the mind signs. The request is then signed as
+ * the mind was before it, which a resolver that holds the log so far can
+ * still judge.
+ *
+ * @returns `undefined` if the keystore holds no such key: the request goes
+ *   unsigned, which a resolver that asks for no authentication takes.
+ */
+function publisher(
+  mind: string,
+  operational: OperationalKeys,
+  before: IdentityState | undefined,
+  event: Unsigned<IdentityEvent>,
+): RequestKey | undefined {
+  const held = (keys: readonly string[]): string | undefined =>
+    keys.find((candidate) => operational.has(candidate));
+  const earlier = before?.keys ?? [];
+  // The keys the event leaves the mind with: those it lists, or else those it had.
+  const listed = (event as { keys?: readonly KeyEntry[] }).keys?.map((entry) => entry.key);
+  const key = event.type === "Retire" ? undefined : held(listed ?? earlier);
+  if (key !== undefined) {
+    // A genesis has no `seq`: it is the event at 0.
+    const version = formatVersionId((event as { seq?: number }).seq ?? 0, contentId(event));
+    return { keyRef: formatKeyRef(mind, version, key), signer: operational.signer(key) };
+  }
+  const old = held(earlier);
+  if (before === undefined || old === undefined) return undefined;
+  return { keyRef: formatKeyRef(mind, before.versionId, old), signer: operational.signer(old) };
 }
 
 /** The members of an event that the changes fill in. */
@@ -648,15 +854,17 @@ async function proved(
  * published, so a key that is bound to nothing and committed to by nothing
  * is waited for by nothing.
  */
-async function destroyUseless(control: ControlKeys, resolved: Resolved): Promise<void> {
+async function destroyUseless(
+  control: ControlKeys,
+  resolved: Resolved,
+  committed: readonly string[],
+): Promise<void> {
   const revealed = new Set<string>();
   for (const { event } of resolved.log.entries) {
     // Every event of a key-controlled mind's log names the control keys it reveals (Layer 1, 3.4).
     const { keys } = (event as unknown as { controller: { keys: readonly string[] } }).controller;
     for (const key of keys) revealed.add(key);
   }
-  const { controller } = resolved.state;
-  const committed = controller.kind === "key" ? controller.next : [];
   for (const { publicKey } of control.keys()) {
     if (revealed.has(publicKey) || !committed.includes(keyHash(publicKey))) {
       await control.remove(publicKey);
@@ -677,20 +885,23 @@ async function publishAndConfirm(
   lookup: Lookup,
   mind: string,
   log: readonly object[],
+  sign: (asking: Asking) => Promise<Asking>,
 ): Promise<{ resolved: Resolved; published: Publication[] }> {
   const id = mind.slice("did:oip:".length);
   const body = recordBody({ oip: "1", type: "Bundle", mind, log });
   const failures: (OipError | TransportError)[] = [];
   const published = await Promise.all(
-    options.resolvers.map(async (resolver): Promise<Publication> => {
+    options.resolvers.map(async (origin): Promise<Publication> => {
       try {
-        await askJson({ method: "PUT", url: `${resolver}/oip/v1/resolve/${id}`, body }, options);
-        return { resolver, taken: true };
+        const asking = await sign({ method: "PUT", url: `${origin}/oip/v1/resolve/${id}`, body });
+        await askJson(asking, options);
+        return { service: "resolver", origin, taken: true };
       } catch (error) {
         if (!(error instanceof OipError || error instanceof TransportError)) throw error;
         failures.push(error);
         return {
-          resolver,
+          service: "resolver",
+          origin,
           taken: false,
           failure: error instanceof OipError ? error.code : error.failure,
         };

@@ -98,8 +98,10 @@ describe("a mind of one's own", () => {
     expect(mind.address).toMatch(/^did:oip:bciq/u);
     expect(keystore.mind).toBe(mind.address);
     expect(mind.publications).toStrictEqual([
-      { resolver: A, taken: true },
-      { resolver: B, taken: true },
+      { service: "resolver", origin: A, taken: true },
+      { service: "resolver", origin: B, taken: true },
+      // Nothing answers at the home it names.
+      { service: "home", origin: "https://host.example", taken: false, failure: "unreachable" },
     ]);
     expect(mind.state).toMatchObject({
       kind: "agent",
@@ -209,8 +211,8 @@ describe("a mind of one's own", () => {
     world.remove(B);
     const mind = await Mind.create(options, { kind: "agent" });
     expect(mind.publications).toStrictEqual([
-      { resolver: A, taken: true },
-      { resolver: B, taken: false, failure: "unreachable" },
+      { service: "resolver", origin: A, taken: true },
+      { service: "resolver", origin: B, taken: false, failure: "unreachable" },
     ]);
     expect(mind.resolved.sources).toStrictEqual([
       { resolver: A, events: 1 },

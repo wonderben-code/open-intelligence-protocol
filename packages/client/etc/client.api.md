@@ -6,17 +6,24 @@
 
 import { AgreementKeys } from '@oip/keystore';
 import { DidResolution } from '@oip/identity';
+import type { Entry } from '@oip/schema';
 import { FirstSeen } from '@oip/identity';
 import { HeldLocation } from '@oip/net';
+import { HeldParticipant } from '@oip/net';
 import { IdentityState } from '@oip/identity';
 import { IdentityView } from '@oip/identity';
 import { Instant } from '@oip/core';
 import { JsonObject } from '@oip/core';
 import type { JsonValue } from '@oip/schema';
+import { KeyStorage } from '@oip/keystore';
 import { Keystore } from '@oip/keystore';
+import { Location } from '@oip/schema';
 import { Lock } from '@oip/keystore';
 import { OipRecord } from '@oip/core';
+import { Participant } from '@oip/schema';
 import type { Proof } from '@oip/schema';
+import { Randomness } from '@oip/keystore';
+import { VerifiedFeed } from '@oip/net';
 import { VerifiedLog } from '@oip/identity';
 
 // @public
@@ -59,16 +66,35 @@ export interface ControlOptions {
 export const DEFAULT_MAX_BYTES: number;
 
 // @public
+export const DEFAULT_MAX_FEED_ENTRIES = 10000;
+
+// @public
 export const DEFAULT_MAX_LOGS = 64;
 
 // @public
 export const DEFAULT_TIMEOUT_MS = 10000;
 
 // @public
+export const DEFAULT_TTL = 3600;
+
+// @public
+export type Endpoint = Location["endpoints"][number];
+
+// @public
 export function exchange(asking: Asking, options?: TransportOptions): Promise<Answer>;
 
 // @public
 export type Fetch = (request: Request) => Promise<Response>;
+
+// @public
+export interface HomeAnswer {
+    readonly entries: number | undefined;
+    readonly failure?: string;
+    readonly home: string;
+}
+
+// @public
+export function homeEndpoints(mind: string, homes: readonly string[]): Endpoint[];
 
 // @public
 export function httpsOrigin(url: string): string | undefined;
@@ -93,8 +119,17 @@ export interface KeyEntry {
 }
 
 // @public
+export interface LocationFields {
+    readonly endpoints?: readonly Endpoint[];
+    readonly resumeAfter?: string;
+    readonly status?: "active" | "paused" | "migrating";
+    readonly ttl?: number;
+}
+
+// @public
 export class Lookup {
     constructor(options: LookupOptions);
+    feed(mind: string): Promise<ReadFeed>;
     resolve(mind: string): Promise<Resolved>;
     get seen(): FirstSeen;
     get view(): IdentityView;
@@ -103,6 +138,7 @@ export class Lookup {
 // @public
 export interface LookupOptions extends TransportOptions {
     readonly clock?: Clock;
+    readonly maxFeedEntries?: number;
     readonly maxLogs?: number;
     readonly resolvers: readonly string[];
 }
@@ -117,6 +153,7 @@ export class Mind {
     }): Promise<string>;
     get address(): string;
     get agreement(): AgreementKeys;
+    bringHomes(): Promise<readonly Publication[]>;
     close(): void;
     static create(options: MindOptions, fields: NewMind): Promise<Mind>;
     fork(child: string, options: ControlOptions & {
@@ -126,6 +163,9 @@ export class Mind {
     get lookup(): Lookup;
     static open(options: MindOptions): Promise<Mind>;
     get publications(): readonly Publication[];
+    publishLocation(fields?: LocationFields): Promise<Location>;
+    publishProfile(fields: ProfileFields): Promise<Participant>;
+    publishRecord(record: object): Promise<Entry>;
     refresh(): Promise<IdentityState>;
     get resolved(): Resolved;
     retire(options: ControlOptions & {
@@ -147,6 +187,8 @@ export class Mind {
 export interface MindOptions extends LookupOptions {
     readonly keystore: Keystore;
     readonly lock: Lock;
+    readonly memory?: KeyStorage;
+    readonly randomness?: Randomness;
 }
 
 // @public
@@ -159,10 +201,28 @@ export interface NewMind {
 }
 
 // @public
+export interface ProfileFields {
+    readonly actsFor?: Participant["actsFor"];
+    readonly attestations?: readonly string[];
+    readonly capabilities?: Participant["capabilities"];
+    readonly interfaces?: Readonly<Record<string, string>>;
+    readonly languages?: readonly string[];
+    readonly name: string;
+    readonly summary?: string;
+}
+
+// @public
 export interface Publication {
     readonly failure?: string;
-    readonly resolver: string;
+    readonly origin: string;
+    readonly service: "resolver" | "home";
     readonly taken: boolean;
+}
+
+// @public
+export interface ReadFeed {
+    readonly feed: VerifiedFeed;
+    readonly sources: readonly HomeAnswer[];
 }
 
 // @public
@@ -181,7 +241,9 @@ export interface Resolved {
     readonly location: HeldLocation | undefined;
     readonly log: VerifiedLog;
     readonly mind: string;
+    readonly participant: HeldParticipant | undefined;
     readonly sources: readonly ResolverAnswer[];
+    readonly stale: boolean;
     readonly state: IdentityState;
 }
 

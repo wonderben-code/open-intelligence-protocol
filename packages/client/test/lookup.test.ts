@@ -359,6 +359,22 @@ describe(`${clause("L1 9.6")} resolving a collective`, () => {
     return { a, b, c, collective };
   }
 
+  it("is not sent round in circles by a resolver whose logs name each other as members", async () => {
+    const { a, collective } = await club();
+    // A second resolver serves, as the log of a member, a log that names that member among its members.
+    serving(B, (mind) =>
+      mind === a.address
+        ? { oip: "1", type: "Bundle", mind: a.address, log: collective.events }
+        : undefined,
+    );
+    const before = world.asked.length;
+    expect(await refusal(() => lookupOf([A, B]).resolve(collective.address))).toBe(
+      "oip: invalid-proof",
+    );
+    // Each mind was asked for once at each resolver, and no more.
+    expect(world.asked.slice(before)).toHaveLength(8);
+  });
+
   it("fetches the logs its own rests on, and verifies it with them", async () => {
     const { a, b, c, collective } = await club();
     world.clock.at = at(500);
@@ -429,7 +445,7 @@ describe(`${clause("L1 15.2")} the location record of a resolved mind`, () => {
     return response.status;
   }
 
-  it("is the current one a resolver served, if it counts and is not stale", async () => {
+  it("is the current one a resolver served, if it counts, and is said to be stale past its time", async () => {
     world.resolver(A);
     const ada = new KeyMind("ada");
     const location = ada.sign(locationBy(ada, 90));
@@ -438,11 +454,14 @@ describe(`${clause("L1 15.2")} the location record of a resolved mind`, () => {
     const resolved = await lookup.resolve(ada.address);
     expect(resolved.location?.record).toStrictEqual(location);
     expect(resolved.location?.id).toBe(contentId(location));
-    // Its time-to-live is 900 seconds from 90: at 991 it is stale, and a sender asks again.
+    expect(resolved.stale).toBe(false);
+    // Its time-to-live is 900 seconds from 90: at 991 it is stale, and a hint of where the mind was.
     world.clock.at = at(990);
-    expect((await lookup.resolve(ada.address)).location?.id).toBe(contentId(location));
+    expect((await lookup.resolve(ada.address)).stale).toBe(false);
     world.clock.at = at(991);
-    expect((await lookup.resolve(ada.address)).location).toBeUndefined();
+    const later = await lookup.resolve(ada.address);
+    expect(later.location?.id).toBe(contentId(location));
+    expect(later.stale).toBe(true);
   });
 
   it("is none where what was served does not count for the mind", async () => {
@@ -489,5 +508,51 @@ describe(`${clause("L1 15.2")} the location record of a resolved mind`, () => {
       }),
     );
     expect((await lookupOf().resolve(ada.address)).location).toBeUndefined();
+  });
+
+  it(`${clause("L1 16.4")} comes with the profile it names, if a resolver served that and it counts`, async () => {
+    const ada = new KeyMind("ada");
+    const genesis = contentId(ada.events[0]);
+    const profileOf = (kind: string) =>
+      ada.sign({
+        oip: "1",
+        type: "Participant",
+        author: ada.address,
+        created: T(80),
+        name: "Ada",
+        kind,
+      });
+    const served = (profile: ReturnType<typeof profileOf>, named = contentId(profile)) => {
+      const location = ada.sign({ ...locationBy(ada, 90), participant: named });
+      serving(A, () =>
+        bundleOf(ada, {
+          location,
+          participant: profile as unknown as JsonObject,
+          firstSeen: {
+            [genesis]: T(1),
+            [proofDigest(location.proof[0])]: T(95),
+            [proofDigest(profile.proof[0])]: T(95),
+          },
+        }),
+      );
+      return location;
+    };
+    const profile = profileOf("agent");
+    const location = served(profile);
+    const resolved = await lookupOf().resolve(ada.address);
+    expect(resolved.location?.id).toBe(contentId(location));
+    expect(resolved.participant).toStrictEqual({
+      id: contentId(profile),
+      record: profile,
+      time: at(95),
+    });
+    // A profile that says the mind is of another kind than its log says does not count (16.1).
+    served(profileOf("human"));
+    const other = await lookupOf().resolve(ada.address);
+    expect(other.location).toBeDefined();
+    expect(other.participant).toBeUndefined();
+    // Nor does a profile the location record does not name.
+    served(profile, contentId(profileOf("human")));
+    expect((await lookupOf().resolve(ada.address)).participant).toBeUndefined();
   });
 });

@@ -28,9 +28,12 @@ export {
 } from "./transport.ts";
 export {
   type Clock,
+  DEFAULT_MAX_FEED_ENTRIES,
   DEFAULT_MAX_LOGS,
+  type HomeAnswer,
   Lookup,
   type LookupOptions,
+  type ReadFeed,
   type Resolved,
   type ResolverAnswer,
   systemClock,
@@ -42,5 +45,12 @@ export {
   Mind,
   type MindOptions,
   type NewMind,
-  type Publication,
 } from "./mind.ts";
+export {
+  DEFAULT_TTL,
+  type Endpoint,
+  homeEndpoints,
+  type LocationFields,
+  type ProfileFields,
+  type Publication,
+} from "./publish.ts";

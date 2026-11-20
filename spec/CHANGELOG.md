@@ -118,6 +118,10 @@ Two independent reviews of `@oip/delegation` and `@oip/web` found eight more (OE
 - **A broker's duties and its answer (18.5).** It forwards a packet once, not to its sender, to an inbox or else a mailbox, and answers `202` with `{ "stored": true }`.
 - **Submissions and queries are `application/json` (18.1).** They are JSON and not records, and core 10.1 names a media type for records only. A `QueryResult` is a record and is served as one.
 
+**Bridge clarifications ([OEP-0006](../oeps/oep-0006-bridge-clarifications.md), found while building the MCP server).** No test vector changes.
+
+- **A Receipt is confirmed too (Layer 0, 2.2).** An OIP MCP server SHOULD require the user's confirmation before it signs a Receipt, as before a Commitment or a Delegation, unless a policy of the user's permits it. A Receipt binds nobody, but a party that is owed something gives its claim up by saying the promise was fulfilled, and a model that a packet talked into it could say so in the user's name.
+
 ## Revision 2026-11-17 (Draft)
 
 Security and consistency fixes from two independent reviews of revision 2026-10-30, one of the technical paper and one of the specifications, and from a third independent check of those fixes before publication ([reviews/](../reviews/)). Record formats change little; most changes are clearer rules about who may sign what, and when. Every mind address in the test vectors is unchanged.

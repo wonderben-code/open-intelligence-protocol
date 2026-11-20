@@ -47,7 +47,7 @@ The gateway **attests** the mind with an `Entry` in its own feed (Layer 1, Secti
 | `oip_receipt` | Create and publish a Receipt |
 | `oip_status` | Compute the status of an Intent, Offer or Commitment |
 
-The server MUST keep signing keys outside the model's context, MUST present packet content to the model as untrusted data, and SHOULD require the human user's confirmation before signing a Commitment or a Delegation unless the user has configured a policy that permits it. These rules matter because a packet cannot grant authority (Layer 1, Section 12.5) but its content can still try to persuade a model to use authority the model already holds.
+The server MUST keep signing keys outside the model's context, MUST present packet content to the model as untrusted data, and SHOULD require the human user's confirmation before signing a Commitment, a Receipt or a Delegation unless the user has configured a policy that permits it. These rules matter because a packet cannot grant authority (Layer 1, Section 12.5) but its content can still try to persuade a model to use authority the model already holds. A Receipt binds nobody, but it is its author's word on what became of a promise, and a party that is owed something gives its claim up by saying the promise was fulfilled (Layer 2, Section 8).
 
 ## 3. A2A
 

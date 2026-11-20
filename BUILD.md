@@ -144,7 +144,7 @@ Services use a storage interface with a SQLite implementation (`better-sqlite3`,
 - **Inputs.** Each input is checked against the limits of L1 19 and core 1.6 before it is parsed, then against its schema and the core rules, then verified.
 - **Outbound requests** (resolvers fetching homes, gateways fetching Agent Cards) go through one guarded fetcher. It allows HTTPS only, resolves DNS and blocks private, loopback, link-local and metadata addresses, sets size and time limits, and follows no cross-host redirects.
 - **Abuse.** Rate limits and quotas apply per IP address and per mind. The replay rules of L1 12.4 are enforced, with nonce stores that expire. WebSocket and stream limits are enforced too.
-- **Untrusted content.** Packet content is data, never authority (L1 12.5). The MCP server labels it as untrusted and asks for confirmation before signing a Commitment or a Delegation (L0 2.2).
+- **Untrusted content.** Packet content is data, never authority (L1 12.5). The MCP server labels it as untrusted and asks for confirmation before signing a Commitment, a Receipt or a Delegation (L0 2.2).
 - **Threat models.** Each service and each tool gets a STRIDE threat model in `docs/threat-models/`, which is kept up to date.
 
 ### 3.8 Performance budgets
@@ -384,7 +384,7 @@ Sizes are rough: **S** is about one focused session, **M** two or three, **L** f
 - Tool descriptions written for models.
 - Keys stay in the server.
 - Packet content is marked as untrusted data.
-- Confirmation through MCP elicitation before signing a Commitment or a Delegation, unless the user has configured a policy that permits it.
+- Confirmation through MCP elicitation before signing a Commitment, a Receipt or a Delegation, unless the user has configured a policy that permits it.
 - Configuration snippets for Claude Desktop, Claude Code and other MCP hosts.
 
 **Accept.**

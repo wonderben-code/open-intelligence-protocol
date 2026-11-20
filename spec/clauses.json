@@ -1613,9 +1613,9 @@
       "keywords": {
         "MUST": 3,
         "MUST NOT": 3,
-        "MAY": 2
+        "MAY": 3
       },
-      "digest": "d3c1d991130fc0bcca2938812ed0cbcfded83731f314e343f1051360bd191783"
+      "digest": "7129600da79c5721eb3430e7c76514e6d0015c185509db7b579c413689d3d7a8"
     },
     {
       "id": "L1 17.3",

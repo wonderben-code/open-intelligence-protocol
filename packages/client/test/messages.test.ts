@@ -131,6 +131,7 @@ describe(`${clause("L1 12.1")} a packet that is sent`, () => {
       refused: [],
       waiting: 0,
       sessions: [],
+      retried: [],
       sources: [{ mailbox: mailboxOf(TWO, bob.mind), items: 1 }],
     });
     // It is gone from the mailbox.
@@ -139,6 +140,7 @@ describe(`${clause("L1 12.1")} a packet that is sent`, () => {
       refused: [],
       waiting: 0,
       sessions: [],
+      retried: [],
       sources: [{ mailbox: mailboxOf(TWO, bob.mind), items: 0 }],
     });
     // The sender finds nothing of it in its own.
@@ -198,9 +200,10 @@ describe(`${clause("L1 12.1")} a packet that is sent`, () => {
     expect(sent.deliveries).toStrictEqual([
       { to: bob.mind.address, sealed: true, stored: true, endpoint: inboxOf(TWO, bob.mind) },
       // No location record; a host that does not answer, at its inbox or its mailbox; no log.
-      { to: cyd.mind.address, sealed: true, stored: false, failure: "not-found" },
-      { to: dee.mind.address, sealed: true, stored: false, failure: "unreachable" },
-      { to: unknown, sealed: true, stored: false, failure: "not-found" },
+      // Each may yet be reached, and the packet is kept to be tried again.
+      { to: cyd.mind.address, sealed: true, stored: false, failure: "not-found", queued: true },
+      { to: dee.mind.address, sealed: true, stored: false, failure: "unreachable", queued: true },
+      { to: unknown, sealed: true, stored: false, failure: "not-found", queued: true },
     ]);
     // Each recipient is told of the others: the packet is one packet.
     expect((await bob.mind.receive()).received[0]?.packet.to).toHaveLength(4);
@@ -263,6 +266,7 @@ describe(`${clause("L1 12.1")} a packet that is sent`, () => {
       sealed: true,
       stored: false,
       failure: "rate-limited",
+      queued: true,
     });
   });
 
@@ -760,6 +764,7 @@ describe(`${clause("L1 12.4")} what a mind finds in its mailbox`, () => {
       refused: [],
       waiting: 0,
       sessions: [],
+      retried: [],
       sources: [],
     });
   });
@@ -1022,6 +1027,7 @@ describe("the edges of sending and receiving", () => {
       sealed: true,
       stored: false,
       failure: "not-found",
+      queued: true,
     });
   });
 

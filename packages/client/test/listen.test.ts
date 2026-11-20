@@ -244,6 +244,33 @@ describe(`${clause("L1 13.4")} a socket to the mind's own host`, () => {
     expect((await bob.mind.receive()).sources[0]?.items).toBe(0);
   });
 
+  it("says nothing to a host whose connection ended while it judged, and the host sends again", async () => {
+    const { ada, bob } = await pair();
+    const heard = listening(bob.mind);
+    await until(heard.isOpen);
+    world.clock.at = at(170);
+    // The connection drops while Bob asks a resolver for Ada's log.
+    const sent = await ada.mind.send(hello(bob.mind.address, "Heard, and not yet said so."));
+    world.before = (request) => {
+      if (!request.url.startsWith(A) || request.method !== "GET") return;
+      world.before = undefined;
+      world.cut(TWO);
+    };
+    await until(() => heard.bodies().length === 1);
+    expect(parsed(world.sockets[0]?.fromClient ?? []).some((said) => said["type"] === "Ack")).toBe(
+      false,
+    );
+    // The host still keeps it. It comes again on the next connection, and is the mind's already.
+    await until(() => bob.waits.length === 1);
+    bob.waits[0]?.wake();
+    await until(() =>
+      parsed(world.sockets[1]?.fromClient ?? []).some((said) => said["packet"] === sent.id),
+    );
+    expect(heard.bodies()).toStrictEqual(["Heard, and not yet said so."]);
+    await heard.handle.close();
+    expect((await bob.mind.receive()).sources[0]?.items).toBe(0);
+  });
+
   it("removes what it refused by reading the mailbox, and opens again if that cannot be read", async () => {
     const { ada, bob } = await pair();
     const eve = new KeyMind("eve");
@@ -284,9 +311,11 @@ describe(`${clause("L1 13.4")} a socket to the mind's own host`, () => {
     await until(() => bob.waits.length === 1);
     world.before = undefined;
     expect(heard.states.at(-1)).toMatchObject({ state: "closed", reason: "unreachable" });
-    // It is read when the connection is open again.
+    // It is read when the connection is open again, and what was refused is told then: once.
+    expect(heard.inboxes).toHaveLength(1);
     bob.waits[0]?.wake();
-    await until(() => heard.inboxes.length === 3);
+    await until(() => heard.inboxes.length === 2);
+    expect(heard.inboxes[1]).toMatchObject({ received: [], refused: [{ clause: "L1 12.4" }] });
     await heard.handle.close();
     expect((await bob.mind.receive()).sources[0]?.items).toBe(0);
   });
@@ -320,6 +349,33 @@ describe(`${clause("L1 13.4")} a socket to the mind's own host`, () => {
     await until(() => acks().length === 4);
     await heard.handle.close();
     expect((await bob.mind.receive()).sources[0]?.items).toBe(0);
+  });
+});
+
+describe("a mind that listens, and has packets that wait to be sent", () => {
+  it("tries them again when its connection opens, if they are due, and is told what came of them", async () => {
+    const { ada, bob } = await pair();
+    world.down(TWO);
+    const sent = await ada.mind.send(hello(bob.mind.address, "When you are back."));
+    world.up(TWO);
+    expect(sent.deliveries).toMatchObject([{ queued: true }]);
+    // Not due yet: opening a connection sends nothing.
+    const early = listening(ada.mind);
+    await until(early.isOpen);
+    await early.handle.close();
+    expect(early.inboxes).toStrictEqual([]);
+    expect(await ada.mind.outbox()).toHaveLength(1);
+    // Due: it goes when the connection is open again.
+    world.clock.at = at(200);
+    const heard = listening(ada.mind);
+    await until(() => heard.inboxes.length === 1);
+    expect(heard.inboxes[0]).toMatchObject({
+      received: [],
+      retried: [{ id: sent.id, deliveries: [{ stored: true }], waiting: 0, expired: false }],
+    });
+    expect(await ada.mind.outbox()).toStrictEqual([]);
+    world.clock.at = at(210);
+    expect((await bob.mind.receive()).received).toHaveLength(1);
   });
 });
 

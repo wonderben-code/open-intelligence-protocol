@@ -81,6 +81,7 @@ export {
   type SocketLike,
   type SocketState,
 } from "./socket.ts";
+export { MAX_QUEUED, type Queued, type Retried } from "./outbox.ts";
 export {
   DEFAULT_TTL,
   type Endpoint,

@@ -79,7 +79,8 @@ import type { Status } from "@oip/web";
 import { type Clock, Lookup, type LookupOptions, type Resolved, systemClock } from "./lookup.ts";
 import { Memory } from "./memory.ts";
 import { type Acting, Dealings, type Fields, type Grant } from "./dealings.ts";
-import { type Inbox, type Message, Messaging, type Sent } from "./messages.ts";
+import { type Delivery, type Inbox, type Message, Messaging, type Sent } from "./messages.ts";
+import { Outbox, type Queued, type Retried } from "./outbox.ts";
 import { checkInstance, SessionBook, type SessionView } from "./sessions.ts";
 import {
   listen,
@@ -233,6 +234,7 @@ export class Mind {
   readonly #publishing: Publishing;
   readonly #messaging: Messaging;
   readonly #sessions: SessionBook;
+  readonly #outbox: Outbox;
   readonly #dealings: Dealings;
   #resolved: Resolved;
   #published: readonly Publication[] = [];
@@ -271,8 +273,11 @@ export class Mind {
     };
     this.#own = own;
     this.#publishing = new Publishing(own);
-    this.#sessions = new SessionBook(own, options.instance);
-    this.#messaging = new Messaging(own, this.#sessions);
+    this.#outbox = new Outbox(own);
+    this.#sessions = new SessionBook(own, options.instance, (packets) =>
+      this.#outbox.forget(packets),
+    );
+    this.#messaging = new Messaging(own, this.#sessions, this.#outbox);
     this.#dealings = new Dealings(own);
   }
 
@@ -659,6 +664,39 @@ export class Mind {
   }
 
   /**
+   * The packets that wait in the outbox: each did not reach a recipient,
+   * for a reason that may pass, and is kept in the client's memory to be
+   * tried again. `send` says so in its `deliveries`, as `queued`.
+   */
+  outbox(): Promise<Queued[]> {
+    return this.#outbox.list();
+  }
+
+  /**
+   * Tries again every packet that waits in the outbox, now. `receive` and
+   * `listen` try those that are due by themselves: after 30 seconds the
+   * first time, then twice as long each time, up to an hour.
+   *
+   * A packet is given up for a recipient that now refuses it for what it
+   * is, and dropped once it has expired: nobody would accept it then.
+   *
+   * @returns What came of each packet.
+   */
+  retry(): Promise<Retried<Delivery>[]> {
+    return this.#messaging.retry(true);
+  }
+
+  /**
+   * Gives up a packet that waits in the outbox: it is not tried again.
+   *
+   * @param packet - The packet's content ID.
+   * @returns Whether it waited.
+   */
+  async abandon(packet: string): Promise<boolean> {
+    return (await this.#outbox.forget([packet])) > 0;
+  }
+
+  /**
    * Holds a socket open to the mind's own host (Layer 1, 13.4), so that
    * packets arrive as they are sent. The host sends what the mind's
    * mailbox holds, and then what arrives. Each record is judged as
@@ -683,6 +721,7 @@ export class Mind {
         sleep: this.#options.sleep ?? platformSleep,
         take: (records) => this.#messaging.take(records),
         receive: () => this.receive(),
+        retry: () => this.#messaging.retry(false),
       },
       options,
     );

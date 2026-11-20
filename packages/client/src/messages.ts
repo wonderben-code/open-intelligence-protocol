@@ -56,6 +56,7 @@ import {
 } from "@oip/schema";
 
 import { accepted } from "./accepted.ts";
+import type { Outbox, Retried } from "./outbox.ts";
 import { homeEndpoints, type Own } from "./publish.ts";
 import type { Following, Place, SessionBook } from "./sessions.ts";
 import { askJson, exchange, recordBody, refusalOf, TransportError } from "./transport.ts";
@@ -113,6 +114,11 @@ export interface Message {
    * The packet is still this mind's own, signed by it.
    */
   readonly onBehalfOf?: { readonly mind: string; readonly chain: readonly Delegation[] };
+  /**
+   * Whether the packet is kept, to be tried again, for a recipient it does
+   * not reach for a reason that may pass. Default: `true`.
+   */
+  readonly queue?: boolean;
 }
 
 /** What became of a packet for one recipient. */
@@ -134,6 +140,11 @@ export interface Delivery {
   readonly ack?: Ack;
   /** Why no endpoint took it: the code of a problem (core 10.2), or the failure of the transport. */
   readonly failure?: string;
+  /**
+   * Whether the packet is kept in the outbox for this recipient, to be
+   * tried again: it did not arrive, for a reason that may pass.
+   */
+  readonly queued?: true;
 }
 
 /** A packet that was sent. */
@@ -187,6 +198,11 @@ export interface Inbox {
    * for one place.
    */
   readonly sessions: readonly SessionEvent[];
+  /**
+   * What came of the packets of the outbox that were due to be tried again
+   * (`Mind.retry`), or were dropped because they have expired.
+   */
+  readonly retried: readonly Retried<Delivery>[];
   /** What each mailbox served. */
   readonly sources: readonly MailboxAnswer[];
 }
@@ -358,6 +374,7 @@ const emptyInbox = () => ({
   refused: [] as { clause: string; message: string }[],
   waiting: 0,
   sessions: [] as SessionEvent[],
+  retried: [] as Retried<Delivery>[],
   sources: [] as MailboxAnswer[],
 });
 
@@ -395,6 +412,37 @@ function pageOf(served: JsonValue): { items: Item[]; next: string | undefined } 
   }
   const next = page["next"];
   return { items, next: typeof next === "string" ? next : undefined };
+}
+
+/** An item of a reading with the verdict on it. */
+interface Judged {
+  readonly item: Item;
+  readonly sealed: boolean;
+  readonly signers: readonly string[];
+  readonly verdict: Validation<ReceivedPacket>;
+}
+
+/**
+ * The items of a reading with the packets of each sending chain in the
+ * order of the chain (14.3). Each chain's packets keep the places its
+ * packets had, so nothing else moves.
+ */
+function inChainOrder(entries: readonly Judged[]): Judged[] {
+  const chained = (entry: Judged): { key: string; seq: number } | undefined => {
+    if (!entry.verdict.ok) return undefined;
+    const { session, seq, from, instance } = entry.verdict.value.packet;
+    return session === undefined || seq === undefined
+      ? undefined
+      : { key: JSON.stringify([session, from, instance]), seq };
+  };
+  const chains = new Map<string, { entry: Judged; seq: number }[]>();
+  for (const entry of entries) {
+    const place = chained(entry);
+    if (place === undefined) continue;
+    chains.set(place.key, [...(chains.get(place.key) ?? []), { entry, seq: place.seq }]);
+  }
+  for (const links of chains.values()) links.sort((a, b) => a.seq - b.seq);
+  return entries.map((entry) => chains.get(chained(entry)?.key ?? "")?.shift()?.entry ?? entry);
 }
 
 /** @throws OipError `invalid-record` if a message is none for the session it names (14.3). */
@@ -452,6 +500,7 @@ function noteEquivocation(
 export class Messaging {
   readonly #own: Own;
   readonly #sessions: SessionBook;
+  readonly #outbox: Outbox;
   /** The packets accepted, each with the time until which it is remembered. */
   #accepted: Map<string, Instant> | undefined;
   #version: string | undefined;
@@ -462,9 +511,15 @@ export class Messaging {
   /** The gaps a `Resume` was sent for. */
   readonly #asked = new Set<string>();
 
-  constructor(own: Own, sessions: SessionBook) {
+  constructor(own: Own, sessions: SessionBook, outbox: Outbox) {
     this.#own = own;
     this.#sessions = sessions;
+    this.#outbox = outbox;
+  }
+
+  /** Tries again the packets of the outbox: see `Mind.retry`. */
+  retry(all: boolean): Promise<Retried<Delivery>[]> {
+    return this.#outbox.retry((packet, to, sealed) => this.#deliver(packet, to, sealed), all);
   }
 
   /** Sends a packet: see `Mind.send`. */
@@ -575,7 +630,16 @@ export class Messaging {
     // this sends the same packet again, and never another at the same place (14.3).
     await place?.keep(packet, seal);
     const deliveries = await Promise.all(packet.to.map((to) => this.#deliver(packet, to, seal)));
-    return { packet, id, deliveries };
+    if (message.queue === false) return { packet, id, deliveries };
+    // What did not arrive, and may yet, is kept to be tried again.
+    const kept = await this.#outbox.keep(packet, seal, deliveries);
+    return {
+      packet,
+      id,
+      deliveries: deliveries.map((delivery) =>
+        kept.has(delivery.to) ? { ...delivery, queued: true } : delivery,
+      ),
+    };
   }
 
   /** Random bytes, as many as were asked for. */
@@ -735,7 +799,7 @@ export class Messaging {
       // What was accepted is remembered before it is removed from the mailbox: a process
       // that stops between the two finds a duplicate, and not a packet it never saw.
       const elsewhere = await this.#keep(known, fresh);
-      for (const { item } of this.#sorted(judged, known, following, inbox, ahead, elsewhere)) {
+      for (const { item } of this.#sorted(judged, known, inbox, ahead, elsewhere)) {
         await this.#remove(mailbox, item.cursor);
       }
     }
@@ -743,6 +807,8 @@ export class Messaging {
       noteGap(inbox.sessions, { kind: "gap", ...chain, next: following.received(chain) });
     }
     await this.#tend(inbox, following);
+    // The network was there to read by: what waits to be sent is tried again, if it is due.
+    inbox.retried.push(...(await this.retry(false)));
     return inbox;
   }
 
@@ -768,7 +834,7 @@ export class Messaging {
       const judged = await this.#judge(items, known, following, inbox.sessions, fresh);
       // Kept before the host is told: see `receive`.
       const elsewhere = await this.#keep(known, fresh);
-      const done = this.#sorted(judged, known, following, inbox, ahead, elsewhere);
+      const done = this.#sorted(judged, known, inbox, ahead, elsewhere);
       for (const chain of ahead) {
         noteGap(inbox.sessions, { kind: "gap", ...chain, next: following.received(chain) });
       }
@@ -804,7 +870,6 @@ export class Messaging {
   #sorted(
     judged: readonly { readonly item: Item; readonly outcome: Outcome }[],
     known: ReadonlyMap<string, Instant>,
-    following: Following,
     inbox: ReturnType<typeof emptyInbox>,
     ahead: ChainOf[],
     elsewhere: ReadonlySet<string>,
@@ -815,17 +880,11 @@ export class Messaging {
         inbox.waiting++;
         continue;
       }
-      let refused = outcome.kind === "refused";
       // A packet ahead of a gap stays until the gap is filled, so that nothing is lost if
       // the process stops. One that was since returned in its place is done with.
       if (outcome.kind === "ahead" && !known.has(outcome.id)) {
-        if (!following.equivocated(outcome.chain)) {
-          ahead.push(outcome.chain);
-          continue;
-        }
-        // Its chain was found to be two chains while it waited: it has no place (14.3).
-        inbox.refused.push(TWO_FOR_ONE_PLACE);
-        refused = true;
+        ahead.push(outcome.chain);
+        continue;
       }
       if (outcome.kind === "received") {
         // One that another process of the mind accepted meanwhile is that process's to return.
@@ -834,7 +893,7 @@ export class Messaging {
       if (outcome.kind === "refused") inbox.refused.push(outcome.why);
       const taken =
         outcome.kind === "received" || outcome.kind === "duplicate" ? outcome.taken : [];
-      done.push({ item, taken, refused });
+      done.push({ item, taken, refused: outcome.kind === "refused" });
     }
     return done;
   }
@@ -1020,9 +1079,15 @@ export class Messaging {
         if (error instanceof TransportError) unasked.add(mind);
       }
     }
+    // The verdicts first, and then what each makes of its packet. The packets of one sending
+    // chain are taken in the order of the chain, whatever order they arrived in: the first
+    // of a session names it (14.2), and is not judged behind the others for arriving late.
+    const verdicts: Judged[] = [];
+    for (const entry of seen) {
+      verdicts.push({ ...entry, verdict: await once(entry.item.record) });
+    }
     const judged: { item: Item; outcome: Outcome }[] = [];
-    for (const { item, sealed, signers } of seen) {
-      const verdict: Validation<ReceivedPacket> = await once(item.record);
+    for (const { item, sealed, signers, verdict } of inChainOrder(verdicts)) {
       if (!verdict.ok) {
         const [first] = verdict.issues;
         judged.push({
@@ -1033,7 +1098,7 @@ export class Messaging {
         });
         continue;
       }
-      const { id, packet, duplicate, forgetAfter } = verdict.value;
+      const { id, packet, forgetAfter } = verdict.value;
       // The record it arrived in, by the name a host keeps it under (13.2).
       const arrived: Taken = {
         packet: verdict.value,
@@ -1065,7 +1130,8 @@ export class Messaging {
         judged.push({ item, outcome });
         continue;
       }
-      if (duplicate) {
+      // Asked now, and not when the verdict was reached: a copy earlier in this reading counts.
+      if (known.has(id)) {
         judged.push({ item, outcome: { kind: "duplicate", taken: [arrived] } });
         continue;
       }

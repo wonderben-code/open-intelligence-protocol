@@ -214,11 +214,6 @@ export class Following {
     return this.#chain(chain)?.ids.length ?? 0;
   }
 
-  /** Whether a chain's sender was found to have signed two packets for one place (14.3). */
-  equivocated(chain: ChainName): boolean {
-    return this.#chain(chain)?.equivocation !== undefined;
-  }
-
   /** Forgets a session. */
   drop(head: Head): void {
     this.#sessions.drop(head.id);
@@ -287,6 +282,7 @@ export class Following {
 export class SessionBook {
   readonly #own: Own;
   readonly #instance: string | undefined;
+  readonly #left: (packets: readonly string[]) => Promise<unknown>;
   #following: Promise<Following> | undefined;
   /** What is sent in each session, one packet after another. */
   readonly #sending = new Map<string, Promise<unknown>>();
@@ -294,10 +290,17 @@ export class SessionBook {
   /**
    * @param instance - The name this client gives its sending chains, for a
    *   mind that runs several clients at once (14.3).
+   * @param left - Told the packets the mind sent in a session it has left:
+   *   none of them is sent again.
    */
-  constructor(own: Own, instance: string | undefined) {
+  constructor(
+    own: Own,
+    instance: string | undefined,
+    left: (packets: readonly string[]) => Promise<unknown>,
+  ) {
     this.#own = own;
     this.#instance = instance;
+    this.#left = left;
   }
 
   /** The sessions as the client's memory has them, read once. */
@@ -496,6 +499,7 @@ export class SessionBook {
         throw error;
       }
       following.drop(head);
+      await this.#left(head.sent.map(({ id: packetId }) => packetId));
       for (const { id: packetId } of head.sent) {
         const name = nameOf(SENT, packetId);
         await memory.forget(name, (await memory.get(name, (stored) => stored)).version);

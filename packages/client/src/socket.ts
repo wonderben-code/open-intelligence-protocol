@@ -120,6 +120,8 @@ export interface Listener {
   }>;
   /** Reads the mailboxes over HTTP: `Messaging.receive`. */
   readonly receive: () => Promise<Inbox>;
+  /** Tries again what waits to be sent, if it is due: `Messaging.retry`. */
+  readonly retry: () => Promise<Inbox["retried"]>;
 }
 
 const DEFAULT_RETRY_MS = 1000;
@@ -160,6 +162,7 @@ const hasNews = (inbox: Inbox): boolean =>
   inbox.received.length > 0 ||
   inbox.refused.length > 0 ||
   inbox.sessions.length > 0 ||
+  inbox.retried.length > 0 ||
   inbox.waiting > 0;
 
 /** How one connection ended. */
@@ -254,14 +257,22 @@ export function listen(listener: Listener, options: ListenOptions): Listening {
           for (const ack of acks) {
             if (isOpen()) socket.send(JSON.stringify(ack));
           }
-          if (hasNews(inbox)) await options.received(inbox);
-          if (refused) {
-            // What was refused stays with the host, which cannot be told so over the socket.
-            // Reading the mailbox removes it. It was told already, and is not told again.
-            const { received, sessions, waiting: unjudged } = await listener.receive();
-            const rest = { received, refused: [], sessions, waiting: unjudged, sources: [] };
-            if (hasNews(rest)) await options.received(rest);
+          if (!refused) {
+            if (hasNews(inbox)) await options.received(inbox);
+            continue;
           }
+          // What was refused stays with the host, which cannot be told so over the socket.
+          // Reading the mailbox removes it. What that reading refuses was refused just now,
+          // and is told once: the rest of what it finds is told with this batch.
+          const rest = await listener.receive();
+          await options.received({
+            received: [...inbox.received, ...rest.received],
+            refused: inbox.refused,
+            sessions: [...inbox.sessions, ...rest.sessions],
+            retried: rest.retried,
+            waiting: rest.waiting,
+            sources: [],
+          });
         }
       };
 
@@ -302,10 +313,30 @@ export function listen(listener: Listener, options: ListenOptions): Listening {
           phase = "open";
           welcomed = true;
           options.changed?.({ state: "open", url });
+          // The network is there: what waits to be sent is tried again, if it is due.
+          working = settle(
+            listener.retry().then(async (retried) => {
+              const news = {
+                received: [],
+                refused: [],
+                sessions: [],
+                retried,
+                waiting: 0,
+                sources: [],
+              };
+              if (hasNews(news)) await options.received(news);
+              await work();
+            }),
+          );
           return;
         }
         waiting.push(message);
-        working ??= work().then(
+        working ??= settle(work());
+      };
+
+      /** Follows work on what arrived to its end: whatever it throws ends the connection. */
+      const settle = (work: Promise<void>): Promise<void> =>
+        work.then(
           () => {
             working = undefined;
           },
@@ -323,7 +354,6 @@ export function listen(listener: Listener, options: ListenOptions): Listening {
             end(CLOSE.failed, "the application failed");
           },
         );
-      };
 
       socket.onmessage = (event) => {
         if (typeof event.data === "string") heard(event.data);

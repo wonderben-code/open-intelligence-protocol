@@ -13,26 +13,14 @@
  * given to another question, and the same answer twice.
  */
 
-import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import {
-  createMcpHandler,
-  InMemoryTransport,
-  type McpServerFactory,
-} from "@modelcontextprotocol/server";
+import type { McpServerFactory } from "@modelcontextprotocol/server";
 import type { JsonObject } from "@oip/core";
 import { clause } from "@oip/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { INSTRUCTIONS, NOTICE, serverFactory, TOOLS, VERSION, type Work } from "../src/index.ts";
 import { PASSPHRASE, Place } from "./harness.ts";
-
-type Era = "legacy" | "modern";
-interface Answer {
-  // The library's result takes other members too: an answer here has these alone.
-  [member: string]: unknown;
-  action: "accept" | "decline" | "cancel";
-  content?: Record<string, string | number | boolean | string[]>;
-}
+import { type Answer, connect, type Connected, type Era, said } from "./host.ts";
 
 let place: Place;
 let ada: string;
@@ -51,75 +39,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await place.close();
 });
-
-/** A host connected to a server, as a test drives it. */
-interface Connected {
-  readonly client: Client;
-  /** The questions the person was put, in order. */
-  readonly questions: string[];
-  close(): Promise<void>;
-}
-
-/**
- * Connects a client to a server for a mind.
- *
- * @param with.answer - What the person answers when asked. Without it the host cannot ask.
- * @param with.manual - The client hands a call that needs the person back to the test.
- * @param with.factory - The servers' factory, where two connections are to share one.
- */
-async function connect(
-  era: Era,
-  work: Work,
-  options: {
-    readonly answer?: (question: string) => Answer;
-    readonly manual?: boolean;
-    readonly factory?: McpServerFactory;
-  } = {},
-): Promise<Connected> {
-  const factory = options.factory ?? serverFactory(work, { log: () => undefined });
-  const questions: string[] = [];
-  const client = new Client(
-    { name: "a-test-host", version: "1.0.0" },
-    {
-      capabilities: options.answer === undefined ? {} : { elicitation: { form: {} } },
-      ...(era === "modern" ? { versionNegotiation: { mode: "auto" as const } } : {}),
-      ...(options.manual === true ? { inputRequired: { autoFulfill: false } } : {}),
-    },
-  );
-  const { answer } = options;
-  if (answer !== undefined) {
-    client.setRequestHandler("elicitation/create", (request) => {
-      const { message } = request.params as { message: string };
-      questions.push(message);
-      return Promise.resolve(answer(message));
-    });
-  }
-  if (era === "legacy") {
-    const [ours, theirs] = InMemoryTransport.createLinkedPair();
-    const server = await factory({ era });
-    await server.connect(theirs);
-    await client.connect(ours);
-    return {
-      client,
-      questions,
-      close: async () => {
-        await client.close();
-        await server.close();
-      },
-    };
-  }
-  const handler = createMcpHandler(factory);
-  await client.connect(
-    new StreamableHTTPClientTransport(new URL("http://server.test/mcp"), {
-      fetch: (url, init) => handler.fetch(new Request(url, init)),
-    }),
-  );
-  return { client, questions, close: () => client.close() };
-}
-
-/** What a tool said, as a program reads it. */
-const said = (result: { structuredContent?: unknown }): JsonObject =>
-  result.structuredContent as JsonObject;
 
 /** The Commitments the mind of a name holds. */
 async function commitments(name: string): Promise<number> {

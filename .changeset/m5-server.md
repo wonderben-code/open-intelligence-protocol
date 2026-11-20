@@ -19,3 +19,4 @@ First version: what the host, the resolver and the indexer share ([ADR-0013](../
 - `Metrics`: counters, gauges and histograms in the Prometheus text format, with a bound on the series of each.
 - `Shutdown`, `healthResponse`, `readyResponse`: an orderly stop, `/healthz` and `/readyz`.
 - `useNativeEd25519` and `nativeEd25519`: Ed25519 by OpenSSL, as an engine for `@oip/core`. A signature is checked for the first time in about a tenth of the time ([ADR-0016](../docs/adr/0016-native-ed25519.md)).
+- `LogArchive.publish` asks who may publish by the logs held, and then by the log published (Layer 1, 17.3): a mind can publish the event that retires it, or that removes the key it signs the request with. Before, a mind's own request was judged by the log in its bundle alone, and its own retirement was refused.

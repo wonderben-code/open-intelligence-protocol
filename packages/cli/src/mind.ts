@@ -32,33 +32,70 @@ const platformSocket: OpenSocket = (url, protocol) =>
   new WebSocket(url, protocol) as unknown as SocketLike;
 
 /**
- * What opens the mind's keys: the key in the machine's keychain, or a
- * passphrase from `OIP_PASSPHRASE` or typed at the terminal.
+ * A passphrase: from a variable of the environment, or typed at the
+ * terminal, where what is typed is not shown.
  *
  * A passphrase is never taken from the command line: what is typed there is
  * shown to every user of the machine, and kept in the shell's history.
+ *
+ * @param from.variable - The variable it is read from, if it is set.
+ * @param from.what - What it opens, for the message: "the keys".
+ * @param from.question - What is asked where it is typed.
+ * @param from.fresh - Whether it is to seal something for the first time:
+ *   typed, it is then asked for twice.
+ * @throws UsageError if there is no passphrase to be had.
+ */
+export async function passphraseOf(
+  context: Context,
+  from: { variable: string; what: string; question: string; fresh: boolean },
+): Promise<Lock> {
+  const { edges } = context;
+  const options = edges.scryptN === undefined ? {} : { n: edges.scryptN };
+  const given = edges.env[from.variable];
+  if (given !== undefined && given !== "") return passphrase(given, options);
+  if (edges.secret === undefined) {
+    throw new UsageError(
+      `${from.what} are sealed with a passphrase: set ${from.variable}, or run this where one can be typed`,
+    );
+  }
+  const typed = await edges.secret(from.question);
+  if (from.fresh && (await edges.secret("The same again: ")) !== typed) {
+    throw new UsageError("the two passphrases are not the same");
+  }
+  if (typed === "") throw new UsageError("no passphrase was typed");
+  return passphrase(typed, options);
+}
+
+/**
+ * What opens the mind's keys: the key in the machine's keychain, or a
+ * passphrase from `OIP_PASSPHRASE` or typed at the terminal.
  *
  * @param fresh - Whether the lock is to seal keys for the first time: a
  *   passphrase that is typed is then asked for twice.
  * @throws UsageError if there is no passphrase to be had.
  */
 export async function lockOf(context: Context, kind: Config["lock"], fresh = false): Promise<Lock> {
-  const { edges } = context;
-  if (kind === "keychain") return keychainLock(await edges.keychain(), SERVICE);
-  const options = edges.scryptN === undefined ? {} : { n: edges.scryptN };
-  const given = edges.env["OIP_PASSPHRASE"];
-  if (given !== undefined && given !== "") return passphrase(given, options);
-  if (edges.secret === undefined) {
-    throw new UsageError(
-      "the keys are sealed with a passphrase: set OIP_PASSPHRASE, or run this where one can be typed",
-    );
-  }
-  const typed = await edges.secret(fresh ? "A passphrase for the keys: " : "Passphrase: ");
-  if (fresh && (await edges.secret("The same again: ")) !== typed) {
-    throw new UsageError("the two passphrases are not the same");
-  }
-  if (typed === "") throw new UsageError("no passphrase was typed");
-  return passphrase(typed, options);
+  if (kind === "keychain") return keychainLock(await context.edges.keychain(), SERVICE);
+  return passphraseOf(context, {
+    variable: "OIP_PASSPHRASE",
+    what: "the keys",
+    question: fresh ? "A passphrase for the keys: " : "Passphrase: ",
+    fresh,
+  });
+}
+
+/**
+ * What a backup of the keys is sealed under: a passphrase of its own, from
+ * `OIP_BACKUP_PASSPHRASE` or typed. Kept apart from the one the keys are
+ * sealed with, it is what makes a backup worth having.
+ */
+export function backupLockOf(context: Context, fresh: boolean): Promise<Lock> {
+  return passphraseOf(context, {
+    variable: "OIP_BACKUP_PASSPHRASE",
+    what: "the keys of a backup",
+    question: fresh ? "A passphrase for the backup, of its own: " : "The backup's passphrase: ",
+    fresh,
+  });
 }
 
 /** How the services of a mind's configuration are asked: for reading, with no key. */

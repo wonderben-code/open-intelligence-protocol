@@ -95,6 +95,21 @@ Example:
 "
 `;
 
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > completions 1`] = `
+"oip completions <shell>
+
+Prints a script that teaches a shell the commands and their options
+
+The shell is bash, zsh or fish. Load what this prints when the shell starts:
+  bash:  source <(oip completions bash)
+  zsh:   source <(oip completions zsh)
+  fish:  oip completions fish | source
+
+Example:
+  oip completions bash
+"
+`;
+
 exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > delegate 1`] = `
 "oip delegate <delegate> [options]
 
@@ -134,6 +149,20 @@ Options:
 
 Example:
   oip demo
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > doctor 1`] = `
+"oip doctor
+
+Looks at the mind's directory and its services, and says what is well and what is not
+
+It changes nothing, and unlocks no key: no passphrase is asked for.
+Each line is one thing it looked at. \`warn\` is what works and should be seen to. The
+command ends with 1 if anything fails: the mind then cannot do its work.
+
+Example:
+  oip doctor
 "
 `;
 
@@ -249,6 +278,50 @@ Options:
 
 Example:
   oip intent --want "A Swahili lease translated into English" --budget 150 --currency USD --publish
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > keys backup 1`] = `
+"oip keys backup <file> [options]
+
+Writes the mind's keys to a file, sealed with a passphrase of its own
+
+A backup is the one form in which private keys leave the mind's directory. Nothing in it
+can be read without its passphrase: from OIP_BACKUP_PASSPHRASE, or typed. Choose one of its
+own, and keep it and the file apart from this machine.
+Back up again after every change of the mind's identity (\`oip rotate\`, \`add-key\`,
+\`revoke-key\`, \`fork\`): each makes a control key the change after it will need. If that key
+is lost, the mind's identity can never change again.
+
+Options:
+  --replace  Write over a file that is there
+
+Example:
+  oip keys backup ~/safe/oip-keys.backup
+"
+`;
+
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > keys restore 1`] = `
+"oip keys restore <file> [options]
+
+Makes the mind's directory again from a backup of its keys
+
+The directory must hold no keys yet. The backup is opened with its own passphrase, from
+OIP_BACKUP_PASSPHRASE or typed, and the keys are sealed afresh for this machine.
+A backup holds the keys as they were when it was made. If the mind's identity has changed
+since, the control keys it needs now are not in it: this says so, and the mind then signs
+and reads as before, but its identity can change no more. A later backup would mend that.
+What the mind's client remembered is not in a backup: its sessions do not go on.
+
+Options:
+  --resolver <origin>  A resolver the mind trusts, as an HTTPS origin. Name two, run by different people
+  --indexer <origin>   An indexer the mind lists itself at, and asks
+  --local              Use the network \`oip demo\` runs on this machine, for what is not named
+  --network <path>     The directory of that network. Default: ~/.oip-demo
+  --keychain           Seal the keys with a key in this machine's keychain, in place of a passphrase
+
+Example:
+  oip keys restore ~/safe/oip-keys.backup --resolver https://resolver.example
 "
 `;
 
@@ -532,7 +605,11 @@ Commands:
   collective create  Founds a collective with other minds: drafts its first event, and signs it as a member
   collective sign    Signs, as a member of a collective, one of its identity events or a record in its name
   verify             Verifies a record, a log, a bundle or a mind, and says why of every verdict
+  keys backup        Writes the mind's keys to a file, sealed with a passphrase of its own
+  keys restore       Makes the mind's directory again from a backup of its keys
+  doctor             Looks at the mind's directory and its services, and says what is well and what is not
   demo               Runs a network on this machine: a resolver, a host and an indexer, until it is stopped
+  completions        Prints a script that teaches a shell the commands and their options
 
 Options of every command:
   --dir <path>  The mind's directory. Default: OIP_DIR, or .oip in your home directory

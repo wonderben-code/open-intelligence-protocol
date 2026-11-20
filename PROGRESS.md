@@ -6,7 +6,7 @@ This file is the live status of the Open Intelligence Protocol project, so that 
 
 ## Where the build stands on this branch (20 November)
 
-This branch is `m7-cli`. It is stacked on `m6-client`, `m5-servers`, `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
+This branch is `m8-mcp-server`. It is stacked on `m7-cli`, `m6-client`, `m5-servers`, `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
 
 | Milestone | Branch | Built | `pnpm run ci` | Still owed before its pull request |
 |---|---|---|---|---|
@@ -15,7 +15,8 @@ This branch is `m7-cli`. It is stacked on `m6-client`, `m5-servers`, `m4-network
 | M4. Network records and sealing | `m4-network`, pushed | Yes | Green | Two reviews, the mutation score, the review record |
 | M5. Servers | `m5-servers`, pushed | Yes, see below | Green | Reviews, the mutation score, the review record |
 | M6. Client and keystore | `m6-client` | Yes, see below | Green | Reviews, the mutation score, the review record |
-| M7. The `oip` command | `m7-cli` | Yes, see below | Green | Reviews, the mutation score, the review record |
+| M7. The `oip` command | `m7-cli`, pushed | Yes, see below | Green | Reviews, the mutation score, the review record |
+| M8. The MCP server | `m8-mcp-server` | Yes, see below | To run | Reviews, the mutation score, the review record. A look at it in Claude Desktop needs Eks |
 
 Reviews are made by fresh agents, which were not to be had between 19 and 21 November (a usage limit). The build went on with what does not need them.
 
@@ -54,6 +55,25 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
 
 **Everything on M6's build list is built**, and every public method of `Mind` and of `Lookup` is called in a runnable example the README shows, which a test holds. The API report was read through and is frozen for 0.x: the reading found that closing a mind left its sockets open, which it no longer does. What remains before the milestone closes: the independent reviews and the mutation run.
 
+**What M8 has:**
+
+- **`@oip/mcp-server`**, the program `oip-mcp` ([README](packages/mcp-server/README.md), [ADR-0028](docs/adr/0028-the-mcp-server.md), [threat model](docs/threat-models/mcp-server.md)): the nine tools of Layer 0, 2.2, each described for a model, over standard input and output. It speaks the MCP revisions up to 2025-11-25 and that of 2026-07-28, which changed the protocol's shape, through the official library.
+- **The three rules of Layer 0, 2.2 hold against a model that obeys whatever it reads.** The keys stay in the server, and no tool reads a file. What other minds wrote reaches the model under `untrusted`. A Commitment is signed only once the person has confirmed the terms the server shows them, or their `policy.json` permits them. An answer counts for the question it was given to, once.
+- **The prompt-injection suite** (`packages/mcp-server/test/injection.test.ts`): a mind that writes calls for the model in packets, a profile, an Offer and the promise of a Commitment, against a model that makes every call it reads, in both shapes of MCP. Nothing is signed without the person, the person is shown the true terms, no result holds a key or a passphrase, and every word of the other mind's is under `untrusted`.
+- **A host that does not behave is tried too** (`mcp.test.ts`): an answer nobody asked for, a yes given to other terms, a state that was altered or that another server made, the same yes twice, a yes after a no.
+- **`@oip/local`** ([ADR-0027](docs/adr/0027-a-mind-on-one-machine.md)): the mind's directory, the lock of its keys and what is kept between runs, taken out of the command so that the server uses the same directory.
+- **It runs under the MCP Inspector in CI** (`pnpm mcp:inspector`): the Inspector lists the tools with its strict check of their schemas, calls three of them, and gets no signature for a Commitment it cannot ask about.
+- **Claude Code connects to it** as the README says (`claude mcp add oip -- node …/dist/bin.js`, then `claude mcp list`: connected), tried here with Claude Code 2.1.
+- **It is ready for the MCP Registry**: `server.json`, valid against the Registry's schema, and the package's `mcpName`. Listing it is gate G6, after the package is on npm.
+
+**What M8 found:**
+
+- **A Receipt needs the person as a Commitment does.** Layer 0, 2.2 asks for confirmation before a Commitment or a Delegation. A model that a packet talked into it could otherwise publish, in the person's name, that a Commitment owed to them was fulfilled. The server asks before a Receipt too, and `policy.json` has a part for Receipts. This is the server's own rule, and a candidate for the specification: an OEP for Eks to decide.
+- **The command's way of naming a record by a file is not for a model.** A tool that takes a path can be talked into sending the file. The tools take a content ID alone.
+- **Who pays, by default, is the first creditor.** A test of the suite assumed the debtor. The question the person is shown names the payer and the payee in so many words, which is what caught it.
+- **A policy could not be checked before it was used.** `@oip/delegation` gained `checkPolicy`, so that a policy that is none is refused when the server starts, and `oip delegate --policy` uses it too.
+- **Not in the server:** acting for another mind through a delegation or a charter (the tools sign as the mind itself); confirmation of packets, Intents and Offers, which bind nobody and are the host's to approve; an output schema for each tool. Each is said in the README and the threat model.
+
 **What M7 has:**
 
 - **`@oip/cli`**, the `oip` command ([README](packages/cli/README.md), [ADR-0026](docs/adr/0026-the-command.md), [threat model](docs/threat-models/cli.md)): every command of the build list, each with `--json`, `--help` and an example. `init`, `show`, `rotate`, `add-key`, `revoke-key`, `fork`; `publish profile`, `publish location`, `publish record`; `resolve`, `find`; `send`, `inbox`; `intent`, `offer`, `commit`, `receipt`, `status`; `delegate`, `revoke`; `collective create`, `collective sign`; `verify`; `keys backup`, `keys restore`; `doctor`; `demo`; `completions`.
@@ -81,6 +101,8 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
 - **A rate limiter kept a client out for as long as the clock had been set back.** It now keeps it out for no longer than its own tolerance.
 - **How a mind brings a host its records is not in Layer 1.** The client speaks the reference host's own interface. A second host would have to offer the same, which is a matter for an OEP when one exists.
 - **A host learns that a mind it serves has retired only if the mind brings it the event.** A host that follows the resolvers for the minds it serves would close this. It is noted in the client's threat model, and is for a later milestone.
+
+**For Eks, from M8:** (1) Try the server in Claude Desktop, with the snippet in its [README](packages/mcp-server/README.md): Claude Code and the MCP Inspector were tried here, and Claude Desktop cannot be. (2) The server's name in the MCP Registry is prepared as `io.github.wonderben-code/oip`, which needs only the GitHub account. A name under a domain of the project's (gate G3) would be `<the domain, reversed>/oip`: say which you want before G6. (3) Whether Layer 0, 2.2 should ask for confirmation before a Receipt as well, as the server now does.
 
 **For Eks, besides what is listed further down:** OEP-0002, OEP-0003, OEP-0004 and OEP-0005 each change normative text and wait for your word, as OEP-0001 does (E13). OEP-0005 has one more sentence since M6, on 17.3. The keychain storage of the keystore is tested on Linux here; its tests on macOS and Windows run for the first time when this branch reaches GitHub.
 

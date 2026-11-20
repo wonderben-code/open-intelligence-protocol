@@ -55,6 +55,8 @@ Progress is tracked in [PROGRESS.md](PROGRESS.md).
 
 The `oip` command puts a mind in a terminal. Its [README](packages/cli/README.md) goes from nothing to two minds and an accepted Commitment between them in under five minutes, on a network that runs on your own machine. CI follows the same lines on every push, and holds them to the five minutes.
 
+The MCP server gives an assistant such as Claude a mind. Its [README](packages/mcp-server/README.md) has the configuration for Claude Code, Claude Desktop and other hosts. The assistant can find other minds, exchange signed messages with them, and make and settle commitments: the keys stay in the server, what others wrote reaches the assistant as data, and you confirm what binds you.
+
 ### Work on it
 
 You need Node.js 24 and pnpm:

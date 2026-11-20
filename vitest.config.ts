@@ -9,7 +9,16 @@ import { defineConfig } from "vitest/config";
 const VERIFICATION_PACKAGES = ["core", "identity", "delegation", "web", "net"];
 
 // Files of `@oip/server` held to the same threshold.
-const SERVER_GUARDS = ["auth", "http", "ip", "fetcher", "intake", "archive", "archive-store"];
+const SERVER_GUARDS = [
+  "auth",
+  "http",
+  "ip",
+  "fetcher",
+  "intake",
+  "archive",
+  "archive-store",
+  "ed25519",
+];
 
 // Files of `@oip/host` held to it too: what judges a record, a request or a connection.
 const HOST_GUARDS = ["host", "app", "sockets", "lookup"];

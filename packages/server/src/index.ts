@@ -38,6 +38,7 @@ export {
   type Settings,
   text,
 } from "./config.ts";
+export { nativeEd25519, useNativeEd25519 } from "./ed25519.ts";
 export { type Clock, type Randomness, systemClock, systemRandomness } from "./edges.ts";
 export {
   DEFAULT_FETCH_LIMITS,

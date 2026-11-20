@@ -18,3 +18,4 @@ First version: what the host, the resolver and the indexer share ([ADR-0013](../
 - `Log`: one line of JSON for each event, with plain values only; the message of an error that is not ours is withheld.
 - `Metrics`: counters, gauges and histograms in the Prometheus text format, with a bound on the series of each.
 - `Shutdown`, `healthResponse`, `readyResponse`: an orderly stop, `/healthz` and `/readyz`.
+- `useNativeEd25519` and `nativeEd25519`: Ed25519 by OpenSSL, as an engine for `@oip/core`. A signature is checked for the first time in about a tenth of the time ([ADR-0016](../docs/adr/0016-native-ed25519.md)).

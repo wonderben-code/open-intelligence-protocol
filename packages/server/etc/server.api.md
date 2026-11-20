@@ -7,6 +7,7 @@
 import { AuthenticatedRequest } from '@oip/net';
 import type { Bundle } from '@oip/schema';
 import type { DuplicityEvidence } from '@oip/schema';
+import { Ed25519Engine } from '@oip/core';
 import { EvidenceView } from '@oip/identity';
 import { FirstSeen } from '@oip/identity';
 import { IdentityView } from '@oip/identity';
@@ -386,6 +387,9 @@ export interface Migration {
 }
 
 // @public
+export const nativeEd25519: Ed25519Engine;
+
+// @public
 export const NONCES_SQL: string;
 
 // @public
@@ -616,5 +620,8 @@ export class Unavailable extends Error {
     constructor(message: string, retryAfter?: number);
     readonly retryAfter: number;
 }
+
+// @public
+export function useNativeEd25519(): boolean;
 
 ```

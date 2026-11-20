@@ -33,6 +33,7 @@
     "mutation": "stryker run",
     "docs": "typedoc",
     "changeset": "changeset",
+    "newcomer": "node scripts/newcomer.ts",
     "ci": "node scripts/ci.ts"
   },
   "devDependencies": {

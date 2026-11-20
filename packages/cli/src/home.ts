@@ -37,8 +37,11 @@ export interface Config {
 
 /** What a local network says of itself, in `network.json` in its directory. */
 export interface NetworkFile {
+  /** The origin of the network's resolver. */
   readonly resolver: string;
+  /** The origin of its host. */
   readonly host: string;
+  /** The origin of its indexer. */
   readonly indexer: string;
   /** Where each origin is really reached: `http://127.0.0.1:<port>`. */
   readonly routes: Readonly<Record<string, string>>;

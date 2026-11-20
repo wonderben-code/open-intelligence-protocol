@@ -32,9 +32,11 @@ export const LOCAL = {
 
 /** A network that runs on this machine. */
 export interface Network {
-  /** The origin of its resolver, of its host and of its indexer. */
+  /** The origin of its resolver. */
   readonly resolver: string;
+  /** The origin of its host, which takes on any mind. */
   readonly host: string;
+  /** The origin of its indexer. */
   readonly indexer: string;
   /** Where each origin is really reached: `http://127.0.0.1:<port>`. */
   readonly routes: Readonly<Record<string, string>>;

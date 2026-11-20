@@ -51,7 +51,13 @@ The v1 reference implementation is planned in **[BUILD.md](BUILD.md)**. It is a 
 
 Progress is tracked in [PROGRESS.md](PROGRESS.md).
 
-To work on it, you need Node.js 24 and pnpm:
+### Try it
+
+The `oip` command puts a mind in a terminal. Its [README](packages/cli/README.md) goes from nothing to two minds and an accepted Commitment between them in under five minutes, on a network that runs on your own machine. CI follows the same lines on every push, and holds them to the five minutes.
+
+### Work on it
+
+You need Node.js 24 and pnpm:
 
 ```
 pnpm install

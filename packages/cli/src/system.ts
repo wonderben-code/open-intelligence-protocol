@@ -13,10 +13,15 @@ import type { Edges } from "./edges.ts";
 
 /** What a process has of a terminal and of signals: `process` is one. */
 export interface Process {
+  /** The environment's variables. */
   readonly env: Readonly<Record<string, string | undefined>>;
+  /** Where what is typed is read. A passphrase is asked for only where it is a terminal. */
   readonly stdin: NodeJS.ReadableStream & { readonly isTTY?: boolean };
+  /** Where a command's answer is written. */
   readonly stdout: { write(text: string): unknown };
+  /** Where an error, and a question, is written. */
   readonly stderr: { write(text: string): unknown };
+  /** Calls `heard` once, when the process is asked to stop. */
   once(signal: "SIGINT" | "SIGTERM", heard: () => void): unknown;
 }
 

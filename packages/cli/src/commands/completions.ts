@@ -10,7 +10,7 @@
 import { type Command, UsageError } from "../command.ts";
 
 /** The options every command takes, as `run.ts` has them. */
-const EVERY = ["dir", "json", "help", "version"];
+const EVERY = ["dir", "json", "get", "help", "version"];
 
 /** A string inside single quotes of a shell. */
 const quoted = (text: string): string => `'${text.replaceAll("'", "'\\''")}'`;

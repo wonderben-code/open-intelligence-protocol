@@ -171,6 +171,24 @@ jobs:
       - name: All four tests ran
         run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('browser.json', 'utf8')); if (numPassedTests !== 4) { console.error(numPassedTests + ' tests passed, and 4 were to'); process.exit(1); }"
 
+  newcomer:
+    name: The five-minute promise (a newcomer follows the README)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      # No cache of dependencies: a newcomer has none.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      # Installs, builds, starts `oip demo`, and runs the lines of packages/cli/README.md as they
+      # stand, in a home directory that holds nothing. It fails at five minutes (BUILD.md, M7).
+      - name: From nothing to an accepted Commitment between two minds
+        run: node scripts/newcomer.ts
+
   test:
     name: Test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest

@@ -613,10 +613,11 @@ Commands:
   completions        Prints a script that teaches a shell the commands and their options
 
 Options of every command:
-  --dir <path>  The mind's directory. Default: OIP_DIR, or .oip in your home directory
-  --json        Print the result as JSON
-  --help        Show this, or a command's own help
-  --version     Print the version
+  --dir <path>    The mind's directory. Default: OIP_DIR, or .oip in your home directory
+  --json          Print the result as JSON
+  --get <member>  Print one member of that JSON alone, as mind or found.0.mind: for a script
+  --help          Show this, or a command's own help
+  --version       Print the version
 
 Run \`oip <command> --help\` for a command's own options, and an example.
 "

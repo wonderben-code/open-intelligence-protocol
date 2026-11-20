@@ -9,6 +9,7 @@ One for each service and each tool (BUILD.md 3.7). Each says what the thing prot
 | [indexer.md](indexer.md)   | `@oip/indexer`: submission, capability queries, signed results, brokered delivery, its key |
 | [keystore.md](keystore.md) | `@oip/keystore`: the roles of a mind's keys, their locks, storage, backup and the keychain |
 | [client.md](client.md)     | `@oip/client`: resolving, publishing, finding, packets, dealing, and the client's memory   |
+| [cli.md](cli.md)           | `@oip/cli`: the mind's directory, the terminal, passphrases, and the network of `oip demo` |
 
 ## How they are written
 

@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { clause } from "@oip/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { COMMANDS } from "../src/index.ts";
+import { COMMANDS, GLOBAL_FLAGS } from "../src/index.ts";
 import { PASSPHRASE, Place } from "./harness.ts";
 
 const BACKUP_PASSPHRASE = "kept apart, in another place";
@@ -299,7 +299,13 @@ describe("oip completions", () => {
     expect(offered(printed.out, "keys", "re")).toStrictEqual(["restore"]);
     expect(offered(printed.out, "init", "--k").sort()).toStrictEqual(["--keychain", "--kind"]);
     expect(offered(printed.out, "collective", "sign", "--").sort()).toStrictEqual(
-      ["--dir", "--help", "--json", "--out", "--publish", "--send-to", "--version"].sort(),
+      ["--dir", "--get", "--help", "--json", "--out", "--publish", "--send-to", "--version"].sort(),
+    );
+    // A command with no options of its own is offered those every command takes, all of them.
+    expect(offered(printed.out, "show", "--").sort()).toStrictEqual(
+      Object.keys(GLOBAL_FLAGS)
+        .map((flag) => `--${flag}`)
+        .sort(),
     );
     // Every option of every command is offered after its command.
     for (const command of COMMANDS) {

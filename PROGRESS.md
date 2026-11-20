@@ -6,7 +6,7 @@ This file is the live status of the Open Intelligence Protocol project, so that 
 
 ## Where the build stands on this branch (20 November)
 
-This branch is `m6-client`. It is stacked on `m5-servers`, `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
+This branch is `m7-cli`. It is stacked on `m6-client`, `m5-servers`, `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
 
 | Milestone | Branch | Built | `pnpm run ci` | Still owed before its pull request |
 |---|---|---|---|---|
@@ -14,7 +14,8 @@ This branch is `m6-client`. It is stacked on `m5-servers`, `m4-network`, `m3-del
 | M3. Delegation and Layer 2 | `m3-delegation-web`, pushed | Yes | Green | Two more reviews, the mutation score, the review record. [OEP-0003](oeps/oep-0003-delegation-and-mind-web-clarifications.md) needs Eks |
 | M4. Network records and sealing | `m4-network`, pushed | Yes | Green | Two reviews, the mutation score, the review record |
 | M5. Servers | `m5-servers`, pushed | Yes, see below | Green | Reviews, the mutation score, the review record |
-| M6. Client and keystore | `m6-client` | In part, see below | Green for what is built | The rest of the build list, then reviews, the mutation score, the review record |
+| M6. Client and keystore | `m6-client` | Yes, see below | Green | Reviews, the mutation score, the review record |
+| M7. The `oip` command | `m7-cli` | Yes, see below | Green | Reviews, the mutation score, the review record |
 
 Reviews are made by fresh agents, which were not to be had between 19 and 21 November (a usage limit). The build went on with what does not need them.
 
@@ -52,6 +53,23 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
 - **It runs in a browser too** ([ADR-0022](docs/adr/0022-the-client-in-a-browser.md)): a page of Chromium runs the README's examples against the same services, with its keys sealed in IndexedDB, and the test checks that each service would have let a browser make every request the page made (`packages/client/test/browser.real.test.ts`, the `browser` job of CI).
 
 **Everything on M6's build list is built**, and every public method of `Mind` and of `Lookup` is called in a runnable example the README shows, which a test holds. The API report was read through and is frozen for 0.x: the reading found that closing a mind left its sockets open, which it no longer does. What remains before the milestone closes: the independent reviews and the mutation run.
+
+**What M7 has:**
+
+- **`@oip/cli`**, the `oip` command ([README](packages/cli/README.md), [ADR-0026](docs/adr/0026-the-command.md), [threat model](docs/threat-models/cli.md)): every command of the build list, each with `--json`, `--help` and an example. `init`, `show`, `rotate`, `add-key`, `revoke-key`, `fork`; `publish profile`, `publish location`, `publish record`; `resolve`, `find`; `send`, `inbox`; `intent`, `offer`, `commit`, `receipt`, `status`; `delegate`, `revoke`; `collective create`, `collective sign`; `verify`; `keys backup`, `keys restore`; `doctor`; `demo`; `completions`.
+- **`oip verify` says why of every verdict**, with the clause it rests on, for a record, a log, a bundle or a mind by its address.
+- **`oip demo` runs a resolver, a host and an indexer on the user's machine**, so that a mind can be tried before anyone has chosen or deployed a service.
+- **The five-minute promise is measured**: `pnpm newcomer` (`scripts/newcomer.ts`) installs and builds the repository, and runs the lines of the command's README as they stand, in a home directory that holds nothing. Two minds and an accepted, verified Commitment between them take about thirty seconds once the repository is built. CI runs it on every push and fails it at five minutes.
+- **No private key is printed, and no passphrase is an option.** Everything printed has its control characters shown as escapes, so that a stranger's text cannot act on the terminal.
+- **Tests**: the help and the output of every command are held by snapshots; the papers' scenario runs end to end through the command, each step a run of its own; the command is also run as a real process; the bash completions are run in bash. Every file of the package meets the coverage threshold.
+
+**What M7 found:**
+
+- **The client forgot when it had first seen a record once its process ended.** That is the finding listed under M6 below: the command was the first program to keep records between runs, and to need the evidence kept with them.
+- **An Offer or an Intent published through the client was never brought to an indexer**, so nothing could find one. `publishRecord` now submits the mind's own, as Layer 1, 18.1 has an indexer take them.
+- **The client could acknowledge a child mind and could not make one** that names its parent. `oip fork` now does both, in that order.
+- **GitHub's CI needed more time than it was given.** Once the tests of the stack were mended, the job that runs every check was cut off at thirty minutes, and a test or a hook ran out of its own time on a shared runner. The timeouts are now there to end what hangs, and the budgets stay with the benchmarks.
+- **Not in the command yet:** sessions, retiring a mind, and drafting a change to a collective. The client does all three. A packet read from a mailbox and not yet written to the directory is lost if the process dies between the two: closing that needs the client to confirm a packet only once the application has kept it. Both are noted in the README and the threat model.
 
 **What M6 found:**
 

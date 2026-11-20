@@ -34,6 +34,7 @@ pnpm schemas                         # regenerate spec/schemas and the compiled 
 pnpm spec:clauses                    # regenerate spec/clauses.json after a spec change
 pnpm generated:check                 # both of the above are current
 pnpm api                             # build, and update the API reports (packages/*/etc)
+pnpm newcomer                        # the five-minute promise: follows packages/cli/README.md, timed
 pnpm bench                           # performance budgets (BUILD.md 3.8)
 pnpm mutation                        # mutation testing with Stryker (slow; CI runs it weekly)
 pnpm run docs                        # API reference (`pnpm docs` is pnpm's own command)

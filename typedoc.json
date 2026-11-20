@@ -11,6 +11,7 @@
     "packages/net",
     "packages/keystore",
     "packages/client",
+    "packages/cli",
     "packages/conformance"
   ],
   "packageOptions": {

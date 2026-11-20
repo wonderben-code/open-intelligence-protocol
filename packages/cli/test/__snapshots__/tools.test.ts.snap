@@ -5,6 +5,7 @@ exports[`oip completions > prints the same for zsh, and one of its own for fish 
 complete -c oip -f
 complete -c oip -l dir
 complete -c oip -l json
+complete -c oip -l get
 complete -c oip -l help
 complete -c oip -l version
 complete -c oip -n __fish_use_subcommand -a init -d 'Makes a mind: its keys, sealed in its directory, and its first event with its resolvers'
@@ -168,38 +169,38 @@ exports[`oip completions > teaches bash every command and its options, from the 
 _oip() {
   local cur="\${COMP_WORDS[COMP_CWORD]}"
   local first="\${COMP_WORDS[1]}" second="\${COMP_WORDS[2]}"
-  local flags="--dir --json --help --version"
+  local flags="--dir --json --get --help --version"
   case "$first $second" in
-    "publish profile") flags="--name --summary --capability --tag --file --dir --json --help --version" ;;
-    "publish location") flags="--status --resume-after --ttl --dir --json --help --version" ;;
-    "publish record") flags="--dir --json --help --version" ;;
-    "collective create") flags="--member --threshold --host --out --send-to --dir --json --help --version" ;;
-    "collective sign") flags="--publish --out --send-to --dir --json --help --version" ;;
-    "keys backup") flags="--replace --dir --json --help --version" ;;
-    "keys restore") flags="--resolver --indexer --local --network --keychain --dir --json --help --version" ;;
+    "publish profile") flags="--name --summary --capability --tag --file --dir --json --get --help --version" ;;
+    "publish location") flags="--status --resume-after --ttl --dir --json --get --help --version" ;;
+    "publish record") flags="--dir --json --get --help --version" ;;
+    "collective create") flags="--member --threshold --host --out --send-to --dir --json --get --help --version" ;;
+    "collective sign") flags="--publish --out --send-to --dir --json --get --help --version" ;;
+    "keys backup") flags="--replace --dir --json --get --help --version" ;;
+    "keys restore") flags="--resolver --indexer --local --network --keychain --dir --json --get --help --version" ;;
     *)
       case "$first" in
-        init) flags="--kind --resolver --host --indexer --no-host --local --network --keychain --dir --json --help --version" ;;
-        show) flags="--dir --json --help --version" ;;
-        rotate) flags="--dir --json --help --version" ;;
-        add-key) flags="--label --dir --json --help --version" ;;
-        revoke-key) flags="--compromised-since --dir --json --help --version" ;;
-        fork) flags="--kind --host --terms --acknowledge --dir --json --help --version" ;;
-        resolve) flags="--aliases --local --network --out --dir --json --help --version" ;;
-        find) flags="--want --tag --kind --limit --local --network --dir --json --help --version" ;;
-        send) flags="--text --record --verb --goal --reply-to --thread --expires-in --unsealed --dir --json --help --version" ;;
-        inbox) flags="--all --listen --dir --json --help --version" ;;
-        intent) flags="--want --deadline --budget --currency --require --audience --expires --for --authority --charter --publish --send-to --dir --json --help --version" ;;
-        offer) flags="--provides --summary --price --currency --delivery-by --quantity --condition --answers --capability --audience --expires --for --authority --charter --publish --send-to --dir --json --help --version" ;;
-        commit) flags="--offer --debtor --creditor --witness --promise --deadline --price --currency --payer --payee --resolves --closes-intent --for --authority --charter --publish --send-to --dir --json --help --version" ;;
-        receipt) flags="--outcome --statement --score --for --authority --charter --publish --send-to --dir --json --help --version" ;;
-        status) flags="--dir --json --help --version" ;;
-        delegate) flags="--command --days --expires --not-before --policy --authority --send-to --publish --dir --json --help --version" ;;
-        revoke) flags="--send-to --dir --json --help --version" ;;
-        verify) flags="--offline --local --network --dir --json --help --version" ;;
-        doctor) flags="--dir --json --help --version" ;;
-        demo) flags="--network --dir --json --help --version" ;;
-        completions) flags="--dir --json --help --version" ;;
+        init) flags="--kind --resolver --host --indexer --no-host --local --network --keychain --dir --json --get --help --version" ;;
+        show) flags="--dir --json --get --help --version" ;;
+        rotate) flags="--dir --json --get --help --version" ;;
+        add-key) flags="--label --dir --json --get --help --version" ;;
+        revoke-key) flags="--compromised-since --dir --json --get --help --version" ;;
+        fork) flags="--kind --host --terms --acknowledge --dir --json --get --help --version" ;;
+        resolve) flags="--aliases --local --network --out --dir --json --get --help --version" ;;
+        find) flags="--want --tag --kind --limit --local --network --dir --json --get --help --version" ;;
+        send) flags="--text --record --verb --goal --reply-to --thread --expires-in --unsealed --dir --json --get --help --version" ;;
+        inbox) flags="--all --listen --dir --json --get --help --version" ;;
+        intent) flags="--want --deadline --budget --currency --require --audience --expires --for --authority --charter --publish --send-to --dir --json --get --help --version" ;;
+        offer) flags="--provides --summary --price --currency --delivery-by --quantity --condition --answers --capability --audience --expires --for --authority --charter --publish --send-to --dir --json --get --help --version" ;;
+        commit) flags="--offer --debtor --creditor --witness --promise --deadline --price --currency --payer --payee --resolves --closes-intent --for --authority --charter --publish --send-to --dir --json --get --help --version" ;;
+        receipt) flags="--outcome --statement --score --for --authority --charter --publish --send-to --dir --json --get --help --version" ;;
+        status) flags="--dir --json --get --help --version" ;;
+        delegate) flags="--command --days --expires --not-before --policy --authority --send-to --publish --dir --json --get --help --version" ;;
+        revoke) flags="--send-to --dir --json --get --help --version" ;;
+        verify) flags="--offline --local --network --dir --json --get --help --version" ;;
+        doctor) flags="--dir --json --get --help --version" ;;
+        demo) flags="--network --dir --json --get --help --version" ;;
+        completions) flags="--dir --json --get --help --version" ;;
       esac ;;
   esac
   if [[ "$cur" == -* ]]; then

@@ -30,6 +30,11 @@ export const GLOBAL_FLAGS = {
     describes: "The mind's directory. Default: OIP_DIR, or .oip in your home directory",
   },
   json: { type: "boolean", describes: "Print the result as JSON" },
+  get: {
+    type: "string",
+    value: "member",
+    describes: "Print one member of that JSON alone, as mind or found.0.mind: for a script",
+  },
   help: { type: "boolean", describes: "Show this, or a command's own help" },
   version: { type: "boolean", describes: "Print the version" },
 } as const satisfies Readonly<Record<string, Flag>>;
@@ -86,11 +91,11 @@ export function helpOf(command: Command): string[] {
 
 /** The command the arguments name, and the arguments that follow its name. */
 function find(argv: readonly string[]): { command: Command | undefined; rest: string[] } {
-  // The words before the first option, but for the value of `--dir`, are where a name is.
+  // The words before the first option, but for the value of `--dir` or `--get`, are where a name is.
   const words: number[] = [];
   for (let index = 0; index < argv.length && words.length < 2; index++) {
     const word = argv[index] ?? "";
-    if (word === "--dir") index++;
+    if (word === "--dir" || word === "--get") index++;
     else if (!word.startsWith("-")) words.push(index);
     else if (words.length > 0) break;
   }
@@ -134,6 +139,21 @@ function failureOf(error: unknown): { code: string; message: string; exit: ExitC
 }
 
 /**
+ * One member of a command's answer, by its path: `mind`, or `found.0.mind`.
+ *
+ * @throws UsageError if the answer has no such member.
+ */
+function member(json: unknown, path: string): unknown {
+  let at: unknown = json;
+  for (const name of path.split(".")) {
+    const inside = typeof at === "object" && at !== null && Object.hasOwn(at, name);
+    if (!inside) throw new UsageError(`the answer has no member ${path}: --json shows what it has`);
+    at = (at as Readonly<Record<string, unknown>>)[name];
+  }
+  return at;
+}
+
+/**
  * Runs `oip` once.
  *
  * @param argv - The arguments, without the program's own name.
@@ -142,8 +162,17 @@ function failureOf(error: unknown): { code: string; message: string; exit: ExitC
  */
 export async function run(argv: readonly string[], edges: Edges): Promise<ExitCode> {
   const json = argv.includes("--json");
+  /** The member `--get` asks for, once the arguments are read. */
+  let wanted: string | undefined;
   const print = (result: Result): void => {
     // Much of what is printed is a stranger's words: nothing of it reaches the terminal as a control.
+    if (wanted !== undefined) {
+      const value = member(result.json, wanted);
+      // A text is printed as it is, for a shell to take. Anything else is printed as JSON, which
+      // for a number or a yes-or-no is the same.
+      edges.out(`${typeof value === "string" ? printable(value) : printableJson(value)}\n`);
+      return;
+    }
     edges.out(
       json
         ? `${printableJson(result.json)}\n`
@@ -153,6 +182,8 @@ export async function run(argv: readonly string[], edges: Edges): Promise<ExitCo
   const { command, rest } = find(argv);
   try {
     const given = read(command, rest);
+    const get = given.flags["get"];
+    if (typeof get === "string") wanted = get;
     if (given.flags["version"] === true) {
       print({ lines: [VERSION], json: { version: VERSION } });
       return 0;

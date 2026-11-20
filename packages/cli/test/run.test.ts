@@ -49,6 +49,25 @@ describe("oip, asked for nothing or for help", () => {
     }
   });
 
+  it("prints one member of an answer alone, for a script to take", async () => {
+    expect(await place.oip(["--version", "--get", "version"])).toMatchObject({
+      code: 0,
+      out: `${VERSION}\n`,
+    });
+    // Before the command's name or after it, and a member within a member by its path.
+    const listed = await place.oip(["--get", "commands.0", "--help"]);
+    expect(listed).toMatchObject({ code: 0, out: `${COMMANDS[0]?.name ?? ""}\n` });
+    expect((await place.oip(["init", "--help", "--get", "options"])).out).toBe(
+      `${JSON.stringify(Object.keys(COMMANDS[0]?.flags ?? {}), undefined, 2)}\n`,
+    );
+    // What is not there is said to be not there, and nothing is printed for a script to take.
+    for (const path of ["nothing", "commands.99", "commands.0.name"]) {
+      const none = await place.oip(["--help", "--get", path]);
+      expect(none).toMatchObject({ code: 2, out: "" });
+      expect(none.err).toContain(`the answer has no member ${path}: --json shows what it has`);
+    }
+  });
+
   it("says its version", async () => {
     expect(await place.oip(["--version"])).toMatchObject({ code: 0, out: `${VERSION}\n` });
     expect((await place.oip(["--version", "--json"])).json()).toStrictEqual({ version: VERSION });

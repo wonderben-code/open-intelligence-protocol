@@ -41,6 +41,7 @@ export interface Result {
 
 /** What a command is run with. */
 export interface Context {
+  /** What the command reaches outside itself. */
   readonly edges: Edges;
   /** The directory of the mind the command works for. */
   readonly dir: string;

@@ -184,8 +184,9 @@ export async function run(argv: readonly string[], edges: Edges): Promise<ExitCo
       dir: directoryOf(typeof dir === "string" ? dir : undefined, edges),
       say: print,
     };
-    print(await command.run(context, given));
-    return 0;
+    const result = await command.run(context, given);
+    print(result);
+    return result.failed === true ? 1 : 0;
   } catch (error) {
     const failure = failureOf(error);
     if (failure === undefined) throw error;

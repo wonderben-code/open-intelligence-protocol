@@ -31,6 +31,12 @@ export interface Result {
   readonly lines: readonly string[];
   /** What `--json` prints, as JSON. Nothing of a private key is in it. */
   readonly json: unknown;
+  /**
+   * Whether the command did what it was asked and the answer is no: a
+   * record that does not verify. The run then ends with 1, as it does for
+   * what could not be done.
+   */
+  readonly failed?: boolean;
 }
 
 /** What a command is run with. */

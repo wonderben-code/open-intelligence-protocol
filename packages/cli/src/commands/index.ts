@@ -14,6 +14,7 @@ import { publishLocation, publishProfile, publishRecord } from "./publish.ts";
 import { resolve } from "./resolve.ts";
 import { send } from "./send.ts";
 import { show } from "./show.ts";
+import { verify } from "./verify.ts";
 
 /** Every command, in the order the help lists them. */
 export const COMMANDS: readonly Command[] = [
@@ -39,5 +40,6 @@ export const COMMANDS: readonly Command[] = [
   revoke,
   collectiveCreate,
   collectiveSign,
+  verify,
   demo,
 ];

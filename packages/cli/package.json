@@ -45,12 +45,14 @@
   "dependencies": {
     "@oip/client": "workspace:*",
     "@oip/core": "workspace:*",
+    "@oip/delegation": "workspace:*",
     "@oip/host": "workspace:*",
     "@oip/identity": "workspace:*",
     "@oip/indexer": "workspace:*",
     "@oip/keystore": "workspace:*",
     "@oip/resolver": "workspace:*",
-    "@oip/schema": "workspace:*"
+    "@oip/schema": "workspace:*",
+    "@oip/web": "workspace:*"
   },
   "devDependencies": {
     "@oip/testkit": "workspace:*"

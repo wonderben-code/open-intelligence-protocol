@@ -235,6 +235,9 @@ importers:
       '@oip/core':
         specifier: workspace:*
         version: link:../core
+      '@oip/delegation':
+        specifier: workspace:*
+        version: link:../delegation
       '@oip/host':
         specifier: workspace:*
         version: link:../host
@@ -253,6 +256,9 @@ importers:
       '@oip/schema':
         specifier: workspace:*
         version: link:../schema
+      '@oip/web':
+        specifier: workspace:*
+        version: link:../web
     devDependencies:
       '@oip/testkit':
         specifier: workspace:*

@@ -372,6 +372,7 @@ Options:
   --aliases         Check each other name the mind lists: it is the mind's only if it points back
   --local           Ask the network \`oip demo\` runs on this machine, with no mind of your own
   --network <path>  The directory of that network. Default: ~/.oip-demo
+  --out <file>      Write the mind's bundle to this file: its log, with its location and profile
 
 Example:
   oip resolve did:oip:bciqexample --aliases
@@ -477,6 +478,31 @@ Example:
 "
 `;
 
+exports[`oip, asked for nothing or for help > has help for every command: what it does, its options, and an example to type > verify 1`] = `
+"oip verify <what> [options]
+
+Verifies a record, a log, a bundle or a mind, and says why of every verdict
+
+What is verified is named by a file of JSON, by the ID of a record the mind of this
+directory holds, or by the address of a mind. A file may hold one record, a bundle, or an
+identity log as an array of its events.
+Each line is one verdict, with the clause of the specification it rests on. \`unknown\` is
+what could not be judged, and \`no\` an answer of no with nothing wrong: a party that has
+not signed. The command ends with 1 if anything fails.
+A signature is judged by its signer's log as the resolvers serve it now, and counts from
+when this mind first obtained it, if it holds the record, or else from now.
+It unlocks no key: no passphrase is asked for.
+
+Options:
+  --offline         Ask no service: check what can be checked without one
+  --local           Ask the network \`oip demo\` runs on this machine, with no mind of your own
+  --network <path>  The directory of that network. Default: ~/.oip-demo
+
+Example:
+  oip verify commitment.json
+"
+`;
+
 exports[`oip, asked for nothing or for help > lists its commands, and says how to learn more of one 1`] = `
 "oip <command> [options]
 
@@ -505,6 +531,7 @@ Commands:
   revoke             Takes a delegation back: signs a Revocation, and puts it on the mind's feed
   collective create  Founds a collective with other minds: drafts its first event, and signs it as a member
   collective sign    Signs, as a member of a collective, one of its identity events or a record in its name
+  verify             Verifies a record, a log, a bundle or a mind, and says why of every verdict
   demo               Runs a network on this machine: a resolver, a host and an indexer, until it is stopped
 
 Options of every command:

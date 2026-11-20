@@ -303,7 +303,7 @@ export const commit: Command = {
     const amount = amountOf(given, "price");
     return withMind(context, async (opened) => {
       const { mind } = opened;
-      const { author, acting } = actingOf(opened, given);
+      const { author, acting } = actingOf(opened, given, true);
       if (named !== undefined) {
         const theirs = recordOf(opened, named, "the commitment");
         if (theirs["type"] !== "Commitment") throw new UsageError(`${named} is no Commitment`);

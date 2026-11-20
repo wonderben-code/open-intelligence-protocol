@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
+import { writeFileSync } from "node:fs";
+
 import { Lookup } from "@oip/client";
 
 import { type Command, has, one, UsageError } from "../command.ts";
@@ -27,6 +29,11 @@ export const resolve: Command = {
       value: "path",
       describes: "The directory of that network. Default: ~/.oip-demo",
     },
+    out: {
+      type: "string",
+      value: "file",
+      describes: "Write the mind's bundle to this file: its log, with its location and profile",
+    },
   },
   notes: [
     "The resolvers asked are those of this directory's mind. What they serve is verified here,",
@@ -46,6 +53,19 @@ export const resolve: Command = {
     const resolved = await lookup.resolve(address);
     const parents = await lineageOf(lookup, resolved);
     const checks = has(given, "aliases") ? (await lookup.aliases(address)).checks : undefined;
+    const out = one(given, "out");
+    if (out !== undefined) {
+      // What a resolver serves of the mind, as this command verified it: `oip verify` reads it.
+      const bundle = {
+        oip: "1",
+        type: "Bundle",
+        mind: resolved.mind,
+        log: resolved.log.entries.map((entry) => entry.event),
+        ...(resolved.location === undefined ? {} : { location: resolved.location.record }),
+        ...(resolved.participant === undefined ? {} : { participant: resolved.participant.record }),
+      };
+      writeFileSync(out, `${JSON.stringify(bundle, undefined, 2)}\n`);
+    }
     return {
       lines: [
         ...describe(resolved, parents),

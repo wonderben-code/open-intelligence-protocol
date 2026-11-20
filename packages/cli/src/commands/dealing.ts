@@ -83,8 +83,19 @@ export const ACTING_FLAGS = {
 /**
  * For whom a record is signed, and by what: the chain of delegations or the
  * charter the command was given, and the mind they are of.
+ *
+ * A record that says what one mind wants, offers or found is written in
+ * the name of the mind it is signed for. A Commitment names in its parties
+ * whom it binds, and its author is whoever wrote it: so there the author is
+ * this mind, unless `--for` names another.
+ *
+ * @param own - Whether the author is this mind unless `--for` names another.
  */
-export function actingOf(opened: Opened, given: Arguments): { author?: string; acting?: Acting } {
+export function actingOf(
+  opened: Opened,
+  given: Arguments,
+  own = false,
+): { author?: string; acting?: Acting } {
   const chain = many(given, "authority").map((named) => {
     const record = validateRecordOfType("Delegation", recordOf(opened, named, "the delegation"));
     if (!record.ok) throw new UsageError(`${named} is no delegation`);
@@ -100,7 +111,8 @@ export function actingOf(opened: Opened, given: Arguments): { author?: string; a
     throw new UsageError("a record is signed for another by --authority or by --charter, not both");
   }
   const [root] = chain;
-  const author = one(given, "for") ?? root?.subject ?? charter?.value.author;
+  const principal = own ? undefined : (root?.subject ?? charter?.value.author);
+  const author = one(given, "for") ?? principal;
   return {
     ...(author === undefined ? {} : { author }),
     ...(root === undefined ? {} : { acting: { chain } }),

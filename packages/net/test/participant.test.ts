@@ -117,6 +117,37 @@ describe(`${clause("L1 16.1")} a participant profile`, () => {
     });
   });
 
+  it(`${clause("L1 16.3")} tags a capability in the namespaces the protocol names, and in any other`, () => {
+    const tagged = (tags: readonly string[]) =>
+      draft(ada, 10, { capabilities: [{ id: "translate", summary: "Translates leases.", tags }] });
+    const named = [
+      "oasf:skills/natural_language_processing/translation",
+      "domain:legal",
+      "lang:pt-BR",
+      "schema:TranslateAction",
+    ];
+    const others = ["acme:tier-1", "org.example.skills:leases", "x:y:z"];
+    for (const tags of [named, others, [...named, ...others]]) {
+      const result = verified(ada.sign(tagged(tags)));
+      if (!result.ok) throw new Error(JSON.stringify(result.issues));
+      // A tag is kept as it was written: no namespace is read, checked against a list or folded.
+      expect(result.value.record.capabilities?.[0]?.tags).toStrictEqual(tags);
+    }
+    // What has no namespace, or nothing after it, is not a tag (16.2). Nothing here signs
+    // such a profile, so it is signed as bytes.
+    for (const tag of ["translation", ":legal", "domain:", ""]) {
+      const unsigned = rawSign(
+        tagged([tag]),
+        [{ member: ada.address, versionId: ada.versionId(), invocation: ada.operational() }],
+        { purpose: "assertionMethod" },
+      );
+      expect(judgeRecord(unsigned), tag).toMatchObject({
+        ok: false,
+        issues: [{ path: "/capabilities/0/tags/0" }],
+      });
+    }
+  });
+
   it("stands for the profile of the test vectors, which names its mind's kind", () => {
     const cases = (readVectors() as unknown as { cases: Record<string, JsonObject> }).cases;
     const profile = judged(cases["participant"]!).record as { kind: string; author: string };

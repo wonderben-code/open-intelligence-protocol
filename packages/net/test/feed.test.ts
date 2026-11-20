@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { contentId, proofDigest } from "@oip/core";
-import { type IdentityView, type JudgedRecord, judgeRecord, LogBook } from "@oip/identity";
+import {
+  type IdentityView,
+  type JudgedRecord,
+  judgeRecord,
+  LogBook,
+  ownSignedTime,
+} from "@oip/identity";
 import { clause, type JsonObject } from "@oip/testkit";
 import {
   at,
@@ -367,6 +373,151 @@ describe(`${clause("L1 10.5")} a checkpoint`, () => {
     expect(refusal(bobs)).toStrictEqual({ clause: "L1 10.5", path: "/author" });
     // A record of another type.
     expect(refusal(first)).toStrictEqual({ clause: "L1 10.5", path: "/type" });
+  });
+});
+
+describe(`${clause("L1 10.6")} a checkpoint that is shown to have existed at a time`, () => {
+  // How an anchor's attestation is carried is not yet specified (OEP-0004), so none is read
+  // here. A verifier that has checked one holds a time at which the checkpoint existed, and
+  // that time is what this test gives it.
+  //
+  // Finn publishes three Intents in his feed, at 10, 20 and 30, and a checkpoint over the
+  // first two at 40. At 100 he replaces the key that signed them. A verifier that followed
+  // the feed as it was made obtains the Intents themselves only at 5,000.
+  const finn = new KeyMind("finn");
+  const intents = [10, 20, 30].map((seconds) => finn.sign(intentBy(finn, seconds)) as Signed);
+  const entries: Signed[] = [];
+  for (const [n, intent] of intents.entries()) {
+    entries.push(finn.sign(draft(finn, n, entries.at(-1), intent, 10 * (n + 1))));
+  }
+  const covering = entries.slice(0, 2);
+  const checkpoint = finn.sign({
+    oip: "1",
+    type: "Checkpoint",
+    author: finn.address,
+    created: T(40),
+    size: 2,
+    head: contentId(covering[1]!),
+    root: checkpointRoot(covering.map(idOf)),
+  }) as Signed;
+  finn.update(100, { keys: [{ key: finn.operational(1).publicKey }] });
+
+  /** What the verifier holds, with a time for each proof that the anchor is evidence for. */
+  const holding = (anchored: ReadonlySet<string> = new Set(), time = at(50)) => {
+    const seen = witness([finn.events], [...entries, checkpoint]);
+    for (const intent of intents) {
+      for (const proof of intent.proof) seen.sawProof(proofDigest(proof), at(5000));
+    }
+    for (const digest of anchored) seen.sawProof(digest, time);
+    const book = new LogBook(seen);
+    book.hold(finn.events, LATER);
+    return book;
+  };
+  const signedAt = (book: LogBook) =>
+    intents.map((intent) => ownSignedTime(judged(intent), finn.address, book));
+  const covered = () => {
+    const view = holding();
+    const feed = verifyFeed(entries, finn.address, view);
+    if (!feed.ok) throw new Error(JSON.stringify(feed.issues));
+    const result = verifyCheckpoint(judged(checkpoint), feed.value, view);
+    if (!result.ok) throw new Error(JSON.stringify(result.issues));
+    return result.value;
+  };
+
+  it("is evidence, from that time, for each proof a covered entry commits to", () => {
+    // Without it, each Intent was first seen after the key that signed it was gone.
+    expect(signedAt(holding())).toStrictEqual([undefined, undefined, undefined]);
+    // The anchor shows the checkpoint existed at 50. The proofs of the first two Intents
+    // existed then, when the key was Finn's; the third entry is not covered.
+    expect(signedAt(holding(covered().proofs))).toStrictEqual([at(50), at(50), undefined]);
+  });
+
+  it("is evidence of no earlier time than the anchor's, and of none that helps once the key is gone", () => {
+    // An anchor made at 50 does not show that a proof existed at 10, the date the proof gives.
+    expect(signedAt(holding(covered().proofs))[0]).not.toBe(at(10));
+    // An anchor made after the key was replaced shows the proofs existed when it was not Finn's.
+    expect(signedAt(holding(covered().proofs, at(200)))).toStrictEqual([
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it(`${clause("L2 10.2", "core 9.7")} keeps a Commitment a party listed verifiable after the keys that signed it are removed`, () => {
+    // Gia and Hal sign a Commitment, at 10 and 12. Gia lists it in her feed at 20, and her
+    // checkpoint over that entry is shown to have existed at 50. At 100 each of them replaces
+    // the key that signed. The verifier obtains the Commitment at 5,000.
+    const gia = new KeyMind("gia");
+    const hal = new KeyMind("hal");
+    const commitment = hal.sign(
+      gia.sign({
+        oip: "1",
+        type: "Commitment",
+        author: gia.address,
+        created: T(10),
+        parties: [
+          { mind: gia.address, role: "debtor", required: true },
+          { mind: hal.address, role: "creditor", required: true },
+        ],
+        promise: "Translate the lease.",
+        terms: {},
+      }),
+      { created: T(12) },
+    ) as Signed;
+    const listed = gia.sign(draft(gia, 0, undefined, commitment, 20)) as Signed;
+    const over = gia.sign({
+      oip: "1",
+      type: "Checkpoint",
+      author: gia.address,
+      created: T(30),
+      size: 1,
+      head: contentId(listed),
+      root: checkpointRoot([contentId(listed)]),
+    }) as Signed;
+    gia.update(100, { keys: [{ key: gia.operational(1).publicKey }] });
+    hal.update(100, { keys: [{ key: hal.operational(1).publicKey }] });
+
+    const held = (anchored: ReadonlySet<string> = new Set()) => {
+      const seen = witness([gia.events, hal.events], [listed, over]);
+      for (const proof of commitment.proof) seen.sawProof(proofDigest(proof), at(5000));
+      for (const digest of anchored) seen.sawProof(digest, at(50));
+      const book = new LogBook(seen);
+      for (const mind of [gia, hal]) book.hold(mind.events, LATER);
+      return book;
+    };
+    const signedBy = (book: LogBook) =>
+      [gia, hal].map((mind) => ownSignedTime(judged(commitment), mind.address, book));
+
+    const view = held();
+    const feed = verifyFeed([listed], gia.address, view);
+    if (!feed.ok) throw new Error(JSON.stringify(feed.issues));
+    // The entry commits to the proofs the Commitment carried when it was listed: both parties'.
+    expect(committedProofs(feed.value.entries[0]!.entry, judged(commitment))).toStrictEqual(
+      commitment.proof.map(digestOf),
+    );
+    const checked = verifyCheckpoint(judged(over), feed.value, view);
+    if (!checked.ok) throw new Error(JSON.stringify(checked.issues));
+
+    // Without the checkpoint's time, neither signature counts: each key was gone when it was seen.
+    expect(signedBy(view)).toStrictEqual([undefined, undefined]);
+    // With it, both count from 50, when each key was its mind's.
+    expect(signedBy(held(checked.value.proofs))).toStrictEqual([at(50), at(50)]);
+  });
+
+  it("is evidence for the proofs the entries list, and for no proof added to a record since", () => {
+    // A second signature on the first Intent, by the same key, that no entry lists.
+    const again = finn.sign(intents[0]!, { position: 0, created: T(15) }) as Signed;
+    const added = again.proof.map(digestOf).filter((digest) => !covered().proofs.has(digest));
+    expect(added).toHaveLength(1);
+    const seen = witness([finn.events], [...entries, checkpoint]);
+    for (const digest of [...covered().proofs]) seen.sawProof(digest, at(50));
+    const book = new LogBook(seen);
+    book.hold(finn.events, LATER);
+    // The proof the entry lists counts from 50; the added one has no evidence of when it was made.
+    const counted = judged({ ...intents[0]!, proof: again.proof.slice(1) });
+    expect(ownSignedTime(judged(again), finn.address, book)).toBe(at(50));
+    expect(seen.proofSeen(added[0]!)).toBeUndefined();
+    expect(ownSignedTime(counted, finn.address, book)).toBeUndefined();
   });
 });
 

@@ -232,7 +232,7 @@ export interface Inbox {
         readonly clause: string;
         readonly message: string;
     }[];
-    readonly retried: readonly Retried<Delivery>[];
+    readonly retried: readonly Retried[];
     readonly sessions: readonly SessionEvent[];
     readonly sources: readonly MailboxAnswer[];
     readonly waiting: number;
@@ -403,7 +403,7 @@ export class Mind {
         readonly successor?: string;
         readonly reason?: string;
     }): Promise<IdentityState>;
-    retry(): Promise<Retried<Delivery>[]>;
+    retry(): Promise<Retried[]>;
     revoke(delegation: Delegation): Promise<Revocation>;
     revokeKey(key: string, options: ControlOptions & {
         readonly compromisedSince?: string;
@@ -545,11 +545,9 @@ export interface ResolverAnswer {
     readonly resolver: string;
 }
 
-// Warning: (ae-forgotten-export) The symbol "Outcome" needs to be exported by the entry point index.d.ts
-//
 // @public
-export interface Retried<D extends Outcome = Outcome> {
-    readonly deliveries: readonly D[];
+export interface Retried {
+    readonly deliveries: readonly Delivery[];
     readonly expired: boolean;
     readonly id: string;
     readonly waiting: number;

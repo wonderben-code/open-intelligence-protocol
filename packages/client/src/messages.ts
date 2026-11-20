@@ -56,7 +56,7 @@ import {
 } from "@oip/schema";
 
 import { accepted } from "./accepted.ts";
-import type { Outbox, Retried } from "./outbox.ts";
+import type { Outbox } from "./outbox.ts";
 import { homeEndpoints, type Own } from "./publish.ts";
 import type { Following, Place, SessionBook } from "./sessions.ts";
 import { askJson, exchange, recordBody, refusalOf, TransportError } from "./transport.ts";
@@ -147,6 +147,18 @@ export interface Delivery {
   readonly queued?: true;
 }
 
+/** What came of trying a packet of the outbox again (`Mind.retry`). */
+export interface Retried {
+  /** The packet's content ID. */
+  readonly id: string;
+  /** What became of it for each recipient it still owed, in order. Empty for one that was dropped. */
+  readonly deliveries: readonly Delivery[];
+  /** How many recipients it still owes. */
+  readonly waiting: number;
+  /** Whether it was dropped unsent: it has expired, and no recipient would accept it now. */
+  readonly expired: boolean;
+}
+
 /** A packet that was sent. */
 export interface Sent {
   /** The packet, signed. */
@@ -202,7 +214,7 @@ export interface Inbox {
    * What came of the packets of the outbox that were due to be tried again
    * (`Mind.retry`), or were dropped because they have expired.
    */
-  readonly retried: readonly Retried<Delivery>[];
+  readonly retried: readonly Retried[];
   /** What each mailbox served. */
   readonly sources: readonly MailboxAnswer[];
 }
@@ -374,7 +386,7 @@ const emptyInbox = () => ({
   refused: [] as { clause: string; message: string }[],
   waiting: 0,
   sessions: [] as SessionEvent[],
-  retried: [] as Retried<Delivery>[],
+  retried: [] as Retried[],
   sources: [] as MailboxAnswer[],
 });
 
@@ -518,7 +530,7 @@ export class Messaging {
   }
 
   /** Tries again the packets of the outbox: see `Mind.retry`. */
-  retry(all: boolean): Promise<Retried<Delivery>[]> {
+  retry(all: boolean): Promise<Retried[]> {
     return this.#outbox.retry((packet, to, sealed) => this.#deliver(packet, to, sealed), all);
   }
 

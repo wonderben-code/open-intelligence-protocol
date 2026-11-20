@@ -45,8 +45,8 @@ export interface Queued {
   readonly next: Instant;
 }
 
-/** What came of trying a packet of the outbox again. */
-export interface Retried<D extends Outcome = Outcome> {
+/** What came of trying a packet of the outbox again: `Retried` of `./messages.ts`, for any delivery. */
+export interface Tried<D extends Outcome> {
   /** The packet's content ID. */
   readonly id: string;
   /** What became of it for each recipient it still owed, in order. Empty for one that was dropped. */
@@ -190,7 +190,7 @@ export class Outbox {
   retry<D extends Outcome>(
     deliver: (packet: Packet, to: string, sealed: boolean) => Promise<D>,
     all: boolean,
-  ): Promise<Retried<D>[]> {
+  ): Promise<Tried<D>[]> {
     const next = this.#trying.then(() => this.#retry(deliver, all));
     this.#trying = next.catch(() => undefined);
     return next;
@@ -199,9 +199,9 @@ export class Outbox {
   async #retry<D extends Outcome>(
     deliver: (packet: Packet, to: string, sealed: boolean) => Promise<D>,
     all: boolean,
-  ): Promise<Retried<D>[]> {
+  ): Promise<Tried<D>[]> {
     const { memory, clock } = this.#own;
-    const retried: Retried<D>[] = [];
+    const retried: Tried<D>[] = [];
     for (const name of await memory.names(NAME)) {
       const held = await memory.get(name, read);
       if (held.value === undefined) continue;

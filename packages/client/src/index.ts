@@ -59,6 +59,7 @@ export {
   MAX_QUERY_EXPIRES_IN,
   type Message,
   type Received,
+  type Retried,
   type Sent,
   type SessionEvent,
 } from "./messages.ts";
@@ -81,7 +82,7 @@ export {
   type SocketLike,
   type SocketState,
 } from "./socket.ts";
-export { MAX_QUEUED, type Queued, type Retried } from "./outbox.ts";
+export { MAX_QUEUED, type Queued } from "./outbox.ts";
 export {
   DEFAULT_TTL,
   type Endpoint,

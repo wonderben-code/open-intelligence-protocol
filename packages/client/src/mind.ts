@@ -79,8 +79,8 @@ import type { Status } from "@oip/web";
 import { type Clock, Lookup, type LookupOptions, type Resolved, systemClock } from "./lookup.ts";
 import { Memory } from "./memory.ts";
 import { type Acting, Dealings, type Fields, type Grant } from "./dealings.ts";
-import { type Delivery, type Inbox, type Message, Messaging, type Sent } from "./messages.ts";
-import { Outbox, type Queued, type Retried } from "./outbox.ts";
+import { type Inbox, type Message, Messaging, type Retried, type Sent } from "./messages.ts";
+import { Outbox, type Queued } from "./outbox.ts";
 import { checkInstance, SessionBook, type SessionView } from "./sessions.ts";
 import {
   listen,
@@ -682,7 +682,7 @@ export class Mind {
    *
    * @returns What came of each packet.
    */
-  retry(): Promise<Retried<Delivery>[]> {
+  retry(): Promise<Retried[]> {
     return this.#messaging.retry(true);
   }
 

@@ -16,9 +16,9 @@ This page lists every numbered clause of the specifications (revision 2026-11-17
 |---|---:|---:|---:|---:|---:|
 | [core](../../spec/core.md) | 47 | 46 | 46 | 26 | 26 |
 | [L0](../../spec/layer-0-bridge.md) | 17 | 12 | 0 | 6 | 0 |
-| [L1](../../spec/layer-1-mind-network.md) | 96 | 95 | 88 | 46 | 42 |
+| [L1](../../spec/layer-1-mind-network.md) | 96 | 95 | 88 | 47 | 43 |
 | [L2](../../spec/layer-2-mind-web.md) | 28 | 24 | 23 | 11 | 11 |
-| **All** | 188 | 177 | 157 | 89 | 79 |
+| **All** | 188 | 177 | 157 | 90 | 80 |
 
 ## Golden vectors
 
@@ -245,10 +245,10 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 12.5 | MUST | M4 | 1 | tested | Treat content as data. Receivers MUST NOT treat the content of a packet as conferring authority… |
 | L1 12.6 | MUST | M4 | 28 | tested | `Sealed`. To send a packet privately, the sender encrypts it to one of the recipient's agreemen… |
 | L1 13.1 | MUST | M5 | 22 | tested | Well-known resources. A host serving mind `M` (with content ID `m`) MUST serve: - `GET /.well-k… |
-| L1 13.2 | SHOULD | M5 | 39 | tested | Inbox and acknowledgement. `POST {endpoint}/inbox` with a body of a `Packet` or `Sealed` record… |
+| L1 13.2 | SHOULD | M5 | 39 | tested | Inbox and acknowledgement. `POST {endpoint}/inbox` with a body of a `Packet`, a `Sealed` record… |
 | L1 13.3 | MUST | M5 | 58 | tested | Authentication. - A `Hello` record `{ "oip": "1", "type": "Hello", "author": <mind>, "created":… |
-| L1 13.4 |  | M5 | 23 | tested | WebSocket. A client opens the WebSocket URL given by the mind's location record (Section 15.1)… |
-| L1 13.5 | SHOULD | M5 | 16 | tested | Mailbox. A mailbox endpoint accepts `POST {mailbox}` with a `Sealed` or `Packet` record and ret… |
+| L1 13.4 | SHOULD | M5 | 23 | tested | WebSocket. A client opens the WebSocket URL given by the mind's location record (Section 15.1)… |
+| L1 13.5 | SHOULD | M5 | 16 | tested | Mailbox. A mailbox endpoint accepts `POST {mailbox}` with a `Sealed`, `Packet` or `Forwarded` r… |
 | L1 13.6 |  | M5 | 0 | pending M5 | Further bindings (DIDComm, libp2p, iroh, NATS, MQTT) are reserved for later revisions. Every bi… |
 | L1 14.1 |  | M4 | 9 | tested | A `Session` record is unsigned: `{ "oip": "1", "type": "Session", "participants": [addresses, s… |
 | L1 14.2 | MUST | M4 | 4 | tested | The first packet of each sending chain (14.3) in a session MUST include the `Session` record in… |
@@ -257,7 +257,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 14.5 | MUST | M4 | 8 | tested | `Branch` (the content of a packet with verb `branch`): `{ "oip": "1", "type": "Branch", "parent… |
 | L1 15.1 | MUST | M4 | 15 | tested | A `Location` record: \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The mind \|… |
 | L1 15.2 | SHOULD | M4 | 14 | tested | Among the location records of a mind whose proofs are valid under the current-state rule (Secti… |
-| L1 15.3 | SHOULD | M4 | 6 | tested | Senders SHOULD try endpoints in priority order and SHOULD use `mailbox` endpoints when no other… |
+| L1 15.3 | SHOULD | M4 | 7 | tested | Senders SHOULD try endpoints in priority order and SHOULD use `mailbox` endpoints when no other… |
 | L1 15.4 | MUST | M6 | 0 | pending M6 | Changing hosts. Anyone holding one of the mind's operational keys can publish location records… |
 | L1 16.1 | MUST | M4 | 11 | tested | A `Participant` record: \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The mind… |
 | L1 16.2 | MUST | M4 | 7 | tested | A capability object: `id` (REQUIRED, at most 128 characters, unique within the profile), `summa… |
@@ -266,11 +266,11 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 17.1 | MUST | M5 | 32 | tested | A resolver MUST implement: - `GET /oip/v1/resolve/<mindId>`: returns a `Bundle` (13.1) with the… |
 | L1 17.2 | MUST | M5 | 25 | tested | A resolver MUST verify every record before storing or serving it, evaluating proofs at the time… |
 | L1 17.3 | MAY | M5 | 4 | tested | Resolvers MAY require authenticated publication (13.3) and MAY rate-limit. A resolver that requ… |
-| L1 18.1 | MUST | M5 | 6 | tested | An indexer MUST implement: - `POST /oip/v1/submit` with body `{ "records": [ … ] }` containing… |
-| L1 18.2 |  | M5 | 11 | tested | A capability query is an object whose members are all optional: `want` (free text, at most 1024… |
-| L1 18.3 |  | M5 | 10 | tested | A `QueryResult`: `{ "oip": "1", "type": "QueryResult", "author": <indexer's address>, "created"… |
+| L1 18.1 | MUST | M5 | 11 | tested | An indexer MUST implement: - `POST /oip/v1/submit` with body `{ "records": [ … ] }` containing… |
+| L1 18.2 | MUST | M5 | 16 | tested | A capability query is an object whose members are all optional: `want` (free text, at most 1024… |
+| L1 18.3 |  | M5 | 12 | tested | A `QueryResult`: `{ "oip": "1", "type": "QueryResult", "author": <indexer's address>, "created"… |
 | L1 18.4 | MUST | M6 | 0 | pending M6 | Clients MUST fetch and verify the records named in results before acting on them. Ranking is th… |
-| L1 18.5 | MUST | M5 | 20 | tested | Brokered delivery. An indexer MAY accept `POST {endpoint}/inbox` packets whose `to` is a capabi… |
+| L1 18.5 | MUST | M5 | 25 | tested | Brokered delivery. An indexer MAY accept `POST {endpoint}/inbox` packets whose `to` is a capabi… |
 | L1 19 |  | M4 | 4 | tested in part (due M4) | Limits (table) |
 
 ## L2

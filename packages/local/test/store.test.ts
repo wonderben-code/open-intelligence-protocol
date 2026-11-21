@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -74,5 +74,62 @@ describe("what a program remembers of its work between its runs", () => {
     expect(store.get("task-1")).toBeUndefined();
     writeFileSync(join(dir, name), "{ no json");
     expect(store.get("task-1")).toBeUndefined();
+  });
+
+  it("says that a file is there though it cannot be read: not read is not the same as not there", () => {
+    const store = new Store<number>(dir);
+    expect(store.has("task-1")).toBe(false);
+    store.put("task-1", 1);
+    expect(store.has("task-1")).toBe(true);
+    const [name = ""] = readdirSync(dir);
+    // What is there is no JSON any more: it is not read, and it is there.
+    writeFileSync(join(dir, name), "");
+    expect(store.get("task-1")).toBeUndefined();
+    expect(store.all()).toStrictEqual([]);
+    expect(store.has("task-1")).toBe(true);
+    store.delete("task-1");
+    expect(store.has("task-1")).toBe(false);
+  });
+
+  it("keeps two keys apart that differ in half a pair of surrogates alone", () => {
+    // No such text has an encoding of its own: an encoder writes the same bytes for each half.
+    const store = new Store<string>(dir);
+    const [high, other, low] = [0xd800, 0xd801, 0xdc00].map((unit) => String.fromCharCode(unit));
+    const keys = [
+      `task-${high}`,
+      `task-${other}`,
+      `task-${low}`,
+      `task-${String.fromCodePoint(0xfffd)}`,
+    ];
+    for (const key of keys) store.put(key, `value of ${JSON.stringify(key)}`);
+    for (const key of keys) expect(store.get(key)).toBe(`value of ${JSON.stringify(key)}`);
+    expect(readdirSync(dir)).toHaveLength(keys.length);
+    expect(store.all()).toHaveLength(keys.length);
+  });
+
+  it("reads no file but those it wrote whole, and clears away what a stop left half written", () => {
+    const store = new Store<number>(dir);
+    store.put("task-1", 1);
+    const [name = ""] = readdirSync(dir);
+    // A stop between the writing and the naming leaves a file that is nobody's value.
+    const old = join(dir, `${"2".repeat(40)}.json.partial`);
+    const fresh = join(dir, `${"3".repeat(40)}.json.partial`);
+    for (const left of [old, fresh]) writeFileSync(left, JSON.stringify({ key: "left", value: 9 }));
+    const longAgo = new Date(Date.now() - 120_000);
+    utimesSync(old, longAgo, longAgo);
+    expect(store.all()).toStrictEqual([{ key: "task-1", value: 1 }]);
+    expect(store.get("left")).toBeUndefined();
+    // One that is being written now is let be. One of minutes ago is gone.
+    expect(readdirSync(dir).sort()).toStrictEqual([name, `${"3".repeat(40)}.json.partial`].sort());
+  });
+
+  it("writes a value whole or not at all: no reader finds half of one", () => {
+    const store = new Store<{ text: string }>(dir);
+    const large = { text: "x".repeat(200_000) };
+    store.put("task-1", { text: "first" });
+    store.put("task-1", large);
+    expect(store.get("task-1")).toStrictEqual(large);
+    // Nothing is left beside it.
+    expect(readdirSync(dir)).toHaveLength(1);
   });
 });

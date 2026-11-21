@@ -1,6 +1,6 @@
 # ADR-0031: The gateway for MCP servers
 
-**Status:** Accepted, 21 November 2026 (M9).
+**Status:** Accepted, 21 November 2026 (M9). Part of decision 12 is superseded by [ADR-0034](0034-what-the-gateway-reviews-changed.md), which also adds to this one.
 
 ## Context
 

@@ -71,7 +71,9 @@ export { BridgeError, type Bridged, Gateway, type GatewayEdges, PROTOCOL } from 
 export {
   type Asked,
   type Held,
+  MAX_IDLE_CONTEXT_SECONDS,
   MAX_KEPT_SECONDS,
+  MAX_TASKS,
   MAX_UNANNOUNCED_SECONDS,
   type Page,
 } from "./book.ts";

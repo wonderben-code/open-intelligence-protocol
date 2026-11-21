@@ -26,6 +26,7 @@ export {
   credentialsIn,
   NONE,
   readCredentials,
+  WITHHELD,
 } from "./credentials.ts";
 export {
   type Bridged,
@@ -34,9 +35,19 @@ export {
   Gateway,
   type GatewayEdges,
   PROTOCOL,
+  RELAY_HOLD_FILE,
 } from "./gateway.ts";
 export { carriedJson, digestOf, holds, jsonText, readJsonText } from "./json.ts";
-export { type Host, main, type Reach, type Serving, VERSION } from "./main.ts";
+export {
+  ALLOW_VARIABLE,
+  HOLD_FILE,
+  type Host,
+  main,
+  mindsFetch,
+  type Reach,
+  type Serving,
+  VERSION,
+} from "./main.ts";
 export {
   allows,
   ANYONE,
@@ -46,11 +57,20 @@ export {
   POLICY_FILE,
   readPolicy,
 } from "./policy.ts";
-export { MAX_RESULT_BYTES, readCall, Relay, type Relayed, type RelayEdges } from "./relay.ts";
+export {
+  MAX_REFS,
+  MAX_RESULT_BYTES,
+  MAX_WAITING_SECONDS,
+  readCall,
+  Relay,
+  type Relayed,
+  type RelayEdges,
+} from "./relay.ts";
 export {
   capabilitiesOf,
   type Mapped,
   MAX_CAPABILITIES,
+  MAX_CAPABILITIES_BYTES,
   MAX_NAME,
   MAX_SCHEMA_BYTES,
   MAX_SCHEMAS_BYTES,

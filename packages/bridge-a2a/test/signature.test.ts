@@ -14,6 +14,7 @@ import { clause } from "@oip/testkit";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { type KeySource, type PublicJwk, readCard, verifySignatures } from "../src/index.ts";
+import { MAX_KEYS_OF_A_NAME, MAX_SIGNATURES } from "../src/signature.ts";
 
 const CARD = {
   name: "Example Agent",
@@ -370,5 +371,62 @@ describe(`${clause("L0 3.1")} the signatures on an Agent Card`, () => {
     });
     // Unsigned, the same card is read: nothing needs its canonical form.
     expect(await verified(fractional, source())).toStrictEqual({ signed: false, verifiedBy: [] });
+  });
+
+  it("say why a card has no canonical form, in this reader's own words", async () => {
+    const signed = async (more: Record<string, unknown>) =>
+      verified({ ...CARD, ...more, signatures: [await es256.sign(CARD)] }, source(es256.jwk));
+    const fraction = await signed({
+      capabilities: {
+        extensions: [{ uri: "https://example.com/ext", params: { threshold: 0.5 } }],
+      },
+    });
+    expect(fraction).toMatchObject({ refused: "" });
+    expect((fraction as { why: string }).why).toMatch(
+      /^the card cannot be put in the form its signatures are over: .*(?:whole number|integer|fraction)/u,
+    );
+    // A text that no record holds is not a number, and is not said to be one.
+    const text = await signed({ description: `caf${String.fromCodePoint(0xfffe)}e` });
+    expect((text as { why: string }).why).toMatch(
+      /^the card cannot be put in the form its signatures are over: .*noncharacter/u,
+    );
+  });
+
+  it("are verified up to eight of them, each under four keys of its name at most: a card costs its reader no more", async () => {
+    const one = await es256.sign(CARD);
+    // Eight are verified.
+    const eight = source(es256.jwk);
+    expect(
+      await verified(
+        { ...CARD, signatures: Array.from({ length: MAX_SIGNATURES }, () => one) },
+        eight,
+      ),
+    ).toMatchObject({ signed: true });
+    expect(eight.asked).toHaveLength(MAX_SIGNATURES);
+    // Of nine, none is: the source is not asked for a key.
+    const nine = source(es256.jwk);
+    expect(
+      await verified(
+        { ...CARD, signatures: Array.from({ length: MAX_SIGNATURES + 1 }, () => one) },
+        nine,
+      ),
+    ).toStrictEqual({
+      refused: "/signatures",
+      why: "the card has more signatures than are verified: 8 at most",
+      clause: "L0 3.1",
+    });
+    expect(nine.asked).toStrictEqual([]);
+    // A source that gives many keys of the name has four of them tried. The right one among
+    // those verifies, and one that comes after them does not come into it.
+    const wrong = Array.from({ length: MAX_KEYS_OF_A_NAME }, () => other.jwk);
+    expect(
+      await verified({ ...CARD, signatures: [one] }, source(...wrong.slice(1), es256.jwk)),
+    ).toMatchObject({ signed: true });
+    expect(
+      await verified({ ...CARD, signatures: [one] }, source(...wrong, es256.jwk)),
+    ).toMatchObject({
+      refused: "/signatures/0",
+      why: "the signature does not verify under the key that was named for it",
+    });
   });
 });

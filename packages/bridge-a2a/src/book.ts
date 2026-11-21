@@ -11,12 +11,13 @@
  * the packets and the session that carry it on the mind's side.
  */
 
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { Store } from "@oip/local";
+import { fileNameOf, Store } from "@oip/local";
 
 import type { A2aMessage, Artifact } from "./a2a.ts";
-import { isTerminal, type TaskState } from "./mapping.ts";
+import type { TaskState } from "./mapping.ts";
 
 /** A task, as the gateway holds it. */
 export interface Held {
@@ -49,6 +50,12 @@ export interface Held {
   readonly announced: boolean;
   /** The mind's answer where it answered with a message, and no client was told of a task. */
   readonly answer?: A2aMessage;
+  /**
+   * The gateway's Receipt of a client's cancelling, from when it is signed
+   * until the mind has been told: a cancelling that is asked for again is
+   * told with the same Receipt.
+   */
+  readonly cancelling?: Readonly<Record<string, unknown>>;
 }
 
 /** Which tasks of a mind are asked for (A2A, 3.1.4). */
@@ -72,8 +79,16 @@ export interface Page {
   readonly total: number;
 }
 
-/** How long a task that has ended is kept: thirty days. */
+/**
+ * How long a task is kept after its state last changed: thirty days. One
+ * that has ended is history by then, and one that has not is a task whose
+ * mind never answered.
+ */
 export const MAX_KEPT_SECONDS = 2_592_000;
+/** The most tasks of one mind that are kept. */
+export const MAX_TASKS = 4096;
+/** How long the session of a context is kept after the context was last used, where no task of it is kept: a day. */
+export const MAX_IDLE_CONTEXT_SECONDS = 86_400;
 /** How long a task is kept that no client was told of: a day. */
 export const MAX_UNANNOUNCED_SECONDS = 86_400;
 
@@ -82,19 +97,38 @@ const place = ({ at, id }: Held): string => `${at} ${id}`;
 
 const encoded = (text: string): string => Buffer.from(text, "utf8").toString("base64url");
 
+/** The session of a mind's context, and when the context was last used. */
+interface Context {
+  readonly mind: string;
+  readonly contextId: string;
+  readonly session: string;
+  readonly at: string;
+}
+
 /** The tasks, the packets that began or went on with them, and the sessions of their contexts. */
 export class Book {
-  readonly #tasks: Store<Held>;
+  readonly #dir: string;
+  /** The tasks of each mind, in a directory of the mind's own: a listing reads one mind's tasks. */
+  readonly #tasks = new Map<string, Store<Held>>();
   readonly #packets: Store<string>;
-  readonly #contexts: Store<string>;
+  readonly #contexts: Store<Context>;
   readonly #passed: Store<string>;
 
   /** @param dir - The directory the book is kept in. */
   constructor(dir: string) {
-    this.#tasks = new Store(join(dir, "tasks"));
+    this.#dir = join(dir, "tasks");
     this.#packets = new Store(join(dir, "packets"));
     this.#contexts = new Store(join(dir, "contexts"));
     this.#passed = new Store(join(dir, "passed"));
+  }
+
+  /** The tasks of a mind. */
+  #of(mind: string): Store<Held> {
+    const known = this.#tasks.get(mind);
+    if (known !== undefined) return known;
+    const made = new Store<Held>(join(this.#dir, fileNameOf(mind)));
+    this.#tasks.set(mind, made);
+    return made;
   }
 
   /**
@@ -111,19 +145,25 @@ export class Book {
     return this.#passed.get(packet) !== undefined;
   }
 
-  /** A task, by the name the gateway gave it. */
-  get(id: string): Held | undefined {
-    return this.#tasks.get(id);
+  /** A task of a mind, by the name the gateway gave it. Another mind's task is none of this mind's. */
+  get(mind: string, id: string): Held | undefined {
+    const task = this.#of(mind).get(id);
+    return task?.mind === mind && task.id === id ? task : undefined;
   }
 
   /** Keeps a task as it is now. */
   put(task: Held): void {
-    this.#tasks.put(task.id, task);
+    this.#of(task.mind).put(task.id, task);
   }
 
   /** Forgets a task that no client was told of. */
-  drop(id: string): void {
-    this.#tasks.delete(id);
+  drop(mind: string, id: string): void {
+    this.#of(mind).delete(id);
+  }
+
+  /** How many tasks of a mind are kept. */
+  count(mind: string): number {
+    return this.#of(mind).all().length;
   }
 
   /** Notes that a packet the gateway sent is of a task: an answer to it is an answer in that task. */
@@ -138,12 +178,16 @@ export class Book {
 
   /** The session of a mind's context, if the context has one. */
   session(mind: string, contextId: string): string | undefined {
-    return this.#contexts.get(JSON.stringify([mind, contextId]));
+    return this.#contexts.get(JSON.stringify([mind, contextId]))?.session;
   }
 
-  /** Notes the session of a mind's context. */
-  context(mind: string, contextId: string, session: string): void {
-    this.#contexts.put(JSON.stringify([mind, contextId]), session);
+  /**
+   * Notes the session of a mind's context, and that the context is in use.
+   *
+   * @param at - The time now, as `Held.at` has one.
+   */
+  context(mind: string, contextId: string, session: string, at: string): void {
+    this.#contexts.put(JSON.stringify([mind, contextId]), { mind, contextId, session, at });
   }
 
   /**
@@ -153,7 +197,7 @@ export class Book {
    * @returns `undefined` if the page token is none this book gave.
    */
   list(asked: Asked): Page | undefined {
-    const all = this.#tasks
+    const all = this.#of(asked.mind)
       .all()
       .map(({ value }) => value)
       .filter(
@@ -185,25 +229,41 @@ export class Book {
   }
 
   /**
-   * Forgets what is kept no longer: tasks that ended thirty days ago, tasks
-   * no client was told of that are a day old, the packets of both, and the
-   * packets that were brought for others and can be accepted no more.
+   * Forgets what is kept no longer: tasks whose state last changed thirty
+   * days ago, tasks no client was told of that are a day old, the packets
+   * of both, the packets that were brought for others and can be accepted
+   * no more, and the contexts that have no task and were last used a day ago.
    *
    * @param ago - The timestamp a number of seconds before now.
-   * @returns How many tasks were forgotten.
+   * @returns How many tasks were forgotten, and the sessions of the
+   *   contexts that were: nothing more is said in them.
    */
-  sweep(ago: (seconds: number) => string): number {
-    const ended = ago(MAX_KEPT_SECONDS);
+  sweep(ago: (seconds: number) => string): { forgotten: number; sessions: string[] } {
+    const changed = ago(MAX_KEPT_SECONDS);
     const untold = ago(MAX_UNANNOUNCED_SECONDS);
     const kept = new Set<string>();
+    const used = new Set<string>();
     let forgotten = 0;
-    for (const { key, value } of this.#tasks.all()) {
-      const old = value.announced ? isTerminal(value.state) && value.at < ended : value.at < untold;
-      if (old) {
-        this.#tasks.delete(key);
-        forgotten += 1;
-      } else {
-        kept.add(key);
+    let minds: string[];
+    try {
+      minds = readdirSync(this.#dir);
+    } catch {
+      // No task was ever kept.
+      minds = [];
+    }
+    for (const name of minds) {
+      const tasks = new Store<Held>(join(this.#dir, name));
+      for (const { key, value } of tasks.all()) {
+        // A task that has not ended and has not changed in thirty days is one whose mind never
+        // answered: it is kept no longer than one that ended.
+        const old = value.announced ? value.at < changed : value.at < untold;
+        if (old) {
+          tasks.delete(key);
+          forgotten += 1;
+        } else {
+          kept.add(key);
+          used.add(JSON.stringify([value.mind, value.contextId]));
+        }
       }
     }
     for (const { key, value } of this.#packets.all()) {
@@ -213,6 +273,13 @@ export class Book {
     for (const { key, value } of this.#passed.all()) {
       if (value < now) this.#passed.delete(key);
     }
-    return forgotten;
+    const idle = ago(MAX_IDLE_CONTEXT_SECONDS);
+    const sessions: string[] = [];
+    for (const { key, value } of this.#contexts.all()) {
+      if (used.has(key) || value.at >= idle) continue;
+      this.#contexts.delete(key);
+      sessions.push(value.session);
+    }
+    return { forgotten, sessions: sessions.sort() };
   }
 }

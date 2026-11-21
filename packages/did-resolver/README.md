@@ -62,16 +62,17 @@ The document is the one Layer 1, 5.2 defines, in the JSON representation of DID 
 }
 ```
 
-| When                                                         | The result                                                                   |
-| ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| The mind has retired                                         | Its document, with `deactivated: true`                                       |
-| The DID URL has `?versionId=<version>`                       | The document of the log up to that event, with its keys named by the version |
-| The mind is duplicitous for the resolvers asked              | The document of the state before its branches part, with `duplicitous: true` |
-| No resolver holds the mind                                   | `error: "notFound"`                                                          |
-| The name is no `did:oip` address                             | `error: "invalidDid"`                                                        |
-| The DID is of another method                                 | `error: "methodNotSupported"`                                                |
-| The caller takes no JSON                                     | `error: "representationNotSupported"`                                        |
-| No resolver can be asked, or what one serves does not verify | `error: "internalError"`                                                     |
+| When                                                         | The result                                                                     |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| The mind has retired                                         | Its document, with `deactivated: true`, whichever of its versions is asked for |
+| The DID URL has `?versionId=<version>`                       | The document of the log up to that event, with its keys named by the version   |
+| The DID URL has `?versionTime=<time>`                        | `error: "invalidDidUrl"`: a version is named by its identifier, and by no time |
+| The mind is duplicitous for the resolvers asked              | The document of the state before its branches part, with `duplicitous: true`   |
+| No resolver holds the mind                                   | `error: "notFound"`                                                            |
+| The name is no DID, or no `did:oip` address                  | `error: "invalidDid"`                                                          |
+| The DID is of another method                                 | `error: "methodNotSupported"`                                                  |
+| The caller takes no JSON                                     | `error: "representationNotSupported"`                                          |
+| No resolver can be asked, or what one serves does not verify | `error: "internalError"`                                                       |
 
 Three things to know:
 
@@ -104,15 +105,15 @@ curl http://127.0.0.1:8080/1.0/identifiers/did:oip:bciq…
 | `GET /1.0/methods`                            | `["oip"]`                                                                            |
 | `GET /healthz`                                | 200 while it serves                                                                  |
 
-| Status | When                                                          |
-| ------ | ------------------------------------------------------------- |
-| 200    | The DID was resolved                                          |
-| 400    | The name is no `did:oip` address                              |
-| 404    | No resolver holds the mind, or its log has no such version    |
-| 406    | The caller takes neither the result nor the document in JSON  |
-| 410    | The mind has retired. Its document is in the answer           |
-| 500    | No resolver could be asked, or what one served did not verify |
-| 501    | The DID is of another method                                  |
+| Status | When                                                                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------ |
+| 200    | The DID was resolved                                                                                   |
+| 400    | The name is no DID or no `did:oip` address, the DID URL names a version by a time, or the path is none |
+| 404    | No resolver holds the mind, or its log has no such version                                             |
+| 406    | The caller takes neither the result nor the document in JSON                                           |
+| 410    | The mind has retired. Its document is in the answer, of the version that was asked for                 |
+| 500    | No resolver could be asked, or what one served did not verify                                          |
+| 501    | The DID is of another method                                                                           |
 
 The program keeps nothing and holds no key. It speaks plain HTTP: put it behind the Universal Resolver, or behind a proxy.
 

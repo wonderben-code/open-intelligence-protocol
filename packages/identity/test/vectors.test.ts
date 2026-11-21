@@ -144,6 +144,32 @@ describe("the positive vectors", () => {
       expect(resolved.ok && resolved.value, name).toEqual(cases[name]);
     }
   });
+
+  it(`${clause("L1 5.2", "L1 3.10")} the document of an earlier version of a mind that has retired says that the mind is deactivated`, () => {
+    // The mind is no part of the baseline: a verifier that holds its log is one that was given it.
+    const events = log("retired_log");
+    expect(mind("retired")).toBe(`did:oip:${contentId(events[0])}`);
+    const held = worldFor({ extraLogs: [events] }).book.log(mind("retired"));
+    if (!held.ok) throw new Error("the retired mind does not verify");
+    const first = formatVersionId(0, contentId(events[0]));
+    const resolved = didDocument(held.value, { versionId: first });
+    expect(resolved.ok && resolved.value).toEqual(cases["did_document_retired_at_genesis"]);
+    // The document is of the first version, with that version's keys, named as a proof pinned
+    // to it names them. That the mind is deactivated is said of the mind as its log stands.
+    expect(resolved.ok && resolved.value.didDocumentMetadata).toMatchObject({
+      versionId: first,
+      deactivated: true,
+    });
+    const latest = didDocument(held.value, {});
+    expect(latest.ok && latest.value.didDocumentMetadata.deactivated).toBe(true);
+    // A mind that has not retired is deactivated at no version.
+    const amina = world.book.log(mind("amina"));
+    if (!amina.ok) throw new Error("amina does not verify");
+    for (const versionId of [undefined, formatVersionId(0, contentId(log("amina_log")[0]))]) {
+      const document = didDocument(amina.value, versionId === undefined ? {} : { versionId });
+      expect(document.ok && document.value.didDocumentMetadata.deactivated).toBe(false);
+    }
+  });
 });
 
 describe("the identity cases of the vectors", () => {

@@ -37,6 +37,11 @@ export interface Served {
 }
 
 const DEFAULT_EVERY_MS = 500;
+/** How long a client has to send the head of its request, and the whole of it, in milliseconds. */
+const HEADERS_TIMEOUT_MS = 10_000;
+const REQUEST_TIMEOUT_MS = 30_000;
+/** How many connections are open at a time: each may hold a request of a megabyte. */
+const MAX_CONNECTIONS = 256;
 
 /** How much of a request that is too large is read and let go, so that its sender can be told: 16 MiB. */
 const MAX_LET_GO_BYTES = 16 * MAX_REQUEST_BYTES;
@@ -101,6 +106,10 @@ export async function listen(server: A2aServer, front: Front, options: Listening
       response.destroy();
     });
   });
+  // A client that sends its request a byte at a time is not waited for as long as Node.js would.
+  http.headersTimeout = HEADERS_TIMEOUT_MS;
+  http.requestTimeout = REQUEST_TIMEOUT_MS;
+  http.maxConnections = MAX_CONNECTIONS;
   await new Promise<void>((resolve, reject) => {
     http.once("error", reject);
     http.listen(options.port, options.host ?? "127.0.0.1", () => {

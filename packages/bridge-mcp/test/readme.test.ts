@@ -9,7 +9,9 @@ import { join } from "node:path";
 import { repoRoot } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
+import { MAX_LISTED, MAX_PAGES } from "../src/connect.ts";
 import * as bridge from "../src/index.ts";
+import { PASS_MS, SIDE_BY_SIDE } from "../src/main.ts";
 
 const directory = join(repoRoot, "packages", "bridge-mcp");
 const readme = readFileSync(join(directory, "README.md"), "utf8");
@@ -56,6 +58,7 @@ describe("the README", () => {
       "--credentials <file>",
       "--every <seconds>",
       "OIP_PASSPHRASE",
+      "OIP_BRIDGE_FETCH_ALLOW",
       "--help",
       "--version",
     ]);
@@ -90,9 +93,28 @@ describe("the README", () => {
       "Characters of a capability's summary": bridge.MAX_SUMMARY,
       "Bytes of one input schema": bridge.MAX_SCHEMA_BYTES,
       "Bytes of all the schemas of a profile": bridge.MAX_SCHEMAS_BYTES,
+      "Bytes of all a server wrote, in a profile": bridge.MAX_CAPABILITIES_BYTES,
+      "Pages of a list of tools": MAX_PAGES,
+      "Tools of a list that are looked at": MAX_LISTED,
       "Bytes of a result a packet carries": bridge.MAX_RESULT_BYTES,
       "Depth of JSON text in a request": 64,
+      "References of a request that are looked at": bridge.MAX_REFS,
+      "Seconds a request with no `expires` waits": bridge.MAX_WAITING_SECONDS,
+      "Seconds one pass for one server takes, under `serve`": PASS_MS / 1000,
+      "Servers relayed for side by side, under `serve`": SIDE_BY_SIDE,
     });
+    expect(readme).toContain(
+      `takes ${String(bridge.MAX_CAPABILITIES_BYTES / 1024)} KiB of a profile`,
+    );
+    expect(readme).toContain(
+      `for ${String(MAX_PAGES)} pages and ${MAX_LISTED.toLocaleString("en-GB")} tools at most`,
+    );
+    expect(readme).toContain("the first eight entries of `context.refs`");
+    expect(bridge.MAX_REFS).toBe(8);
+    expect(readme).toContain(`\`${bridge.WITHHELD}\``);
+    expect(readme).toContain(`(\`${bridge.RELAY_HOLD_FILE}\`)`);
+    expect(readme).toContain(`(\`${bridge.HOLD_FILE}\`)`);
+    expect(readme).toContain(`\`${bridge.ALLOW_VARIABLE}\``);
     // The same numbers, where the text gives them in other units.
     expect(readme).toContain(`larger than ${String(bridge.MAX_SCHEMA_BYTES / 1024)} KiB`);
     expect(readme).toContain(`fill ${String(bridge.MAX_SCHEMAS_BYTES / 1024)} KiB`);
@@ -114,6 +136,11 @@ describe("the README", () => {
       ([, text = ""]) => JSON.parse(text) as Record<string, unknown>,
     );
     expect(examples).toHaveLength(4);
+    // The credentials the README shows are credentials as the gateway reads them.
+    expect(Object.keys(examples.find((example) => "headers" in example) ?? {})).toStrictEqual([
+      "headers",
+      "query",
+    ]);
     const shown = examples.filter((example) => "mediaType" in example);
     expect(shown.map((content) => bridge.readCall(content))).toStrictEqual([
       { tool: "search", args: { query: "leases" } },

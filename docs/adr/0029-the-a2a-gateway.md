@@ -1,6 +1,6 @@
 # ADR-0029: The A2A gateway
 
-**Status:** Accepted, 20 November 2026 (M9).
+**Status:** Accepted, 20 November 2026 (M9). Decision 5 is superseded by [ADR-0034](0034-what-the-gateway-reviews-changed.md), which also adds to this one.
 
 ## Context
 

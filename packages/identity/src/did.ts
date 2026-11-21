@@ -115,10 +115,13 @@ function metadata(
   state: IdentityState,
   children: readonly string[],
   duplicitous: boolean,
+  retired: boolean,
 ): DidDocumentMetadata {
   const base = {
     versionId: state.versionId,
-    deactivated: state.retired,
+    // Of the mind, as its log stands, and not of the version the document is of: a mind that
+    // has retired is deactivated whichever of its versions is asked for (Layer 1, 5.2).
+    deactivated: retired,
     parents: state.parents,
     children,
     ...(duplicitous ? { duplicitous: true as const } : {}),
@@ -206,6 +209,11 @@ function documentOf(log: VerifiedLog, options?: DidDocumentOptions): Validation<
       ...(service.length === 0 ? {} : { service }),
       ...(aliases.length === 0 ? {} : { alsoKnownAs: aliases }),
     },
-    didDocumentMetadata: metadata(state, childrenAt(log, state.seq), log.duplicitous),
+    didDocumentMetadata: metadata(
+      state,
+      childrenAt(log, state.seq),
+      log.duplicitous,
+      latestState(log).retired,
+    ),
   });
 }

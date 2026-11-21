@@ -20,6 +20,7 @@ export { type BridgeBlock, type BridgedSystem, type Custody, withBridged } from 
 export { UsageError } from "./errors.ts";
 export { MAX_FILE_BYTES, readJson, readObject } from "./files.ts";
 export { recordOf, refOf, statusOf } from "./held.ts";
+export { type Hold, hold, HOLD_BEAT_MS, HOLD_STALE_MS } from "./hold.ts";
 export {
   type Config,
   directoryOf,
@@ -45,6 +46,14 @@ export {
 } from "./mind.ts";
 export { keptFrom, keptOf, type KeptPacket } from "./packets.ts";
 export { Kept, type KeptRecord, KeptRecords } from "./records.ts";
-export { routed, routedSocket } from "./routes.ts";
+export { guardedReach, routed, routedSocket } from "./routes.ts";
 export { fileNameOf, Store } from "./store.ts";
-export { counted, printable, printableJson, quoted } from "./text.ts";
+export {
+  asciiJson,
+  counted,
+  jsonText,
+  printable,
+  printableJson,
+  quoted,
+  recordText,
+} from "./text.ts";

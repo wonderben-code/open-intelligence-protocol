@@ -32,14 +32,14 @@ import { join } from "node:path";
 
 import { carried, type Clock, type Message } from "@oip/client";
 import { formatRecordRef, isMindAddress, OipError } from "@oip/core";
-import { Arrivals, type KeptPacket, type Opened, printableJson } from "@oip/local";
+import { Arrivals, asciiJson, type KeptPacket, type Opened, recordText } from "@oip/local";
 import { receivePacket } from "@oip/net";
 import { type Participant, validateRecordOfType } from "@oip/schema";
 
 import type { A2aMessage, Part } from "./a2a.ts";
-import { type Asked, Book, type Held, type Page } from "./book.ts";
+import { type Asked, Book, type Held, MAX_TASKS, type Page } from "./book.ts";
 import { CARD_PATH } from "./card.ts";
-import { type Content, gather, mediaTypeOf, partsOf, wellFormed } from "./content.ts";
+import { type Content, gather, mediaTypeOf, partsOf } from "./content.ts";
 import {
   contentTypeNotSupported,
   internal,
@@ -92,6 +92,8 @@ export interface Taking {
 
 /** How long what was found out about a mind is gone by: a minute, in nanoseconds. */
 const SERVED_FOR = 60_000_000_000n;
+/** Of how many IDs it is remembered whether a mind of that ID is served. */
+const MAX_SERVED = 1024;
 /** How often what is kept no longer is looked for: an hour, in nanoseconds. */
 const SWEEP_EVERY = 3_600_000_000_000n;
 const DEFAULT_WAIT_MS = 60_000;
@@ -145,6 +147,8 @@ export class Front {
   readonly #served = new Map<string, { at: bigint; mind: ServedMind | undefined }>();
   /** Who waits for a task to change. */
   readonly #waiting = new Map<string, Set<() => void>>();
+  /** The messages that are on their way to a mind: the task of each is written down when its packet has left. */
+  readonly #leaving = new Set<Promise<unknown>>();
   #swept: bigint;
 
   constructor(options: FrontOptions) {
@@ -195,15 +199,21 @@ export class Front {
             modified: profile.created,
           }
         : undefined;
+    // Anyone may ask for any ID. What is remembered of them is of so many, the newest.
+    this.#served.delete(id);
     this.#served.set(id, { at: now, mind });
+    for (const old of this.#served.keys()) {
+      if (this.#served.size <= MAX_SERVED) break;
+      this.#served.delete(old);
+    }
     return mind;
   }
 
   /** A task of a mind's that a client was told of. @throws Fault if there is none. */
   get(mind: ServedMind, id: string): Held {
-    const task = this.#book.get(id);
     // Another mind's task is no task to who asks this one (A2A, 3.3.2).
-    if (task?.mind !== mind.address || !task.announced) throw taskNotFound();
+    const task = this.#book.get(mind.address, id);
+    if (task?.announced !== true) throw taskNotFound();
     return task;
   }
 
@@ -243,21 +253,65 @@ export class Front {
         throw invalidParams("contextId is not the context of the task the message names.");
       }
     }
+    if (before === undefined && this.#book.count(mind.address) >= MAX_TASKS) {
+      // Anyone may send a message. What is kept of them is of so many tasks.
+      throw unsupported("This agent keeps as many tasks as it can. Ask again later.");
+    }
     const content = await this.#content(message.parts);
     const contextId = before?.contextId ?? message.contextId ?? randomUUID();
     const id = before?.id ?? randomUUID();
     const session = before?.session ?? (await this.#sessionOf(mind.address, contextId));
+    // The mind may answer before the packet's sending has returned here. An answer that is read
+    // meanwhile waits for this to end: until then there is no task for it to be an answer in.
+    const begun = this.#begin(mind, message, { before, content, contextId, id, session });
+    this.#leaving.add(begun);
+    let task: Held;
+    try {
+      task = await begun;
+    } finally {
+      this.#leaving.delete(begun);
+    }
+    if (taking.returnImmediately !== true) {
+      task = await this.#awaited(task, this.#options.waitMs ?? DEFAULT_WAIT_MS);
+      if (task.answer !== undefined && !task.announced) {
+        // The mind answered with a message, and nobody was told of a task: there is none.
+        this.#book.drop(task.mind, task.id);
+        const { messageId, role, parts } = task.answer;
+        return { message: { messageId, role, parts, contextId } };
+      }
+    }
+    if (!task.announced) {
+      task = { ...task, announced: true };
+      this.#book.put(task);
+    }
+    return { task };
+  }
+
+  /** Says a client's message to a mind in a packet, and writes down the task it begins or goes on with. */
+  async #begin(
+    mind: ServedMind,
+    message: A2aMessage,
+    made: {
+      readonly before: Held | undefined;
+      readonly content: readonly Content[];
+      readonly contextId: string;
+      readonly id: string;
+      readonly session: string;
+    },
+  ): Promise<Held> {
+    const { before, content, contextId, id, session } = made;
     const sent = await this.#opened.mind.send({
       to: [mind.address],
       verb: "request",
       // Layer 0, 1.4: the gateway says whose words these are. They are not its own.
       goal: "A message of an A2A client, passed on by the gateway.",
-      content: content.length === 1 && content[0] !== undefined ? content[0] : { parts: content },
+      content:
+        content.length === 1 && content[0] !== undefined ? content[0] : { parts: [...content] },
       session,
       thread: id,
       // What the mind asked is what this answers.
       ...(before?.question === undefined ? {} : { replyTo: before.question }),
-      context: { refs: [`a2a:message/${encodeURIComponent(wellFormed(message.messageId))}`] },
+      context: { refs: [`a2a:message/${encodeURIComponent(recordText(message.messageId))}`] },
     });
     const [delivery] = sent.deliveries;
     // What did not arrive and is kept to be tried again will arrive, or its task will say not.
@@ -272,7 +326,7 @@ export class Front {
       taskId: id,
     };
     const at = this.#now();
-    let task: Held =
+    const task: Held =
       before === undefined
         ? {
             id,
@@ -296,20 +350,7 @@ export class Front {
           };
     this.#book.put(task);
     this.#book.sent(sent.id, id);
-    if (taking.returnImmediately !== true) {
-      task = await this.#awaited(task, this.#options.waitMs ?? DEFAULT_WAIT_MS);
-      if (task.answer !== undefined && !task.announced) {
-        // The mind answered with a message, and nobody was told of a task: there is none.
-        this.#book.drop(task.id);
-        const { messageId, role, parts } = task.answer;
-        return { message: { messageId, role, parts, contextId } };
-      }
-    }
-    if (!task.announced) {
-      task = { ...task, announced: true };
-      this.#book.put(task);
-    }
-    return { task };
+    return task;
   }
 
   /**
@@ -399,15 +440,22 @@ export class Front {
     const task = this.get(mind, id);
     if (isTerminal(task.state)) throw taskNotCancelable();
     const own = this.#opened.mind;
-    // Layer 0, 1.4: what the gateway observed, and no more.
-    const receipt = await own.receipt({
-      about: formatRecordRef(own.address, task.request),
-      outcome: "cancelled",
-      statement: `The gateway observed an A2A client cancel task ${printableJson(task.id)}.`,
+    // Layer 0, 1.4: what the gateway observed, and no more. It is signed once: a cancelling
+    // that could not be told and is asked for again is told with the Receipt it has.
+    const receipt =
+      task.cancelling ??
+      (await own.receipt({
+        about: formatRecordRef(own.address, task.request),
+        outcome: "cancelled",
+        statement: `The gateway observed an A2A client cancel task ${asciiJson(task.id)}.`,
+      }));
+    if (task.cancelling === undefined) this.#book.put({ ...task, cancelling: receipt });
+    await this.#say(task, {
+      verb: "inform",
+      content: carried(receipt),
     });
-    await this.#say(task, { verb: "inform", content: carried(receipt) });
     const cancelled: Held = {
-      ...without(task, "question"),
+      ...without(task, "question", "cancelling"),
       state: "TASK_STATE_CANCELED",
       at: this.#now(),
     };
@@ -424,14 +472,22 @@ export class Front {
    */
   async pump(): Promise<number> {
     let changed = 0;
-    for (const kept of await this.#arrivals.waiting()) {
+    const waiting = await this.#arrivals.waiting();
+    // A mind may have answered a message whose sending has not returned yet. Each such sending
+    // is let end first: then the answer has a task to be an answer in.
+    await Promise.allSettled([...this.#leaving]);
+    for (const kept of waiting) {
       if (this.#apply(kept)) changed += 1;
       this.#arrivals.done(kept.id);
     }
     const now = this.#options.clock.now();
     if (now - this.#swept > SWEEP_EVERY) {
       this.#swept = now;
-      this.#book.sweep((seconds) => written(now - BigInt(seconds) * 1_000_000_000n));
+      const { sessions } = this.#book.sweep((seconds) =>
+        written(now - BigInt(seconds) * 1_000_000_000n),
+      );
+      // The contexts that are forgotten are said nothing more in: their sessions are left.
+      for (const session of sessions) await this.#opened.mind.leaveSession(session);
     }
     return changed;
   }
@@ -440,9 +496,13 @@ export class Front {
   async #sessionOf(mind: string, contextId: string): Promise<string> {
     const own = this.#opened.mind;
     const known = this.#book.session(mind, contextId);
-    if (known !== undefined && (await own.sessions()).some(({ id }) => id === known)) return known;
+    if (known !== undefined && (await own.sessions()).some(({ id }) => id === known)) {
+      // The context is in use: its session is kept.
+      this.#book.context(mind, contextId, known, this.#now());
+      return known;
+    }
     const { id } = await own.openSession([mind]);
-    this.#book.context(mind, contextId, id);
+    this.#book.context(mind, contextId, id, this.#now());
     return id;
   }
 
@@ -450,12 +510,17 @@ export class Front {
   async #say(task: Held, message: Pick<Message, "verb" | "content">): Promise<void> {
     const own = this.#opened.mind;
     const held = (await own.sessions()).some(({ id }) => id === task.session);
-    await own.send({
+    const sent = await own.send({
       ...message,
       to: [task.mind],
       thread: task.id,
       ...(held ? { session: task.session } : {}),
     });
+    const [delivery] = sent.deliveries;
+    // What did not arrive and is kept to be tried again will arrive. What nobody took has not.
+    if (delivery?.stored !== true && delivery?.queued !== true) {
+      throw notGiven("word of it", delivery?.failure);
+    }
   }
 
   /** Content for a packet, of the parts of a client's message. @throws Fault for what a packet cannot carry. */
@@ -490,7 +555,7 @@ export class Front {
   /** The task, once the mind has answered or the wait is over: whichever is first. */
   async #awaited(task: Held, ms: number): Promise<Held> {
     const until = Date.now() + ms;
-    let now = this.#book.get(task.id) ?? task;
+    let now = this.#book.get(task.mind, task.id) ?? task;
     while (!settled(now) && Date.now() < until) {
       await new Promise<void>((resolve) => {
         const waiting = this.#waiting.get(task.id) ?? new Set();
@@ -504,7 +569,7 @@ export class Front {
         const timer = setTimeout(done, Math.max(0, until - Date.now()));
         waiting.add(done);
       });
-      now = this.#book.get(task.id) ?? now;
+      now = this.#book.get(task.mind, task.id) ?? now;
     }
     return now;
   }
@@ -519,9 +584,9 @@ export class Front {
     const named =
       (packet.replyTo === undefined ? undefined : this.#book.taskOf(packet.replyTo)) ??
       packet.thread;
-    const task = named === undefined ? undefined : this.#book.get(named);
     // Only the mind a task is asked of answers in it, and a task that has ended has its answer.
-    if (task?.mind !== from || isTerminal(task.state)) return false;
+    const task = named === undefined ? undefined : this.#book.get(from, named);
+    if (task === undefined || isTerminal(task.state)) return false;
     const parts = partsOf(packet.content);
     const words: A2aMessage = {
       messageId: id,

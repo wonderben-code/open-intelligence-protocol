@@ -99,6 +99,9 @@ describe("the README", () => {
       "a later offer is the firm's: false",
       "the first still is: true",
       "kept with the offer: when 3 proofs came",
+      "sent for the agent: true",
+      "revocations found: 1",
+      "the delegation stands: false",
     ]);
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });

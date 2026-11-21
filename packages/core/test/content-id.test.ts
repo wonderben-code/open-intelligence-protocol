@@ -133,8 +133,8 @@ describe(`${clause("core 3.1")} content IDs`, () => {
         else throw new Error(`${id} in ${JSON.stringify(text)} is the content ID of nothing here`);
       }
     }
-    expect(count).toEqual({ records: 252, keyHashes: 16, roots: 1 });
-    expect(known.size).toBe(49);
+    expect(count).toEqual({ records: 254, keyHashes: 17, roots: 1 });
+    expect(known.size).toBe(51);
     // Three of them, by name.
     expect(known.has(named("ack")["packet"] as string)).toBe(true);
     expect(named("feed_entry")["object"]).toBe(contentId(named("offer")));

@@ -63,6 +63,8 @@ beforeAll(async () => {
           });
         } else if (path === "/ok") {
           response.writeHead(200, { "content-type": "application/oip+json" }).end('{"ok":true}');
+        } else if (path === "/nothing") {
+          response.writeHead(204).end();
         } else if (path === "/missing") {
           response.writeHead(404, { "content-type": "application/problem+json" }).end("{}");
         } else if (path === "/declared") {
@@ -294,6 +296,102 @@ describe("a body posted for a stranger", () => {
     expect(await refusal(strict, `https://127.0.0.1:${port}/inbox`)).toBe("address");
     expect(await refusal(strict, at("/inbox"))).toBe("address");
     expect(requests).toStrictEqual([]);
+  });
+});
+
+describe("the fetcher as a `fetch`", () => {
+  const text = async (response: Response): Promise<string> =>
+    new TextDecoder().decode(await response.arrayBuffer());
+
+  it("makes a request of a client's under the guard, and gives the answer as a response", async () => {
+    const { fetch } = fetcherFor();
+    const body = new TextEncoder().encode('{"oip":"1"}');
+    const put = await fetch(
+      new Request(at("/inbox"), {
+        method: "PUT",
+        headers: {
+          accept: "application/oip+json, application/problem+json",
+          "content-type": "application/oip+json",
+          Signature: "sig1=:AAAA:",
+        },
+        body,
+      }),
+    );
+    expect(put.status).toBe(202);
+    expect(put.headers.get("content-type")).toBe("application/json");
+    expect(await text(put)).toBe('PUT application/oip+json {"oip":"1"}');
+    expect(requests.at(-1)?.headers).toMatchObject({
+      accept: "application/oip+json, application/problem+json",
+      "content-type": "application/oip+json",
+      "content-length": "11",
+      signature: "sig1=:AAAA:",
+      "user-agent": "oip-server",
+    });
+    // A request with no body has none, and says nothing of one.
+    const got = await fetch(new Request(at("/ok")));
+    expect([got.status, await text(got)]).toStrictEqual([200, '{"ok":true}']);
+    expect(requests.at(-1)?.headers).not.toHaveProperty("content-length");
+    expect(requests.at(-1)?.headers.accept).toBe("*/*");
+    const deleted = await fetch(new Request(at("/inbox"), { method: "DELETE" }));
+    expect(await text(deleted)).toBe("DELETE undefined ");
+    const posted = await fetch(new Request(at("/inbox"), { method: "POST", body }));
+    expect(await text(posted)).toBe('POST undefined {"oip":"1"}');
+    // An answer that has no body is one.
+    const nothing = await fetch(new Request(at("/nothing")));
+    expect([nothing.status, nothing.body]).toStrictEqual([204, null]);
+    expect((await fetch(new Request(at("/missing")))).status).toBe(404);
+  });
+
+  it("follows no redirect, to the same origin or to any other: the redirect is the answer", async () => {
+    const { fetch } = fetcherFor();
+    const answer = await fetch(new Request(at("/redirect/same")));
+    expect([answer.status, answer.headers.get("location")]).toStrictEqual([302, "/ok"]);
+    expect((await fetch(new Request(at("/redirect/inward")))).status).toBe(302);
+    expect(requests.map((request) => request.path)).toStrictEqual([
+      "/redirect/same",
+      "/redirect/inward",
+    ]);
+  });
+
+  it("is refused as any fetch is, before anything is sent", async () => {
+    const strict = new GuardedFetcher({ resolve: resolverOf(HERE), ca });
+    // This machine, by its address and by a name that resolves to it, where it is not allowed.
+    expect(await refusal(strict.fetch(new Request(`https://127.0.0.1:${port}/inbox`)))).toBe(
+      "address",
+    );
+    expect(await refusal(strict.fetch(new Request(at("/inbox"), { method: "POST" })))).toBe(
+      "address",
+    );
+    const { fetch } = fetcherFor();
+    expect(await refusal(fetch(new Request(`http://home.example:${port}/ok`)))).toBe("not-https");
+    expect(await refusal(fetch(new Request(`https://unknown.example:${port}/ok`)))).toBe("network");
+    // A method it does not send, and a header that is the fetcher's own or that no header holds.
+    await expect(fetch(new Request(at("/inbox"), { method: "PATCH" }))).rejects.toThrow(TypeError);
+    await expect(
+      fetch(new Request(at("/ok"), { headers: { "user-agent": "another" } })),
+    ).rejects.toThrow(TypeError);
+    await expect(
+      fetch(new Request(at("/ok"), { headers: { accept: "caf\u00e9" } })),
+    ).rejects.toThrow(TypeError);
+    expect(requests).toStrictEqual([]);
+  });
+
+  it("gives up when its limit of time has run out, or when the caller's signal says so", async () => {
+    const slow = fetcherFor(resolverOf(HERE), { timeoutMs: 100 });
+    expect(await refusal(slow.fetch(new Request(at("/stall"))))).toBe("timeout");
+    const started = Date.now();
+    expect(
+      await refusal(
+        fetcherFor().fetch(new Request(at("/stall"), { signal: AbortSignal.timeout(100) })),
+      ),
+    ).toBe("timeout");
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+
+  it("reads an answer up to the fetcher's limit of bytes", async () => {
+    const small = fetcherFor(resolverOf(HERE), { maxBytes: 4999 });
+    expect(await refusal(small.fetch(new Request(at("/declared"))))).toBe("too-large");
+    expect(await refusal(small.fetch(new Request(at("/chunked"))))).toBe("too-large");
   });
 });
 

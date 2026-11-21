@@ -21,9 +21,12 @@ import {
   formatRecordRef,
   formatTimestamp,
   type Instant,
+  isMindAddress,
   type JsonObject,
   OipError,
   type OipRecord,
+  parseRecordRef,
+  parseTimestamp,
 } from "@oip/core";
 import {
   authorityOf,
@@ -201,6 +204,8 @@ export class Reader {
   readonly #records = new WebRecordSet();
   /** The records held, by content ID, each as the copy with every proof seen of it. */
   readonly #held = new Map<string, OipRecord>();
+  /** The Revocations held that have counted for their authors, by content ID. */
+  readonly #revoked = new Set<string>();
 
   constructor(at: ReadingContext) {
     this.#at = at;
@@ -215,7 +220,11 @@ export class Reader {
    * Takes a record in, and gives it back as the client holds it: judged,
    * with the proofs of every copy the client has seen (Layer 2, Section 2).
    */
-  #take(record: unknown, kept?: Sightings): { id: string; judged: JudgedRecord } {
+  #take(
+    record: unknown,
+    kept?: Sightings,
+    now: Instant = this.#at.clock.now(),
+  ): { id: string; judged: JudgedRecord } {
     const own = this.#at;
     const id = accepted(this.#records.add(record), "invalid-record", "that is no record");
     const judged = withHeld(
@@ -229,7 +238,7 @@ export class Reader {
     const { seen } = own.lookup;
     witnessProofs(
       judged,
-      own.clock.now(),
+      now,
       kept === undefined
         ? seen
         : new EachProof((digest, now) => {
@@ -323,14 +332,112 @@ export class Reader {
     return sentFor(judged, subject, context) === undefined ? undefined : subject;
   }
 
-  /** Holds the records a packet carries (Layer 1, 12.2): its body, or its parts, where they are records. */
+  /** What a record's proofs list as their authority: delegations carried whole, or named by reference. */
+  #authorityOf(record: unknown): unknown[] {
+    const proofs = (record as { proof?: unknown } | null)?.proof;
+    return (Array.isArray(proofs) ? (proofs as unknown[]) : []).flatMap((proof) => {
+      const authority = (proof as { authority?: unknown } | null)?.authority;
+      return Array.isArray(authority) ? (authority as unknown[]) : [];
+    });
+  }
+
+  /**
+   * Whether the delegations a record's proofs rest on stand now: see
+   * `Mind.delegationsStand`.
+   */
+  async delegationsStand(record: unknown): Promise<boolean> {
+    const now = this.#at.clock.now();
+    for (const item of this.#authorityOf(record)) {
+      // Carried whole, or named and held.
+      let delegation = item as
+        { type?: unknown; author?: unknown; expires?: unknown } | null | undefined;
+      if (typeof item === "string") {
+        const named = parseRecordRef(item);
+        delegation = named === undefined ? undefined : this.#held.get(named.contentId);
+        // One that is named and not held shows nothing.
+        if (delegation === undefined) return false;
+      }
+      // A charter is authority too, and is not taken back by a Revocation.
+      if (delegation?.type !== "Delegation") continue;
+      const { author, expires } = delegation;
+      if (!isMindAddress(author)) return false;
+      // One with no end that can be read is no delegation (Layer 1, 11.1).
+      const until = parseTimestamp(expires);
+      if (until === undefined || until <= now) return false;
+      const revoked = formatRecordRef(author, contentId(delegation));
+      for (const held of this.#held.values()) {
+        const { type, revokes } = held as { type: string; revokes?: unknown };
+        if (type !== "Revocation" || revokes !== revoked) continue;
+        // Its author's own word, whenever it was first seen.
+        if (await this.countsFor(held, author)) return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Reads what the authors of the delegations a record rests on have
+   * revoked, and holds it: see `Mind.holdRevocations`.
+   */
+  async holdRevocations(record: unknown): Promise<number> {
+    const { lookup } = this.#at;
+    const authors = new Set<string>();
+    for (const item of this.#authorityOf(record)) {
+      // A delegation is carried whole, or named by its reference: either says whose it is.
+      const author =
+        typeof item === "string"
+          ? parseRecordRef(item)?.mind
+          : (item as { author?: unknown } | null)?.author;
+      if (isMindAddress(author)) authors.add(author);
+    }
+    let held = 0;
+    for (const author of authors) {
+      let entries;
+      try {
+        ({
+          feed: { entries },
+        } = await lookup.feed(author));
+      } catch (error) {
+        // A mind with no home has no feed, and has published nothing there.
+        if (error instanceof OipError && error.code === "not-found") continue;
+        throw error;
+      }
+      for (const { entry } of entries) {
+        if (entry.objectType !== "Revocation" || this.#revoked.has(entry.object)) continue;
+        // A copy that is held shows nothing unless it counts for its author. Anyone who has
+        // read a Revocation can give out the same record, by its content ID, under a
+        // signature that is nobody's: with that copy held, the author's own is fetched still.
+        const before = this.#held.get(entry.object);
+        if (before === undefined || !(await this.countsFor(before, author))) {
+          const fetched = await lookup.record(author, entry.object);
+          this.hold(fetched.record);
+          held += 1;
+          continue;
+        }
+        // Its proofs are kept with every copy that comes later: it need not be asked of again.
+        this.#revoked.add(entry.object);
+      }
+    }
+    return held;
+  }
+
+  /**
+   * Holds the records a packet carries (Layer 1, 12.2): its body, or its
+   * parts, where they are records.
+   *
+   * They came together, and are first seen together: at one reading of the
+   * clock. A record whose proof names a delegation by reference counts by
+   * a delegation that another part carries, whichever of the two comes
+   * first in the packet (Layer 1, 11.4, item 1; 11.6).
+   */
   holdCarried(content: unknown): void {
+    const now = this.#at.clock.now();
     const parts = (content as { parts?: unknown }).parts;
     for (const part of Array.isArray(parts) ? (parts as unknown[]) : [content]) {
       const { mediaType, body } = part as { mediaType?: unknown; body?: unknown };
       if (mediaType !== "application/oip+json") continue;
       // What a packet carries is data: what is no record is no record, and is not held.
-      if (this.#records.add(body).ok) this.hold(body);
+      if (this.#records.add(body).ok) this.#take(body, undefined, now);
     }
   }
 }

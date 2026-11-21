@@ -22,20 +22,21 @@ oip-bridge-a2a serve --base https://gateway.example/a2a
 
 ### What the program takes
 
-| Setting             |                                                                                                                  |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `bridge <origin>`   | Reads the card of the A2A agent at an HTTPS origin and makes its bridged mind, or brings the mind up to the card |
-| `agents`            | Lists the agents the gateway bridges                                                                             |
-| `serve`             | Relays for every bridged agent. With `--base`, serves minds as A2A agents as well                                |
-| `--dir <path>`      | The directory of the gateway's own mind. Default: `OIP_DIR`, or `~/.oip`                                         |
-| `--keys <file>`     | A JSON Web Key Set: keys that may verify the signatures on a card                                                |
-| `--base <url>`      | The public URL the A2A interface is reached under: `https://gateway.example/a2a`                                 |
-| `--port <port>`     | The port `serve` listens on. Default: 8780                                                                       |
-| `--host <address>`  | The address `serve` listens on. Default: `127.0.0.1`                                                             |
-| `--every <seconds>` | The rest between two readings of the mailboxes. Default: 5                                                       |
-| `OIP_PASSPHRASE`    | Opens the keys, where the minds are not kept under the machine's keychain                                        |
-| `--help`            | Shows what the program takes                                                                                     |
-| `--version`         | Prints the version                                                                                               |
+| Setting                  |                                                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `bridge <origin>`        | Reads the card of the A2A agent at an HTTPS origin and makes its bridged mind, or brings the mind up to the card |
+| `agents`                 | Lists the agents the gateway bridges                                                                             |
+| `serve`                  | Relays for every bridged agent. With `--base`, serves minds as A2A agents as well                                |
+| `--dir <path>`           | The directory of the gateway's own mind. Default: `OIP_DIR`, or `~/.oip`                                         |
+| `--keys <file>`          | A JSON Web Key Set: keys that may verify the signatures on a card                                                |
+| `--base <url>`           | The public URL the A2A interface is reached under: `https://gateway.example/a2a`                                 |
+| `--port <port>`          | The port `serve` listens on. Default: 8780                                                                       |
+| `--host <address>`       | The address `serve` listens on. Default: `127.0.0.1`                                                             |
+| `--every <seconds>`      | The rest between two readings of the mailboxes. Default: 5                                                       |
+| `OIP_PASSPHRASE`         | Opens the keys, where the minds are not kept under the machine's keychain                                        |
+| `OIP_BRIDGE_FETCH_ALLOW` | Address ranges the gateway may reach beside the public ones. For a test network of the operator's own            |
+| `--help`                 | Shows what the program takes                                                                                     |
+| `--version`              | Prints the version                                                                                               |
 
 `serve` speaks plain HTTP on this machine. Put a reverse proxy in front of it for TLS, and give `--base` the URL the proxy serves.
 
@@ -49,7 +50,7 @@ oip-bridge-a2a serve --base https://gateway.example/a2a
 
 Anyone can check the result. [`Lookup.assurance`](../client/README.md) answers `bridged` for such a mind, and `claimed` for a mind that only says it is bridged (Layer 0, 1.3).
 
-If the card is signed, a signature must verify before the agent is bridged. The keys are the operator's own (`--keys`), or the key set the agent serves at its own origin. A key set at another origin gives no key. A card with no signature is taken: A2A lets a card have none, and the gateway then says only that it read the card over HTTPS.
+If the card is signed, a signature must verify before the agent is bridged. The keys are the operator's own (`--keys`), or the key set the agent serves at its own origin. A key set at another origin gives no key. For a name the operator has a key of, the operator's key decides, and no key the agent serves under that name is asked for. `--keys` does not ask that a card be signed by the operator's keys: a card signed by a key the agent serves itself is taken too, and says no more than the card. At most eight signatures of a card are verified. A card with no signature is taken: A2A lets a card have none, and the gateway then says only that it read the card over HTTPS.
 
 ### What the relay does
 
@@ -67,15 +68,23 @@ If the card is signed, a signature must verify before the agent is bridged. The 
 | An answer that is a message, and no task  | A packet with verb `inform`                                                           |
 | An error from the agent                   | A packet with verb `error`                                                            |
 
-A Receipt is signed by the bridged mind and published on its feed. Its statement reads, for example:
+A Receipt is signed by the bridged mind and brought to the requester, in the packet that carries what the agent delivered. It is not published. The request came to the bridged mind alone, and a feed would tell everybody who asked, what the agent calls the task, and where its files are (Layer 0, 1.4). Its statement reads, for example:
 
 ```text
 The gateway observed the A2A agent at https://agent.example report task "7f3c" as completed.
 ```
 
-The agent's name for the task and the agent's own words are quoted as strings of JSON, so that neither can be read as words of the gateway. Each part of an artifact is an evidence item of kind `hash`. A file the agent names by its URL is fetched, under the gateway's guard, and is an evidence item of kind `uri` with the digest of the bytes that were there.
+The agent's name for the task is quoted as a string of JSON in ASCII, so that it cannot be read as words of the gateway. The agent's own words are no part of the statement. They are content of the packet, and the Receipt has an evidence item of kind `hash` for each part of them. Each part of an artifact is an evidence item of kind `hash`. A file the agent names by its URL is fetched, under the gateway's guard, and is an evidence item of kind `uri` with the digest of the bytes that were there.
 
-What a pass does, it does once. A packet is written down before anything is done with it, and is not sent to the agent again once the agent has answered. A Receipt is written down as soon as it is signed, and a pass that stops after that is finished with the same Receipt. Only the mind a task is for can go on with it.
+What a pass does, it does once. A packet is written down before the client notes that it has it, and is not sent to the agent again once the agent has answered. What a task ended with is gathered once and written down before the Receipt is signed, and a pass that stops after that is finished with the same Receipt. Only the mind a task is for can go on with it.
+
+One `serve` runs from a gateway's directory at a time: it holds the directory (`serve.hold`), and a second is refused. A hold that nobody has touched for 30 seconds was left by a process that ended, and is taken over.
+
+Nothing is tried for ever. A request that could not be passed on before its `expires`, or within a day where it names none, is answered with an `error`. An agent that cannot be reached is asked once in a pass. Under `serve`, a pass for one agent takes 30 seconds at most, and eight agents are relayed for side by side.
+
+### What the gateway's minds reach
+
+A bridged mind sends its answers where the requester's own records say the requester is reached. A stranger chose that URL. So the minds ask as the gateway itself asks agents: under the guard of `@oip/server`, at public addresses only, following no redirect. `OIP_BRIDGE_FETCH_ALLOW` names further address ranges, as `10.0.0.0/8,fd00::/8`, for a test network of the operator's own.
 
 ## A mind as an A2A agent
 
@@ -140,7 +149,7 @@ It works the other way too. A client that has a mind of its own may put a whole 
 
 ## Conformance
 
-`pnpm a2a:tck` runs the A2A project's own [TCK](https://github.com/a2aproject/a2a-tck) against a mind served by the gateway, with a real resolver, host and indexer behind it. The mind that is tested is an ordinary OIP mind that answers packets: see [`tck/sut.ts`](tck/sut.ts).
+`pnpm a2a:tck` runs the A2A project's own [TCK](https://github.com/a2aproject/a2a-tck) against a mind served by the gateway, with a real resolver, host and indexer behind it. The mind that is tested is an ordinary OIP mind that answers packets: see [`test/tck/sut.ts`](test/tck/sut.ts).
 
 ## In a program
 
@@ -152,17 +161,17 @@ The program is made of these, and each can be used alone. A `Gateway` bridges ag
 
 ## What it exports
 
-| Export                                                                                                                                                |                                                                                    |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `main`, `Host`, `Reach`, `Serving`, `VERSION`                                                                                                         | The program `oip-bridge-a2a`                                                       |
-| `Gateway`, `GatewayEdges`, `Bridged`, `BridgeError`, `PROTOCOL`                                                                                       | Bridges A2A agents, and relays between each bridged mind and its agent             |
-| `Relayed`, `MAX_OPEN_TASKS`, `MAX_FOLLOWED_SECONDS`, `MAX_CARRIED_BYTES`, `MAX_FETCHED`                                                               | What one pass of the relay did, and the relay's limits                             |
-| `readCard`, `ReadCard`, `AgentCard`, `AgentInterface`, `AgentSkill`, `AgentExtension`, `CardSignature`, `interfaceOf`, `supports`                     | Reads an Agent Card as a stranger's data                                           |
-| `CARD_PATH`, `A2A_VERSION`, `MAX_CARD_BYTES`, `MAX_CARD_ITEMS`, `MAX_CARD_TEXT`                                                                       | Where a card is, the version of A2A that is spoken, and how much of a card is read |
-| `verifySignatures`, `CardSignatures`, `KeySource`, `PublicJwk`                                                                                        | Verifies the signatures on a card (A2A, 8.4)                                       |
-| `capabilitiesOf`, `cardFor`, `Served`, `saidOf`, `Said`, `isTerminal`, `TASK_STATES`, `TaskState`, `OIP_EXTENSION`, `OIP_MEDIA_TYPE`, `TAG_NAMESPACE` | The mapping of Layer 0, 3.1 and 3.2, as functions                                  |
-| `sendMessage`, `getTask`, `cancelTask`, `readMessage`, `A2aError`, `Malformed`, `Agent`, `Ask`, `Get`, `Answered`                                     | Speaks A2A to an agent, and reads what a stranger answers                          |
-| `A2aMessage`, `Part`, `Task`, `Artifact`, `MAX_PARTS`, `MAX_ARTIFACTS`, `MAX_ID`                                                                      | The things of A2A as far as the gateway reads them, and how much of them it reads  |
-| `Front`, `FrontOptions`, `ServedMind`, `Taking`, `Held`, `Asked`, `Page`, `MAX_KEPT_SECONDS`, `MAX_UNANNOUNCED_SECONDS`                               | Minds as A2A agents: the tasks the gateway keeps for them                          |
-| `A2aServer`, `Asking`, `Answer`, `Fault`, `MAX_REQUEST_BYTES`                                                                                         | The JSON-RPC binding of A2A 1.0, as a function from a request to an answer         |
-| `listen`, `Listening`, `ServedInterface`                                                                                                              | The interface on a port, and the reading of the gateway's mailbox                  |
+| Export                                                                                                                                                           |                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `main`, `Host`, `Reach`, `Serving`, `VERSION`                                                                                                                    | The program `oip-bridge-a2a`                                                       |
+| `Gateway`, `GatewayEdges`, `Bridged`, `BridgeError`, `PROTOCOL`                                                                                                  | Bridges A2A agents, and relays between each bridged mind and its agent             |
+| `Relayed`, `MAX_OPEN_TASKS`, `MAX_FOLLOWED_SECONDS`, `MAX_CARRIED_BYTES`, `MAX_FETCHED`                                                                          | What one pass of the relay did, and the relay's limits                             |
+| `readCard`, `ReadCard`, `AgentCard`, `AgentInterface`, `AgentSkill`, `AgentExtension`, `CardSignature`, `interfaceOf`, `supports`                                | Reads an Agent Card as a stranger's data                                           |
+| `CARD_PATH`, `A2A_VERSION`, `MAX_CARD_BYTES`, `MAX_CARD_ITEMS`, `MAX_CARD_TEXT`                                                                                  | Where a card is, the version of A2A that is spoken, and how much of a card is read |
+| `verifySignatures`, `CardSignatures`, `KeySource`, `PublicJwk`                                                                                                   | Verifies the signatures on a card (A2A, 8.4)                                       |
+| `capabilitiesOf`, `cardFor`, `Served`, `saidOf`, `Said`, `isTerminal`, `TASK_STATES`, `TaskState`, `OIP_EXTENSION`, `OIP_MEDIA_TYPE`, `TAG_NAMESPACE`            | The mapping of Layer 0, 3.1 and 3.2, as functions                                  |
+| `sendMessage`, `getTask`, `cancelTask`, `readMessage`, `A2aError`, `Malformed`, `Agent`, `Ask`, `Get`, `Answered`                                                | Speaks A2A to an agent, and reads what a stranger answers                          |
+| `A2aMessage`, `Part`, `Task`, `Artifact`, `MAX_PARTS`, `MAX_ARTIFACTS`, `MAX_ID`                                                                                 | The things of A2A as far as the gateway reads them, and how much of them it reads  |
+| `Front`, `FrontOptions`, `ServedMind`, `Taking`, `Held`, `Asked`, `Page`, `MAX_KEPT_SECONDS`, `MAX_UNANNOUNCED_SECONDS`, `MAX_IDLE_CONTEXT_SECONDS`, `MAX_TASKS` | Minds as A2A agents: the tasks the gateway keeps for them                          |
+| `A2aServer`, `Asking`, `Answer`, `Fault`, `MAX_REQUEST_BYTES`                                                                                                    | The JSON-RPC binding of A2A 1.0, as a function from a request to an answer         |
+| `listen`, `Listening`, `ServedInterface`                                                                                                                         | The interface on a port, and the reading of the gateway's mailbox                  |

@@ -28,11 +28,27 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
+import { systemClock } from "@oip/client";
 import { canonicalBytes, sha256Digest } from "@oip/core";
-import { fileNameOf, keepRecords, openMind, UsageError, type Where, withBridged } from "@oip/local";
+import {
+  fileNameOf,
+  hold,
+  keepRecords,
+  openMind,
+  recordText,
+  UsageError,
+  type Where,
+  withBridged,
+} from "@oip/local";
 
 import { type Connect, endpointOf, type Server, type Target } from "./connect.ts";
-import { CREDENTIALS_FILE, credentialsIn, readCredentials } from "./credentials.ts";
+import {
+  CREDENTIALS_FILE,
+  credentialsIn,
+  readCredentials,
+  secretsOf,
+  withoutSecrets,
+} from "./credentials.ts";
 import { POLICY_FILE } from "./policy.ts";
 import { Relay, type Relayed } from "./relay.ts";
 import { capabilitiesOf, type Mapped } from "./tools.ts";
@@ -85,15 +101,14 @@ export interface BridgedNow extends Bridged {
 export const PROTOCOL = "mcp";
 
 const SERVER_FILE = "server.json";
+/** The file that says a process relays for a bridged mind (`hold` of `@oip/local`), in the mind's directory. */
+export const RELAY_HOLD_FILE = "relay.hold";
 /** The longest name a profile carries (Layer 1, 16.1). */
 const MAX_NAME = 128;
 
-const cut = (text: string, most: number): string => {
-  const characters = Array.from(text.replace(/\p{Surrogate}|\p{Noncharacter_Code_Point}/gu, "?"));
-  return characters.length > most
-    ? `${characters.slice(0, most - 1).join("")}…`
-    : characters.join("");
-};
+/** Whether a text names something: it has a character that is no space. */
+const names = (text: string | undefined): text is string =>
+  text !== undefined && text.trim() !== "";
 
 /** A gateway, in the directory of its own mind. */
 export class Gateway {
@@ -171,6 +186,9 @@ export class Gateway {
   ): Promise<BridgedNow> {
     const endpoint = endpointOf(target);
     const directory = this.directoryOf(endpoint);
+    if (options.name !== undefined && !names(options.name)) {
+      throw new UsageError("a name is text: leave --name out for the server's own");
+    }
     if (options.credentials !== undefined) {
       // Read where it is first: a file that is none, or that others can read, is not taken.
       if (!existsSync(options.credentials)) {
@@ -183,16 +201,21 @@ export class Gateway {
       chmodSync(`${file}.partial`, 0o600);
       renameSync(`${file}.partial`, file);
     }
-    // The tools first: nothing is made for a server that cannot be asked.
+    // The tools first: no mind is made for a server that cannot be asked.
     let server: Server;
     let listed: unknown[];
+    const credentials = readCredentials(directory);
+    // What went wrong is the operator's to read. A server may say back what it was sent: of the
+    // credentials, nothing is repeated.
+    const why = (error: unknown): string =>
+      error instanceof Error ? `: ${withoutSecrets(error.message, secretsOf(credentials))}` : "";
     try {
-      server = await this.#edges.connect(target, readCredentials(directory));
+      server = await this.#edges.connect(target, credentials);
     } catch (error) {
       if (error instanceof UsageError) throw error;
       throw new BridgeError(
         "unreachable",
-        `the server ${endpoint} could not be reached${error instanceof Error ? `: ${error.message}` : ""}`,
+        `the server ${endpoint} could not be reached${why(error)}`,
       );
     }
     try {
@@ -200,7 +223,7 @@ export class Gateway {
     } catch (error) {
       throw new BridgeError(
         "unreachable",
-        `the server ${endpoint} did not list its tools${error instanceof Error ? `: ${error.message}` : ""}`,
+        `the server ${endpoint} did not list its tools${why(error)}`,
       );
     } finally {
       await server.close().catch(() => undefined);
@@ -212,10 +235,15 @@ export class Gateway {
         `the server ${endpoint} lists no tool that can be a capability: there is nothing to ask of its mind`,
       );
     }
-    const name = cut(
+    // A server's name for itself is a stranger's text: made text that a profile holds. What a
+    // reader shows of it, the reader makes safe to show, as of every profile.
+    const name = recordText(
       options.name ??
-        server.name ??
-        (target.kind === "http" ? new URL(target.url).host : target.label),
+        (names(server.name)
+          ? server.name
+          : target.kind === "http"
+            ? new URL(target.url).host
+            : target.label),
       MAX_NAME,
     );
     const capabilities = [...mapped.capabilities];
@@ -261,25 +289,51 @@ export class Gateway {
    * reads the mind's mailbox, calls the tools that are asked for by minds
    * the operator's policy covers, and answers each request.
    *
-   * @throws UsageError if the gateway does not bridge the server, or the
-   *   policy or the credentials cannot be read. Whatever keeps the mind
-   *   from being opened or its mailbox from being read.
+   * One pass at a time relays for a bridged mind: the pass holds the
+   * mind's directory (`relay.hold`) while it runs. Two that read one
+   * mailbox would each call the tool a request names.
+   *
+   * What one packet could not be done with is in the result's `failed`,
+   * and is tried again by the next pass: credentials that cannot be read,
+   * say, or a server that is away.
+   *
+   * @param spent - Whether the pass has had the time it may take: see
+   *   `RelayEdges.spent`. What is left when it says so waits for the next pass.
+   * @throws UsageError if the gateway does not bridge the server, if
+   *   another process relays for it, or if the policy cannot be read.
+   *   Whatever keeps the mind from being opened or its mailbox from being
+   *   read.
    */
-  async relay(endpoint: string): Promise<Relayed> {
+  async relay(endpoint: string, spent?: () => boolean): Promise<Relayed> {
     const bridged = this.bridged(endpoint);
     if (bridged === undefined) {
       throw new UsageError(`${endpoint} is no server this gateway bridges: bridge it first`);
     }
-    const opened = await openMind({ edges: this.#where.edges, dir: this.directoryOf(endpoint) });
+    const directory = this.directoryOf(endpoint);
+    const held = hold(directory, RELAY_HOLD_FILE, "relays for this bridged mind");
     try {
-      return await new Relay(opened, bridged, this.#edges).pass();
-    } finally {
+      const opened = await openMind({ edges: this.#where.edges, dir: directory });
       try {
-        // What the mind signed, it signed: its records are written down whatever became of the pass.
-        keepRecords(opened);
+        return await new Relay(opened, bridged, {
+          connect: this.#edges.connect,
+          clock: this.#where.edges.clock ?? systemClock,
+          spent: () => {
+            // Looked at where it lies, and not as it was a few seconds ago: a process that stood
+            // still for half a minute has lost its hold to another, and calls nothing more.
+            held.beat();
+            return !held.held || spent?.() === true;
+          },
+        }).pass();
       } finally {
-        opened.mind.close();
+        try {
+          // What the mind signed, it signed: its records are written down whatever became of the pass.
+          keepRecords(opened);
+        } finally {
+          opened.mind.close();
+        }
       }
+    } finally {
+      held.release();
     }
   }
 }

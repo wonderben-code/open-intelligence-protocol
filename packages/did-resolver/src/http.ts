@@ -40,6 +40,7 @@ const PREFIX = "/1.0/identifiers/";
 /** The status of each error (DID Resolution, 11.1). */
 const STATUS: Readonly<Record<DidResolutionError, number>> = {
   invalidDid: 400,
+  invalidDidUrl: 400,
   notFound: 404,
   representationNotSupported: 406,
   methodNotSupported: 501,
@@ -79,11 +80,15 @@ function asksFor(accept: string | undefined): "result" | "document" | "neither" 
  * accepts, is given the whole result: the document, with what the
  * resolution and the log say besides. One that takes neither is answered
  * with 406. A mind that is retired is answered with 410, and its document
- * all the same.
+ * all the same, whichever of its versions is asked for.
  *
  * @param options - The resolvers to ask, and how: what a `Lookup` of `@oip/client` takes.
  */
 export async function handle(asked: Asking, options: LookupOptions): Promise<Answer> {
+  if (!URL.canParse(asked.path, "http://resolver.invalid")) {
+    // What a client sent as a path, and is none: the client's mistake, and nothing to log.
+    return text(400, "That is no path.\n");
+  }
   const url = new URL(asked.path, "http://resolver.invalid");
   if (url.pathname === "/healthz") return text(200, "ok\n");
   if (url.pathname === "/1.0/methods") {

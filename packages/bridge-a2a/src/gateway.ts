@@ -17,7 +17,15 @@ import { readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { httpsOrigin, systemClock } from "@oip/client";
-import { fileNameOf, keepRecords, openMind, UsageError, type Where, withBridged } from "@oip/local";
+import {
+  fileNameOf,
+  keepRecords,
+  openMind,
+  recordText,
+  UsageError,
+  type Where,
+  withBridged,
+} from "@oip/local";
 
 import type { Ask, Get } from "./a2a.ts";
 import { type AgentInterface, CARD_PATH, interfaceOf, readCard, supports } from "./card.ts";
@@ -77,9 +85,6 @@ const AGENT_FILE = "agent.json";
 /** The longest name and summary a profile carries (Layer 1, 16.1). */
 const MAX_NAME = 128;
 const MAX_SUMMARY = 1024;
-
-const cut = (text: string, most: number): string =>
-  text.length > most ? `${text.slice(0, most - 1)}…` : text;
 
 /** A gateway, in the directory of its own mind. */
 export class Gateway {
@@ -201,8 +206,9 @@ export class Gateway {
       if (before?.cardDigest !== digest || mind.resolved.participant === undefined) {
         const capabilities = capabilitiesOf(card);
         await mind.publishProfile({
-          name: cut(card.name, MAX_NAME),
-          summary: cut(card.description, MAX_SUMMARY),
+          // A card's texts are a stranger's: each is made text that a profile holds.
+          name: recordText(card.name, MAX_NAME),
+          summary: recordText(card.description, MAX_SUMMARY),
           ...(capabilities.length === 0 ? {} : { capabilities }),
           // Layer 0, 3.2: what a profile lists for A2A is the URL of a card.
           interfaces: { a2a: origin + CARD_PATH },
@@ -237,10 +243,12 @@ export class Gateway {
    * What one packet or one task could not be done with is in the result's
    * `failed`, and is tried again by the next pass.
    *
+   * @param spent - Whether the pass has had the time it may take: see
+   *   `RelayEdges.spent`. What is left when it says so waits for the next pass.
    * @throws UsageError if the gateway does not bridge the agent. Whatever
    *   keeps the mind from being opened or its mailbox from being read.
    */
-  async relay(origin: string): Promise<Relayed> {
+  async relay(origin: string, spent?: () => boolean): Promise<Relayed> {
     const bridged = this.bridged(origin);
     if (bridged === undefined) {
       throw new UsageError(`${origin} is not an agent this gateway bridges: bridge it first`);
@@ -249,7 +257,12 @@ export class Gateway {
     try {
       const { ask, get } = this.#edges;
       const clock = this.#where.edges.clock ?? systemClock;
-      return await new Relay(opened, bridged, { ask, get, clock }).pass();
+      return await new Relay(opened, bridged, {
+        ask,
+        get,
+        clock,
+        ...(spent === undefined ? {} : { spent }),
+      }).pass();
     } finally {
       try {
         // What the mind signed, it signed: its records are written down whatever became of the pass.

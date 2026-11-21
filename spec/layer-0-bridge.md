@@ -28,10 +28,12 @@ The gateway **attests** the mind with an `Entry` in its own feed (Layer 1, Secti
 ## 2. MCP
 
 2.1. **MCP servers as participants.** A gateway bridging an MCP server:
-- maps each tool returned by `tools/list` to a capability with `id` = the tool name, `summary` = the tool description, and the tool's input schema under `ext["oip.mcp"].inputSchema`; resources and prompts MAY be mapped likewise;
-- maps a packet with verb `request` whose content is `{ "mediaType": "application/json", "body": { "tool": <name>, "arguments": { … } } }` to an MCP `tools/call`, and returns the result in a packet with verb `deliver` and `replyTo` set to the request's content ID;
-- SHOULD sign a Receipt about any Commitment it entered into, with the tool result's digest as evidence;
+- maps each tool returned by `tools/list` to a capability with `id` = the tool name, `summary` = the tool description (the tool's title, or else its name, where it has none), and the tool's input schema under `ext["oip.mcp"].inputSchema` of that capability (Layer 1, 16.2); resources and prompts MAY be mapped likewise;
+- maps a packet with verb `request` whose content is `{ "mediaType": "application/json", "body": { "tool": <name>, "arguments": { … } } }` to an MCP `tools/call`, and returns the result as the `body` of content with media type `application/json`, in a packet with verb `deliver` and `replyTo` set to the request's content ID. A result that the server marks as an error (`isError`) is returned in the same way in a packet with verb `error`. Where the gateway does not make the call, or the server gives no result, a packet with verb `error` and the same `replyTo` says why;
+- SHOULD sign a Receipt about any Commitment it entered into, with the tool result's digest as evidence: an evidence item of kind `hash` (Layer 2, Section 9) whose digest is of the canonical form (core, Section 2) of the `body` it returned, or of the UTF-8 bytes of that `body` where it is JSON text. A request names the Commitment it is made under in `context.refs`;
 - holds whatever credentials the MCP server requires, and MUST NOT perform an action for a requester that the requester's authority (identity or delegation) does not cover, where the gateway's operator has configured such checks.
+
+An input schema, a call's arguments and a tool's result are JSON as MCP has it, and a record cannot hold all such JSON: a record has no number with a fraction, and limits on its strings, its depth and its size (core 1.1, 1.2, 1.6 and 1.9). Each of the three is carried as it is where the record can hold it, and otherwise as its JSON text, which is a string. A gateway MUST take the `body` of a request in either form, and a requester does the same for a result. A gateway MAY leave an input schema out of a profile, and leaves out those the profile has no room for.
 
 2.2. **OIP as an MCP server.** An **OIP MCP server** gives an MCP host a mind. It MUST expose tools with these names and behaviour, and MAY expose more:
 

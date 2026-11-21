@@ -220,6 +220,15 @@ describe("readings the specification does not state", () => {
     ["Receipt", "L2 6.1", { rating: { score: "-0.00" } }],
     ["Receipt", "L2 9", { evidence: [{ kind: "oip", ref: "" }] }],
     ["Participant", "L1 16.2", { capabilities: [{ id: "", summary: "" }] }],
+    [
+      "Participant",
+      "L1 16.2",
+      {
+        capabilities: [
+          { id: "a", summary: "A", ext: { "oip.mcp": { inputSchema: { type: "object" } } } },
+        ],
+      },
+    ],
     ["Packet", "L1 12.1", { context: { summary: { en: "structured" } } }],
     ["Packet", "L1 12.1", { constraints: { maxHops: -1, jurisdiction: ["GB", "SG"] } }],
     ["Packet", "L1 12.1", { provenance: { generatedBy: { model: 7 } } }],
@@ -553,6 +562,19 @@ describe("validating one record type", () => {
       "L1 16.2",
       { capabilities: [{ id: "a", summary: "A", tags: ["untagged"] }] },
       /tags/,
+    ],
+    // A capability's `ext` is as a record's (core 8.1): namespaces, each with an object.
+    [
+      "Participant",
+      "L1 16.2",
+      { capabilities: [{ id: "a", summary: "A", ext: { mcp: { inputSchema: {} } } }] },
+      /ext/,
+    ],
+    [
+      "Participant",
+      "L1 16.2",
+      { capabilities: [{ id: "a", summary: "A", ext: { "oip.mcp": "a schema" } }] },
+      /ext/,
     ],
     ["Session", "L1 14.1", { nonce: "short" }, /nonce/],
     ["Sealed", "L1 12.6", { suite: "hpke-base-p256-sha256-aes128gcm" }, /suite/],

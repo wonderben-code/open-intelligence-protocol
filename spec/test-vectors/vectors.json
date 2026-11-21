@@ -11770,6 +11770,97 @@
           ]
         }
       ]
+    },
+    {
+      "name": "profile-with-an-extension-of-a-capability",
+      "reason": "A capability carries `ext` as a record does (Layer 1, 16.2; core 8.1). Layer 0, 2.1 puts the input schema of a tool there.",
+      "kind": "participant",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:22:00Z",
+        "name": "Lexis Translation Agent",
+        "kind": "agent",
+        "summary": "Legal translation between Swahili, English and French.",
+        "capabilities": [
+          {
+            "id": "translate-legal-sw-en",
+            "summary": "Translate Swahili commercial-law documents to and from English",
+            "tags": [
+              "oasf:natural_language_processing/translation",
+              "domain:legal/commercial",
+              "lang:sw",
+              "lang:en"
+            ],
+            "subject": "cap.nlp.translation.legal",
+            "inputs": [
+              "text/plain",
+              "application/pdf"
+            ],
+            "outputs": [
+              "text/markdown"
+            ]
+          },
+          {
+            "id": "glossary_lookup",
+            "summary": "Look a term up in the agent's glossary",
+            "ext": {
+              "oip.mcp": {
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "term": {
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "term"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "actsFor": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "authority": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqnznocgeizwz3tja2r4md3f4mvjtcgpol33mcsbzpn2gpyn54wyjy"
+          }
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:22:00Z",
+            "proofValue": "z3RTFeESifdg9KLgiuSRiAZhmhpzXJexk9XHm1ExS2PEspWbG8UT35x1R7rLNCEcTkvLU8YTemfVUsCqaMqJoZyf9"
+          }
+        ]
+      },
+      "entries": [
+        {
+          "oip": "1",
+          "type": "Entry",
+          "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+          "seq": 0,
+          "created": "2026-10-30T10:23:00Z",
+          "object": "bciqgvvm3nnrkbn4rl7o5zspr2qu53snqmvhebb6yfbiirxv2n4w4s7a",
+          "objectType": "Participant",
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T10:23:00Z",
+              "proofValue": "z5m5JTfgrk8sGTEhU6wh8XjmUYkSRwp8Yq3jnwQV7oH6Ny7v4gARYmqZbaJNrror5DsE5z7vytiXJYS1etBJ8Rq2z"
+            }
+          ]
+        }
+      ]
     }
   ],
   "negative": [
@@ -34019,6 +34110,97 @@
           }
         ]
       }
+    },
+    {
+      "name": "profile-with-a-capability-extension-of-no-namespace",
+      "reason": "The member names of a capability's `ext` are namespaces (core 8.1), and `mcp` is none. The profile is not well formed, and is nobody's current profile (Layer 1, 16.2).",
+      "kind": "participant",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:22:00Z",
+        "name": "Lexis Translation Agent",
+        "kind": "agent",
+        "summary": "Legal translation between Swahili, English and French.",
+        "capabilities": [
+          {
+            "id": "translate-legal-sw-en",
+            "summary": "Translate Swahili commercial-law documents to and from English",
+            "tags": [
+              "oasf:natural_language_processing/translation",
+              "domain:legal/commercial",
+              "lang:sw",
+              "lang:en"
+            ],
+            "subject": "cap.nlp.translation.legal",
+            "inputs": [
+              "text/plain",
+              "application/pdf"
+            ],
+            "outputs": [
+              "text/markdown"
+            ]
+          },
+          {
+            "id": "glossary_lookup",
+            "summary": "Look a term up in the agent's glossary",
+            "ext": {
+              "mcp": {
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "term": {
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "term"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "actsFor": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "authority": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqnznocgeizwz3tja2r4md3f4mvjtcgpol33mcsbzpn2gpyn54wyjy"
+          }
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:22:00Z",
+            "proofValue": "zP2dKHXvg1XGtYWWTHpwkuJyqoY4vqYhBeAtCDFFqzRhVXf153a5bZVQfbMJ29MuiJ9C1mE82A7LEV4kK8NuNEkA"
+          }
+        ]
+      },
+      "entries": [
+        {
+          "oip": "1",
+          "type": "Entry",
+          "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+          "seq": 0,
+          "created": "2026-10-30T10:23:00Z",
+          "object": "bciqecprklggpgu4wryosxpr23vgltjnxyg7iztbdfxqg2hq4gjizxwq",
+          "objectType": "Participant",
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T10:23:00Z",
+              "proofValue": "z4ZsB3L4s6JTqyc7S1JsEtvvhSaPtuQVPCHo1J8iAUTJXoYhHKeC7aCEPaaFLvdjEs1DYSVHMCUh4uaPfiCJSHUKv"
+            }
+          ]
+        }
+      ]
     }
   ],
   "controls": [
@@ -52275,6 +52457,96 @@
               "proofPurpose": "assertionMethod",
               "created": "2026-10-30T10:05:00Z",
               "proofValue": "z4GpjodiCsg41C75dYPr5soRVSSujB4Khp5bLXoNczygLW7TGJbbcxc9srucE8WhTnTRgV5rU4Jdm3sgQQnaUhp1W"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "profile-with-a-capability-extension-of-no-namespace",
+      "kind": "participant",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+        "created": "2026-10-30T10:22:00Z",
+        "name": "Lexis Translation Agent",
+        "kind": "agent",
+        "summary": "Legal translation between Swahili, English and French.",
+        "capabilities": [
+          {
+            "id": "translate-legal-sw-en",
+            "summary": "Translate Swahili commercial-law documents to and from English",
+            "tags": [
+              "oasf:natural_language_processing/translation",
+              "domain:legal/commercial",
+              "lang:sw",
+              "lang:en"
+            ],
+            "subject": "cap.nlp.translation.legal",
+            "inputs": [
+              "text/plain",
+              "application/pdf"
+            ],
+            "outputs": [
+              "text/markdown"
+            ]
+          },
+          {
+            "id": "glossary_lookup",
+            "summary": "Look a term up in the agent's glossary",
+            "ext": {
+              "oip.mcp": {
+                "inputSchema": {
+                  "type": "object",
+                  "properties": {
+                    "term": {
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "term"
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "actsFor": [
+          {
+            "mind": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui",
+            "authority": "did:oip:bciqm33shzk5mxdmurer5ezyl6ohbsc6n54b4hisoodgwx6cgvcazuui/bciqnznocgeizwz3tja2r4md3f4mvjtcgpol33mcsbzpn2gpyn54wyjy"
+          }
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T10:22:00Z",
+            "proofValue": "z3RTFeESifdg9KLgiuSRiAZhmhpzXJexk9XHm1ExS2PEspWbG8UT35x1R7rLNCEcTkvLU8YTemfVUsCqaMqJoZyf9"
+          }
+        ]
+      },
+      "entries": [
+        {
+          "oip": "1",
+          "type": "Entry",
+          "author": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi",
+          "seq": 0,
+          "created": "2026-10-30T10:23:00Z",
+          "object": "bciqgvvm3nnrkbn4rl7o5zspr2qu53snqmvhebb6yfbiirxv2n4w4s7a",
+          "objectType": "Participant",
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqluymzsdo6duhwxovu5ba3xjhwiurol2gz7eqkzhmdmxuf4hfqvhi?versionId=1-bciqjd5lvzg32sty2hhm2cspw5fwh7v5rpcbnwkqu6zmeeyrm4ub7a7q#z6MktGCcQSCGgUDNAn3WiiR5P8jcZT3hFc4jnYUxCAoGxmY4",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T10:23:00Z",
+              "proofValue": "z5m5JTfgrk8sGTEhU6wh8XjmUYkSRwp8Yq3jnwQV7oH6Ny7v4gARYmqZbaJNrror5DsE5z7vytiXJYS1etBJ8Rq2z"
             }
           ]
         }

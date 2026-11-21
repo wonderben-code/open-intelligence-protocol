@@ -76,23 +76,23 @@ export const Bundle: Type.TObject<{
     log: Type.TArray<Type.TUnsafe<IdentityEvent>>;
     location: Type.TOptional<Type.TUnsafe<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        homes?: string[];
         expires?: string;
         critical?: string[];
         resumeAfter?: string;
+        homes?: string[];
         participant?: string;
         feed?: {
             seq: number;
             head: string;
         };
         type: "Location";
+        author: string;
         created: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
         seq: number;
-        author: string;
-        status: "active" | "paused" | "migrating";
         ttl: number;
+        status: "active" | "paused" | "migrating";
         endpoints: {
             instance?: string;
             priority?: number;
@@ -104,10 +104,10 @@ export const Bundle: Type.TObject<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
         expires?: string;
         critical?: string[];
-        supersedes?: string;
         summary?: string;
         attestations?: string[];
         capabilities?: {
+            ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
             terms?: {
                 price?: {
                     amount: string;
@@ -118,16 +118,16 @@ export const Bundle: Type.TObject<{
                 conditions?: string[];
                 summary: string;
             };
-            subject?: string;
             tags?: string[];
             evidence?: {
                 ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-                digest?: string;
                 mediaType?: string;
+                digest?: string;
                 note?: string;
-                kind: string;
                 ref: string;
+                kind: string;
             }[];
+            subject?: string;
             inputs?: string[];
             outputs?: string[];
             attestations?: string[];
@@ -135,17 +135,18 @@ export const Bundle: Type.TObject<{
             id: string;
         }[];
         actsFor?: {
-            authority: string;
             mind: string;
+            authority: string;
         }[];
         interfaces?: Readonly<Record<string, string>>;
         languages?: string[];
+        supersedes?: string;
         type: "Participant";
+        author: string;
         created: string;
-        kind: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
-        author: string;
+        kind: string;
         name: string;
     }>>;
     firstSeen: Type.TOptional<Type.TUnsafe<Readonly<Record<string, string>>>>;
@@ -179,13 +180,14 @@ export const Capability: Type.TObject<{
     }>>;
     evidence: Type.TOptional<Type.TArray<Type.TUnsafe<{
         ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-        digest?: string;
         mediaType?: string;
+        digest?: string;
         note?: string;
-        kind: string;
         ref: string;
+        kind: string;
     }>>>;
     attestations: Type.TOptional<Type.TArray<Type.TString>>;
+    ext: Type.TOptional<Type.TUnsafe<Readonly<Record<string, Readonly<Record<string, unknown>>>>>>;
 }>;
 
 // @public (undocumented)
@@ -447,11 +449,11 @@ export const FeedPage: Type.TObject<{
         proofs?: string[];
         object: string;
         type: "Entry";
+        author: string;
         created: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
         seq: number;
-        author: string;
         objectType: string;
     }>>;
     next: Type.TOptional<Type.TUnsafe<number>>;
@@ -540,32 +542,26 @@ export const Forwarded: Type.TObject<{
         parentThread?: string;
         replyTo?: string;
         context?: {
-            summary?: unknown;
             refs?: string[];
+            summary?: unknown;
             assumptions?: unknown;
             language?: string;
             stateDoc?: unknown;
         };
         provenance?: {
-            onBehalfOf?: string;
             derivedFrom?: string[];
             generatedBy?: {
                 model?: unknown;
                 version?: unknown;
                 tool?: unknown;
             };
+            onBehalfOf?: string;
         };
         hints?: Readonly<Record<string, string[]>>;
-        nonce: string;
         type: "Packet";
         created: string;
         proof: Readonly<Record<string, unknown>>[];
         oip: "1";
-        purpose: {
-            goal?: string;
-            schema?: string;
-            verb: string;
-        };
         from: string;
         to: string[] | {
             brokers?: string[];
@@ -580,6 +576,12 @@ export const Forwarded: Type.TObject<{
             };
         } | {
             subject: string;
+        };
+        nonce: string;
+        purpose: {
+            goal?: string;
+            schema?: string;
+            verb: string;
         };
         content: Content;
     }>;
@@ -1034,13 +1036,14 @@ export const Participant: Type.TObject<{
         }>>;
         evidence: Type.TOptional<Type.TArray<Type.TUnsafe<{
             ext?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-            digest?: string;
             mediaType?: string;
+            digest?: string;
             note?: string;
-            kind: string;
             ref: string;
+            kind: string;
         }>>>;
         attestations: Type.TOptional<Type.TArray<Type.TString>>;
+        ext: Type.TOptional<Type.TUnsafe<Readonly<Record<string, Readonly<Record<string, unknown>>>>>>;
     }>>>;
     actsFor: Type.TOptional<Type.TArray<Type.TObject<{
         mind: Type.TUnsafe<string>;

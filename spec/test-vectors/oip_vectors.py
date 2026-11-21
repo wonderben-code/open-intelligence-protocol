@@ -1554,6 +1554,17 @@ def profile_ok(r: dict) -> bool:
     return _part_ok(rest) and all(_part_ok(c) for c in carried)
 
 
+
+def ext_ok(ext) -> bool:
+    """core 8.1: `ext` is an object whose member names are namespaces and
+    whose values are objects. The `ext` of a record, and of a capability
+    of a profile (Layer 1, 16.2)."""
+    return isinstance(ext, dict) and all(
+        isinstance(name, str) and isinstance(block, dict) and (
+            name in SHORT_NAMESPACES or name.startswith("oip.")
+            or fullmatch(NAMESPACE_RE, name))
+        for name, block in ext.items())
+
 def record_ok(r) -> bool:
     """Structural checks this generator relies on (not a full schema)."""
     try:
@@ -1569,12 +1580,7 @@ def record_ok(r) -> bool:
                 not 1 <= len(r["proof"]) <= MAX_PROOFS or
                 not all(isinstance(p, dict) for p in r["proof"])):
             return False                    # core 5.1
-        if "ext" in r and (
-                not isinstance(r["ext"], dict) or not all(
-                    isinstance(block, dict) and (
-                        name in SHORT_NAMESPACES or name.startswith("oip.")
-                        or fullmatch(NAMESPACE_RE, name))
-                    for name, block in r["ext"].items())):
+        if "ext" in r and not ext_ok(r["ext"]):
             return False                    # core 8.1
         critical = r.get("critical", [])
         if not isinstance(critical, list) or not all(
@@ -2537,9 +2543,11 @@ def network_ok(r) -> bool:
                 _is_int(r["ttl"], 60, 86400) and \
                 ("participant" not in r or _cid(r["participant"]))
         if t == "Participant":
-            ids = [c["id"] for c in r.get("capabilities", [])]
+            caps = r.get("capabilities", [])
+            ids = [c["id"] for c in caps]
             return _address(r["author"]) and isinstance(r["kind"], str) \
-                and len(set(ids)) == len(ids)
+                and len(set(ids)) == len(ids) and \
+                all("ext" not in c or ext_ok(c["ext"]) for c in caps)
         return True
     except (KeyError, TypeError, ValueError, AttributeError):
         return False
@@ -6170,6 +6178,37 @@ def build():
             "recent one that counts among those the feed publishes (Layer 1, "
             "16.4).", "participant", record=renamed, entries=[profile_entry])
 
+        # A capability with an extension block of its own (Layer 1, 16.2),
+        # as a gateway writes one for a tool of an MCP server (Layer 0, 2.1).
+        def tooled(namespace):
+            profile = signed(variant(
+                participant, created="2026-10-30T10:22:00Z",
+                capabilities=[*participant["capabilities"], {
+                    "id": "glossary_lookup",
+                    "summary": "Look a term up in the agent's glossary",
+                    "ext": {namespace: {"inputSchema": {
+                        "type": "object",
+                        "properties": {"term": {"type": "string",
+                                                "maxLength": 200}},
+                        "required": ["term"]}}}}]), t_op, agent_vm)
+            published = signed({"oip": OIP_VERSION, "type": "Entry",
+                                "author": lexis, "seq": 0,
+                                "created": "2026-10-30T10:23:00Z",
+                                "object": content_id(profile),
+                                "objectType": "Participant"}, t_op, agent_vm)
+            return profile, published
+        with_tool, with_tool_entry = tooled("oip.mcp")
+        net("valid", "profile-with-an-extension-of-a-capability",
+            "A capability carries `ext` as a record does (Layer 1, 16.2; "
+            "core 8.1). Layer 0, 2.1 puts the input schema of a tool there.",
+            "participant", record=with_tool, entries=[with_tool_entry])
+        no_space, no_space_entry = tooled("mcp")
+        net("negative", "profile-with-a-capability-extension-of-no-namespace",
+            "The member names of a capability's `ext` are namespaces (core "
+            "8.1), and `mcp` is none. The profile is not well formed, and is "
+            "nobody's current profile (Layer 1, 16.2).", "participant",
+            record=no_space, entries=[no_space_entry])
+
         by_name.update({case["name"]: case for case in neg})
         # The Mind Network: each negative with the one thing its reason names
         # put right.
@@ -6232,6 +6271,8 @@ def build():
                 entries=[profile_entry])
         control("profile-of-another-kind-of-mind", record=participant,
                 locations=[location])
+        control("profile-with-a-capability-extension-of-no-namespace",
+                record=with_tool, entries=[with_tool_entry])
 
     network_cases()
     return V

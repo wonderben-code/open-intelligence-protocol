@@ -14,6 +14,7 @@ import {
   ContentId,
   Count,
   Duration,
+  Ext,
   HttpsOrigin,
   JsonObject,
   MAX_SAFE_INTEGER,
@@ -375,6 +376,8 @@ export const Capability = Type.Object({
   terms: Type.Optional(OfferTerms),
   evidence: Type.Optional(Type.Array(Evidence)),
   attestations: Type.Optional(Strings),
+  // Blocks about this capability (core 8.1). A capability has no `critical`.
+  ext: Type.Optional(Ext),
 });
 export type Capability = Static<typeof Capability>;
 

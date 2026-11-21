@@ -12,7 +12,7 @@ An OEP proposes a change to the Open Intelligence Protocol: to a record format, 
 | [0003](oep-0003-delegation-and-mind-web-clarifications.md) | Delegation and Mind Web clarifications found while building the reference implementation | Layer 2 | Review |
 | [0004](oep-0004-mind-network-clarifications.md)            | Mind Network clarifications found while building the reference implementation            | Layer 1 | Review |
 | [0005](oep-0005-service-clarifications.md)                 | Service clarifications found while building the reference servers                        | Layer 1 | Review |
-| [0006](oep-0006-bridge-clarifications.md)                  | Bridge clarifications found while building the MCP server and the A2A bridge             | Layer 0 | Review |
+| [0006](oep-0006-bridge-clarifications.md)                  | Bridge clarifications found while building the MCP server and the gateways               | Layer 0 | Review |
 
 ## Do you need an OEP?
 

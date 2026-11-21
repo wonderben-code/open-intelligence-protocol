@@ -433,7 +433,7 @@ Hosts MAY serve A2A Agent Cards (Layer 0, Section 3.2) and domain aliases at `/.
 | `supersedes` | no | `record-ref` of the previous profile |
 | `ext`, `critical`, `proof` | | The proof is by the author's own authority, as for a location record (Section 15.1) |
 
-16.2. A **capability** object: `id` (REQUIRED, at most 128 characters, unique within the profile), `summary` (REQUIRED), `tags` (array of at most 64 strings, each `<namespace>:<value>`), `subject` (OPTIONAL, matching `^[a-z0-9_-]+(\.[a-z0-9_-]+)*$`), `inputs` and `outputs` (media types), `terms` (as in a Layer 2 Offer, Layer 2 Section 4.2), `evidence` (Layer 2 evidence items, Layer 2 Section 9) and `attestations`.
+16.2. A **capability** object: `id` (REQUIRED, at most 128 characters, unique within the profile), `summary` (REQUIRED), `tags` (array of at most 64 strings, each `<namespace>:<value>`), `subject` (OPTIONAL, matching `^[a-z0-9_-]+(\.[a-z0-9_-]+)*$`), `inputs` and `outputs` (media types), `terms` (as in a Layer 2 Offer, Layer 2 Section 4.2), `evidence` (Layer 2 evidence items, Layer 2 Section 9), `attestations`, and `ext`: extension blocks about this capability, as core, Section 8.1 defines them for a record. A capability has no `critical`: a reader ignores a block of a capability that it does not understand.
 
 16.3. Tag namespaces include `oasf` (the OASF skills and domains taxonomy), `domain`, `lang` (BCP 47) and `schema` (schema.org types). Others are allowed.
 

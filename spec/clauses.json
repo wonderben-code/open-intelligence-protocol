@@ -560,11 +560,12 @@
       "summary": "MCP servers as participants. A gateway bridging an MCP server: - maps each tool returned by `to…",
       "level": "MUST",
       "keywords": {
-        "MAY": 1,
+        "MAY": 2,
         "SHOULD": 1,
-        "MUST NOT": 1
+        "MUST NOT": 1,
+        "MUST": 1
       },
-      "digest": "afe5832b7aca630600e5e09e37ecf0352c08495aca6970750f684c0a64948723"
+      "digest": "18245f1b48898eaadda26083aea46851cffbc0e494ded1715da01d007ba634d1"
     },
     {
       "id": "L0 2.2",
@@ -1572,7 +1573,7 @@
         "REQUIRED": 2,
         "OPTIONAL": 1
       },
-      "digest": "f3d214d642713e1d665b948e10d69f98f9ea44c13978cee9574becb2db821217"
+      "digest": "75abb9eb369895d14b540b2bea52af0cb5563427614430a6f8f6a844cb232eda"
     },
     {
       "id": "L1 16.3",

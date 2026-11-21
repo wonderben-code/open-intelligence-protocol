@@ -491,6 +491,7 @@ export class Relay {
             ref: formatRecordRef(kept.from, kept.id),
             digest: digestOf(body),
             mediaType: "application/json",
+            note: "The digest is of the body returned for the request that `ref` names.",
           },
         ],
       })) as unknown as JsonObject;

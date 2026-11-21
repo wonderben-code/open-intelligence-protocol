@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 
 import { MAX_LISTED, MAX_PAGES, pinned } from "../src/connect.ts";
 import { connector, endpointOf, NONE, Refused, type Target } from "../src/index.ts";
-import { factory, TOOLS } from "./fixture/server.ts";
+import { asked, factory, TOOLS } from "./fixture/server.ts";
 
 const URL_OF = "https://tools.example/mcp";
 const HTTP: Target = { kind: "http", url: URL_OF };
@@ -135,7 +135,7 @@ describe("a connection to a server over HTTP", () => {
     const server = await connector({ version: "1.2.3", fetch })(HTTP, NONE);
     try {
       const listed = (await server.tools()) as { name: string; inputSchema: unknown }[];
-      expect(listed.map(({ name }) => name)).toStrictEqual(["echo", "environment", "boom"]);
+      expect(listed.map(({ name }) => name)).toStrictEqual(["echo", "environment", "boom", "ask"]);
       expect(listed).toHaveLength(TOOLS);
       expect(listed[0]?.inputSchema).toMatchObject({
         type: "object",
@@ -308,6 +308,28 @@ function paged(page: (cursor: string | undefined) => { tools: unknown[]; nextCur
 }
 
 const tool = (name: string): unknown => ({ name, inputSchema: { type: "object" } });
+
+describe("a tool that asks for input", () => {
+  it(`${clause("L0 2.1")} is not answered: the gateway is a client that is nobody, the call ends, and the tool is not called again`, async () => {
+    const { fetch } = served();
+    const server = await connector({ version: "1.2.3", fetch })(HTTP, NONE);
+    const before = asked.times;
+    try {
+      // The gateway declares no person to ask and no model to lend, so the server itself ends
+      // the call where the tool asks for either.
+      const ended = await server.call("ask", {}).then(
+        () => "a result",
+        (error: unknown) => error,
+      );
+      expect(ended).toBeInstanceOf(Refused);
+      expect((ended as Error).message).toContain("Cannot request input");
+    } finally {
+      await server.close();
+    }
+    // One call of the tool, and no round after it in which the library answered for anybody.
+    expect(asked.times).toBe(before + 1);
+  });
+});
 
 describe("what a server wants in its query", () => {
   it(`${clause("L0 2.1")} goes with each request, from the credentials, and is no part of how the mind names the server`, async () => {

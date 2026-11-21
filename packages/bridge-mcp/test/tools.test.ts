@@ -191,6 +191,12 @@ describe("the tools of an MCP server, as capabilities", () => {
     );
     expect(some.withoutSchema).toBeGreaterThan(0);
     expect(some.withoutSchema).toBeLessThan(MAX_CAPABILITIES);
+    // No more went than had to: with one more schema, the profile would have no room.
+    const first = some.capabilities.findIndex(({ ext }) => ext === undefined);
+    const restored = some.capabilities.map((capability, at) =>
+      at === first ? { ...capability, ext: some.capabilities[0]?.ext } : capability,
+    );
+    expect(sizeOf(restored)).toBeGreaterThan(MAX_CAPABILITIES_BYTES);
 
     // Names and summaries of characters that take four bytes each: cut, the summaries are
     // still more than a profile has room for, and the last tools are left out, each said to be.
@@ -210,6 +216,11 @@ describe("the tools of an MCP server, as capabilities", () => {
     expect(most.capabilities[0]?.id.startsWith("000")).toBe(true);
     expect(most.left[0]?.name?.startsWith("255")).toBe(true);
     expect(most.withoutSchema).toBe(most.capabilities.length);
+    // No more were left out than had to be: one more would not fit.
+    const one = most.capabilities[0];
+    expect(sizeOf([...most.capabilities, one])).toBeGreaterThan(MAX_CAPABILITIES_BYTES);
+    // A list with nothing in it has room.
+    expect(capabilitiesOf([])).toStrictEqual({ capabilities: [], withoutSchema: 0, left: [] });
   });
 
   it("leave out a schema that JSON cannot say, and carry what a record holds as the parser read it", () => {

@@ -99,6 +99,10 @@ const HELP = [
   "The gateway's mind is made first, with `oip init`, and has a home. Its keys, and those",
   "of the minds it makes, are opened by OIP_PASSPHRASE, or by the machine's keychain.",
   "",
+  "One `serve` at a time runs from a gateway's directory. The gateway, and the minds it",
+  "makes, reach agents and requesters at public addresses alone. OIP_BRIDGE_FETCH_ALLOW",
+  "names further ranges for a test network of the operator's own, as 10.0.0.0/8,fd00::/8.",
+  "",
 ].join("\n");
 
 const DEFAULT_PORT = 8780;

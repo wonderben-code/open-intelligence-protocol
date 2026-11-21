@@ -923,6 +923,7 @@ describe("a Commitment the bridged mind entered into", () => {
           // The digest of the body that was returned: the requester holds what it is of.
           digest: sha256Digest(canonicalBytes(body)),
           mediaType: "application/json",
+          note: "The digest is of the body returned for the request that `ref` names.",
         },
       ],
     });

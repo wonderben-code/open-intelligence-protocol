@@ -137,24 +137,34 @@ export function capabilitiesOf(listed: readonly unknown[]): Mapped {
       ...(ext === undefined ? {} : { ext }),
     });
   }
-  // The whole of it is measured as it will be signed. Where a profile has no room for it, the
-  // schemas go first, from the last tool backwards, then the summaries are cut, and then tools
-  // are left out from the end, each said to be.
-  const over = (): boolean => canonicalBytes(capabilities).length > MAX_CAPABILITIES_BYTES;
+  // The whole of it is measured as it will be signed: the canonical form of a list is its
+  // members' canonical forms with a comma between each two, in brackets (core, Section 2). Each
+  // capability is measured once, and again only where it changes. Where a profile has no room
+  // for all of it, the schemas go first, from the last tool backwards, then the summaries are
+  // cut, and then tools are left out from the end, each said to be.
+  const sizes = capabilities.map((capability) => canonicalBytes(capability).length);
+  const over = (): boolean =>
+    sizes.reduce((sum, size) => sum + size, 0) + Math.max(0, sizes.length - 1) + 2 >
+    MAX_CAPABILITIES_BYTES;
+  const put = (place: number, capability: ToolCapability): void => {
+    capabilities[place] = capability;
+    sizes[place] = canonicalBytes(capability).length;
+  };
   for (let last = capabilities.length - 1; last >= 0 && over(); last -= 1) {
     const capability = capabilities[last];
     if (capability?.ext === undefined) continue;
     const { ext: _, ...bare } = capability;
-    capabilities[last] = bare;
+    put(last, bare);
     withoutSchema += 1;
   }
   if (over()) {
     for (const [place, capability] of capabilities.entries()) {
-      capabilities[place] = { ...capability, summary: textOf(capability.summary, SHORT_SUMMARY) };
+      put(place, { ...capability, summary: textOf(capability.summary, SHORT_SUMMARY) });
     }
   }
   while (over()) {
     const dropped = capabilities.pop();
+    sizes.pop();
     if (dropped === undefined) break;
     // It was counted among those without a schema: every schema went before any tool did.
     if (dropped.ext === undefined) withoutSchema -= 1;

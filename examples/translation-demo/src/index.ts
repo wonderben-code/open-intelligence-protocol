@@ -8,5 +8,6 @@
  * @packageDocumentation
  */
 
+export { castOf, linesOf, svgOf } from "./recording.ts";
 export { type Player, Stage } from "./stage.ts";
 export { NotSo, tell, teller, type Told } from "./story.ts";

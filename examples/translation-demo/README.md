@@ -100,6 +100,15 @@ No platform holds this record. The parties do, and anyone can check it.
 27 things were verified in this telling.
 ```
 
+## A recording
+
+One telling is kept in [`recording/`](recording/), for a page to show:
+
+- [`translation-demo.cast`](recording/translation-demo.cast), a terminal session in the asciicast format, which a player replays;
+- [`translation-demo.svg`](recording/translation-demo.svg), a picture that draws itself line by line, with no script. A reader who has asked for less motion sees the whole telling at once.
+
+`pnpm demo:record` tells the scenario again and writes both. A test holds them to the telling above.
+
 ## What happens, and where the specification says so
 
 | Step | What the minds do                                                                                      | Specification                             |

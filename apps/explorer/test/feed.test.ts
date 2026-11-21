@@ -8,6 +8,7 @@
  */
 
 import { Reader, systemClock } from "@oip/client";
+import { checkpointRoot } from "@oip/net";
 import { clause } from "@oip/testkit";
 import { Stage, tell, type Told } from "@oip/translation-demo";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -68,6 +69,25 @@ describe("a feed, as a page shows it", () => {
     expect(again.entries.map(({ status }) => status)).toStrictEqual(["fulfilled"]);
   });
 
+  it(`${clause("L1 10.5")} says what a checkpoint over the feed must say: its size, its last entry, and the Merkle root of them all`, async () => {
+    const lookup = stage.stranger();
+    const view = await readFeed(
+      lookup,
+      new Reader({ lookup, clock: systemClock }),
+      told.cast["amina"] ?? "",
+    );
+    const ids = view.entries.map(({ id }) => id);
+    expect(view.covering).toStrictEqual({
+      size: 3,
+      head: ids[2],
+      root: checkpointRoot(ids),
+    });
+    expect(view.covering?.root).toMatch(/^bciq[a-z2-7]{52}$/u);
+    // The root is of these entries in this order, and of no others.
+    expect(view.covering?.root).not.toBe(checkpointRoot([...ids].reverse()));
+    expect(view.covering?.root).not.toBe(checkpointRoot(ids.slice(0, 2)));
+  });
+
   it("has nothing for a mind that published nothing", async () => {
     const lookup = stage.stranger();
     const view = await readFeed(
@@ -76,6 +96,8 @@ describe("a feed, as a page shows it", () => {
       told.cast["lexis-ltd"] ?? "",
     );
     expect(view.entries).toStrictEqual([]);
+    // A checkpoint covers at least one entry: there is none over nothing.
+    expect(view.covering).toBeUndefined();
   });
 });
 

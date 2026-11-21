@@ -201,6 +201,10 @@ describe.skipIf(CHROMIUM === undefined)("the Explorer in a browser", () => {
     const entries = await page.locator("ol.entries > li > h3").allTextContents();
     expect(entries).toStrictEqual(["0. Intent satisfied", "1. Commitment fulfilled", "2. Receipt"]);
     expect(await page.textContent("ol.entries")).toContain(told.commitment);
+    // And what a checkpoint over the feed must say, worked out here.
+    const feed = (await page.textContent("section[aria-labelledby=feed-title]")) ?? "";
+    expect(feed).toContain("What a checkpoint over this feed says");
+    expect(feed).toMatch(/Merkle rootbciq[a-z2-7]{52}/u);
     // The homes were asked now, and not before.
     expect(asked).toContain(LOCAL.host);
     // A picture of the page as it stands, where one is asked for: `OIP_EXPLORER_SHOT=<file>`.

@@ -89,6 +89,24 @@ function Entries({ view }: { view: FeedView }): React.JSX.Element {
           ` ${String(view.equivocation)} more stand at a place the feed had filled already.`}
       </p>
       <Why reason={WHY.feed} about="the feed" />
+      {view.covering !== undefined && (
+        <>
+          <h3>What a checkpoint over this feed says</h3>
+          <dl>
+            <dt>Entries covered</dt>
+            <dd>{String(view.covering.size)}</dd>
+            <dt>The last of them</dt>
+            <dd>
+              <code>{view.covering.head}</code>
+            </dd>
+            <dt>Merkle root</dt>
+            <dd>
+              <code>{view.covering.root}</code>
+            </dd>
+          </dl>
+          <Why reason={WHY.checkpoint} about="the checkpoint" />
+        </>
+      )}
       <ol className="entries">
         {view.entries.map((entry) => {
           const reason = statusReason(entry.objectType);

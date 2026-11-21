@@ -11,6 +11,7 @@
  */
 
 import type { Lookup, Reader } from "@oip/client";
+import { checkpointRoot } from "@oip/net";
 
 /** One entry of a feed, with the record it lists if the home served it. */
 export interface EntryView {
@@ -36,6 +37,13 @@ export interface EntryView {
 export interface FeedView {
   readonly author: string;
   readonly entries: readonly EntryView[];
+  /**
+   * What a checkpoint over the feed as it was read must say (Layer 1, 10.5):
+   * how many entries it covers, the last of them, and the Merkle root of
+   * them all. A checkpoint the mind signed and published or anchored
+   * elsewhere can be held against it. None for a feed with no entry.
+   */
+  readonly covering?: { readonly size: number; readonly head: string; readonly root: string };
   /** How many entries were found at a place the feed already had another (Layer 1, 10.3). */
   readonly equivocation: number;
   /** How many of the entries served did not verify. */
@@ -89,9 +97,14 @@ export async function readFeed(lookup: Lookup, reader: Reader, mind: string): Pr
     }
     entries.push({ ...one, ...(status === undefined ? {} : { status }) });
   }
+  const root = checkpointRoot(feed.entries.map(({ id }) => id));
+  const head = feed.entries.at(-1)?.id;
   return {
     author: feed.author,
     entries,
+    ...(root === undefined || head === undefined
+      ? {}
+      : { covering: { size: feed.entries.length, head, root } }),
     equivocation: feed.equivocation.length,
     refused: feed.refused.length,
     sources: sources.map(({ home, failure }) => ({

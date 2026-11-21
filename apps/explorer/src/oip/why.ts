@@ -133,6 +133,11 @@ export const WHY = {
     "L1 10.3",
     "L1 13.1",
   ),
+  checkpoint: reason(
+    "A checkpoint is the mind's signed word on its feed up to an entry: how many entries, the last of them, and the Merkle root of them all. This browser worked the root out from the entries it verified. A checkpoint the mind published or anchored elsewhere says the same of this feed, or the mind has shown two feeds.",
+    "L1 10.5",
+    "L1 10.6",
+  ),
   record: reason(
     "Each record was fetched by its content ID and hashed here: it is the record its entry names, with its proofs verified.",
     "core 3.1",

@@ -2,11 +2,11 @@
 
 This file is the live status of the Open Intelligence Protocol project, so that any session can resume exactly where the last one stopped.
 
-**Last updated:** 20 November 2026 (UTC)
+**Last updated:** 21 November 2026 (UTC)
 
-## Where the build stands on this branch (20 November)
+## Where the build stands on this branch (21 November)
 
-This branch is `m8-mcp-server`. It is stacked on `m7-cli`, `m6-client`, `m5-servers`, `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
+This branch is `m9-bridge`. It is stacked on `m8-mcp-server`, `m7-cli`, `m6-client`, `m5-servers`, `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
 
 | Milestone | Branch | Built | `pnpm run ci` | Still owed before its pull request |
 |---|---|---|---|---|
@@ -16,7 +16,8 @@ This branch is `m8-mcp-server`. It is stacked on `m7-cli`, `m6-client`, `m5-serv
 | M5. Servers | `m5-servers`, pushed | Yes, see below | Green | Reviews, the mutation score, the review record |
 | M6. Client and keystore | `m6-client` | Yes, see below | Green | Reviews, the mutation score, the review record |
 | M7. The `oip` command | `m7-cli`, pushed | Yes, see below | Green | Reviews, the mutation score, the review record |
-| M8. The MCP server | `m8-mcp-server` | Yes, see below | To run | Reviews, the mutation score, the review record. A look at it in Claude Desktop needs Eks |
+| M8. The MCP server | `m8-mcp-server`, pushed | Yes, see below | Green | Reviews, the mutation score, the review record. A look at it in Claude Desktop needs Eks |
+| M9. The A2A bridge | `m9-bridge` | The A2A gateway and the DID resolver, see below. A gateway for MCP servers is being built | To run | The A2A TCK and the two new images, which run on GitHub and not here. Reviews, the mutation score, the review record |
 
 Reviews are made by fresh agents, which were not to be had between 19 and 21 November (a usage limit). The build went on with what does not need them.
 
@@ -54,6 +55,31 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
 - **It runs in a browser too** ([ADR-0022](docs/adr/0022-the-client-in-a-browser.md)): a page of Chromium runs the README's examples against the same services, with its keys sealed in IndexedDB, and the test checks that each service would have let a browser make every request the page made (`packages/client/test/browser.real.test.ts`, the `browser` job of CI).
 
 **Everything on M6's build list is built**, and every public method of `Mind` and of `Lookup` is called in a runnable example the README shows, which a test holds. The API report was read through and is frozen for 0.x: the reading found that closing a mind left its sockets open, which it no longer does. What remains before the milestone closes: the independent reviews and the mutation run.
+
+**What M9 has so far:**
+
+- **`@oip/bridge-a2a`**, the program `oip-bridge-a2a` ([README](packages/bridge-a2a/README.md), [ADR-0029](docs/adr/0029-the-a2a-gateway.md), [threat model](docs/threat-models/bridge-a2a.md)): a gateway between the network and A2A 1.0, in both directions.
+  - **An A2A agent becomes a mind.** `bridge` reads the agent's card as a stranger's data, verifies its signatures, and makes a bridged mind that the gateway attests in its own feed (Layer 0, 1.2, 3.1). `serve` relays: a packet with verb `request` is a message to the agent, and a task that ends is a Receipt by the bridged mind that says what the gateway observed (1.4), with the artifacts as evidence.
+  - **A mind becomes an A2A agent.** A mind that lists the card in its profile is served an Agent Card and the JSON-RPC binding of A2A (3.2). An A2A client sends messages and follows tasks, and the mind answers with packets. The gateway keeps the tasks.
+  - **The OIP extension for A2A** (3.3), both ways: an agent that declares it is sent the whole signed packet, and a client that sends one has it verified under Layer 1, 12.4 and brought to the mind as it is.
+- **Assurance levels** (1.3) in `@oip/web`, with vectors and a differential campaign: `Lookup.assurance` says `native`, `bridged` or `claimed`, and a mind that only says it is bridged is `claimed`.
+- **`@oip/did-resolver`**, the program `oip-did-resolver` ([README](packages/did-resolver/README.md), [ADR-0030](docs/adr/0030-the-did-resolver-drivers.md), [threat model](docs/threat-models/did-resolver.md)): `did:oip` for the DIF `did-resolver` library, with no dependency on it, and the HTTP interface of a driver for the DIF Universal Resolver. Its tests run the driver through the DIF library itself.
+- **What the gateway puts on the wire is held against the A2A project's own JSON Schema** in the tests: every result of every method, and every card. The schema is kept beside the tests, unchanged.
+- **The A2A TCK has a job in CI** (`pnpm a2a:tck`): a real resolver, host and indexer on the runner, a gateway, and an ordinary OIP mind that plays the TCK's scenarios by answering packets. The TCK is cloned at a pinned commit, and `uv` is pinned by hash.
+- **Container images** for the DID resolver and the gateway, built and started by the `containers` job.
+
+**What M9 found:**
+
+- **A profile that carried the gateway's entry in place of its reference was taken as attested by one implementation and not by the other.** The differential tests found it. Layer 0, 1.3 now says that the profile names the entry by its reference, and that a `Genesis` that names a gateway is a declaration ([OEP-0006](oeps/oep-0006-bridge-clarifications.md), items 2 and 3).
+- **A record asked for again after a failed call was listed twice on a feed.** `publishRecord` now returns the entry that waited. A gateway that signs a Receipt and is stopped before the feed took it relies on that to publish the Receipt once.
+- **An agent could put words into the gateway's mouth.** A task's name and an agent's answer are text the agent chooses, and both go into a Receipt's statement. They are quoted as strings of JSON, which no text can end early.
+- **A reply could go on with someone else's task.** A question an agent puts to a requester is a packet, and any mind that learned its ID could answer it. Only the mind a task is for goes on with it.
+- **A pass of the relay that stopped could ask an agent twice, or sign two Receipts.** A packet is now written down before anything is done with it and is not sent again once the agent has answered, and a Receipt is written down as soon as it is signed.
+- **A packet has no place for bytes.** Layer 1, 12.2 gives content a body of JSON or a reference with a digest. A file an A2A agent returns inline is attested by its digest in the Receipt and left out of the packet, and the requester is told. A convention for bytes is a matter for an OEP.
+- **`ListTasks` assumes a caller the server knows.** The gateway knows none. It shows a client the tasks of a context the client names, and nothing else.
+- **A proof is first seen before its signer's log is asked for.** The first version of the packet check resolved the sender and then judged the packet, and every packet failed: the log has to stand no earlier than the first sight (core 9.4). The client does it in that order, and the gateway now does too.
+
+**For Eks, from M9:** (1) The A2A TCK and the two new container images cannot be run in the place this is built: the TCK is another project's code, and there is no Docker. Both run on GitHub once this branch is pushed. `pnpm a2a:tck` runs the TCK on your machine, if you want to see it (it needs `uv`). (2) Submitting the DID resolver to the DIF Universal Resolver, and `did:oip` to the W3C DID Extensions registry, are gate G6. The image and its settings are ready. (3) [OEP-0006](oeps/oep-0006-bridge-clarifications.md) has three items now, and waits for your word as the other OEPs do.
 
 **What M8 has:**
 

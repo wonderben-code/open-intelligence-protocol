@@ -293,13 +293,13 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L2 5.4 | SHOULD | M3 | 2 | tested | Parties bound through a delegate. A party whose proof on a Commitment counts only through a del… |
 | L2 6.1 | MUST | M3 | 11 | tested | `Receipt`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `about` \| yes \| `record-ref` of the re… |
 | L2 6.2 | MUST | M3 | 16 | tested | `Collective` (a charter): \| Member \| Required \| Value \| \|---\|---\|---\| \| `author` \| yes \| The co… |
-| L2 7.1 | SHOULD | M3 | 27 | tested | A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an… |
+| L2 7.1 | SHOULD | M3 | 28 | tested | A record `r` counts for mind `P` (is signed by `P`) at the earliest evaluation time at which an… |
 | L2 7.2 |  | M3 | 1 | tested | Delegable types are `Intent`, `Offer`, `Commitment` and `Receipt`. Every other signed record (i… |
 | L2 7.3 |  | M3 | 5 | tested | A Commitment is accepted when it counts for its `author`, its author is a party or signs for on… |
 | L2 8 | MUST | M3 | 10 | tested | Status is computed from the records known to the verifier and the time of computation, and so c… |
 | L2 8.1 |  | M3 | 14 | tested | Intent. `withdrawn` or `satisfied` if a valid superseding Intent by the same author has that `s… |
 | L2 8.2 |  | M3 | 8 | tested | Offer. `withdrawn` if a valid superseding Offer by the same author has that status; otherwise `… |
-| L2 8.3 | SHOULD | M3 | 27 | tested | Commitment. Let `R` be the set of Receipts about the Commitment whose `author` is a party and t… |
+| L2 8.3 | SHOULD | M3 | 28 | tested | Commitment. Let `R` be the set of Receipts about the Commitment whose `author` is a party and t… |
 | L2 8.4 |  | M3 | 2 | tested | Collective charter. `dissolved` if the collective's identity log is retired; otherwise `active`. |
 | L2 9 | MUST | M3 | 8 | tested | An evidence item is an object: \| Member \| Required \| Value \| \|---\|---\|---\| \| `kind` \| yes \| `oi… |
 | L2 10.1 | MAY |  | 0 | informative | Records MAY be published in feeds (Layer 1, Section 10), exchanged privately in packets, or bot… |

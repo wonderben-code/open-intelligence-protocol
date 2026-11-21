@@ -6,7 +6,7 @@ This file is the live status of the Open Intelligence Protocol project, so that 
 
 ## Where the build stands on this branch (21 November)
 
-This branch is `m9-bridge`. It is stacked on `m8-mcp-server`, `m7-cli`, `m6-client`, `m5-servers`, `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
+This branch is `m10-demo`. It is stacked on `m9-bridge`, `m8-mcp-server`, `m7-cli`, `m6-client`, `m5-servers`, `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
 
 | Milestone | Branch | Built | `pnpm run ci` | Still owed before its pull request |
 |---|---|---|---|---|
@@ -18,6 +18,7 @@ This branch is `m9-bridge`. It is stacked on `m8-mcp-server`, `m7-cli`, `m6-clie
 | M7. The `oip` command | `m7-cli`, pushed | Yes, see below | Green | Reviews, the mutation score, the review record |
 | M8. The MCP server | `m8-mcp-server`, pushed | Yes, see below | Green | Reviews, the mutation score, the review record. A look at it in Claude Desktop needs Eks |
 | M9. The A2A bridge | `m9-bridge` | The A2A gateway, the gateway for MCP servers and the DID resolver, see below | To run | The A2A TCK and the two new images, which run on GitHub and not here. Reviews, the mutation score, the review record |
+| M10. The demo network | `m10-demo` | The demo, its recording and its option to play on a running network, see below | To run | The review, the review record. Nothing for the mutation score: the demo is an example, and has no package of the stack |
 
 Reviews are made by fresh agents, which were not to be had between 19 and 21 November (a usage limit). The build went on with what does not need them.
 
@@ -55,6 +56,17 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
 - **It runs in a browser too** ([ADR-0022](docs/adr/0022-the-client-in-a-browser.md)): a page of Chromium runs the README's examples against the same services, with its keys sealed in IndexedDB, and the test checks that each service would have let a browser make every request the page made (`packages/client/test/browser.real.test.ts`, the `browser` job of CI).
 
 **Everything on M6's build list is built**, and every public method of `Mind` and of `Lookup` is called in a runnable example the README shows, which a test holds. The API report was read through and is frozen for 0.x: the reading found that closing a mind left its sockets open, which it no longer does. What remains before the milestone closes: the independent reviews and the mutation run.
+
+**What M10 has:**
+
+- **`examples/translation-demo`**, run with `pnpm demo` ([README](examples/translation-demo/README.md)): the scenario of the technical paper, Section 3.4, played by real minds on a resolver, a host and an indexer on this machine, and told as it happens. The nine steps of the paper, and three more with the rest of the cast: the limits of the firm's delegation, Amina's assistant sending for her, and a collective of three that any two speak for. Every line that begins with "verified" was checked before it was said: 27 of them. It takes a few seconds from a clean checkout.
+- **It plays on a network that runs already**, with `pnpm demo --network <directory>`: the one `oip demo` runs. What the minds published stays there. That is the network the Explorer of M11 is to browse.
+- **A recording** of one telling, in `examples/translation-demo/recording/`: a terminal session in the asciicast format, and a picture that draws itself line by line with no script. `pnpm demo:record` makes both again.
+- **`docker compose up`** was there since M5: [`compose.yaml`](compose.yaml) starts the resolver, the host and the indexer.
+
+**What M10 found:**
+
+- **A record read from a feed, signed by an agent for its firm, bound nobody.** The demo's last step has a mind that took no part read the feeds and work out that the firm is bound. It could not: `Lookup.record` noted when it first saw the record's proofs, and not the delegation they carry, which then looked signed after the proof that used it. It is the fault the gateway for MCP servers found in the packets, in the other way a record reaches a client. Both were invisible to tests on a clock that stands still. The fix is on `m9-bridge`, with a test on a clock that moves.
 
 **What M9 has so far:**
 

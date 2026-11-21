@@ -5,5 +5,5 @@
     "types": ["node"],
     "lib": ["ES2024"]
   },
-  "include": ["src", "test", "tck", "bench", "examples", "vitest.config.ts"]
+  "include": ["src", "test", "bench", "examples", "vitest.config.ts"]
 }

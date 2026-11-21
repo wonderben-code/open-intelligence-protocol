@@ -5,7 +5,7 @@
  * A mind served as an A2A agent, under the A2A TCK (BUILD.md, M9).
  *
  * The TCK is the A2A project's own test of an agent from outside. This
- * starts the system of `packages/bridge-a2a/tck/sut.ts` (a network on this
+ * starts the system of `packages/bridge-a2a/test/tck/sut.ts` (a network on this
  * machine, a gateway, and an OIP mind the gateway serves as an A2A agent),
  * and runs the TCK against the mind's A2A interface, over the JSON-RPC
  * binding, which is the one the gateway speaks.
@@ -33,7 +33,7 @@ import { repoRoot } from "./lib/spec.ts";
 /** The TCK that is run: its tests and its scenarios are those of this commit. */
 const TCK = "https://github.com/a2aproject/a2a-tck";
 const COMMIT = "5e6f37c2d38eb3d7684686243c34d365c83df49b";
-const SUT = join(repoRoot, "packages", "bridge-a2a", "tck", "sut.ts");
+const SUT = join(repoRoot, "packages", "bridge-a2a", "test", "tck", "sut.ts");
 /** How long the system has to say where it is, in milliseconds. */
 const START_MS = 60_000;
 

@@ -99,7 +99,8 @@ describe("a gateway bridging an A2A agent", () => {
           tags: ["a2a:translation", "a2a:legal"],
         },
       ],
-      interfaces: { a2a: `${LEXIS}/a2a/v1` },
+      // What a profile lists for A2A is the card: the one whose digest it records.
+      interfaces: { a2a: `${LEXIS}/.well-known/agent-card.json` },
       ext: {
         "oip.bridge": { ...block, attestation: bridged.attestation },
         // The digest of the exact bytes the agent's origin served.
@@ -107,6 +108,26 @@ describe("a gateway bridging an A2A agent", () => {
       },
     });
     expect(resolved.location?.record.status).toBe("active");
+  });
+
+  it(`${clause("L0 1.1")} is a mind of the network with keys of its own, and signs what it attests with one of them`, async () => {
+    const reader = place.reader();
+    const own = await reader.resolve(gatewayAddress);
+    // A key-controlled mind: its log is extended by keys, and not by members.
+    expect(own.state.controller.kind).toBe("key");
+    const bridged = gateway().bridged(LEXIS);
+    const { feed } = await reader.feed(gatewayAddress);
+    const attested = feed.entries.find(
+      ({ id }) => `${gatewayAddress}/${id}` === bridged?.attestation,
+    );
+    expect(attested?.entry).toMatchObject({ author: gatewayAddress, objectType: "Genesis" });
+    // The entry is signed by an operational key of the gateway's own log.
+    const [proof] = (attested?.entry.proof ?? []) as { verificationMethod: string }[];
+    const method = proof?.verificationMethod ?? "";
+    expect(method.startsWith(`${gatewayAddress}?versionId=`)).toBe(true);
+    expect(own.state.keys).toContain(method.split("#")[1]);
+    // And the mind it made is none it controls by membership: the gateway holds that mind's keys.
+    expect((await reader.resolve(bridged?.mind ?? "")).state.controller.kind).toBe("key");
   });
 
   it(`${clause("L0 1.3")} is found \`bridged\` by a client that asks: the gateway's feed attests the mind`, async () => {

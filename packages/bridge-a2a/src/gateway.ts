@@ -269,7 +269,8 @@ export class Gateway {
             name: cut(card.name, MAX_NAME),
             summary: cut(card.description, MAX_SUMMARY),
             ...(capabilities.length === 0 ? {} : { capabilities }),
-            interfaces: { a2a: spoken.url },
+            // Layer 0, 3.2: what a profile lists for A2A is the URL of a card.
+            interfaces: { a2a: origin + CARD_PATH },
             ext: {
               "oip.bridge": { ...block, attestation },
               "oip.a2a": { cardDigest: digest },

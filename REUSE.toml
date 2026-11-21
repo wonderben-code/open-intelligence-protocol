@@ -76,3 +76,11 @@ path = ["pnpm-lock.yaml", "papers/build/package-lock.json", "timestamps/**"]
 precedence = "closest"
 SPDX-FileCopyrightText = "NONE"
 SPDX-License-Identifier = "CC0-1.0"
+
+# The A2A project's JSON Schema, which the tests of the A2A gateway validate
+# against. It is the A2A project's file, unchanged: see the README beside it.
+[[annotations]]
+path = "packages/bridge-a2a/test/a2a/a2a.schema.json"
+precedence = "override"
+SPDX-FileCopyrightText = "The A2A project authors (https://github.com/a2aproject/A2A)"
+SPDX-License-Identifier = "Apache-2.0"

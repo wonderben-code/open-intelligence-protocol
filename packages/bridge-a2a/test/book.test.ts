@@ -161,6 +161,20 @@ describe("a listing of a mind's tasks", () => {
   });
 });
 
+describe("the packets a gateway brought for others", () => {
+  it("are remembered until nobody can accept them any more, so that none is brought twice", () => {
+    expect(book.wasPassed("bciqpacket-1")).toBe(false);
+    book.pass("bciqpacket-1", at(100));
+    book.pass("bciqpacket-2", at(300));
+    expect(book.wasPassed("bciqpacket-1")).toBe(true);
+    expect(new Book(root).wasPassed("bciqpacket-2")).toBe(true);
+    // At a time between the two, the first is forgotten.
+    book.sweep((seconds) => at(200 - seconds));
+    expect(book.wasPassed("bciqpacket-1")).toBe(false);
+    expect(book.wasPassed("bciqpacket-2")).toBe(true);
+  });
+});
+
 describe("what a gateway keeps no longer", () => {
   it("is a task that ended thirty days ago, and one a day old that no client was told of, with their packets", () => {
     const now = 100 * 86_400;

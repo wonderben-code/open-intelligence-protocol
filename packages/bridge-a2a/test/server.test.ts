@@ -10,11 +10,14 @@
 import { carried, type Message, type Received, systemClock } from "@oip/client";
 import { contentId, type JsonObject } from "@oip/core";
 import { judgeRecord } from "@oip/identity";
-import type { Opened } from "@oip/local";
+import { type Opened, openMind } from "@oip/local";
+import { join } from "node:path";
 import { clause } from "@oip/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { Book } from "../src/book.ts";
 import { A2aServer, Front, MAX_REQUEST_BYTES, OIP_EXTENSION } from "../src/index.ts";
+import { wrongAs } from "./conformance.ts";
 import { Place } from "./harness.ts";
 
 const BASE = "https://gateway.example/a2a";
@@ -61,13 +64,9 @@ beforeAll(async () => {
   // A mind with a profile that asks for nothing.
   await place.make("bilal", { profile: { name: "Bilal" } });
   gateway = await place.mind("gateway");
-  front = new Front({
-    opened: gateway,
-    base: BASE,
-    version: "1.2.3",
-    clock: systemClock,
-    waitMs: 4000,
-  });
+  // A client that waits is kept waiting for as long as the gateway lets one wait where nobody
+  // says how long: every mind of these tests answers long before that.
+  front = new Front({ opened: gateway, base: BASE, version: "1.2.3", clock: systemClock });
   server = new A2aServer(front, "/a2a", (error) => failures.push(error));
 });
 afterAll(async () => {
@@ -97,8 +96,25 @@ async function ask(
   });
   expect(answer.status).toBe(200);
   expect(answer.headers["content-type"]).toBe("application/json");
-  return JSON.parse(new TextDecoder().decode(answer.body)) as Reply;
+  const reply = JSON.parse(new TextDecoder().decode(answer.body)) as Reply;
+  // Every result is held against the A2A project's own schema of it.
+  const shape = SHAPES[method];
+  if (reply.result !== undefined && shape !== undefined) {
+    expect(
+      wrongAs(shape, reply.result),
+      `${method}: ${JSON.stringify(reply.result)}`,
+    ).toStrictEqual([]);
+  }
+  return reply;
 }
+
+/** What the result of each method is, by the title the A2A project's schema gives it. */
+const SHAPES: Readonly<Record<string, string>> = {
+  SendMessage: "Send Message Response",
+  GetTask: "Task",
+  CancelTask: "Task",
+  ListTasks: "List Tasks Response",
+};
 
 let sent = 0;
 /** A message of a client's, with a text. */
@@ -160,6 +176,21 @@ async function firstTo(opened: Opened): Promise<Received> {
   }
 }
 
+/**
+ * A front for the gateway's mind with some of what the mind does done
+ * otherwise: for what a real network does not do when asked.
+ */
+function frontWith(otherwise: Record<string, unknown>): Front {
+  const mind = new Proxy(gateway.mind, {
+    get: (target, name) => {
+      if (typeof name === "string" && name in otherwise) return otherwise[name];
+      const value: unknown = Reflect.get(target, name, target);
+      return typeof value === "function" ? (value.bind(target) as unknown) : value;
+    },
+  });
+  return new Front({ opened: { ...gateway, mind }, base: BASE, version: "1", clock: systemClock });
+}
+
 const text = (body: string): Pick<Message, "content"> => ({
   content: { mediaType: "text/plain", body },
 });
@@ -185,6 +216,10 @@ describe("the Agent Card of a mind", () => {
     const answer = await card(`/a2a/${id}/.well-known/agent-card.json`);
     expect(answer.status).toBe(200);
     expect(answer.headers["content-type"]).toBe("application/json");
+    // It is a card as the A2A project's own schema has one.
+    expect(wrongAs("Agent Card", JSON.parse(new TextDecoder().decode(answer.body)))).toStrictEqual(
+      [],
+    );
     expect(JSON.parse(new TextDecoder().decode(answer.body))).toStrictEqual({
       name: "Mina",
       description: "Translates legal texts between Swahili and English.",
@@ -256,6 +291,68 @@ describe("the Agent Card of a mind", () => {
     const nobody = contentId({ nobody: true });
     expect((await card(`/a2a/${nobody}/.well-known/agent-card.json`)).status).toBe(404);
     expect((await card("/a2a/not-a-mind/.well-known/agent-card.json")).status).toBe(404);
+  });
+
+  it("is served for no mind that has retired: such a mind asks nothing more of anyone", async () => {
+    const address = await place.make("gone");
+    const gone = address.slice("did:oip:".length);
+    const opened = await place.mind("gone");
+    try {
+      await opened.mind.publishProfile({
+        name: "Gone",
+        interfaces: { a2a: `${BASE}/${gone}/.well-known/agent-card.json` },
+      });
+      // It asked, and is served. What was found out of a mind is gone by for a minute.
+      expect((await card(`/a2a/${gone}/.well-known/agent-card.json`)).status).toBe(200);
+      await opened.mind.retire({ control: opened.lock });
+    } finally {
+      opened.mind.close();
+    }
+    expect((await card(`/a2a/${gone}/.well-known/agent-card.json`)).status).toBe(200);
+    // A gateway that asks afresh finds the mind retired.
+    const fresh = new A2aServer(
+      new Front({ opened: gateway, base: BASE, version: "1", clock: systemClock }),
+      "/a2a",
+    );
+    const answer = await fresh.handle({
+      method: "GET",
+      path: `/a2a/${gone}/.well-known/agent-card.json`,
+      headers: {},
+      body: new Uint8Array(),
+    });
+    expect(answer.status).toBe(404);
+  });
+
+  it("is not answered for where the mind's records cannot be asked for: that is no answer of no", async () => {
+    // A gateway that cannot reach its resolver.
+    const cut = { off: false };
+    const opened = await openMind(
+      place.where("gateway", {
+        fetch: (asked) =>
+          cut.off && new URL(asked.url).pathname.includes("/resolve/")
+            ? Promise.reject(new TypeError("fetch failed"))
+            : fetch(asked),
+      }),
+    );
+    // The mind is open: from here on its resolver is away.
+    cut.off = true;
+    try {
+      const away = new A2aServer(
+        new Front({ opened, base: BASE, version: "1", clock: systemClock }),
+        "/a2a",
+        (error) => failures.push(error),
+      );
+      const answer = await away.handle({
+        method: "GET",
+        path: `/a2a/${id}/.well-known/agent-card.json`,
+        headers: {},
+        body: new Uint8Array(),
+      });
+      expect(answer.status).toBe(500);
+      expect(failures.splice(0)).toHaveLength(1);
+    } finally {
+      opened.mind.close();
+    }
   });
 
   it("is at its path alone, and is fetched with GET", async () => {
@@ -605,6 +702,82 @@ describe("a task of a mind's", () => {
     });
   });
 
+  it("is cancelled outside its session where the gateway holds the session no more", async () => {
+    const { reply, reached } = await exchange({ message: message("Translate.") }, () => ({
+      verb: "request",
+      ...text("Into which language?"),
+    }));
+    const task = taskOf(reply);
+    expect(await gateway.mind.leaveSession(reached[0]?.packet.session ?? "")).toBe(true);
+    expect((await ask("CancelTask", { id: task.id })).result).toMatchObject({
+      status: { state: "TASK_STATE_CANCELED" },
+    });
+    const told = (await minaAnswers(() => undefined)).reached.find(
+      ({ packet }) => packet.thread === task.id,
+    );
+    expect(told?.packet).toMatchObject({ purpose: { verb: "inform" }, thread: task.id });
+    expect(told?.packet.session).toBeUndefined();
+  });
+
+  it("is forgotten in time: the gateway looks for what it keeps no longer once an hour", async () => {
+    const book = new Book(join(gateway.home.dir, "front"));
+    const old = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    book.put({
+      id: "untold-long-ago",
+      mind: mina,
+      contextId: "ctx",
+      state: "TASK_STATE_SUBMITTED",
+      at: old,
+      artifacts: [],
+      history: [],
+      session: "bciqsession",
+      request: "bciqrequest",
+      announced: false,
+    });
+    let ahead = 0n;
+    const keeper = new Front({
+      opened: gateway,
+      base: BASE,
+      version: "1",
+      clock: { now: () => systemClock.now() + ahead },
+    });
+    await keeper.pump();
+    expect(book.get("untold-long-ago")).toBeDefined();
+    // Not an hour later.
+    ahead = 3_000_000_000_000n;
+    await keeper.pump();
+    expect(book.get("untold-long-ago")).toBeDefined();
+    ahead = 3_700_000_000_000n;
+    await keeper.pump();
+    expect(book.get("untold-long-ago")).toBeUndefined();
+  });
+
+  it("is not begun where the mind cannot be given the message, and the client is told so", async () => {
+    // A gateway whose packets reach nobody, and will not: its mind says so of each.
+    const failing = (delivery: object): Front =>
+      frontWith({
+        send: async (given: Message) => {
+          const sent = await gateway.mind.send({ ...given, queue: false });
+          return { ...sent, deliveries: [{ to: mina, sealed: true, ...delivery }] };
+        },
+      });
+    const served = await front.served(id);
+    if (served === undefined) throw new Error("the mind is served");
+    const said = { messageId: "m-lost", role: "ROLE_USER" as const, parts: [{ text: "Hello?" }] };
+    await expect(
+      failing({ stored: false, failure: "forbidden" }).send(served, said),
+    ).rejects.toMatchObject({
+      code: -32603,
+      message: "The mind could not be given the message: forbidden.",
+    });
+    await expect(failing({ stored: false }).send(served, said)).rejects.toMatchObject({
+      code: -32603,
+      message: "The mind could not be given the message: none of its endpoints took it.",
+    });
+    // The packets that did arrive all the same are read and let be.
+    await minaAnswers(() => undefined);
+  });
+
   it("is answered in by the mind it is asked of alone, and by a packet with a verb that says something of it", async () => {
     const reply = await ask("SendMessage", {
       message: message("Translate."),
@@ -793,6 +966,232 @@ describe("what a client sends", () => {
       configuration: { taskPushNotificationConfig: { url: "https://client.example/hook" } },
     });
     expect(pushed.error).toMatchObject({ code: -32003 });
+  });
+});
+
+describe("a packet that a message carries", () => {
+  /** A packet a mind signs itself, and posts nowhere. */
+  async function packetBy(
+    name: string,
+    more: Record<string, unknown> = {},
+    said = "Could you translate a lease?",
+  ): Promise<JsonObject> {
+    const opened = await place.mind(name);
+    try {
+      const now = Date.now();
+      return (await opened.mind.sign({
+        oip: "1",
+        type: "Packet",
+        from: opened.mind.address,
+        to: [mina],
+        created: new Date(now).toISOString(),
+        expires: new Date(now + 3_600_000).toISOString(),
+        nonce: `nonce-${String(now)}-${String(++sent)}`,
+        purpose: { verb: "request" },
+        content: { mediaType: "text/plain", body: said },
+        ...more,
+      })) as unknown as JsonObject;
+    } finally {
+      opened.mind.close();
+    }
+  }
+
+  const carrying = (...packets: unknown[]): Record<string, unknown> => ({
+    message: {
+      messageId: `m-${String(++sent)}`,
+      role: "ROLE_USER",
+      parts: [
+        { text: "For those who do not read packets: a request to translate a lease." },
+        ...packets.map((data) => ({ data, mediaType: "application/oip+json" })),
+      ],
+    },
+  });
+
+  /** What is in the mind's mailbox now. */
+  async function minaHas(): Promise<Received[]> {
+    const opened = await place.mind("mina");
+    try {
+      return [...(await opened.mind.receive()).received];
+    } finally {
+      opened.mind.close();
+    }
+  }
+
+  it(`${clause("L0 3.3", "L1 12.4")} is verified as the mind it is for will verify it, and brought to that mind as it is: its sender's own, and no task of the gateway's`, async () => {
+    const bilal = (await place.mind("bilal")).mind;
+    bilal.close();
+    const packet = await packetBy("bilal");
+    const reply = await ask("SendMessage", carrying(packet));
+    // The client is told that the packet was brought, with a message. There is no task.
+    const answer = reply.result?.["message"] as {
+      parts: Record<string, unknown>[];
+      contextId: string;
+    };
+    expect(reply.error).toBeUndefined();
+    expect(reply.result).not.toHaveProperty("task");
+    expect(answer.parts[0]).toStrictEqual({
+      text: "The packet was brought to the mind it is for. What the mind answers, it answers to the packet's sender, as a packet.",
+    });
+    expect(answer.contextId).toMatch(/^[0-9a-f-]{36}$/u);
+    // The mind has the packet: the one its sender signed, from its sender, and sealed on the way.
+    const received = await minaHas();
+    expect(received).toMatchObject([{ id: contentId(packet), from: bilal.address, sealed: true }]);
+    expect(received[0]?.packet).toStrictEqual(packet);
+    // Nothing of it is the gateway's: the plain parts beside the packet went nowhere.
+    expect(received).toHaveLength(1);
+  });
+
+  it(`${clause("L1 12.4")} is brought once: a packet that was brought before is not brought again, and its sender is told the same`, async () => {
+    const packet = await packetBy("bilal");
+    const first = await ask("SendMessage", carrying(packet));
+    expect(await minaHas()).toHaveLength(1);
+    const again = await ask("SendMessage", carrying(packet));
+    expect((again.result?.["message"] as { parts: unknown[] }).parts[0]).toStrictEqual(
+      (first.result?.["message"] as { parts: unknown[] }).parts[0],
+    );
+    expect(await minaHas()).toStrictEqual([]);
+  });
+
+  it(`${clause("L0 3.3", "L1 12.4")} is not brought where it does not verify, is not for this mind, or is out of its time, and the client is told why`, async () => {
+    const good = await packetBy("bilal");
+    const refused = async (packet: unknown): Promise<string> => {
+      const reply = await ask("SendMessage", carrying(packet));
+      expect(reply.error?.code).toBe(-32602);
+      return reply.error?.message ?? "";
+    };
+    // Its content was changed after it was signed.
+    expect(
+      await refused({ ...good, content: { mediaType: "text/plain", body: "Pay me." } }),
+    ).toMatch(/^The packet the message carries is not taken: .* \(L1 12\.4\)\.$/u);
+    // It is for the gateway, and not for the mind that is asked.
+    expect(await refused(await packetBy("bilal", { to: [own] }))).toMatch(
+      /^The packet the message carries is not taken: .* \(L1 12\.4\)\.$/u,
+    );
+    // It was to be delivered an hour ago, at the latest.
+    const past = Date.now() - 7_200_000;
+    expect(
+      await refused(
+        await packetBy("bilal", {
+          created: new Date(past).toISOString(),
+          expires: new Date(past + 60_000).toISOString(),
+        }),
+      ),
+    ).toMatch(/expires.*\(L1 12\.4\)\.$/u);
+    // Its sender is no mind anyone can resolve.
+    const nobody = `did:oip:${contentId({ no: "mind" })}`;
+    expect(await refused({ ...good, from: nobody })).toMatch(/is not taken/u);
+    // It is no packet at all, or one of a session.
+    expect(await refused({ type: "Receipt", outcome: "fulfilled" })).toMatch(
+      /^What the message carries is no packet: /u,
+    );
+    expect(await refused("a packet")).toMatch(/^What the message carries is no packet: /u);
+    expect(await refused({ ...good, session: contentId({ a: "session" }), seq: 0 })).toBe(
+      "A packet of a session is brought by its sender: its place in the session is the sender's to keep.",
+    );
+    // Nothing of any of them reached the mind.
+    expect(await minaHas()).toStrictEqual([]);
+  });
+
+  it("is one, and is no part of a task of the gateway's", async () => {
+    const [one, two] = [await packetBy("bilal"), await packetBy("bilal")];
+    expect((await ask("SendMessage", carrying(one, two))).error).toStrictEqual({
+      code: -32602,
+      message: "A message carries one packet at most.",
+    });
+    const params = carrying(one);
+    (params["message"] as Record<string, unknown>)["taskId"] = "a-task";
+    expect((await ask("SendMessage", params)).error).toStrictEqual({
+      code: -32602,
+      message: "A packet is its sender's own message: it goes on with no task of this agent's.",
+    });
+    expect(await minaHas()).toStrictEqual([]);
+  });
+
+  it(`${clause("L1 13.2")} is answered with the mind's own acknowledgement of it, where the mind's endpoint gives one`, async () => {
+    const packet = await packetBy("bilal");
+    const ack = { oip: "1", type: "Ack", packet: contentId(packet) };
+    const acked = frontWith({
+      pass: () => Promise.resolve({ to: mina, sealed: true, stored: true, ack }),
+    });
+    const served = await front.served(id);
+    if (served === undefined) throw new Error("the mind is served");
+    const answered = await acked.send(served, {
+      messageId: "m-ack",
+      role: "ROLE_USER",
+      parts: [{ data: packet, mediaType: "application/oip+json" }],
+    });
+    expect(answered).toMatchObject({
+      message: {
+        role: "ROLE_AGENT",
+        parts: [
+          { text: expect.stringContaining("was brought") as string },
+          // It is a record, and says so itself: the client verifies it as any record.
+          { data: ack, mediaType: "application/oip+json" },
+        ],
+      },
+    });
+  });
+
+  it("is not judged where its sender's records cannot be asked for: that is the gateway's fault, and no verdict", async () => {
+    const cut = { off: false };
+    const opened = await openMind(
+      place.where("gateway", {
+        fetch: (asked) =>
+          cut.off && new URL(asked.url).pathname.includes("/resolve/")
+            ? Promise.reject(new TypeError("fetch failed"))
+            : fetch(asked),
+      }),
+    );
+    // The mind is open: from here on its resolver is away.
+    cut.off = true;
+    try {
+      const away = new Front({ opened, base: BASE, version: "1", clock: systemClock });
+      const served = await front.served(id);
+      if (served === undefined) throw new Error("the mind is served");
+      const packet = await packetBy("bilal");
+      await expect(
+        away.send(served, {
+          messageId: "m-cut",
+          role: "ROLE_USER",
+          parts: [{ data: packet, mediaType: "application/oip+json" }],
+        }),
+      ).rejects.toMatchObject({ name: "TransportError" });
+    } finally {
+      opened.mind.close();
+    }
+  });
+
+  it("is said not to have been brought where the mind cannot be reached", async () => {
+    // A gateway that reaches everything but the places a mind takes packets at.
+    const opened = await openMind(
+      place.where("gateway", {
+        fetch: (asked) =>
+          asked.method === "POST" && /\/(?:inbox|mailbox)$/u.test(new URL(asked.url).pathname)
+            ? Promise.reject(new TypeError("fetch failed"))
+            : fetch(asked),
+      }),
+    );
+    try {
+      const away = new Front({ opened, base: BASE, version: "1", clock: systemClock });
+      const served = await away.served(id);
+      if (served === undefined) throw new Error("the mind is served");
+      const packet = await packetBy("bilal");
+      await expect(
+        away.send(served, {
+          messageId: "m-away",
+          role: "ROLE_USER",
+          parts: [{ data: packet, mediaType: "application/oip+json" }],
+        }),
+      ).rejects.toMatchObject({
+        code: -32603,
+        message: "The mind could not be given the packet: unreachable.",
+      });
+      // What was not brought can be brought yet.
+      expect((await ask("SendMessage", carrying(packet))).result).toHaveProperty("message");
+      expect(await minaHas()).toHaveLength(1);
+    } finally {
+      opened.mind.close();
+    }
   });
 });
 

@@ -12,6 +12,7 @@ import { clause } from "@oip/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type Host, main, type Reach, type Serving } from "../src/index.ts";
+import { guarded } from "../src/main.ts";
 import { cardOf, Place, served } from "./harness.ts";
 
 const LEXIS = "https://lexis.example";
@@ -197,6 +198,76 @@ describe("oip-bridge-a2a", () => {
       err: "oip-bridge-a2a: the card of https://nowhere.example could not be fetched: unreachable\n",
     });
     expect((await run("agents")).out).not.toContain("nowhere.example");
+  });
+});
+
+describe("oip-bridge-a2a, where nobody says otherwise", () => {
+  it("runs on this machine as it is: its home, its keychain, and the guarded fetcher", async () => {
+    // A directory with no mind in it bridges nothing: nothing is asked of anyone.
+    const ran = host();
+    const code = await main(["--dir", join(place.root, "nothing-here"), "agents"], ran.process);
+    expect({ code, out: ran.out() }).toStrictEqual({
+      code: 0,
+      out: "The gateway bridges no agent yet: `oip-bridge-a2a bridge <origin>`\n",
+    });
+  });
+
+  it("reaches an agent under the guard: not at an address of this machine, and not without HTTPS", async () => {
+    const { get, ask } = guarded();
+    await expect(get("https://127.0.0.1:9/.well-known/agent-card.json")).rejects.toMatchObject({
+      name: "FetchRefused",
+      reason: "address",
+    });
+    await expect(get("http://agent.example/")).rejects.toMatchObject({ reason: "not-https" });
+    await expect(
+      ask({
+        url: "https://127.0.0.1:9/a2a",
+        body: utf8("{}"),
+        headers: { "content-type": "application/json", "a2a-version": "1.0" },
+      }),
+    ).rejects.toMatchObject({ name: "FetchRefused", reason: "address" });
+    // A header that would frame the request is no header a caller gives.
+    await expect(
+      ask({ url: "https://agent.example/a2a", body: utf8("{}"), headers: { host: "elsewhere" } }),
+    ).rejects.toThrow(TypeError);
+  });
+
+  it("says what is wrong where the gateway's mind is not there, or its keys do not open", async () => {
+    const ran = host();
+    const none = await main(
+      ["--dir", join(place.root, "nothing-here"), "bridge", LEXIS],
+      ran.process,
+      reach(),
+    );
+    expect(none).toBe(2);
+    expect(ran.err()).toMatch(/^oip-bridge-a2a: .*oip init/u);
+    const locked = host();
+    const code = await main(
+      ["--dir", join(place.root, "gateway"), "bridge", LEXIS],
+      locked.process,
+      {
+        ...reach(),
+        machine: place.machine({ env: { OIP_PASSPHRASE: "not the passphrase of these minds" } }),
+      },
+    );
+    expect(code).toBe(1);
+    expect(locked.err()).toMatch(/^oip-bridge-a2a: \S.*\n$/u);
+    expect(locked.err()).not.toContain("not the passphrase");
+    expect(locked.out()).toBe("");
+  });
+
+  it("does not serve at an address that is none of this machine's", async () => {
+    const refused = await run(
+      "serve",
+      "--base",
+      "https://gateway.example/a2a",
+      "--port",
+      "0",
+      "--host",
+      "192.0.2.1",
+    );
+    expect(refused.code).toBe(2);
+    expect(refused.err).toMatch(/^oip-bridge-a2a: the port 0 cannot be listened on: E[A-Z]+\n$/u);
   });
 });
 

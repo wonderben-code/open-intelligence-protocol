@@ -17,7 +17,9 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { parseArgs } from "node:util";
 
-import { systemClock } from "@oip/client";
+import { systemClock, TransportError } from "@oip/client";
+import { OipError } from "@oip/core";
+import { KeystoreError } from "@oip/keystore";
 import { systemKeychain } from "@oip/keystore/node";
 import {
   counted,
@@ -114,7 +116,7 @@ function keysIn(text: string): PublicJwk[] {
 }
 
 /** How the program reaches agents where nobody says otherwise: under the guard of `@oip/server`. */
-function guarded(): Pick<Reach, "get" | "ask"> {
+export function guarded(): Pick<Reach, "get" | "ask"> {
   const fetcher = new GuardedFetcher({ userAgent: `oip-bridge-a2a/${VERSION}` });
   return {
     get: async (url) => {
@@ -223,7 +225,7 @@ export async function main(
         own = keysIn(readFileSync(values.keys, "utf8"));
       } catch (error) {
         throw new UsageError(
-          `${values.keys} is no JSON Web Key Set that can be read: ${error instanceof Error ? error.message : String(error)}`,
+          `${values.keys} is no JSON Web Key Set that can be read: ${(error as Error).message}`,
         );
       }
     }
@@ -293,12 +295,10 @@ export async function main(
         });
       } catch (error) {
         closeOwn();
-        const code = error instanceof Error && "code" in error ? String(error.code) : "";
-        // A port that is taken, or one this user may not take, is the operator's to choose again.
-        if (code === "EADDRINUSE" || code === "EACCES") {
-          throw new UsageError(`the port ${String(port)} cannot be listened on: ${code}`);
-        }
-        throw error;
+        // A port that is taken, or an address that is none of this machine's, is the operator's
+        // to choose again.
+        const { code, message } = error as NodeJS.ErrnoException;
+        throw new UsageError(`the port ${String(port)} cannot be listened on: ${code ?? message}`);
       }
       log(
         `oip-bridge-a2a ${VERSION}: serving minds as A2A agents under ${base}, on port ${String(served.port)}`,
@@ -367,7 +367,13 @@ export async function main(
       log(`oip-bridge-a2a: ${error.message}`);
       return 2;
     }
-    if (error instanceof BridgeError) {
+    // What went wrong with an agent, with the gateway's keys, or with a service of the network.
+    if (
+      error instanceof BridgeError ||
+      error instanceof OipError ||
+      error instanceof TransportError ||
+      error instanceof KeystoreError
+    ) {
       log(`oip-bridge-a2a: ${error.message}`);
       return 1;
     }

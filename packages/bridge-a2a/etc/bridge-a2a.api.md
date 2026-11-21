@@ -5,6 +5,9 @@
 ```ts
 
 import type { Capability } from '@oip/schema';
+import { Clock } from '@oip/client';
+import { Machine } from '@oip/local';
+import { Opened } from '@oip/local';
 import type { Participant } from '@oip/schema';
 import type { Validation } from '@oip/schema';
 import { Where } from '@oip/local';
@@ -32,6 +35,12 @@ export interface A2aMessage {
     readonly role: "ROLE_USER" | "ROLE_AGENT";
     // (undocumented)
     readonly taskId?: string;
+}
+
+// @public
+export class A2aServer {
+    constructor(front: Front, prefix: string, failed?: (error: unknown) => void);
+    handle(asked: Asking): Promise<Answer>;
 }
 
 // @public
@@ -88,6 +97,16 @@ export interface AgentSkill {
 }
 
 // @public
+export interface Answer {
+    // (undocumented)
+    readonly body: Uint8Array;
+    // (undocumented)
+    readonly headers: Readonly<Record<string, string>>;
+    // (undocumented)
+    readonly status: number;
+}
+
+// @public
 export type Answered = {
     readonly task: Task;
 } | {
@@ -113,6 +132,29 @@ export type Ask = (asked: {
     readonly status: number;
     readonly body: Uint8Array;
 }>;
+
+// @public
+export interface Asked {
+    // (undocumented)
+    readonly contextId?: string;
+    // (undocumented)
+    readonly mind: string;
+    // (undocumented)
+    readonly pageSize: number;
+    readonly pageToken?: string;
+    readonly since?: string;
+    // (undocumented)
+    readonly state?: TaskState;
+}
+
+// @public
+export interface Asking {
+    // (undocumented)
+    readonly body: Uint8Array;
+    readonly headers: Readonly<Record<string, string | undefined>>;
+    readonly method: string;
+    readonly path: string;
+}
 
 // @public
 export interface Bridged {
@@ -158,8 +200,44 @@ export interface CardSignatures {
 }
 
 // @public
+export class Fault extends Error {
+    constructor(code: number, reason: string | undefined, message: string);
+    readonly code: number;
+    // (undocumented)
+    readonly name = "Fault";
+    readonly reason: string | undefined;
+}
+
+// @public
+export class Front {
+    constructor(options: FrontOptions);
+    cancel(mind: ServedMind, id: string): Promise<Held>;
+    get(mind: ServedMind, id: string): Held;
+    list(mind: ServedMind, asked: Omit<Asked, "mind">): Page;
+    pump(): Promise<number>;
+    send(mind: ServedMind, message: A2aMessage, taking?: Taking): Promise<{
+        readonly task: Held;
+    } | {
+        readonly message: A2aMessage;
+    }>;
+    served(id: string): Promise<ServedMind | undefined>;
+    urlOf(id: string): string;
+}
+
+// @public
+export interface FrontOptions {
+    readonly base: string;
+    // (undocumented)
+    readonly clock: Clock;
+    readonly opened: Opened;
+    readonly version: string;
+    readonly waitMs?: number;
+}
+
+// @public
 export class Gateway {
     constructor(where: Where, edges: GatewayEdges);
+    agents(): Bridged[];
     bridge(origin: string): Promise<Bridged>;
     bridged(origin: string): Bridged | undefined;
     relay(origin: string): Promise<Relayed>;
@@ -169,7 +247,9 @@ export class Gateway {
 export interface GatewayEdges {
     readonly ask: Ask;
     readonly get: Get;
-    readonly keys: KeySource;
+    readonly keys: (wanted: Parameters<KeySource>[0] & {
+        readonly origin: string;
+    }) => ReturnType<KeySource>;
 }
 
 // @public
@@ -182,6 +262,40 @@ export type Get = (url: string) => Promise<{
 export function getTask(agent: Agent, taskId: string): Promise<Task>;
 
 // @public
+export interface Held {
+    readonly announced: boolean;
+    readonly answer?: A2aMessage;
+    readonly artifacts: readonly Artifact[];
+    readonly at: string;
+    // (undocumented)
+    readonly contextId: string;
+    readonly history: readonly A2aMessage[];
+    // (undocumented)
+    readonly id: string;
+    readonly mind: string;
+    readonly question?: string;
+    readonly request: string;
+    readonly said?: A2aMessage;
+    readonly session: string;
+    // (undocumented)
+    readonly state: TaskState;
+}
+
+// @public
+export interface Host {
+    readonly env: Readonly<Record<string, string | undefined>>;
+    once(signal: "SIGINT" | "SIGTERM", heard: () => void): unknown;
+    // (undocumented)
+    readonly stderr: {
+        write(text: string): unknown;
+    };
+    // (undocumented)
+    readonly stdout: {
+        write(text: string): unknown;
+    };
+}
+
+// @public
 export function interfaceOf(card: AgentCard): AgentInterface | undefined;
 
 // @public
@@ -192,6 +306,26 @@ export type KeySource = (wanted: {
     readonly kid: string;
     readonly jku?: string;
 }) => Promise<readonly PublicJwk[]>;
+
+// @public
+export function listen(server: A2aServer, front: Front, options: Listening): Promise<ServedInterface>;
+
+// @public
+export interface Listening {
+    readonly everyMs?: number;
+    readonly failed?: (error: unknown) => void;
+    readonly host?: string;
+    readonly port: number;
+}
+
+// @public
+export function main(argv: readonly string[], host: Host, reach?: Partial<Reach>): Promise<number | Serving>;
+
+// @public
+export class Malformed extends Error {
+    // (undocumented)
+    readonly name = "Malformed";
+}
 
 // @public (undocumented)
 export const MAX_ARTIFACTS = 64;
@@ -218,16 +352,33 @@ export const MAX_FOLLOWED_SECONDS = 2592000;
 export const MAX_ID = 256;
 
 // @public
+export const MAX_KEPT_SECONDS = 2592000;
+
+// @public
 export const MAX_OPEN_TASKS = 256;
 
 // @public
 export const MAX_PARTS = 32;
 
 // @public
+export const MAX_REQUEST_BYTES = 1048576;
+
+// @public
+export const MAX_UNANNOUNCED_SECONDS = 86400;
+
+// @public
 export const OIP_EXTENSION = "https://github.com/wonderben-code/open-intelligence-protocol/blob/main/spec/layer-0-bridge.md#a2a-extension";
 
 // @public
 export const OIP_MEDIA_TYPE = "application/oip+json";
+
+// @public
+export interface Page {
+    readonly next: string;
+    // (undocumented)
+    readonly tasks: readonly Held[];
+    readonly total: number;
+}
 
 // @public
 export type Part = ({
@@ -267,6 +418,13 @@ export interface PublicJwk {
 }
 
 // @public
+export interface Reach {
+    readonly ask: Ask;
+    readonly get: Get;
+    readonly machine: Machine;
+}
+
+// @public
 export interface ReadCard {
     readonly card: AgentCard;
     readonly digest: string;
@@ -275,6 +433,9 @@ export interface ReadCard {
 
 // @public
 export function readCard(bytes: Uint8Array): Validation<ReadCard>;
+
+// @public
+export function readMessage(value: unknown): A2aMessage;
 
 // @public
 export interface Relayed {
@@ -322,10 +483,34 @@ export interface Served {
 }
 
 // @public
+export interface ServedInterface {
+    readonly close: () => Promise<void>;
+    readonly port: number;
+}
+
+// @public
+export interface ServedMind {
+    readonly address: string;
+    readonly card: Readonly<Record<string, unknown>>;
+    readonly modified: string;
+    readonly url: string;
+}
+
+// @public
+export interface Serving {
+    readonly ended: Promise<void>;
+}
+
+// @public
 export function supports(card: AgentCard, uri: string): boolean;
 
 // @public
 export const TAG_NAMESPACE = "a2a";
+
+// @public
+export interface Taking {
+    readonly returnImmediately?: boolean;
+}
 
 // @public
 export interface Task {
@@ -347,5 +532,8 @@ export type TaskState = (typeof TASK_STATES)[number];
 
 // @public
 export function verifySignatures(read: ReadCard, keys: KeySource): Promise<Validation<CardSignatures>>;
+
+// @public
+export const VERSION = "0.0.0";
 
 ```

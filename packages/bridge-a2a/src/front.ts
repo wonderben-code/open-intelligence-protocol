@@ -33,6 +33,7 @@ import { join } from "node:path";
 import { carried, type Clock, type Message } from "@oip/client";
 import { formatRecordRef, isMindAddress, OipError } from "@oip/core";
 import { type KeptPacket, type Opened, printableJson } from "@oip/local";
+import { receivePacket } from "@oip/net";
 import { type Participant, validateRecordOfType } from "@oip/schema";
 
 import type { A2aMessage, Part } from "./a2a.ts";
@@ -120,6 +121,16 @@ function without<T extends object, K extends keyof T>(value: T, ...keys: K[]): O
  * milliseconds, so that two of them are in order as texts are.
  */
 const written = (instant: bigint): string => new Date(Number(instant / 1_000_000n)).toISOString();
+
+/** What a client that handed over a packet is told. */
+const PASSED =
+  "The packet was brought to the mind it is for. What the mind answers, it answers to the packet's sender, as a packet.";
+
+/** The fault of a message or a packet that the mind could not be given, with why where that is known. */
+const notGiven = (what: string, failure: string | undefined): Error =>
+  internal(
+    `The mind could not be given the ${what}: ${failure ?? "none of its endpoints took it"}.`,
+  );
 
 /** Whether a client that waits for a task is answered now. */
 const settled = (task: Held): boolean =>
@@ -219,6 +230,11 @@ export class Front {
     message: A2aMessage,
     taking: Taking = {},
   ): Promise<{ readonly task: Held } | { readonly message: A2aMessage }> {
+    // Layer 0, 3.3: a message may carry a whole packet. Then the packet is the message.
+    const packets = message.parts.filter(
+      (part) => "data" in part && part.mediaType === OIP_MEDIA_TYPE,
+    );
+    if (packets.length > 0) return { message: await this.#passed(mind, message, packets) };
     const before = message.taskId === undefined ? undefined : this.get(mind, message.taskId);
     if (before !== undefined) {
       if (isTerminal(before.state)) {
@@ -245,10 +261,9 @@ export class Front {
       context: { refs: [`a2a:message/${encodeURIComponent(wellFormed(message.messageId))}`] },
     });
     const [delivery] = sent.deliveries;
+    // What did not arrive and is kept to be tried again will arrive, or its task will say not.
     if (delivery?.stored !== true && delivery?.queued !== true) {
-      throw internal(
-        `The mind could not be given the message${delivery?.failure === undefined ? "" : `: ${delivery.failure}`}.`,
-      );
+      throw notGiven("message", delivery?.failure);
     }
     const said: A2aMessage = {
       messageId: message.messageId,
@@ -292,10 +307,86 @@ export class Front {
       }
     }
     if (!task.announced) {
-      task = { ...(this.#book.get(task.id) ?? task), announced: true };
+      task = { ...task, announced: true };
       this.#book.put(task);
     }
     return { task };
+  }
+
+  /**
+   * Brings a packet that a message carries to the mind it is for (Layer 0,
+   * 3.3). The packet is another mind's own, signed by it. It is verified
+   * here as the mind it is for will verify it (Layer 1, 12.4), and passed
+   * on as it is: the gateway is its courier, and nothing of it is the
+   * gateway's. No task comes of it. The mind answers its sender, as a packet.
+   *
+   * @returns What the client is told: that the packet was brought.
+   * @throws Fault if what is carried is no packet, does not verify, is not
+   *   for this mind, or could not be brought.
+   */
+  async #passed(
+    mind: ServedMind,
+    message: A2aMessage,
+    packets: readonly Part[],
+  ): Promise<A2aMessage> {
+    const [part, ...more] = packets;
+    if (part === undefined || !("data" in part) || more.length > 0) {
+      throw invalidParams("A message carries one packet at most.");
+    }
+    if (message.taskId !== undefined) {
+      throw invalidParams(
+        "A packet is its sender's own message: it goes on with no task of this agent's.",
+      );
+    }
+    const shaped = validateRecordOfType("Packet", part.data);
+    if (!shaped.ok) {
+      throw invalidParams(`What the message carries is no packet: ${shaped.issues[0].message}.`);
+    }
+    if (shaped.value.session !== undefined) {
+      throw invalidParams(
+        "A packet of a session is brought by its sender: its place in the session is the sender's to keep.",
+      );
+    }
+    const own = this.#opened.mind;
+    const judge = (): ReturnType<typeof receivePacket> =>
+      receivePacket(part.data, {
+        address: mind.address,
+        now: this.#options.clock.now(),
+        view: own.lookup.view,
+        seen: own.lookup.seen,
+        accepted: (id) => this.#book.wasPassed(id),
+        window: 0n,
+      });
+    // A first reading notes when the packet's proofs were first seen. Its sender's log is asked
+    // for after that: a log is evidence for a proof as it stands no earlier (core 9.4).
+    judge();
+    try {
+      await own.lookup.resolve(shaped.value.from);
+    } catch (error) {
+      // A sender that cannot be resolved has no key that counts: the judge says so.
+      if (!(error instanceof OipError)) throw error;
+    }
+    const judged = judge();
+    if (!judged.ok) {
+      const [{ message: why, clause }] = judged.issues;
+      throw invalidParams(`The packet the message carries is not taken: ${why} (${clause}).`);
+    }
+    const { id, packet, duplicate, forgetAfter } = judged.value;
+    const parts: Part[] = [{ text: PASSED }];
+    // Layer 1, 12.4: a packet that was brought before is not brought again. Its sender is told the same.
+    if (!duplicate) {
+      const delivery = await own.pass(packet, mind.address);
+      if (!delivery.stored) throw notGiven("packet", delivery.failure);
+      this.#book.pass(id, written(forgetAfter));
+      // The mind's own acknowledgement, where its endpoint gave one: it is a record, and says so itself.
+      if (delivery.ack !== undefined) parts.push({ data: delivery.ack, mediaType: OIP_MEDIA_TYPE });
+    }
+    return {
+      messageId: randomUUID(),
+      role: "ROLE_AGENT",
+      parts,
+      contextId: message.contextId ?? randomUUID(),
+    };
   }
 
   /**

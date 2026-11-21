@@ -11,6 +11,7 @@ One for each service and each tool (BUILD.md 3.7). Each says what the thing prot
 | [client.md](client.md)         | `@oip/client`: resolving, publishing, finding, packets, dealing, and the client's memory         |
 | [cli.md](cli.md)               | `@oip/cli`: the mind's directory, the terminal, passphrases, and the network of `oip demo`       |
 | [mcp-server.md](mcp-server.md) | `@oip/mcp-server`: a model that calls tools and reads what strangers wrote; confirmation, policy |
+| [bridge-a2a.md](bridge-a2a.md) | `@oip/bridge-a2a`: custody of bridged minds, what a Receipt may say, A2A clients that are nobody |
 
 ## How they are written
 

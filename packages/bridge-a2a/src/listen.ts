@@ -78,13 +78,15 @@ export async function listen(server: A2aServer, front: Front, options: Listening
   const failed = options.failed ?? ((): void => undefined);
   const http = createServer((request, response) => {
     void (async (): Promise<void> => {
+      // A header that came more than once is one value, as HTTP reads it.
       const headers: Record<string, string> = {};
-      for (const [name, value] of Object.entries(request.headers)) {
-        if (value !== undefined) headers[name] = Array.isArray(value) ? value.join(", ") : value;
+      for (const [name, values] of Object.entries(request.headersDistinct)) {
+        headers[name] = (values ?? []).join(", ");
       }
       const answer = await server.handle({
-        method: request.method ?? "GET",
-        path: request.url ?? "/",
+        // A request that reached a server has both.
+        method: String(request.method),
+        path: String(request.url),
         headers,
         body: await bodyOf(request),
       });

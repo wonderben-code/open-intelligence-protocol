@@ -241,6 +241,9 @@ importers:
       '@oip/local':
         specifier: workspace:*
         version: link:../local
+      '@oip/net':
+        specifier: workspace:*
+        version: link:../net
       '@oip/schema':
         specifier: workspace:*
         version: link:../schema
@@ -257,6 +260,9 @@ importers:
       '@oip/testkit':
         specifier: workspace:*
         version: link:../testkit
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
 
   packages/cli:
     dependencies:

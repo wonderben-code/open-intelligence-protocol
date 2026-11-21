@@ -89,7 +89,12 @@ describe("the A2A interface on a port of this machine", () => {
       port,
       "POST",
       "/a2a/bciqmind?A2A-Version=1.0",
-      { "A2A-Version": "1.0", "Content-Type": "application/json", "X-Twice": ["one", "two"] },
+      {
+        "A2A-Version": "1.0",
+        "Content-Type": "application/json",
+        "X-Twice": ["one", "two"],
+        Cookie: ["a=1", "b=2"],
+      },
       utf8('{"jsonrpc":"2.0"}'),
     );
     expect(answer).toMatchObject({
@@ -102,7 +107,12 @@ describe("the A2A interface on a port of this machine", () => {
       method: "POST",
       path: "/a2a/bciqmind?A2A-Version=1.0",
       // Names in lower case, and a header that came twice as one.
-      headers: { "a2a-version": "1.0", "content-type": "application/json", "x-twice": "one, two" },
+      headers: {
+        "a2a-version": "1.0",
+        "content-type": "application/json",
+        "x-twice": "one, two",
+        cookie: "a=1; b=2",
+      },
     });
     expect(new TextDecoder().decode(asked[0]?.body)).toBe('{"jsonrpc":"2.0"}');
     // A request with no body.

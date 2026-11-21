@@ -22,6 +22,9 @@ site/
 timestamps/
 LICENSES/
 
+# Another project's file, kept byte for byte as it was published.
+packages/bridge-a2a/test/a2a/a2a.schema.json
+
 # Documents that predate the workspace.
 /BUILD.md
 /CLAUDE.md

@@ -86,12 +86,28 @@ export class Book {
   readonly #tasks: Store<Held>;
   readonly #packets: Store<string>;
   readonly #contexts: Store<string>;
+  readonly #passed: Store<string>;
 
   /** @param dir - The directory the book is kept in. */
   constructor(dir: string) {
     this.#tasks = new Store(join(dir, "tasks"));
     this.#packets = new Store(join(dir, "packets"));
     this.#contexts = new Store(join(dir, "contexts"));
+    this.#passed = new Store(join(dir, "passed"));
+  }
+
+  /**
+   * Notes that a packet of another mind's was brought to the mind it is
+   * for (Layer 0, 3.3), until a time: after it the packet can be accepted
+   * by nobody, and need not be remembered (Layer 1, 12.4).
+   */
+  pass(packet: string, until: string): void {
+    this.#passed.put(packet, until);
+  }
+
+  /** Whether a packet of another mind's was brought before. */
+  wasPassed(packet: string): boolean {
+    return this.#passed.get(packet) !== undefined;
   }
 
   /** A task, by the name the gateway gave it. */
@@ -169,7 +185,8 @@ export class Book {
 
   /**
    * Forgets what is kept no longer: tasks that ended thirty days ago, tasks
-   * no client was told of that are a day old, and the packets of both.
+   * no client was told of that are a day old, the packets of both, and the
+   * packets that were brought for others and can be accepted no more.
    *
    * @param ago - The timestamp a number of seconds before now.
    * @returns How many tasks were forgotten.
@@ -190,6 +207,10 @@ export class Book {
     }
     for (const { key, value } of this.#packets.all()) {
       if (!kept.has(value)) this.#packets.delete(key);
+    }
+    const now = ago(0);
+    for (const { key, value } of this.#passed.all()) {
+      if (value < now) this.#passed.delete(key);
     }
     return forgotten;
   }

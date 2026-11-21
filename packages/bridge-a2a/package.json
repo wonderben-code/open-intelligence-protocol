@@ -49,13 +49,15 @@
     "@oip/core": "workspace:*",
     "@oip/keystore": "workspace:*",
     "@oip/local": "workspace:*",
+    "@oip/net": "workspace:*",
     "@oip/schema": "workspace:*",
     "@oip/server": "workspace:*"
   },
   "devDependencies": {
     "@oip/cli": "workspace:*",
     "@oip/identity": "workspace:*",
-    "@oip/testkit": "workspace:*"
+    "@oip/testkit": "workspace:*",
+    "ajv": "^8.20.0"
   },
   "bin": {
     "oip-bridge-a2a": "./dist/bin.js"

@@ -502,6 +502,38 @@ describe(`${clause("L1 11.2")} a packet sent for another mind`, () => {
       [claimed.id, assistant.address, undefined],
     ]);
   });
+
+  it(`${clause("L1 11.4")} is taken as sent for it on a clock that moves: the delegation it carries is first seen when the packet is`, async () => {
+    const { amina, assistant, agent } = await cast();
+    const sending = await amina.delegate({
+      delegate: assistant.address,
+      command: "/oip/send",
+      expires: FAR,
+    });
+    const sent = await assistant.send({
+      to: [agent.address],
+      verb: "request",
+      content: { mediaType: "text/plain", body: "Could it be twelve hours sooner?" },
+      onBehalfOf: { mind: amina.address, chain: [sending] },
+    });
+    // A real clock: every reading is later than the one before. A delegation that was first
+    // seen at a later reading than the proof that carries it would be signed after that
+    // proof, as far as the receiver could tell (item 1), and the packet sent for nobody.
+    const { clock } = world;
+    clock.now = () => {
+      clock.at += 1_000_000n;
+      return clock.at;
+    };
+    try {
+      const { received } = await agent.receive();
+      expect(received.map((arrived) => [arrived.id, arrived.sentFor])).toStrictEqual([
+        [sent.id, amina.address],
+      ]);
+    } finally {
+      // As the world made it: a clock that stands where a test puts it.
+      clock.now = () => clock.at;
+    }
+  });
 });
 
 describe("the edges of dealing", () => {

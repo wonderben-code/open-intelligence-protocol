@@ -25,7 +25,7 @@ import {
   OipError,
   parseRecord,
 } from "@oip/core";
-import { authorityOf } from "@oip/delegation";
+import { authorityOf, witnessProofs } from "@oip/delegation";
 import { judgeRecord } from "@oip/identity";
 import { KeystoreError } from "@oip/keystore";
 import {
@@ -1079,6 +1079,13 @@ export class Messaging {
       const note = (packet: unknown): void => {
         const from = objectOf(packet)?.["from"];
         if (typeof from === "string") signers.push(from);
+        // A delegation that a packet's proof carries whole is first seen when the packet is: at
+        // this reading of the clock, the one the packet's own proofs are recorded at. Recorded
+        // at a later reading, it would be signed after the proof that uses it, as far as this
+        // client could tell (Layer 1, 11.4, item 1), and no packet would count as sent for
+        // anybody on a clock that moves.
+        const carrying = judgeRecord(packet);
+        if (carrying.ok) witnessProofs(carrying.value, now, own.lookup.seen);
       };
       const sealed = objectOf(record)?.["type"] === "Sealed";
       await once(record, (plaintext) => {

@@ -441,7 +441,7 @@ export class Relay {
       const said: Answer = {
         ...about,
         since: formatTimestamp(this.#edges.clock.now()),
-        content: [...content, ...leftOut(left, ANSWER, false)],
+        content: [...content, ...leftOut(left, ANSWER)],
       };
       // The agent has answered. What it said is written down before the packet is done with:
       // from here on the packet is not sent to the agent again, and its answer is not lost.
@@ -564,7 +564,7 @@ export class Relay {
         said.verb,
         content.length === 0
           ? [{ mediaType: "text/plain", body }]
-          : [...content, ...leftOut(left, ANSWER, false)],
+          : [...content, ...leftOut(left, ANSWER)],
       );
       if (said.verb === "request") {
         // The requester's reply to this packet goes on with the task. What was asked before is
@@ -583,7 +583,7 @@ export class Relay {
     }
     // The task has ended. What the agent said and delivered is gathered once, with its files
     // fetched once, and written down before anything is signed.
-    const { content, evidence, left } = await gather(
+    const { content, evidence, left, leftAttested } = await gather(
       [
         ...words,
         ...task.artifacts.flatMap((artifact) =>
@@ -598,7 +598,7 @@ export class Relay {
     const ended: Ended = {
       outcome: said.outcome,
       reported: { fulfilled: "completed", broken: "failed", cancelled: "canceled" }[said.outcome],
-      content: [...content, ...leftOut(left, ANSWER, true)],
+      content: [...content, ...leftOut(left, ANSWER, leftAttested)],
       evidence,
     };
     const known = { ...followed, ended };

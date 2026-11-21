@@ -109,6 +109,8 @@ export interface Gathered {
   readonly evidence: JsonObject[];
   /** How many parts are not carried: bytes, and what is too large or too much. */
   readonly left: number;
+  /** How many of those the evidence has a digest of. */
+  readonly leftAttested: number;
 }
 
 /** The digest of the bytes at a URL, or `undefined` if they cannot be had. */
@@ -140,17 +142,25 @@ export async function gather(
   let room = MAX_CARRIED_BYTES;
   let fetched = 0;
   let left = 0;
-  const carry = (one: Content, size: number): void => {
+  let leftAttested = 0;
+  /** Carries a piece if there is room for it. Whether it is carried. */
+  const carry = (one: Content, size: number): boolean => {
     // Two places are kept: for a word about what is left out, and for a Receipt.
-    if (content.length < MAX_CONTENT_PARTS - 2 && size <= room) {
-      content.push(one);
-      room -= size;
-    } else {
-      left += 1;
-    }
+    if (content.length >= MAX_CONTENT_PARTS - 2 || size > room) return false;
+    content.push(one);
+    room -= size;
+    return true;
   };
-  const attested = (item: JsonObject): void => {
-    if (attest !== undefined && evidence.length < MAX_EVIDENCE) evidence.push(item);
+  /** Makes an evidence item if evidence is made, and a Receipt has room for one more. Whether it is made. */
+  const attested = (item: JsonObject): boolean => {
+    if (attest === undefined || evidence.length >= MAX_EVIDENCE) return false;
+    evidence.push(item);
+    return true;
+  };
+  /** Notes a part that is not carried, and whether the evidence has its digest all the same. */
+  const leave = (digested: boolean): void => {
+    left += 1;
+    if (digested) leftAttested += 1;
   };
   for (const { part, ref } of parts) {
     if ("text" in part || "data" in part) {
@@ -164,24 +174,24 @@ export async function gather(
           text = jsonText(part.data);
         } catch {
           // Data that has no JSON text, nested too deep to walk, say.
-          left += 1;
+          leave(false);
           continue;
         }
       }
       const mediaType = mediaTypeOf(part, "text" in part ? "text/plain" : "application/json");
-      carry({ mediaType, body: text }, carriedSize(text));
+      const carried = carry({ mediaType, body: text }, carriedSize(text));
       // The digest is of the text as it is carried, in UTF-8: of what the requester holds.
-      attested({ kind: "hash", ref, digest: sha256Digest(utf8(text)), mediaType });
+      const digested = attested({ kind: "hash", ref, digest: sha256Digest(utf8(text)), mediaType });
+      if (!carried) leave(digested);
     } else if ("raw" in part) {
       // Bytes are attested by their digest, and not carried: a packet has no place for them.
       const bytes = new Uint8Array(Buffer.from(part.raw, "base64"));
       const mediaType = mediaTypeOf(part, "application/octet-stream");
-      left += 1;
-      attested({ kind: "hash", ref, digest: sha256Digest(bytes), mediaType });
+      leave(attested({ kind: "hash", ref, digest: sha256Digest(bytes), mediaType }));
     } else {
       const url = webUrl(part.url);
       if (url === undefined) {
-        left += 1;
+        leave(false);
         continue;
       }
       // A file that is named. The gateway says which bytes were there, if it can get them.
@@ -191,33 +201,44 @@ export async function gather(
         digest = await digestAt(url, attest);
       }
       if (digest === undefined) {
-        carry({ mediaType: "text/uri-list", body: url }, carriedSize(url));
+        if (!carry({ mediaType: "text/uri-list", body: url }, carriedSize(url))) leave(false);
       } else {
         const mediaType = mediaTypeOf(part, "application/octet-stream");
-        carry({ mediaType, ref: url, digest }, carriedSize(url));
-        attested({ kind: "uri", ref: url, digest, mediaType });
+        const carried = carry({ mediaType, ref: url, digest }, carriedSize(url));
+        const digested = attested({ kind: "uri", ref: url, digest, mediaType });
+        if (!carried) leave(digested);
       }
     }
   }
-  return { content, evidence, left };
+  return { content, evidence, left, leftAttested };
 }
 
 /**
  * A word about what a packet does not carry, if there is any such.
  *
  * @param whose - What the parts are of: "the agent's answer", say.
- * @param attested - Whether a Receipt has the digests of what is left out.
+ * @param attested - Of how many of the parts left out a Receipt has the
+ *   digest. Left out where no Receipt comes with the packet.
  */
-export function leftOut(left: number, whose: string, attested: boolean): InlineContent[] {
+export function leftOut(left: number, whose: string, attested?: number): InlineContent[] {
   if (left === 0) return [];
   const what = left === 1 ? "one part" : `${String(left)} parts`;
+  // What is said of the Receipt is what the Receipt holds, and no more (Layer 0, 1.4).
+  const receipt =
+    attested === undefined || attested === 0
+      ? ""
+      : attested >= left
+        ? left === 1
+          ? " The Receipt has its digest."
+          : " The Receipt has their digests."
+        : ` The Receipt has the digests of ${String(attested)} of them.`;
   return [
     {
       mediaType: "text/plain",
       body:
         `The gateway left ${what} of ${whose} out of this packet: ` +
         "bytes, and what is too large or too much for one packet, are not carried." +
-        (attested ? " The Receipt has their digests." : ""),
+        receipt,
     },
   ];
 }

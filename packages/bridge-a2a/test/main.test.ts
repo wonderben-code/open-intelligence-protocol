@@ -341,6 +341,65 @@ describe("the keys oip-bridge-a2a verifies a signed card with", () => {
     );
   });
 
+  it("are the operator's alone for a name the operator has a key of: a key the agent serves under that name is not asked for", async () => {
+    const jku = `${SIGNED}/keys.json`;
+    // The agent serves the key that its card is signed with, under the name of the operator's key.
+    pages.set(jku, { status: 200, body: utf8(JSON.stringify({ keys: [jwk] })) });
+    pages.set(CARD_URL, { status: 200, body: await signedCard({ jku }) });
+    const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+      "sign",
+      "verify",
+    ]);
+    const operators = { ...(await crypto.subtle.exportKey("jwk", pair.publicKey)), kid: "key-1" };
+    const file = join(place.root, "operators-keys.json");
+    writeFileSync(file, JSON.stringify({ keys: [operators] }));
+    const gets: string[] = [];
+    const ran = host();
+    const { get, ...rest } = reach();
+    const code = await main(
+      ["--dir", join(place.root, "gateway"), "bridge", SIGNED, "--keys", file],
+      ran.process,
+      {
+        ...rest,
+        get: (url) => {
+          gets.push(url);
+          return get(url);
+        },
+      },
+    );
+    // The card is not signed by the operator's key of that name: it is not taken.
+    expect(code).toBe(1);
+    expect(ran.err()).toContain(
+      "is not taken: the signature does not verify under the key that was named for it",
+    );
+    expect(gets).toStrictEqual([CARD_URL]);
+  });
+
+  it("are fetched once for a card, however many of its signatures name the key set", async () => {
+    const jku = `${SIGNED}/keys.json`;
+    pages.set(jku, { status: 200, body: utf8(JSON.stringify({ keys: [jwk] })) });
+    const once = JSON.parse(new TextDecoder().decode(await signedCard({ jku }))) as {
+      signatures: unknown[];
+    };
+    const [signature] = once.signatures;
+    pages.set(CARD_URL, {
+      status: 200,
+      body: served({ ...once, signatures: [signature, signature, signature] }),
+    });
+    const gets: string[] = [];
+    const ran = host();
+    const { get, ...rest } = reach();
+    const code = await main(["--dir", join(place.root, "gateway"), "bridge", SIGNED], ran.process, {
+      ...rest,
+      get: (url) => {
+        gets.push(url);
+        return get(url);
+      },
+    });
+    expect(code).toBe(0);
+    expect(gets).toStrictEqual([CARD_URL, jku]);
+  });
+
   it("are none that another origin serves, and none at what is no URL", async () => {
     for (const jku of [`${ELSEWHERE}/keys.json`, "no url"]) {
       pages.set(`${ELSEWHERE}/keys.json`, {

@@ -242,7 +242,16 @@ class Agent {
       });
     } else if (text === "forget") this.tasks.delete(task.id);
     else if (text === "big") done([{ text: BIG }, { text: "The short of it." }]);
-    else if (text === "many") {
+    else if (text === "seventy") {
+      // More parts than a packet carries, and more than a Receipt has evidence items for.
+      task.status = { state: "TASK_STATE_COMPLETED" };
+      task.artifacts = [0, 1, 2].map((artifact) => ({
+        artifactId: `a-${String(artifact)}`,
+        parts: Array.from({ length: 24 }, (_, part) => ({
+          text: `Part ${String(artifact * 24 + part)}.`,
+        })),
+      }));
+    } else if (text === "many") {
       done(
         Array.from({ length: MAX_FETCHED + 2 }, (_, n) => ({ url: `${LEASE}?copy=${String(n)}` })),
       );
@@ -450,12 +459,11 @@ async function published(): Promise<string[]> {
 }
 
 const NOTHING = { passed: [], ignored: [], receipts: [], sent: [], failed: [] };
-const LEFT_TWO =
-  "The gateway left 2 parts of the agent's answer out of this packet: bytes, and what " +
-  "is too large or too much for one packet, are not carried. The Receipt has their digests.";
-const LEFT_ONE =
-  "The gateway left one part of the agent's answer out of this packet: bytes, and what " +
-  "is too large or too much for one packet, are not carried. The Receipt has their digests.";
+/** What a packet says of parts it does not carry, where no Receipt comes with it. */
+const left = (parts: string): string =>
+  `The gateway left ${parts} of the agent's answer out of this packet: bytes, and what ` +
+  "is too large or too much for one packet, are not carried.";
+const LEFT_ONE = `${left("one part")} The Receipt has its digest.`;
 
 describe("a request to a bridged mind", () => {
   it(`${clause("L0 3.1")} is sent to the agent as a message, under the packet's own ID, in the version of A2A that is spoken`, async () => {
@@ -750,7 +758,7 @@ describe("a request to a bridged mind", () => {
           // No Receipt is signed for a message, and none is spoken of.
           {
             mediaType: "text/plain",
-            body: LEFT_ONE.replace(" The Receipt has their digests.", ""),
+            body: left("one part"),
           },
         ],
       },
@@ -917,6 +925,53 @@ describe("a session with a bridged mind", () => {
     expect(outside?.session).toBeUndefined();
   });
 
+  it("is a context of each requester's own: two minds in one session share nothing of what the agent keeps", async () => {
+    // A session of three: Amina, Bilal and the bridged mind.
+    const bilal = await place.mind("bilal");
+    const amina_ = await place.mind("amina");
+    let session: string;
+    try {
+      session = (await amina_.mind.openSession([bridged, bilal.mind.address])).id;
+      const first = await amina_.mind.send({
+        to: [bridged, bilal.mind.address],
+        verb: "request",
+        content: { mediaType: "text/plain", body: "reject" },
+        session,
+      });
+      expect(await relay()).toMatchObject({ passed: [first.id], failed: [] });
+      // The agent made a context for Amina's request, and the gateway keeps it for her next.
+      const context = lexis.last.contextId;
+      expect(lexis.asked.at(-1)?.params["message"]).not.toHaveProperty("contextId");
+      // Bilal has the session now, and asks in it.
+      await bilal.mind.receive();
+      const second = await bilal.mind.send({
+        // A packet of a session is for everyone else in it (Layer 1, 14.3).
+        to: [bridged, amina],
+        verb: "request",
+        content: { mediaType: "text/plain", body: "reject" },
+        session,
+      });
+      expect(await relay()).toMatchObject({ passed: [second.id], failed: [] });
+      // His request is of no context yet: what the agent keeps for Amina is not his.
+      expect(lexis.asked.at(-1)?.params["message"]).not.toHaveProperty("contextId");
+      expect(lexis.last.contextId).not.toBe(context);
+      // Amina's next is of hers.
+      const third = await amina_.mind.send({
+        to: [bridged, bilal.mind.address],
+        verb: "request",
+        content: { mediaType: "text/plain", body: "reject" },
+        session,
+      });
+      expect(await relay()).toMatchObject({ passed: [third.id], failed: [] });
+      expect(lexis.asked.at(-1)?.params["message"]).toMatchObject({ contextId: context });
+      await bilal.mind.receive();
+    } finally {
+      bilal.mind.close();
+      amina_.mind.close();
+    }
+    await inbox();
+  });
+
   it("is left behind where the bridged mind holds it no more: what is said then is said to the requester alone", async () => {
     const session = await openSession();
     const request = await send(bridged, "slow", { session });
@@ -990,7 +1045,7 @@ describe("what an agent says, in a gateway's packets and Receipts", () => {
       sent: [{ verb: "inform" }],
       failed: [],
     });
-    const noReceipt = LEFT_ONE.replace(" The Receipt has their digests.", "");
+    const noReceipt = left("one part");
     expect(await inbox()).toMatchObject([
       {
         replyTo: flood,
@@ -1045,7 +1100,9 @@ describe("what an agent says, in a gateway's packets and Receipts", () => {
       // A file that is not there is named, and nothing is said of its bytes.
       { mediaType: "text/uri-list", body: GONE },
       { mediaType: "text/plain", body: `caf${REPLACED}e` },
-      { mediaType: "text/plain", body: LEFT_TWO },
+      // What is no URL of the web is left out, and nothing attests it: the packet does not say
+      // that the Receipt does.
+      { mediaType: "text/plain", body: left("2 parts") },
     ]);
     const receipt = receiptIn(delivered);
     // The one record the packet carries is the gateway's Receipt.
@@ -1068,6 +1125,26 @@ describe("what an agent says, in a gateway's packets and Receipts", () => {
     expect(fetched.has("http://files.lexis.example/plain.txt")).toBe(false);
     expect(fetched.get("https://gone.lexis.example/lease.pdf")).toBe(1);
     expect(fetched.get(GONE)).toBe(1);
+  });
+
+  it(`${clause("L0 1.4", "L2 6.1")} says of what a packet leaves out what the Receipt has of it, and no more: a Receipt has room for so many evidence items`, async () => {
+    const request = await send(bridged, "seventy");
+    const did = await relay();
+    expect(did).toMatchObject({ receipts: [{ outcome: "fulfilled", about: request }], failed: [] });
+    const [delivered] = await inbox();
+    // Thirty parts are carried, with the word about the rest and the Receipt: thirty-two in all.
+    expect(delivered?.parts).toHaveLength(32);
+    expect(delivered?.parts[29]).toStrictEqual({ mediaType: "text/plain", body: "Part 29." });
+    // Seventy-two parts, sixty-four evidence items: of the forty-two left out, thirty-four have one.
+    expect(delivered?.parts[30]).toStrictEqual({
+      mediaType: "text/plain",
+      body: `${left("42 parts")} The Receipt has the digests of 34 of them.`,
+    });
+    const receipt = receiptIn(delivered);
+    const evidence = receipt["evidence"] as { digest: string }[];
+    expect(evidence).toHaveLength(64);
+    expect(evidence[63]?.digest).toBe(sha256Digest(utf8("Part 63.")));
+    expect(judgeRecord(receipt).ok).toBe(true);
   });
 
   it("names more files than a gateway fetches for one task: the rest are passed on, and not attested", async () => {

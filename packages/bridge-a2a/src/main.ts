@@ -196,19 +196,30 @@ export function guarded(env: Host["env"] = {}): Pick<Reach, "get" | "ask"> {
  * no more than the card it comes with does, and no less.
  */
 function keySource(own: readonly PublicJwk[], get: Get): GatewayEdges["keys"] {
+  /** The key sets that were fetched, each once: a card may name one for each of its signatures. */
+  const fetched = new Map<string, Promise<PublicJwk[]>>();
+  const setAt = (jku: string): Promise<PublicJwk[]> => {
+    const known = fetched.get(jku);
+    if (known !== undefined) return known;
+    const set = (async (): Promise<PublicJwk[]> => {
+      try {
+        const { status, body } = await get(jku);
+        if (status !== 200) return [];
+        return keysIn(new TextDecoder("utf-8", { fatal: true }).decode(body));
+      } catch {
+        // A key set that cannot be had, or is none, gives no key.
+        return [];
+      }
+    })();
+    fetched.set(jku, set);
+    return set;
+  };
   return async ({ kid, jku, origin }) => {
+    // A name the operator has a key for is the operator's: no key an agent serves is taken for it.
     const named = own.filter((key) => key.kid === kid);
     if (named.length > 0 || jku === undefined) return named;
     if (!URL.canParse(jku) || new URL(jku).origin !== origin) return [];
-    try {
-      const { status, body } = await get(jku);
-      if (status !== 200) return [];
-      const text = new TextDecoder("utf-8", { fatal: true }).decode(body);
-      return keysIn(text).filter((key) => key.kid === kid);
-    } catch {
-      // A key set that cannot be had, or is none, gives no key.
-      return [];
-    }
+    return (await setAt(jku)).filter((key) => key.kid === kid);
   };
 }
 

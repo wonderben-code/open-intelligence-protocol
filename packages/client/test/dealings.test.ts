@@ -7,7 +7,7 @@ import { clause } from "@oip/testkit";
 import { at, T } from "@oip/testkit/minds";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { carried, Mind } from "../src/index.ts";
+import { carried, Lookup, Mind, Reader } from "../src/index.ts";
 import { freshKeystore, refusal } from "./helpers.ts";
 import { World } from "./world.ts";
 
@@ -185,6 +185,50 @@ describe("the scenario of the papers, through the client", () => {
         .map((record) => record.type)
         .sort(),
     ).toStrictEqual(["Commitment", "Intent", "Offer", "Receipt", "Receipt"].sort());
+  });
+
+  it(`${clause("L2 7.1", "L2 8.3")} a reader that holds no key works out what the parties do, from what they published`, async () => {
+    const { amina, assistant, lexis, agent } = await cast();
+    const mandate = await mandateOf(lexis, agent);
+    const proposed = await agent.commitment(deal(lexis, amina, "120"), { chain: [mandate] });
+    world.clock.at = at(1120);
+    const accepted = await amina.cosign(proposed);
+    await amina.publishRecord(accepted);
+    const confirmed = await amina.receipt({ about: ref(agent, accepted), outcome: "fulfilled" });
+    await amina.publishRecord(confirmed);
+    world.clock.at = at(1200);
+
+    // A stranger: a way to ask for logs and for what a mind published, and nothing else.
+    const lookup = new Lookup({ resolvers: [A], fetch: world.fetch, clock: world.clock });
+    const reader = new Reader({ lookup, clock: world.clock });
+    expect(reader.held()).toStrictEqual([]);
+    const { feed } = await lookup.feed(amina.address);
+    for (const { entry } of feed.entries) {
+      reader.hold((await lookup.record(amina.address, entry.object)).record);
+    }
+    expect(
+      reader
+        .held()
+        .map((record) => record.type)
+        .sort(),
+    ).toStrictEqual(["Commitment", "Receipt"]);
+    const [held] = reader.held().filter((record) => record.type === "Commitment");
+    expect(contentId(held as object)).toBe(contentId(accepted));
+    // It reaches the verdicts the parties reach, by the records and the logs alone.
+    expect(await reader.countsFor(held, lexis.address)).toBe(true);
+    expect(await reader.countsFor(held, amina.address)).toBe(true);
+    // The agent signed it, for the firm and so for itself too. A mind that signed nothing is bound by nothing.
+    expect(await reader.countsFor(held, agent.address)).toBe(true);
+    expect(await reader.countsFor(held, assistant.address)).toBe(false);
+    expect(await reader.status(held)).toBe("fulfilled");
+    // Without the Receipt it would know of a promise, and not that it was kept.
+    const other = new Reader({ lookup, clock: world.clock });
+    other.hold(held);
+    expect(await other.status(held)).toBe("accepted");
+    // What is no record is held by nobody.
+    expect(await refusal(() => Promise.resolve(reader.hold({ type: "Commitment" })))).toBe(
+      "oip: invalid-record",
+    );
   });
 
   it(`${clause("L1 11.3", "L2 5.4")} the agent binds its firm to nothing its mandate does not allow`, async () => {

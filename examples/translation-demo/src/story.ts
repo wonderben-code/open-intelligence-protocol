@@ -15,7 +15,7 @@
  */
 
 import { LOCAL } from "@oip/cli";
-import { carried, type Grant, type Mind } from "@oip/client";
+import { carried, type Grant, type Mind, Reader, systemClock } from "@oip/client";
 import { contentId, formatRecordRef, sha256Digest, utf8 } from "@oip/core";
 
 import type { Player, Stage } from "./stage.ts";
@@ -302,32 +302,33 @@ export async function tell(stage: Stage, say: (line: string) => void): Promise<T
 
   // 9. Afterwards.
   step(9, "Afterwards");
-  const onlooker = await stage.cast("onlooker", "human", { name: "An onlooker" });
-  tellOf("A mind that took no part reads the feeds of Amina and of the agent, and nothing else.");
+  // A stranger: a way to ask for logs and for what a mind published, and no key at all.
+  const reader = new Reader({ lookup: stranger, clock: systemClock });
+  tellOf(
+    "A stranger with no key at all reads the feeds of Amina and of the agent, and nothing else.",
+  );
   let read = 0;
   for (const author of [amina.mind, agent.mind]) {
-    const { feed } = await onlooker.mind.lookup.feed(author.address);
+    const { feed } = await stranger.feed(author.address);
     for (const { entry } of feed.entries) {
-      const judged = await onlooker.mind.lookup.record(author.address, entry.object);
-      onlooker.mind.hold(judged.record);
+      reader.hold((await stranger.record(author.address, entry.object)).record);
       read += 1;
     }
   }
-  // The firm's Offer is in nobody's feed: the Commitment names it, and it is fetched by that name.
   verify(
     read >= 4,
     `it found ${String(read)} records there, each signed and each under its content ID.`,
   );
-  const held = onlooker.mind.records().find((record) => contentId(record) === commitment);
+  const held = reader.held().find((record) => contentId(record) === commitment);
   verify(
     held !== undefined,
     "among them is the Commitment, under the content ID both parties gave.",
   );
   verify(
-    held !== undefined && (await onlooker.mind.countsFor(held, firm.mind.address)),
+    held !== undefined && (await reader.countsFor(held, firm.mind.address)),
     "it works out for itself that the agent's signature binds Lexis Ltd.",
   );
-  const status = held === undefined ? "" : await onlooker.mind.statusOf(held);
+  const status = held === undefined ? "" : await reader.status(held);
   verify(status === "fulfilled", "and that the Commitment is fulfilled, by Amina's own Receipt.");
 
   // 10. The limits of the delegation.
@@ -438,7 +439,7 @@ export async function tell(stage: Stage, say: (line: string) => void): Promise<T
 
   return {
     cast: Object.fromEntries(
-      [...cast, onlooker, assistant, researcher].map(({ name, mind }) => [name, mind.address]),
+      [...cast, assistant, researcher].map(({ name, mind }) => [name, mind.address]),
     ),
     collective,
     commitment,

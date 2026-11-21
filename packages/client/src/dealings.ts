@@ -48,6 +48,7 @@ import {
 import { countsFor, type Status, status, WebRecordSet, withHeld } from "@oip/web";
 
 import { accepted } from "./accepted.ts";
+import type { Clock, Lookup } from "./lookup.ts";
 import type { Own } from "./publish.ts";
 import { TransportError } from "./transport.ts";
 
@@ -176,15 +177,33 @@ class EachProof extends FirstSeen {
   }
 }
 
-/** What a mind makes of the records it deals by. */
-export class Dealings {
-  readonly #own: Own;
+/** What reading records needs of the world: a way to ask for the logs of minds, and the time. */
+export interface ReadingContext {
+  readonly lookup: Lookup;
+  readonly clock: Clock;
+}
+
+/**
+ * Records, held and judged, by a client that needs no key to do it.
+ *
+ * A record counts for a mind, and a Commitment stands as it stands, by the
+ * records and the logs alone (Layer 2, Sections 7 and 8). Anyone can work
+ * that out: a mind for the records it deals by, and a stranger for
+ * records it only reads. This is the working out. `Mind` has it, and signs
+ * besides.
+ *
+ * Hold every record that bears on the question: a Commitment, and the
+ * Receipts about it. The logs of the minds they name are asked for when a
+ * question is put, after the proofs were first seen (core 9.4).
+ */
+export class Reader {
+  readonly #at: ReadingContext;
   readonly #records = new WebRecordSet();
   /** The records held, by content ID, each as the copy with every proof seen of it. */
   readonly #held = new Map<string, OipRecord>();
 
-  constructor(own: Own) {
-    this.#own = own;
+  constructor(at: ReadingContext) {
+    this.#at = at;
   }
 
   /** Holds a record: see `Mind.hold`. */
@@ -197,7 +216,7 @@ export class Dealings {
    * with the proofs of every copy the client has seen (Layer 2, Section 2).
    */
   #take(record: unknown, kept?: Sightings): { id: string; judged: JudgedRecord } {
-    const own = this.#own;
+    const own = this.#at;
     const id = accepted(this.#records.add(record), "invalid-record", "that is no record");
     const judged = withHeld(
       accepted(judgeRecord(record), "invalid-record", "that is no record"),
@@ -227,11 +246,11 @@ export class Dealings {
     const found: Record<string, Instant> = {};
     if (record === undefined) return found;
     const judged = accepted(judgeRecord(record), "invalid-record", "that is no record");
-    const { seen } = this.#own.lookup;
+    const { seen } = this.#at.lookup;
     // Each was seen when the record was taken in: the earliest time held for it is the answer.
     witnessProofs(
       judged,
-      this.#own.clock.now(),
+      this.#at.clock.now(),
       new EachProof((digest, now) => (found[digest] = seen.sawProof(digest, now))),
     );
     return found;
@@ -240,6 +259,94 @@ export class Dealings {
   /** The records held: see `Mind.records`. */
   held(): OipRecord[] {
     return [...this.#held.values()];
+  }
+
+  /**
+   * A record as the client holds it, judged, with the logs of every mind it
+   * names fetched afresh after its proofs were first seen (core 9.4).
+   */
+  async #fresh(record: unknown): Promise<{ judged: JudgedRecord; now: Instant }> {
+    const own = this.#at;
+    const { id, judged } = this.#take(record);
+    const now = own.clock.now();
+    const minds = new Set<string>();
+    named(judged, minds);
+    // And the minds of what it rests on, among the records held: delegations it names,
+    // Receipts about it, what supersedes it, Commitments that resolve it.
+    for (const related of [
+      ...this.#records.receiptsAbout(id),
+      ...this.#records.resolversOf(id),
+      ...this.#records.supersedersOf(id),
+    ]) {
+      witnessProofs(related, now, own.lookup.seen);
+      named(related, minds);
+    }
+    for (const mind of [...minds].slice(0, MAX_MINDS)) {
+      try {
+        await own.lookup.resolve(mind);
+      } catch (error) {
+        // A mind whose log cannot be had signs nothing that counts here.
+        if (!isFailure(error)) throw error;
+      }
+    }
+    return { judged, now };
+  }
+
+  /** Whether a record counts for a mind: see `Mind.countsFor`. */
+  async countsFor(record: unknown, mind: string): Promise<boolean> {
+    const { judged } = await this.#fresh(record);
+    return countsFor(judged, mind, { identity: this.#at.lookup.view, records: this.#records });
+  }
+
+  /** The status of a record: see `Mind.statusOf`. */
+  async status(record: unknown): Promise<Status> {
+    const { judged, now } = await this.#fresh(record);
+    return accepted(
+      status(judged, now, { identity: this.#at.lookup.view, records: this.#records }),
+      "invalid-record",
+      "that record has no status",
+    );
+  }
+
+  /**
+   * Whether a packet was sent for the mind it names in
+   * `provenance.onBehalfOf` (Layer 1, 11.2): its sender's proof carries a
+   * chain from that mind that covers `/oip/send`.
+   *
+   * @returns The mind, or `undefined` if the packet names none, or names one in words only.
+   */
+  async sentFor(packet: unknown): Promise<string | undefined> {
+    const subject = (packet as { provenance?: { onBehalfOf?: unknown } }).provenance?.onBehalfOf;
+    if (typeof subject !== "string") return undefined;
+    const { judged } = await this.#fresh(packet);
+    const context = { identity: this.#at.lookup.view, records: this.#records };
+    return sentFor(judged, subject, context) === undefined ? undefined : subject;
+  }
+
+  /** Holds the records a packet carries (Layer 1, 12.2): its body, or its parts, where they are records. */
+  holdCarried(content: unknown): void {
+    const parts = (content as { parts?: unknown }).parts;
+    for (const part of Array.isArray(parts) ? (parts as unknown[]) : [content]) {
+      const { mediaType, body } = part as { mediaType?: unknown; body?: unknown };
+      if (mediaType !== "application/oip+json") continue;
+      // What a packet carries is data: what is no record is no record, and is not held.
+      if (this.#records.add(body).ok) this.hold(body);
+    }
+  }
+}
+
+/** A record of Layer 2 as its content carries it in a packet (Layer 1, 12.2). */
+export function carried(record: object): { mediaType: string; body: JsonObject } {
+  return { mediaType: "application/oip+json", body: record as JsonObject };
+}
+
+/** What a mind makes of the records it deals by: it reads them as anyone can, and signs its own. */
+export class Dealings extends Reader {
+  readonly #own: Own;
+
+  constructor(own: Own) {
+    super(own);
+    this.#own = own;
   }
 
   /** Signs a delegation: see `Mind.delegate`. */
@@ -328,82 +435,4 @@ export class Dealings {
     this.hold(signed);
     return signed as unknown as T;
   }
-
-  /**
-   * A record as the client holds it, judged, with the logs of every mind it
-   * names fetched afresh after its proofs were first seen (core 9.4).
-   */
-  async #fresh(record: unknown): Promise<{ judged: JudgedRecord; now: Instant }> {
-    const own = this.#own;
-    const { id, judged } = this.#take(record);
-    const now = own.clock.now();
-    const minds = new Set<string>();
-    named(judged, minds);
-    // And the minds of what it rests on, among the records held: delegations it names,
-    // Receipts about it, what supersedes it, Commitments that resolve it.
-    for (const related of [
-      ...this.#records.receiptsAbout(id),
-      ...this.#records.resolversOf(id),
-      ...this.#records.supersedersOf(id),
-    ]) {
-      witnessProofs(related, now, own.lookup.seen);
-      named(related, minds);
-    }
-    for (const mind of [...minds].slice(0, MAX_MINDS)) {
-      try {
-        await own.lookup.resolve(mind);
-      } catch (error) {
-        // A mind whose log cannot be had signs nothing that counts here.
-        if (!isFailure(error)) throw error;
-      }
-    }
-    return { judged, now };
-  }
-
-  /** Whether a record counts for a mind: see `Mind.countsFor`. */
-  async countsFor(record: unknown, mind: string): Promise<boolean> {
-    const { judged } = await this.#fresh(record);
-    return countsFor(judged, mind, { identity: this.#own.lookup.view, records: this.#records });
-  }
-
-  /** The status of a record: see `Mind.statusOf`. */
-  async status(record: unknown): Promise<Status> {
-    const { judged, now } = await this.#fresh(record);
-    return accepted(
-      status(judged, now, { identity: this.#own.lookup.view, records: this.#records }),
-      "invalid-record",
-      "that record has no status",
-    );
-  }
-
-  /**
-   * Whether a packet was sent for the mind it names in
-   * `provenance.onBehalfOf` (Layer 1, 11.2): its sender's proof carries a
-   * chain from that mind that covers `/oip/send`.
-   *
-   * @returns The mind, or `undefined` if the packet names none, or names one in words only.
-   */
-  async sentFor(packet: unknown): Promise<string | undefined> {
-    const subject = (packet as { provenance?: { onBehalfOf?: unknown } }).provenance?.onBehalfOf;
-    if (typeof subject !== "string") return undefined;
-    const { judged } = await this.#fresh(packet);
-    const context = { identity: this.#own.lookup.view, records: this.#records };
-    return sentFor(judged, subject, context) === undefined ? undefined : subject;
-  }
-
-  /** Holds the records a packet carries (Layer 1, 12.2): its body, or its parts, where they are records. */
-  holdCarried(content: unknown): void {
-    const parts = (content as { parts?: unknown }).parts;
-    for (const part of Array.isArray(parts) ? (parts as unknown[]) : [content]) {
-      const { mediaType, body } = part as { mediaType?: unknown; body?: unknown };
-      if (mediaType !== "application/oip+json") continue;
-      // What a packet carries is data: what is no record is no record, and is not held.
-      if (this.#records.add(body).ok) this.hold(body);
-    }
-  }
-}
-
-/** A record of Layer 2 as its content carries it in a packet (Layer 1, 12.2). */
-export function carried(record: object): { mediaType: string; body: JsonObject } {
-  return { mediaType: "application/oip+json", body: record as JsonObject };
 }

@@ -1345,6 +1345,7 @@ now a collective of 4, of whom 3 act
 | `Listening`, `ListenOptions`, `SocketState`, `OpenSocket`, `SocketLike`                                                                                  | `Mind.listen` holds a socket open to the mind's own host (Layer 1, 13.4): what the host keeps and what arrives is judged as `receive` judges it, and a connection that ends is opened again                                                                                                    |
 | `SessionView`, `ChainView`, `SessionEvent`                                                                                                               | Sessions (Layer 1, Section 14): `Mind.openSession` names one, `send` with `session` sends in it, `receive` returns its packets in order and says in `sessions` what it found and did, `resume` asks for what is missing, `sessions` lists them, and `leaveSession` forgets one                 |
 | `Grant`, `Acting`, `Fields`, `carried`, `Sightings`                                                                                                      | Delegation and the records of the Mind Web: `Mind.delegate`, `subDelegate` and `revoke` (Layer 1, Section 11); `intent`, `offer`, `commitment`, `receipt` and `cosign` (Layer 2, Sections 4 to 6); `countsFor` and `statusOf` (7 and 8); `hold`, `records` and `sightings`                     |
+| `Reader`, `ReadingContext`                                                                                                                               | Records held and judged by a client that holds no key: whether a record counts for a mind, and how a Commitment stands, from what was published. `Mind` has the same, and signs besides                                                                                                        |
 | `NewCollective`, `CollectiveChanges`, `MemberOptions`                                                                                                    | Collectives (Layer 1, Section 9): `Mind.foundCollective`, `changeCollective` and `signEvent` for a collective's identity events, which its members sign; `publishLog`; and `charter` for the roles its members may act in (Layer 2, 6.2)                                                       |
 | `Clock`, `systemClock`                                                                                                                                   | The present, behind an interface: a test gives its own                                                                                                                                                                                                                                         |
 | `exchange`, `askRecord`, `askJson`, `Asking`, `Answer`, `Fetch`, `TransportOptions`, `recordBody`, `refusalOf`, `httpsOrigin`                            | One request to a service over HTTPS, bounded in size and in time, and its answer read as a record or as JSON                                                                                                                                                                                   |
@@ -1398,6 +1399,23 @@ now a collective of 4, of whom 3 act
 - **`revoke` takes a delegation back** from when a verifier first sees the revocation, and puts it on the mind's feed. What the delegate signed before stands. A verifier that relies on a delegate checks the principal's feed when the value warrants it (11.5).
 - **`carried(record)`** is a record as the content of a packet. `send` it, and the recipient's `receive` holds it.
 - **A packet sent for another mind** says so in `onBehalfOf`, with a chain that covers `/oip/send`. `receive` marks it `sentFor` only if that chain holds: a packet that merely says it is sent for someone is its sender's alone.
+
+### Reading without a key
+
+Whether a record counts for a mind, and how an Intent, an Offer or a Commitment stands, follows from the records and the logs alone (Layer 2, Sections 7 and 8). A `Reader` works it out with a `Lookup` and a clock, and no key:
+
+```ts
+const lookup = new Lookup({ resolvers });
+const reader = new Reader({ lookup, clock: systemClock });
+const { feed } = await lookup.feed(mind);
+for (const { entry } of feed.entries) {
+  reader.hold((await lookup.record(mind, entry.object)).record);
+}
+const [commitment] = reader.held().filter((record) => record.type === "Commitment");
+await reader.status(commitment); // "fulfilled", if a Receipt among them says so and counts
+```
+
+It knows what it holds. A reader that holds a Commitment and not the Receipts about it finds the Commitment `accepted`: hold everything that bears on the question.
 
 ### Collectives
 

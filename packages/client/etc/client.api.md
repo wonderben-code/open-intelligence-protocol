@@ -40,7 +40,7 @@ import { Randomness } from '@oip/keystore';
 import type { Receipt } from '@oip/schema';
 import type { Revocation } from '@oip/schema';
 import { Session } from '@oip/schema';
-import type { Status } from '@oip/web';
+import { Status } from '@oip/web';
 import { Unsigned } from '@oip/identity';
 import { VerifiedFeed } from '@oip/net';
 import { VerifiedLog } from '@oip/identity';
@@ -518,9 +518,29 @@ export interface Ranking {
 }
 
 // @public
+export class Reader {
+    constructor(at: ReadingContext);
+    countsFor(record: unknown, mind: string): Promise<boolean>;
+    held(): OipRecord[];
+    hold(record: unknown, seen?: Sightings): string;
+    holdCarried(content: unknown): void;
+    sentFor(packet: unknown): Promise<string | undefined>;
+    sightings(id: string): Sightings;
+    status(record: unknown): Promise<Status>;
+}
+
+// @public
 export interface ReadFeed {
     readonly feed: VerifiedFeed;
     readonly sources: readonly HomeAnswer[];
+}
+
+// @public
+export interface ReadingContext {
+    // (undocumented)
+    readonly clock: Clock;
+    // (undocumented)
+    readonly lookup: Lookup;
 }
 
 // @public

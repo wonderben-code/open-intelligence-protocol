@@ -13,11 +13,11 @@ text.verified { fill: #7fd69b; }
 <text class="said" x="16" y="68" style="animation-delay:1.50s" xml:space="preserve">A resolver, a host and an indexer run on this machine. Nothing else is trusted.</text>
 <text class="said" x="16" y="86" style="animation-delay:2.20s" xml:space="preserve"></text>
 <text class="step" x="16" y="104" style="animation-delay:2.50s" xml:space="preserve">1. Identity</text>
-<text class="said" x="16" y="122" style="animation-delay:3.70s" xml:space="preserve">   Amina is did:oip:bciqplnibklkqwmayrjr335v2pdaedogzaykv5x5flulcyugs6uwmbvi, a mind of kind human.</text>
+<text class="said" x="16" y="122" style="animation-delay:3.70s" xml:space="preserve">   Amina is did:oip:bciql57qk2jyngbeuyt6omecifx4fn74vdfm3nnuxeuuriih3wpynuyy, a mind of kind human.</text>
 <text class="verified" x="16" y="140" style="animation-delay:4.40s" xml:space="preserve">   verified: a stranger resolves that address to a log whose first event has that hash, and to a profile it signed.</text>
-<text class="said" x="16" y="158" style="animation-delay:4.75s" xml:space="preserve">   Lexis Ltd is did:oip:bciqapaaufqonbdxvvytp254u3ccisyoqyxnbv5orqz45nwhkuh5ft3y, a mind of kind institution.</text>
+<text class="said" x="16" y="158" style="animation-delay:4.75s" xml:space="preserve">   Lexis Ltd is did:oip:bciqb2ofukqrq4vxmusb267bp22sc4r55txygcx3r7f2ym72pvrmmgdi, a mind of kind institution.</text>
 <text class="verified" x="16" y="176" style="animation-delay:5.45s" xml:space="preserve">   verified: a stranger resolves that address to a log whose first event has that hash, and to a profile it signed.</text>
-<text class="said" x="16" y="194" style="animation-delay:5.80s" xml:space="preserve">   Lexis translation agent is did:oip:bciqbaqno7vomo5i3kvwltvfpujwbrfh3k3yplbcdjn4zdh2kn4eyhfa, a mind of kind agent.</text>
+<text class="said" x="16" y="194" style="animation-delay:5.80s" xml:space="preserve">   Lexis translation agent is did:oip:bciqn33fcgc4w4balgzxzh3e3sjydtgfw2wmqzmxk5ko2wfy2cl4zvza, a mind of kind agent.</text>
 <text class="verified" x="16" y="212" style="animation-delay:6.50s" xml:space="preserve">   verified: a stranger resolves that address to a log whose first event has that hash, and to a profile it signed.</text>
 <text class="said" x="16" y="230" style="animation-delay:6.85s" xml:space="preserve"></text>
 <text class="step" x="16" y="248" style="animation-delay:7.15s" xml:space="preserve">2. Delegation</text>
@@ -58,7 +58,7 @@ text.verified { fill: #7fd69b; }
 <text class="verified" x="16" y="878" style="animation-delay:28.90s" xml:space="preserve">   verified: the Commitment is fulfilled: the party that was owed says so.</text>
 <text class="said" x="16" y="896" style="animation-delay:29.25s" xml:space="preserve"></text>
 <text class="step" x="16" y="914" style="animation-delay:29.55s" xml:space="preserve">9. Afterwards</text>
-<text class="said" x="16" y="932" style="animation-delay:30.75s" xml:space="preserve">   A mind that took no part reads the feeds of Amina and of the agent, and nothing else.</text>
+<text class="said" x="16" y="932" style="animation-delay:30.75s" xml:space="preserve">   A stranger with no key at all reads the feeds of Amina and of the agent, and nothing else.</text>
 <text class="verified" x="16" y="950" style="animation-delay:31.45s" xml:space="preserve">   verified: it found 4 records there, each signed and each under its content ID.</text>
 <text class="verified" x="16" y="968" style="animation-delay:31.80s" xml:space="preserve">   verified: among them is the Commitment, under the content ID both parties gave.</text>
 <text class="verified" x="16" y="986" style="animation-delay:32.15s" xml:space="preserve">   verified: it works out for itself that the agent's signature binds Lexis Ltd.</text>
@@ -77,7 +77,7 @@ text.verified { fill: #7fd69b; }
 <text class="said" x="16" y="1220" style="animation-delay:39.00s" xml:space="preserve"></text>
 <text class="step" x="16" y="1238" style="animation-delay:39.30s" xml:space="preserve">12. A collective</text>
 <text class="said" x="16" y="1256" style="animation-delay:40.50s" xml:space="preserve">   Amina, the agent and a research agent found a collective, to keep a glossary of Swahili</text>
-<text class="said" x="16" y="1274" style="animation-delay:41.20s" xml:space="preserve">   legal terms. It is a mind of its own: did:oip:bciqplouwbxmtuxmgf5ejeckdfym2pn2fdfuhh43kk7cpnk6i57tufta.</text>
+<text class="said" x="16" y="1274" style="animation-delay:41.20s" xml:space="preserve">   legal terms. It is a mind of its own: did:oip:bciqao7hejzc445wtn625bzaf3uyeqycxhtllg4rd5fr45yo5yhq5psa.</text>
 <text class="verified" x="16" y="1292" style="animation-delay:41.90s" xml:space="preserve">   verified: its address is the content ID of a genesis event that all three signed, and it is controlled by its members.</text>
 <text class="verified" x="16" y="1310" style="animation-delay:42.25s" xml:space="preserve">   verified: an Intent that one member signs for it is not the collective's: any two of the three speak for it.</text>
 <text class="verified" x="16" y="1328" style="animation-delay:42.60s" xml:space="preserve">   verified: with a second member's signature, it is.</text>

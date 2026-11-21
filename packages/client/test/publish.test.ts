@@ -568,6 +568,47 @@ describe("a mind's public feed", () => {
     expect(await listed()).toHaveLength(3);
   });
 
+  it(`${clause("L1 10.1", "L1 10.3")} a call for the same record with another proof on it signs an entry of its own: the entry that waited commits to the proofs it was signed with`, async () => {
+    const { mind } = await atHome();
+    const other = await atHome();
+    // The feed has its first entry, so that the client knows where it stands.
+    await mind.publishRecord(await mind.publishProfile({ name: "Ada" }));
+    const proposed = await mind.commitment({
+      parties: [
+        { mind: mind.address, role: "debtor", required: true },
+        { mind: other.mind.address, role: "creditor", required: true },
+      ],
+      promise: "A translation of the lease.",
+      terms: {},
+    });
+    world.down(ONE);
+    world.down(TWO);
+    // The entry at 1 is signed for the Commitment as its author proposed it, and reaches no home.
+    expect(await refusal(() => mind.publishRecord(proposed))).toBe("transport: unreachable");
+    world.up(ONE);
+    world.up(TWO);
+    world.clock.at = at(200);
+    // The other party signs it. It is the same record, by its content ID, with one proof more.
+    const accepted = await other.mind.cosign(proposed);
+    expect(contentId(accepted)).toBe(contentId(proposed));
+    const entry = await mind.publishRecord(accepted);
+    // The entry that waited is brought as it was signed, and says nothing of a proof that was
+    // made after it. The record as it stands now has an entry of its own.
+    expect(entry).toMatchObject({ seq: 2, created: T(200), object: contentId(accepted) });
+    expect(entry.proofs).toHaveLength(2);
+    const { feed } = await reader().feed(mind.address);
+    expect(
+      feed.entries.map(({ entry: one }) => [one.seq, one.objectType, one.proofs?.length]),
+    ).toStrictEqual([
+      [0, "Participant", 1],
+      [1, "Commitment", 1],
+      [2, "Commitment", 2],
+    ]);
+    expect(feed.entries[1]?.entry.object).toBe(entry.object);
+    expect(entry.proofs?.slice(0, 1)).toStrictEqual(feed.entries[1]?.entry.proofs);
+    other.mind.close();
+  });
+
   it(`${clause("L1 10.3")} one home is enough for an entry, and the other is told which it lacks`, async () => {
     const { mind } = await atHome();
     const profile = await mind.publishProfile({ name: "Ada" });

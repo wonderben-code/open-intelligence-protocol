@@ -49,7 +49,7 @@ oip-bridge-a2a serve --base https://gateway.example/a2a
 
 Anyone can check the result. [`Lookup.assurance`](../client/README.md) answers `bridged` for such a mind, and `claimed` for a mind that only says it is bridged (Layer 0, 1.3).
 
-If the card is signed, a signature must verify before the agent is bridged. The keys are the operator's own (`--keys`), or the key set the agent serves at its own origin. A key set at another origin gives no key. A card with no signature is taken: A2A lets a card have none, and the gateway then says only that it read the card over HTTPS.
+If the card is signed, a signature must verify before the agent is bridged. The keys are the operator's own (`--keys`), or the key set the agent serves at its own origin. A key set at another origin gives no key. For a name the operator has a key of, the operator's key decides, and no key the agent serves under that name is asked for. `--keys` does not ask that a card be signed by the operator's keys: a card signed by a key the agent serves itself is taken too, and says no more than the card. At most eight signatures of a card are verified. A card with no signature is taken: A2A lets a card have none, and the gateway then says only that it read the card over HTTPS.
 
 ### What the relay does
 
@@ -140,7 +140,7 @@ It works the other way too. A client that has a mind of its own may put a whole 
 
 ## Conformance
 
-`pnpm a2a:tck` runs the A2A project's own [TCK](https://github.com/a2aproject/a2a-tck) against a mind served by the gateway, with a real resolver, host and indexer behind it. The mind that is tested is an ordinary OIP mind that answers packets: see [`tck/sut.ts`](tck/sut.ts).
+`pnpm a2a:tck` runs the A2A project's own [TCK](https://github.com/a2aproject/a2a-tck) against a mind served by the gateway, with a real resolver, host and indexer behind it. The mind that is tested is an ordinary OIP mind that answers packets: see [`test/tck/sut.ts`](test/tck/sut.ts).
 
 ## In a program
 

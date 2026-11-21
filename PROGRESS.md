@@ -60,6 +60,7 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
 **What M10 has:**
 
 - **`examples/translation-demo`**, run with `pnpm demo` ([README](examples/translation-demo/README.md)): the scenario of the technical paper, Section 3.4, played by real minds on a resolver, a host and an indexer on this machine, and told as it happens. The nine steps of the paper, and three more with the rest of the cast: the limits of the firm's delegation, Amina's assistant sending for her, and a collective of three that any two speak for. Every line that begins with "verified" was checked before it was said: 27 of them. It takes a few seconds from a clean checkout.
+- **`Reader`, in `@oip/client`**: records held and judged with no key. The demo's last step is a stranger with nothing but a way to ask, who reads the feeds and finds the Commitment fulfilled and binding on the firm. Before, that took a mind with keys of its own. The Explorer of M11 reads the same way.
 - **It plays on a network that runs already**, with `pnpm demo --network <directory>`: the one `oip demo` runs. What the minds published stays there. That is the network the Explorer of M11 is to browse.
 - **A recording** of one telling, in `examples/translation-demo/recording/`: a terminal session in the asciicast format, and a picture that draws itself line by line with no script. `pnpm demo:record` makes both again.
 - **`docker compose up`** was there since M5: [`compose.yaml`](compose.yaml) starts the resolver, the host and the indexer.

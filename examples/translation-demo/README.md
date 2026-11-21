@@ -81,7 +81,7 @@ A resolver, a host and an indexer run on this machine. Nothing else is trusted.
    verified: the Commitment is fulfilled: the party that was owed says so.
 
 9. Afterwards
-   A mind that took no part reads the feeds of Amina and of the agent, and nothing else.
+   A stranger with no key at all reads the feeds of Amina and of the agent, and nothing else.
    verified: it found 4 records there, each signed and each under its content ID.
    verified: among them is the Commitment, under the content ID both parties gave.
    verified: it works out for itself that the agent's signature binds Lexis Ltd.
@@ -120,20 +120,20 @@ One telling is kept in [`recording/`](recording/), for a page to show:
 
 ## What happens, and where the specification says so
 
-| Step | What the minds do                                                                                      | Specification                             |
-| ---- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| 1    | Each mind makes its keys and its genesis event, and publishes where it is reached and what it is       | Layer 1, Sections 2, 3, 15 and 16         |
-| 2    | Lexis Ltd signs a Delegation with a policy: a currency, a ceiling, who is paid, who may not be a party | Layer 1, Section 11                       |
-| 3    | The agent's profile lists a capability with tags. An indexer lists it                                  | Layer 1, Sections 16 and 18               |
-| 4    | Amina signs and publishes an Intent, and sends it to a capability query. The indexer forwards it       | Layer 2, Section 4.1; Layer 1, 18.5       |
-| 5    | The agent signs an Offer for the firm and sends it in a packet                                         | Layer 2, Section 4.2; Layer 1, Section 12 |
-| 6    | The agent signs a Commitment for the firm. Amina adds her proof. The content ID does not change        | Layer 2, Sections 5 and 7; core 3.1       |
-| 7    | The agent delivers in a session, sealed to Amina                                                       | Layer 1, Sections 12.6 and 14             |
-| 8    | Amina publishes a Receipt with a digest as evidence                                                    | Layer 2, Sections 6, 8.3 and 9            |
-| 9    | A mind that took no part reads the feeds and works the status out                                      | Layer 1, Section 10; Layer 2, Section 8   |
-| 10   | Two Commitments outside the delegation's policy bind nobody                                            | Layer 1, 11.3 and 11.4                    |
-| 11   | Amina's assistant sends a packet for her, by a delegation to send                                      | Layer 1, 11.2                             |
-| 12   | Three minds found a collective. Two of them sign for it                                                | Layer 1, Section 9; Layer 2, 7.2          |
+| Step | What the minds do                                                                                      | Specification                                  |
+| ---- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| 1    | Each mind makes its keys and its genesis event, and publishes where it is reached and what it is       | Layer 1, Sections 2, 3, 15 and 16              |
+| 2    | Lexis Ltd signs a Delegation with a policy: a currency, a ceiling, who is paid, who may not be a party | Layer 1, Section 11                            |
+| 3    | The agent's profile lists a capability with tags. An indexer lists it                                  | Layer 1, Sections 16 and 18                    |
+| 4    | Amina signs and publishes an Intent, and sends it to a capability query. The indexer forwards it       | Layer 2, Section 4.1; Layer 1, 18.5            |
+| 5    | The agent signs an Offer for the firm and sends it in a packet                                         | Layer 2, Section 4.2; Layer 1, Section 12      |
+| 6    | The agent signs a Commitment for the firm. Amina adds her proof. The content ID does not change        | Layer 2, Sections 5 and 7; core 3.1            |
+| 7    | The agent delivers in a session, sealed to Amina                                                       | Layer 1, Sections 12.6 and 14                  |
+| 8    | Amina publishes a Receipt with a digest as evidence                                                    | Layer 2, Sections 6, 8.3 and 9                 |
+| 9    | A stranger with no key reads the feeds and works the status out                                        | Layer 1, Section 10; Layer 2, Sections 7 and 8 |
+| 10   | Two Commitments outside the delegation's policy bind nobody                                            | Layer 1, 11.3 and 11.4                         |
+| 11   | Amina's assistant sends a packet for her, by a delegation to send                                      | Layer 1, 11.2                                  |
+| 12   | Three minds found a collective. Two of them sign for it                                                | Layer 1, Section 9; Layer 2, 7.2               |
 
 ## The cast
 
@@ -145,7 +145,7 @@ One telling is kept in [`recording/`](recording/), for a page to show:
 | Lexis translation agent | `agent`       | Acts for the firm within its delegation                                    |
 | A research agent        | `agent`       | Founds the collective with Amina and the agent                             |
 | The collective          | `collective`  | A mind that any two of its three members speak for                         |
-| An onlooker             | `human`       | Takes no part, and checks the outcome from the feeds                       |
+| A stranger              | none          | Holds no key. Reads the feeds, and works the outcome out                   |
 
 ## In a program
 

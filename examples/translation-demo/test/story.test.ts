@@ -60,7 +60,7 @@ describe("the telling", () => {
     for (const step of steps) expect(step, step.split("\n")[0]).toContain("   verified: ");
   });
 
-  it(`${clause("L2 8.3", "L1 11.4")} ends with a Commitment that a mind which took no part finds fulfilled, and binding on the firm`, () => {
+  it(`${clause("L2 8.3", "L1 11.4")} ends with a Commitment that a stranger with no key finds fulfilled, and binding on the firm`, () => {
     expect(told.status).toBe("fulfilled");
     expect(told.commitment).toMatch(/^bciq[a-z2-7]{52}$/u);
     expect(lines).toContain(
@@ -73,11 +73,11 @@ describe("the telling", () => {
 
   it("has the cast of the papers: a person and her assistant, a firm and its agent, a researcher, and a collective", () => {
     expect(Object.keys(told.cast).sort()).toStrictEqual(
-      ["amina", "amina-assistant", "lexis-agent", "lexis-ltd", "onlooker", "researcher"].sort(),
+      ["amina", "amina-assistant", "lexis-agent", "lexis-ltd", "researcher"].sort(),
     );
     const addresses = [...Object.values(told.cast), told.collective];
     for (const address of addresses) expect(address).toMatch(/^did:oip:bciq[a-z2-7]{52}$/u);
-    expect(new Set(addresses).size).toBe(7);
+    expect(new Set(addresses).size).toBe(6);
     // The minds are told of by the names their own profiles give.
     expect(lines.some((line) => line.startsWith("   Amina is did:oip:"))).toBe(true);
     expect(lines.some((line) => line.startsWith("   Lexis Ltd is did:oip:"))).toBe(true);

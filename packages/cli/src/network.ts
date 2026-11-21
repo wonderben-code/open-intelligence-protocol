@@ -91,7 +91,14 @@ export async function startNetwork(options: NetworkOptions): Promise<Network> {
     const answer = await routed(
       routes,
       fetch,
-    )(new Request(url, { method: "POST", headers: { "content-type": contentType }, body }));
+    )(
+      new Request(url, {
+        method: "POST",
+        headers: { "content-type": contentType },
+        // Memory of this program's own, which a browser's types ask to be told.
+        body: body as Uint8Array<ArrayBuffer>,
+      }),
+    );
     return { status: answer.status };
   };
   try {

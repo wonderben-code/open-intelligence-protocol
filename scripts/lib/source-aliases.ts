@@ -27,6 +27,11 @@ export const sourceAliases = [
     find: /^@oip\/keystore\/node$/,
     replacement: join(repoRoot, "packages", "keystore", "src", "node.ts"),
   },
+  // The demo is an example, and is not among the packages.
+  {
+    find: /^@oip\/translation-demo$/,
+    replacement: join(repoRoot, "examples", "translation-demo", "src", "index.ts"),
+  },
   {
     find: /^@oip\/([a-z0-9-]+)$/,
     replacement: join(repoRoot, "packages", "$1", "src", "index.ts"),

@@ -358,11 +358,19 @@ describe(`${clause("L1 2.4", "L1 5.1")} a log replayed to any version`, () => {
               time: prefix.value.entries[i]?.time,
             },
           });
-          // And the document resolved at that version is the document of the shorter log.
+          // And the document resolved at that version is the document of the shorter log, but
+          // for `deactivated`, which is of the mind as its whole log stands (Layer 1, 5.2): a
+          // mind that has retired since is deactivated at every one of its versions.
           const versioned = didDocument(whole, { versionId });
           const current = didDocument(prefix.value, { versionId });
-          expect(versioned.ok && versioned.value).toEqual(current.ok && current.value);
-          expect(versioned.ok && versioned.value.didDocumentMetadata.versionId).toBe(versionId);
+          if (!versioned.ok || !current.ok) throw new Error("a version does not resolve");
+          const { retired } = latestState(whole);
+          expect(versioned.value).toEqual({
+            ...current.value,
+            didDocumentMetadata: { ...current.value.didDocumentMetadata, deactivated: retired },
+          });
+          expect(versioned.value.didDocumentMetadata.deactivated).toBe(retired);
+          expect(versioned.value.didDocumentMetadata.versionId).toBe(versionId);
         });
       }),
       RUNS,

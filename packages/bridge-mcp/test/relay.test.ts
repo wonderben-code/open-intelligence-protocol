@@ -8,7 +8,7 @@
  * says.
  */
 
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { type Message, systemClock } from "@oip/client";
@@ -305,6 +305,42 @@ describe("a request for a tool of a bridged MCP server", () => {
       expect((said.content as { body: string }).body.startsWith(why)).toBe(true);
     }
     expect(tools.calls).toHaveLength(calls);
+  });
+
+  it("is dealt with in its turn: the requests of a pass, oldest first", async () => {
+    // Files of a directory come in no order. Five requests would come in theirs once in 120.
+    const sent: string[] = [];
+    for (const word of ["One.", "Two.", "Three.", "Four.", "Five."]) {
+      sent.push(await call("amina", "echo", { text: word }));
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    const made = tools.calls.length;
+    expect((await relay()).called).toStrictEqual(sent);
+    expect(tools.calls.slice(made).map(({ args }) => args["text"])).toStrictEqual([
+      "One.",
+      "Two.",
+      "Three.",
+      "Four.",
+      "Five.",
+    ]);
+    await answers("amina");
+  });
+
+  it("is not lost where it could not be written down: it is still in the mailbox, and the next pass has it", async () => {
+    const id = await call("amina", "echo", { text: "Write me down." });
+    // Where what waits is written, nothing can be written: a file stands where the directory was.
+    const pending = join(directory, "pending");
+    renameSync(pending, `${pending}.aside`);
+    writeFileSync(pending, "in the way");
+    try {
+      await expect(relay()).rejects.toThrow();
+    } finally {
+      rmSync(pending);
+      renameSync(`${pending}.aside`, pending);
+    }
+    // Nothing said that the mind had the packet before it was written down.
+    expect((await relay()).called).toStrictEqual([id]);
+    expect(await answer("amina")).toMatchObject({ verb: "deliver", replyTo: id });
   });
 
   it("is the only packet that is answered: a packet with another verb is read, and that is all", async () => {

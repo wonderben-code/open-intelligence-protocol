@@ -110,6 +110,6 @@ The gateway is a custodian and a translator. It holds the keys of every mind it 
 - **A2A clients are not authenticated.** A task's ID is its key. An operator that needs to know its clients puts authentication in the reverse proxy.
 - **A client can make a served mind receive a request from the gateway at any time.** The mind asked to be served, and treats the content as data (Layer 1, 12.5). A rate limit belongs in the reverse proxy.
 - **Fetching a file an agent names touches that URL once.** A link that works once, or that does something when fetched, is used up or set off by the gateway's fetch.
-- **A served mind's A2A interface may be at any origin.** A mind lists the URL of its card under `interfaces.a2a`, and the gateway serves the card at the URL its operator gave as `--base`. Nothing ties that origin to the mind but the mind's own signed profile, which is all an A2A client can check.
+- **The interface a card names may be at any public origin.** A card says where its agent speaks A2A, and nothing ties that URL to the card's own origin. The gateway reaches it under the guard, as it reaches the card. The bridged mind's profile records the card's digest, and not where the gateway speaks to the agent.
 - **A bridged mind's mailbox is the gateway's to read.** Another program that reads it, `oip inbox` in the mind's directory for one, takes packets the gateway then never sees.
 - **What the gateway keeps grows with use.** Packets that were read are kept, as the command keeps them. Tasks are forgotten on a schedule, packets are not.

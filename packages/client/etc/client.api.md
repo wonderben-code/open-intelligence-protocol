@@ -378,12 +378,14 @@ export class Mind {
     countsFor(record: unknown, mind?: string): Promise<boolean>;
     static create(options: MindOptions, fields: NewMind): Promise<Mind>;
     delegate(grant: Grant): Promise<Delegation>;
+    delegationsStand(record: unknown): Promise<boolean>;
     fork(child: string, options: ControlOptions & {
         readonly terms?: JsonObject;
         readonly changes?: IdentityChanges;
     }): Promise<IdentityState>;
     foundCollective(fields: NewCollective, options: MemberOptions): Promise<IdentityEvent>;
     hold(record: unknown, seen?: Sightings): string;
+    holdRevocations(record: unknown): Promise<number>;
     intent(fields: Fields<Intent>, acting?: Acting): Promise<Intent>;
     leaveSession(session: string): Promise<boolean>;
     listen(options: ListenOptions): Listening;
@@ -405,7 +407,7 @@ export class Mind {
     publishProfile(fields: ProfileFields): Promise<Participant>;
     publishRecord(record: object): Promise<Entry>;
     receipt(fields: Fields<Receipt>, acting?: Acting): Promise<Receipt>;
-    receive(): Promise<Inbox>;
+    receive(options?: ReceiveOptions): Promise<Inbox>;
     records(): OipRecord[];
     refresh(): Promise<IdentityState>;
     get resolved(): Resolved;
@@ -420,6 +422,7 @@ export class Mind {
         readonly compromisedSince?: string;
     }): Promise<IdentityState>;
     send(message: Message): Promise<Sent>;
+    sentFor(packet: unknown): Promise<string | undefined>;
     sessions(): Promise<SessionView[]>;
     sightings(id: string): Sightings;
     sign<T extends object>(record: T, authority?: readonly AuthorityItem[]): Promise<T & {
@@ -532,6 +535,11 @@ export interface Received {
     readonly sealed: boolean;
     readonly sentFor?: string;
     readonly time: Instant;
+}
+
+// @public
+export interface ReceiveOptions {
+    readonly keep?: (accepted: readonly Received[]) => void | Promise<void>;
 }
 
 // @public

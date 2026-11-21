@@ -29,7 +29,7 @@ export interface Asking {
 export const DID_JSON = "application/did+json";
 
 // @public
-export type DidResolutionError = "invalidDid" | "notFound" | "representationNotSupported" | "methodNotSupported" | "internalError";
+export type DidResolutionError = "invalidDid" | "invalidDidUrl" | "notFound" | "representationNotSupported" | "methodNotSupported" | "internalError";
 
 // @public
 export interface DidResolutionMetadata {

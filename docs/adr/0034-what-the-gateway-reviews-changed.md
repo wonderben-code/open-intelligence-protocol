@@ -83,6 +83,7 @@ Where a fix changed what the specification says, [OEP-0006](../../oeps/oep-0006-
 - A request that rests on a delegation costs a read of each author's feed before a tool is called. Where that feed is down, the request waits, and expires in a day.
 - A result that happens to hold a credential's text is refused, though the server meant nothing by it. Texts shorter than 8 characters are not searched for, so a short credential is not protected by the search.
 - `@oip/bridge-mcp` depends on `@oip/server`, for the guarded fetcher.
+- The MCP client library is Apache-2.0 with parts still under MIT, as its own `LICENSE` says. ADR-0031 said Apache-2.0 alone.
 - A profile of a server with very many tools loses schemas, then the length of its summaries, then tools. `bridge` says which.
 
 ## Alternatives

@@ -269,6 +269,28 @@ describe("oip-bridge-mcp", () => {
     keepRecords(opened);
     opened.mind.close();
     expect(answers.sort()).toStrictEqual(["decline", "deliver"]);
+    // A request that cannot be dealt with is named in the log, with why, and tried again.
+    tools.down = true;
+    const waiting = await place.mind("amina");
+    const { id } = await waiting.mind.send({
+      to: [bridged],
+      verb: "request",
+      content: { mediaType: "application/json", body: { tool: "echo", arguments: { text: "?" } } },
+    });
+    const line = `oip-bridge-mcp: ${URL_OF}: ${id}: the server is not to be reached\n`;
+    for (let tries = 0; tries < 600 && !host.err.includes(line); tries += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    expect(host.err).toContain(line);
+    tools.down = false;
+    let heard = 0;
+    for (let tries = 0; tries < 600 && heard === 0; tries += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      heard = (await waiting.mind.receive()).received.length;
+    }
+    keepRecords(waiting);
+    waiting.mind.close();
+    expect(heard).toBe(1);
     // A server that cannot be relayed for is said, and the others are relayed for all the same.
     writeFileSync(join(directory, POLICY_FILE), "{");
     for (let tries = 0; tries < 600 && !host.err.includes("policy.json is not JSON"); tries += 1) {
@@ -282,15 +304,15 @@ describe("oip-bridge-mcp", () => {
     expect(host.err).toContain(
       `oip-bridge-mcp ${VERSION}: relaying for 3 bridged servers, every 1 s`,
     );
-    // In one pass or in two, as the packets came: one tool was called, and one request declined.
+    // In one pass or in several, as the packets came: two tools were called, and one request declined.
     const said = host.err
       .split("\n")
       .filter((line) => line.includes(`${URL_OF}: `) && line.includes("called"));
     const count = (what: RegExp): number =>
       said.reduce((sum, line) => sum + Number(what.exec(line)?.[1] ?? 0), 0);
-    expect(count(/(\d+) tools? called/u)).toBe(1);
+    expect(count(/(\d+) tools? called/u)).toBe(2);
     expect(count(/(\d+) requests? declined/u)).toBe(1);
-    expect(count(/(\d+) packets? sent/u)).toBe(2);
+    expect(count(/(\d+) packets? sent/u)).toBe(3);
     expect(count(/(\d+) Receipts? signed/u)).toBe(0);
     expect(host.err).toContain("policy.json is not JSON a record may be in");
     writeFileSync(join(directory, POLICY_FILE), JSON.stringify({ allow: {} }));

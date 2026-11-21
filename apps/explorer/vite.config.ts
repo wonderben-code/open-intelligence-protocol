@@ -10,5 +10,6 @@ export default defineConfig({
   base: "./",
   // The packages are read from their sources, as the tests read them.
   resolve: { alias: sourceAliases },
-  build: { target: "es2023", sourcemap: false },
+  // With source maps: a reader who wants to see what verifies their signatures can read it.
+  build: { target: "es2023", sourcemap: true },
 });

@@ -225,6 +225,8 @@ describe.skipIf(CHROMIUM === undefined)("the Explorer in a browser", () => {
     expect(main).toContain("its members: a collective");
     // Three members signed its genesis.
     expect(main).toContain("3 signatures");
+    // Up to here nothing the page did failed, or was refused by its own policy.
+    expect(errors).toStrictEqual([]);
     // A mind nobody knows of is said to be unknown, and nothing else is shown.
     await page.goto(`${SITE}/#/mind/did:oip:bciq${"a".repeat(52)}`);
     await page.locator("div.failed").waitFor();
@@ -237,7 +239,9 @@ describe.skipIf(CHROMIUM === undefined)("the Explorer in a browser", () => {
     expect(new Set(asked)).toStrictEqual(
       new Set([SITE, LOCAL.resolver, LOCAL.indexer, LOCAL.host]),
     );
-    // And nothing the page did was refused by its own policy, or failed unseen.
-    expect(errors.filter((error) => !error.includes("404"))).toStrictEqual([]);
+    // The one thing that failed is the one that was asked to: a resolver that knows of no such
+    // mind says so, and the browser notes the answer.
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.every((error) => error.includes("404 (Not Found)"))).toBe(true);
   });
 });

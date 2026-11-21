@@ -27,6 +27,14 @@ describe("inNode", () => {
     expect(inNode(script, ["well"])).toStrictEqual({ ended: "well" });
   });
 
+  it("runs the script with the packages' sources, and with no function compiled a second time", () => {
+    // A frame of a function then stays the size it is, which a script that spends the stack
+    // counts on. With the engine left to compile again, one run in ten failed on a busy machine.
+    expect(inNode(script, ["flags"])).toStrictEqual({
+      flags: ["--no-opt", "--no-maglev", "--conditions=@oip/source"],
+    });
+  });
+
   it("says with what code a script ended, and the end of what it wrote to its error, on one line", () => {
     const message = said("badly");
     expect(message).toMatch(/ends\.node\.ts ended with 3\. Its standard error ends: /u);

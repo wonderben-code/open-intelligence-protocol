@@ -7,6 +7,9 @@ const [how] = process.argv.slice(2);
 
 if (how === "well") {
   process.stdout.write(JSON.stringify({ ended: "well" }));
+} else if (how === "flags") {
+  // How the engine was started: what `inNode` asked of it.
+  process.stdout.write(JSON.stringify({ flags: process.execArgv }));
 } else if (how === "badly") {
   process.stderr.write("the first line of what went wrong\n");
   process.stderr.write("and the last\n");

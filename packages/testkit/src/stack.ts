@@ -46,7 +46,10 @@ export function keepFramesOneSize(...functions: readonly ((...args: never[]) => 
  *
  * Call it from a script run with `inNode`, not from a test: under the test
  * runner an import can read as `undefined` when the stack is spent, which
- * is the runner's doing and no fault of the function.
+ * is the runner's doing and no fault of the function. And `inNode` has the
+ * engine compile nothing a second time: a function that is compiled again
+ * between two of these calls has frames of another size, and may find no
+ * room at a depth shallower than one it answered at.
  */
 export function withStackSpent<T>(run: () => T, answers = 200): T[] {
   const given: T[] = [];

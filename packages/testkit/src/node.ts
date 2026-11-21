@@ -21,6 +21,24 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 /**
+ * The engine's flags for such a script: what a function is first compiled
+ * to is what it stays.
+ *
+ * A script that spends the call stack counts on a frame of a function being
+ * one size from one call to the next: on a function that answered with a
+ * little room answering with more. The engine compiles a function that runs
+ * often again for speed, on a thread of its own, and a frame of the new
+ * code is of another size. A function that had answered at one depth then
+ * found no room at a shallower one, and the script failed with nothing
+ * wrong in the function: in one run in ten on a busy machine, and in none
+ * on a quiet one.
+ *
+ * `keepFramesOneSize` asks the same of the functions a script names. These
+ * flags ask it of everything those functions call as well.
+ */
+const STEADY_FRAMES = ["--no-opt", "--no-maglev"] as const;
+
+/**
  * How long such a script may run before it is taken for hung. It takes a
  * second or two alone. Beside every other test on a shared runner it has
  * taken a hundred times that: the limit is there to end what will never end.
@@ -37,7 +55,8 @@ interface Failed {
 
 /**
  * Runs a script in a Node.js process of its own, with the packages read
- * from their sources, and returns what it printed, read as JSON.
+ * from their sources and no function compiled a second time, and returns
+ * what it printed, read as JSON.
  *
  * @param args - Arguments for the script, which it reads from `process.argv`.
  * @param timeoutMs - How long it may run. Default: five minutes.
@@ -54,7 +73,8 @@ export function inNode(
   const path = fileURLToPath(script);
   let printed: string;
   try {
-    printed = execFileSync(process.execPath, ["--conditions=@oip/source", path, ...args], {
+    const flags = [...STEADY_FRAMES, "--conditions=@oip/source"];
+    printed = execFileSync(process.execPath, [...flags, path, ...args], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: timeoutMs,

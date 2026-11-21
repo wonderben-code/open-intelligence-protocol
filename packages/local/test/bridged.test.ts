@@ -6,13 +6,13 @@
  * against a real resolver, host and indexer on ports of this machine.
  */
 
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { LOCAL, type Network, startNetwork } from "@oip/cli";
 import { Lookup, Mind } from "@oip/client";
-import { contentId } from "@oip/core";
+import { contentId, type JsonObject } from "@oip/core";
 import { type Keychain, Keystore, SCRYPT_MIN_N } from "@oip/keystore";
 import { fileStorage } from "@oip/keystore/node";
 import { clause } from "@oip/testkit";
@@ -174,6 +174,108 @@ describe("a mind a gateway makes for a system outside the network", () => {
       expect(mind.address).toBe(address);
       return Promise.resolve();
     });
+  });
+
+  it("has its attestation written down as soon as it is signed: no later run reads the gateway's feed for it", async () => {
+    const dir = bridgedDir();
+    const first = await withBridged(where("gateway"), dir, SYSTEM, (held) =>
+      Promise.resolve(held.block.attestation),
+    );
+    const note = JSON.parse(readFileSync(join(dir, "attested.json"), "utf8")) as JsonObject;
+    expect(note).toStrictEqual({
+      gateway,
+      genesis: expect.stringMatching(/^bciq/u) as unknown,
+      attestation: first,
+    });
+    // A gateway whose feed cannot be read goes on with the mind all the same.
+    const feedless: Where = {
+      edges: {
+        ...machine,
+        fetch: (asked) =>
+          asked.method === "GET" && new URL(asked.url).pathname.endsWith("/feed")
+            ? Promise.reject(new TypeError("fetch failed"))
+            : fetch(asked),
+      },
+      dir: join(root, "gateway"),
+    };
+    expect(
+      await withBridged(feedless, dir, SYSTEM, (held) => Promise.resolve(held.block.attestation)),
+    ).toBe(first);
+    // A note that is of another gateway, or of another genesis, is no note of this mind's.
+    for (const other of [{ gateway: `did:oip:bciq${"a".repeat(52)}` }, { genesis: "bciqother" }]) {
+      writeFileSync(join(dir, "attested.json"), JSON.stringify({ ...note, ...other }));
+      await expect(withBridged(feedless, dir, SYSTEM, () => Promise.resolve())).rejects.toThrow();
+    }
+    // The feed says what was attested then, and the note is written again.
+    expect(
+      await withBridged(where("gateway"), dir, SYSTEM, (held) =>
+        Promise.resolve(held.block.attestation),
+      ),
+    ).toBe(first);
+    expect(JSON.parse(readFileSync(join(dir, "attested.json"), "utf8"))).toStrictEqual(note);
+  });
+
+  it("is attested though the gateway's feed is longer than a client reads: no gateway is kept from bridging by its own feed", async () => {
+    // The gateway's home serves its feed without end: a hundred entries to a page, and always a next.
+    const endless: Where = {
+      edges: {
+        ...machine,
+        fetch: async (asked) => {
+          const url = new URL(asked.url);
+          if (asked.method !== "GET" || !url.pathname.endsWith("/feed")) return fetch(asked);
+          const real = (await (await fetch(`${url.origin}${url.pathname}?limit=1`)).json()) as {
+            entries: unknown[];
+          };
+          const after = Number(url.searchParams.get("after") ?? "-1");
+          return new Response(
+            JSON.stringify({
+              ...real,
+              entries: Array.from({ length: 100 }, () => real.entries[0]),
+              next: after + 100,
+            }),
+            { headers: { "content-type": "application/oip+json" } },
+          );
+        },
+      },
+      dir: join(root, "gateway"),
+    };
+    const system = { protocol: "mcp", endpoint: "https://long.example/mcp" };
+    const dir = join(root, "gateway", "systems", fileNameOf(system.endpoint));
+    const before = (await reader().feed(gateway)).feed.entries.length;
+    const held = await withBridged(endless, dir, system, ({ mind, block }) =>
+      Promise.resolve({ address: mind.address, attestation: block.attestation }),
+    );
+    const entries = (await reader().feed(gateway)).feed.entries;
+    expect(entries).toHaveLength(before + 1);
+    expect(held.attestation).toBe(`${gateway}/${entries.at(-1)?.id ?? ""}`);
+    // With the note, nothing more is attested, however long the feed.
+    await withBridged(endless, dir, system, () => Promise.resolve());
+    expect((await reader().feed(gateway)).feed.entries).toHaveLength(before + 1);
+  }, 120_000);
+
+  it(`${clause("L0 1.2")} is gone on with only where its genesis names this gateway and this system`, async () => {
+    const dir = bridgedDir();
+    // The directory of one system, asked for as another's.
+    await expect(
+      withBridged(
+        where("gateway"),
+        dir,
+        { protocol: "mcp", endpoint: "https://elsewhere.example/mcp" },
+        () => Promise.resolve(),
+      ),
+    ).rejects.toThrow(
+      /was not made by this gateway for https:\/\/elsewhere\.example\/mcp: its genesis names another gateway or another system/u,
+    );
+    await expect(
+      withBridged(where("gateway"), dir, { ...SYSTEM, protocol: "a2a" }, () => Promise.resolve()),
+    ).rejects.toThrow(UsageError);
+    // Another gateway, given the directory of this one's mind.
+    await make("another-gateway");
+    await expect(
+      withBridged(where("another-gateway"), dir, SYSTEM, () => Promise.resolve()),
+    ).rejects.toThrow(UsageError);
+    // It is this gateway's still.
+    await withBridged(where("gateway"), dir, SYSTEM, () => Promise.resolve());
   });
 
   it("is not made by a gateway that has no home: it has no feed to attest in", async () => {

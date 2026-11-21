@@ -350,13 +350,19 @@ export class Lookup {
    * for it, and whether the gateway's own feed shows that.
    *
    * The mind is resolved. If its profile names a gateway and an
-   * attestation, the gateway is resolved and its feed is read, and the
-   * entry the profile names is looked for there: an entry that is not in
-   * the gateway's feed attests nothing.
+   * attestation, the gateway is resolved and its feed is read, page by
+   * page, until the entry the profile names is found: an entry that the
+   * gateway's homes do not serve attests nothing. Nothing else of the feed
+   * is kept or judged.
    *
-   * @returns The level, with the gateway, protocol and endpoint the mind
-   *   names. Where the gateway cannot be resolved or its feed cannot be
-   *   read, the level is `claimed`: nothing was shown.
+   * A feed is read as far as a client reads one (`maxFeedEntries`). An
+   * entry that lies further on is not found, and the level is `claimed`.
+   *
+   * @returns The level, with the gateway, protocol and endpoint that the
+   *   mind's `Genesis` names: it is the `Genesis` that a gateway attests,
+   *   and a profile that says otherwise says it alone. Where the gateway
+   *   cannot be resolved or its feed cannot be read, the level is
+   *   `claimed`: nothing was shown.
    * @throws What `resolve` throws for the mind itself.
    */
   async assurance(mind: string): Promise<Assured> {
@@ -369,7 +375,9 @@ export class Lookup {
         ? record.ext[BRIDGE_BLOCK]
         : undefined;
     const own = profile === undefined ? undefined : blockOf(profile);
-    const block = own ?? blockOf(resolved.log.entries[0].event);
+    // What a gateway attests is the genesis (Layer 0, 1.2): what is said of the system is said
+    // from there, where the genesis says it.
+    const block = blockOf(resolved.log.entries[0].event) ?? own;
     if (block === undefined) return { level: "native" };
     const { gateway, protocol, endpoint } = block;
     const said = {
@@ -381,11 +389,24 @@ export class Lookup {
     if (profile === undefined || own === undefined) return { level: "claimed", ...said };
     const records = new RecordSet();
     const named = parseRecordRef(own["attestation"]);
-    if (named !== undefined && said.gateway !== undefined) {
+    // The gateway whose feed is read is the one the profile names: the rule asks that it be the
+    // genesis's too, and says `claimed` where it is not.
+    const attester = own["gateway"];
+    if (named !== undefined && isMindAddress(attester)) {
       try {
-        const { feed } = await this.feed(said.gateway);
-        const attested = feed.entries.find(({ id }) => id === named.contentId);
-        if (attested !== undefined) records.add(attested.entry);
+        const { state } = await this.resolve(attester);
+        const answers = await Promise.all(
+          state.homes.map((home) => this.#feedAt(home, attester, named.contentId)),
+        );
+        const [attested] = answers.flatMap((answer) => ("entries" in answer ? answer.entries : []));
+        if (attested !== undefined) {
+          // First seen now, by this client (core 9.4, item 1): a host is no witness.
+          const judged = judgeRecord(attested);
+          if (judged.ok) witnessRecord(judged.value, this.#clock.now(), this.#seen);
+          // The gateway's log as it stands no earlier than that.
+          await this.resolve(attester);
+          records.add(attested);
+        }
       } catch (error) {
         // A gateway that cannot be asked has shown nothing.
         if (!(error instanceof OipError || error instanceof TransportError)) throw error;
@@ -514,10 +535,18 @@ export class Lookup {
     return find({ lookup: this, transport: this.#options, clock: this.#clock, indexers }, query);
   }
 
-  /** The entries one home serves of a mind's feed, page by page, as far as a client reads. */
+  /**
+   * The entries one home serves of a mind's feed, page by page, as far as a
+   * client reads.
+   *
+   * @param wanted - The content ID of the one entry that is looked for.
+   *   Given, the reading ends at the page that has it, and gives that entry
+   *   alone, or none if the feed ends without it.
+   */
   async #feedAt(
     home: string,
     mind: string,
+    wanted?: string,
   ): Promise<{ home: string; entries: Entry[] } | { home: string; failure: Failure }> {
     const most = this.#options.maxFeedEntries ?? DEFAULT_MAX_FEED_ENTRIES;
     const entries: Entry[] = [];
@@ -542,6 +571,10 @@ export class Lookup {
             clause: "L1 13.1",
           });
         }
+        if (wanted !== undefined) {
+          const found = page.entries.find((entry) => contentId(entry) === wanted);
+          if (found !== undefined) return { home, entries: [found] };
+        }
         entries.push(...page.entries);
         if (entries.length > most) {
           throw new OipError("too-large", `${home} serves a longer feed than this client reads`, {
@@ -553,7 +586,7 @@ export class Lookup {
         if (after !== undefined && page.next <= after) break;
         after = page.next;
       }
-      return { home, entries };
+      return { home, entries: wanted === undefined ? entries : [] };
     } catch (error) {
       if (error instanceof OipError || error instanceof TransportError) {
         return { home, failure: error };

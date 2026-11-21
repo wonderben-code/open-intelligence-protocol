@@ -17,17 +17,22 @@
  *   can do, in the terms of the protocol the gateway bridges.
  *
  * Each step is done once. A run that stops is gone on with by the next,
- * with the same keys: no second mind is made for a system.
+ * with the same keys: no second mind is made for a system. The reference
+ * to the attestation is written down in the mind's directory as soon as
+ * the entry is signed, so that the gateway's feed need not be read for it
+ * again.
  */
 
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { Mind } from "@oip/client";
-import { contentId, formatRecordRef } from "@oip/core";
+import { contentId, formatRecordRef, OipError, parseRecordRef } from "@oip/core";
 import { Keystore } from "@oip/keystore";
 import { fileStorage } from "@oip/keystore/node";
 
 import { UsageError } from "./errors.ts";
+import { readObject } from "./files.ts";
 import { Home } from "./home.ts";
 import type { Where } from "./machine.ts";
 import { lockOf, openMind, optionsOf } from "./mind.ts";
@@ -49,6 +54,37 @@ export interface BridgeBlock extends BridgedSystem {
   readonly attestation: string;
 }
 
+/** The file in a bridged mind's directory that says which entry of the gateway's feed attests it. */
+const ATTESTED_FILE = "attested.json";
+
+/** The attestation a directory has written down for a genesis of a gateway, if it has one. */
+function noted(dir: string, gateway: string, genesis: string): string | undefined {
+  let read: Readonly<Record<string, unknown>>;
+  try {
+    read = readObject(join(dir, ATTESTED_FILE), "the note of an attestation");
+  } catch {
+    // Not written yet, or not what this function wrote: the feed says.
+    return undefined;
+  }
+  const { attestation } = read;
+  const named = parseRecordRef(attestation);
+  return read["gateway"] === gateway &&
+    read["genesis"] === genesis &&
+    typeof attestation === "string" &&
+    named?.mind === gateway
+    ? attestation
+    : undefined;
+}
+
+/** Writes down which entry attests a genesis: whole, or not at all. */
+function note(dir: string, gateway: string, genesis: string, attestation: string): void {
+  const file = join(dir, ATTESTED_FILE);
+  writeFileSync(`${file}.partial`, JSON.stringify({ gateway, genesis, attestation }), {
+    mode: 0o600,
+  });
+  renameSync(`${file}.partial`, file);
+}
+
 /** A bridged mind in its gateway's hands. */
 export interface Custody {
   /** The bridged mind, open. It is closed when the work with it ends. */
@@ -66,9 +102,10 @@ export interface Custody {
  *   mind. It has a home: its feed is where it attests.
  * @param dir - The directory of the bridged mind. It is made if it is not
  *   there. Its keys are sealed as the gateway's are.
- * @param system - What is bridged, and the attestation if an earlier run
- *   wrote it down: the gateway's feed is then not read for it.
- * @throws UsageError if the gateway's mind names no home.
+ * @param system - What is bridged, and the attestation if the caller has
+ *   it written down: the gateway's feed is then not read for it.
+ * @throws UsageError if the gateway's mind names no home, or the mind in
+ *   the directory is not one this gateway made for this system.
  */
 export async function withBridged<T>(
   where: Where,
@@ -108,18 +145,41 @@ export async function withBridged<T>(
         ? await Mind.create(options, { kind: "service", homes, ext: { "oip.bridge": block } })
         : await Mind.open(options);
     try {
+      const genesis = mind.resolved.log.entries[0].event;
+      // A mind that was there already is gone on with only if it is this system's bridged mind
+      // of this gateway: its genesis says so, and nothing can make another mind one later.
+      const declared = genesis.ext?.["oip.bridge"] ?? {};
+      if (
+        declared["gateway"] !== block.gateway ||
+        declared["protocol"] !== block.protocol ||
+        declared["endpoint"] !== block.endpoint
+      ) {
+        throw new UsageError(
+          `the mind in ${dir} was not made by this gateway for ${block.endpoint}: its genesis names another gateway or another system`,
+        );
+      }
       if (mind.resolved.location === undefined) await mind.publishLocation();
       // The gateway's own word: an entry of its feed that names the genesis. Signed once.
-      const genesis = mind.resolved.log.entries[0].event;
-      let attestation = system.attestation;
+      const named = contentId(genesis);
+      let attestation = system.attestation ?? noted(dir, block.gateway, named);
       if (attestation === undefined) {
-        // The feed says whether an earlier run attested the mind. If it cannot be read, nothing
-        // is signed on a guess: the next run asks again.
-        const { feed } = await gateway.mind.lookup.feed(gateway.mind.address);
-        const attested = feed.entries.find(({ entry }) => entry.object === contentId(genesis));
-        const entry = attested?.id ?? contentId(await gateway.mind.publishRecord(genesis));
-        attestation = formatRecordRef(gateway.mind.address, entry);
+        // The feed says whether an earlier run attested the mind and stopped before it wrote
+        // that down. If the feed cannot be read, nothing is signed on a guess: the next run
+        // asks again.
+        let attested: string | undefined;
+        try {
+          const { feed } = await gateway.mind.lookup.feed(gateway.mind.address);
+          attested = feed.entries.find(({ entry }) => entry.object === named)?.id;
+        } catch (error) {
+          // A feed longer than a client reads cannot say. The mind is attested then: a second
+          // entry for one genesis says what the first said, and no gateway is kept from
+          // bridging by the length of its own feed.
+          if (!(error instanceof OipError && error.code === "too-large")) throw error;
+        }
+        const entry = attested ?? contentId(await gateway.mind.publishRecord(genesis));
+        attestation = formatRecordRef(block.gateway, entry);
       }
+      note(dir, block.gateway, named, attestation);
       return await work({ mind, block: { ...block, attestation } });
     } finally {
       mind.close();

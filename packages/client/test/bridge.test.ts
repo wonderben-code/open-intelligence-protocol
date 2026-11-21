@@ -42,6 +42,15 @@ async function made(kind: string, ext?: Readonly<Record<string, JsonObject>>): P
   return mind;
 }
 
+/** A record of a mind's own, to fill its feed with: an Intent that asks for nothing much. */
+const noteOf = (mind: Mind, n: number): JsonObject => ({
+  oip: "1",
+  type: "Intent",
+  author: mind.address,
+  created: new Date(Number(world.clock.now() / 1_000_000n)).toISOString(),
+  want: `Something, for the ${String(n)}th time.`,
+});
+
 /** What a gateway writes of itself into a mind it bridges. */
 const blockOf = (gateway: Mind): JsonObject => ({
   protocol: "a2a",
@@ -148,6 +157,62 @@ describe("a gateway and the minds it bridges", () => {
     world.down(ONE);
     await expect(lookup.assurance(mind.address)).resolves.toMatchObject({ level: "claimed" });
     mind.close();
+  });
+
+  it(`${clause("L0 1.3")} finds the gateway's entry without reading its feed to the end, and no entry that lies beyond what a client reads`, async () => {
+    const { gateway, mind } = await bridged();
+    // The gateway's feed grows: three more entries after the one that attests the mind.
+    for (let n = 0; n < 3; n++) await gateway.publishRecord(await gateway.sign(noteOf(gateway, n)));
+    const short = () =>
+      new Lookup({ resolvers: [A], fetch: world.fetch, clock: world.clock, maxFeedEntries: 2 });
+    // The feed is longer than this client reads, and it cannot read all of it.
+    await expect(short().feed(gateway.address)).rejects.toMatchObject({ code: "too-large" });
+    // The entry is on the first page: it is found there, and the rest is not asked for.
+    expect((await short().assurance(mind.address)).level).toBe("bridged");
+    // A mind that names an entry which is nowhere in the feed is not shown anything by a
+    // long feed: the reading ends where a client's reading ends.
+    const other = await made("service", { "oip.bridge": blockOf(gateway) });
+    await other.publishProfile({
+      name: "Names an entry nobody wrote",
+      ext: {
+        "oip.bridge": {
+          ...blockOf(gateway),
+          attestation: formatRecordRef(gateway.address, contentId({ no: "entry" })),
+        },
+      },
+    });
+    expect((await short().assurance(other.address)).level).toBe("claimed");
+    other.close();
+    mind.close();
+    gateway.close();
+  });
+
+  it(`${clause("L0 1.2")} says of the system what the genesis says, which is what the gateway attested, whatever the profile says besides`, async () => {
+    const gateway = await made("service");
+    const block = blockOf(gateway);
+    const mind = await made("service", { "oip.bridge": block });
+    const entry = await gateway.publishRecord(mind.resolved.log.entries[0].event);
+    // The profile names the gateway and its entry, and says of the system what the genesis does not.
+    await mind.publishProfile({
+      name: "Says otherwise",
+      ext: {
+        "oip.bridge": {
+          gateway: gateway.address,
+          protocol: "mcp",
+          endpoint: "https://evil.example/other",
+          assurance: "native",
+          attestation: formatRecordRef(gateway.address, contentId(entry)),
+        },
+      },
+    });
+    expect(await reader().assurance(mind.address)).toStrictEqual({
+      level: "bridged",
+      gateway: gateway.address,
+      protocol: "a2a",
+      endpoint: "https://agent.example/a2a",
+    });
+    mind.close();
+    gateway.close();
   });
 
   it("says what the block names only where it names it rightly", async () => {

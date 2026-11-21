@@ -1141,6 +1141,9 @@ const BRIDGE_FAULTS = [
   "the profile names an intent of the gateway",
   "the profile holds the entry itself",
   "the profile is signed by the gateway",
+  "the profile has a capability with no summary",
+  "the profile has a capability whose ext names no namespace",
+  "the profile has two capabilities of one id",
   "the entry is not held",
   "the mind's log is not held",
   "the gateways' logs are not held",
@@ -1217,6 +1220,17 @@ function bridgeQuestion(faults: readonly BridgeFault[]): VectorCase & { kind: "a
       : is("the profile names a number")
         ? { "oip.bridge": { protocol: "a2a", gateway: 7, ...about } }
         : bridgeBlock(is("the profile names another gateway") ? otherGateway : gatewayMind, about);
+  // A profile that is not a well-formed record shows nothing, whatever its block says (Layer 0, 1.3).
+  const capabilities = is("the profile has a capability with no summary")
+    ? [{ id: "search" }]
+    : is("the profile has a capability whose ext names no namespace")
+      ? [{ id: "search", summary: "Searches.", ext: { mcp: {} } }]
+      : is("the profile has two capabilities of one id")
+        ? [
+            { id: "search", summary: "Searches." },
+            { id: "search", summary: "Searches again." },
+          ]
+        : undefined;
   const draft = {
     oip: "1",
     type: "Participant",
@@ -1224,11 +1238,11 @@ function bridgeQuestion(faults: readonly BridgeFault[]): VectorCase & { kind: "a
     created: T(10),
     name: "A bridged agent",
     kind: "service",
+    ...(capabilities === undefined ? {} : { capabilities }),
     ...(ext === undefined ? {} : { ext }),
   };
-  const profile = (
-    is("the profile is signed by the gateway") ? gatewayMind.sign(draft) : mind.sign(draft)
-  ) as Signed;
+  // Signed as whoever holds the key could sign it, well formed or not.
+  const profile = signRaw(is("the profile is signed by the gateway") ? gatewayMind : mind, draft);
   return {
     kind: "assurance",
     name: "generated",

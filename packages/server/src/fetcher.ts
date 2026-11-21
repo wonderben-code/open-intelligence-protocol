@@ -118,6 +118,9 @@ const OWN_HEADERS: ReadonlySet<string> = new Set([
   "user-agent",
 ]);
 
+/** The methods `GuardedFetcher.fetch` sends. */
+const SENT_METHODS: ReadonlySet<string> = new Set(["GET", "POST", "PUT", "DELETE"]);
+
 /** Further headers of a request, their names in lower case. @throws TypeError for one that may not be given. */
 function furtherHeaders(headers: Readonly<Record<string, string>>): Record<string, string> {
   const further: Record<string, string> = {};
@@ -222,6 +225,60 @@ export class GuardedFetcher {
     return this.#exchange(target, addresses, accept, deadline, { body, contentType, further });
   }
 
+  /**
+   * This fetcher as a `fetch`, for code that is given one: a client of the
+   * protocol that runs unattended, say, and asks at the URLs that the
+   * records of strangers name. Each request is made under the same guard as
+   * `get`. No redirect is followed: the answer is given as it is.
+   *
+   * A request's `accept` and `content-type` are sent as it gives them. Its
+   * other headers are sent as `post` sends further headers, and no more of
+   * them are allowed. Its signal ends the exchange, as the limit of time
+   * does.
+   *
+   * @throws FetchRefused if the URL may not be fetched, or the exchange
+   *   failed. TypeError for a method or a header that is not sent.
+   */
+  readonly fetch = async (request: Request): Promise<Response> => {
+    const method = request.method.toUpperCase();
+    if (!SENT_METHODS.has(method)) {
+      throw new TypeError(
+        `the method ${JSON.stringify(request.method)} is not one this fetcher sends`,
+      );
+    }
+    let accept = "*/*";
+    let contentType: string | undefined;
+    const given: Record<string, string> = {};
+    for (const [name, value] of request.headers) {
+      if (name === "accept") accept = value;
+      else if (name === "content-type") contentType = value;
+      else given[name] = value;
+    }
+    const further = furtherHeaders(given);
+    if (!/^[\x20-\x7e]*$/u.test(accept) || !/^[\x20-\x7e]*$/u.test(contentType ?? "")) {
+      throw new TypeError("a header's value is not printable ASCII");
+    }
+    const body = request.body === null ? undefined : new Uint8Array(await request.arrayBuffer());
+    const deadline = AbortSignal.any([AbortSignal.timeout(this.#limits.timeoutMs), request.signal]);
+    const target = this.#vetted(request.url);
+    const addresses = await this.#addresses(target.hostname, deadline);
+    const answer = await this.#exchange(target, addresses, accept, deadline, {
+      method,
+      further,
+      ...(body === undefined ? {} : { body }),
+      ...(contentType === undefined ? {} : { contentType }),
+    });
+    if (answer.status < 200 || answer.status > 599) {
+      throw new FetchRefused("network", "the response has no status that says anything");
+    }
+    // A response of these statuses has no body, and `Response` takes none for them.
+    const bare = answer.status === 204 || answer.status === 205 || answer.status === 304;
+    return new Response(bare ? null : (answer.body as Uint8Array<ArrayBuffer>), {
+      status: answer.status,
+      headers: answer.headers,
+    });
+  };
+
   /** The URL, if it is one this fetcher may ask at all. */
   #vetted(url: string): URL {
     let target: URL;
@@ -274,8 +331,10 @@ export class GuardedFetcher {
     accept: string,
     deadline: AbortSignal,
     sent?: {
-      readonly body: Uint8Array;
-      readonly contentType: string;
+      /** `POST` where none is given. */
+      readonly method?: string;
+      readonly body?: Uint8Array;
+      readonly contentType?: string;
       readonly further: Readonly<Record<string, string>>;
     },
   ): Promise<Fetched> {
@@ -284,7 +343,7 @@ export class GuardedFetcher {
       const outgoing = request(
         target,
         {
-          method: sent === undefined ? "GET" : "POST",
+          method: sent === undefined ? "GET" : (sent.method ?? "POST"),
           // No connection is kept for another request to find.
           agent: false,
           signal: deadline,
@@ -293,9 +352,8 @@ export class GuardedFetcher {
             accept,
             "accept-encoding": "identity",
             "user-agent": this.#userAgent,
-            ...(sent === undefined
-              ? {}
-              : { "content-type": sent.contentType, "content-length": sent.body.length }),
+            ...(sent?.contentType === undefined ? {} : { "content-type": sent.contentType }),
+            ...(sent?.body === undefined ? {} : { "content-length": sent.body.length }),
           },
           ...(this.#ca === undefined ? {} : { ca: this.#ca }),
           // The name is not resolved again: the connection goes to an address that was checked.

@@ -689,6 +689,49 @@ describe(`${clause("L1 12.4")} what a mind finds in its mailbox`, () => {
     expect((await bob.mind.receive()).sources[0]?.items).toBe(0);
   });
 
+  it(`${clause("L1 13.5")} is given to a caller that keeps it before anything says that it arrived: a process that stops loses none`, async () => {
+    const ada = await at_(ONE);
+    const bob = await at_(TWO);
+    const sent = await ada.mind.send(hello([bob.mind.address]));
+    world.clock.at = at(160);
+    // The caller has the packet, and the process stops there.
+    const kept: string[] = [];
+    await expect(
+      bob.mind.receive({
+        keep: (accepted) => {
+          kept.push(...accepted.map(({ id }) => id));
+          throw new Error("the process stops");
+        },
+      }),
+    ).rejects.toThrow("the process stops");
+    expect(kept).toStrictEqual([sent.id]);
+    // Nothing was noted and nothing removed: the next process finds it in the mailbox.
+    bob.mind.close();
+    const again = await Mind.open(bob.options);
+    const order: string[] = [];
+    world.before = (request) => {
+      if (request.method === "DELETE") order.push("removed");
+    };
+    const second = await again.receive({
+      keep: (accepted) => {
+        order.push(`kept ${accepted.map(({ id }) => id).join(" ")}`);
+      },
+    });
+    world.before = undefined;
+    expect(second.received.map((received) => received.id)).toStrictEqual([sent.id]);
+    // It was the caller's before it was gone from the mailbox.
+    expect(order).toStrictEqual([`kept ${sent.id}`, "removed"]);
+    // What is noted is given no more, and a reading that accepts nothing gives nothing.
+    const later: string[] = [];
+    const third = await again.receive({
+      keep: (accepted) => {
+        later.push(...accepted.map(({ id }) => id));
+      },
+    });
+    expect([third.received, later]).toStrictEqual([[], []]);
+    again.close();
+  });
+
   it("is returned by one of two processes that read at once, and what each accepted is kept by both", async () => {
     const ada = await at_(ONE);
     const bob = await at_(TWO);

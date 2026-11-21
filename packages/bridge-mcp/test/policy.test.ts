@@ -21,6 +21,13 @@ import {
   readCredentials,
   readPolicy,
 } from "../src/index.ts";
+import {
+  holdsSecret,
+  repeatsSecret,
+  secretsOf,
+  WITHHELD,
+  withoutSecrets,
+} from "../src/credentials.ts";
 
 const AMINA = `did:oip:bciq${"a".repeat(52)}`;
 const BORIS = `did:oip:bciq${"b".repeat(51)}a`;
@@ -104,10 +111,22 @@ describe("the credentials of a server", () => {
     write(CREDENTIALS_FILE, { headers: { Authorization: "Bearer abc", "X-Api-Key": "k 1" } });
     expect(readCredentials(dir)).toStrictEqual({
       headers: { Authorization: "Bearer abc", "X-Api-Key": "k 1" },
+      query: {},
       env: {},
     });
     const file = write("other.json", { env: { API_KEY: "abc", _HOME: "" } });
-    expect(credentialsIn(file)).toStrictEqual({ headers: {}, env: { API_KEY: "abc", _HOME: "" } });
+    expect(credentialsIn(file)).toStrictEqual({
+      headers: {},
+      query: {},
+      env: { API_KEY: "abc", _HOME: "" },
+    });
+    // What a server wants in its query: the URL the mind names the server by has none.
+    write(CREDENTIALS_FILE, { query: { api_key: "k-1", "tenant.id": "7" } });
+    expect(readCredentials(dir)).toStrictEqual({
+      headers: {},
+      query: { api_key: "k-1", "tenant.id": "7" },
+      env: {},
+    });
     expect(credentialsIn(join(dir, "absent.json"))).toBe(NONE);
   });
 
@@ -148,6 +167,15 @@ describe("the credentials of a server", () => {
       { env: { "1NAME": SECRET } },
       { env: { NAME: 7 } },
       { env: { NAME: `${SECRET}\0` } },
+      { query: [SECRET] },
+      { query: { "a name": SECRET } },
+      { query: { key: 7 } },
+      { query: { key: `${SECRET}\n` } },
+      { query: { key: "" } },
+      // A name and its value the wrong way round: the name is the secret, and is not quoted.
+      { headers: { [`Bearer ${SECRET}`]: "Authorization" } },
+      { env: { [SECRET]: "API_KEY" } },
+      { query: { [`${SECRET} `]: "key" } },
     ];
     for (const value of wrong) {
       write(CREDENTIALS_FILE, value);
@@ -161,5 +189,93 @@ describe("the credentials of a server", () => {
       expect(said, JSON.stringify(value)).not.toBe("");
       expect(said).not.toContain(SECRET);
     }
+    // Which member is wrong is said by its place.
+    write(CREDENTIALS_FILE, { headers: { "X-First": "one", [`Bearer ${SECRET}`]: "two" } });
+    expect(() => readCredentials(dir)).toThrow(
+      "the header at place 2 has a name that is no header",
+    );
+    write(CREDENTIALS_FILE, { env: { FIRST: "one", SECOND: "two", THIRD: 3 } });
+    expect(() => readCredentials(dir)).toThrow(
+      "the variable at place 3 has a value that is no text",
+    );
+    write(CREDENTIALS_FILE, { query: { key: 7 } });
+    expect(() => readCredentials(dir)).toThrow("the parameter of the query at place 1");
+  });
+});
+
+describe("what a server says back of the credentials", () => {
+  const credentials = {
+    headers: { Authorization: "Bearer sk-live-0123456789abcdef", "X-Short": "abc" },
+    query: { api_key: "q-key/with+signs=" },
+    env: { BASIC: "Basic dXNlci1uYW1lOnBhc3N3b3JkLTEyMw==", TOKEN: "t0ken-of-the-env" },
+  };
+  const secrets = secretsOf(credentials);
+
+  it("is searched for each value, each word of a value, and what `Basic` hides", () => {
+    for (const secret of [
+      "Bearer sk-live-0123456789abcdef",
+      "sk-live-0123456789abcdef",
+      "q-key/with+signs=",
+      "t0ken-of-the-env",
+      "dXNlci1uYW1lOnBhc3N3b3JkLTEyMw==",
+      // The name and the password that `Basic` writes in base64.
+      "user-name:password-123",
+      "user-name",
+      "password-123",
+      // And each as base64 and as a URL write it.
+      Buffer.from("sk-live-0123456789abcdef").toString("base64"),
+      Buffer.from("sk-live-0123456789abcdef").toString("base64url"),
+      encodeURIComponent("q-key/with+signs="),
+    ]) {
+      expect(secrets, secret).toContain(secret);
+      expect(holdsSecret(`The server said ${secret}.`, secrets), secret).toBe(true);
+    }
+    // A word as short as `Bearer`, or a value of three letters, is no secret: it would be
+    // found in every other sentence.
+    expect(secrets).not.toContain("Bearer");
+    expect(secrets).not.toContain("Basic");
+    expect(secrets).not.toContain("abc");
+    expect(holdsSecret("The bearer of this is basic, abc.", secrets)).toBe(false);
+    expect(secretsOf(NONE)).toStrictEqual([]);
+  });
+
+  it("is passed on with each credential taken out, the whole value before a word of it", () => {
+    expect(
+      withoutSecrets(
+        "401: the header Authorization: Bearer sk-live-0123456789abcdef is not valid, nor is sk-live-0123456789abcdef alone",
+        secrets,
+      ),
+    ).toBe(`401: the header Authorization: ${WITHHELD} is not valid, nor is ${WITHHELD} alone`);
+    expect(withoutSecrets("Nothing of them here.", secrets)).toBe("Nothing of them here.");
+    expect(withoutSecrets("Anything at all.", [])).toBe("Anything at all.");
+  });
+
+  it("is found in a result wherever it stands: in a string, in a member's name, as a number", () => {
+    const key = "sk-live-0123456789abcdef";
+    for (const value of [
+      key,
+      { content: [{ type: "text", text: `Your key is ${key}.` }] },
+      { [key]: true },
+      [[[{ deep: [key] }]]],
+      // A string with a quotation mark in it is another text once it is written as JSON.
+      { text: `"${credentials.query.api_key}"` },
+    ]) {
+      expect(repeatsSecret(value, secrets), JSON.stringify(value)).toBe(true);
+    }
+    // A key that is all digits may come back as a number.
+    expect(
+      repeatsSecret(
+        { account: 1234567890123 },
+        secretsOf({ ...NONE, env: { PIN: "1234567890123" } }),
+      ),
+    ).toBe(true);
+    for (const value of [null, 7, "Habari.", { content: [{ type: "text", text: "Habari." }] }]) {
+      expect(repeatsSecret(value, secrets), JSON.stringify(value)).toBe(false);
+    }
+    // With no credentials there is nothing to find, and what has no text is not carried.
+    expect(repeatsSecret({ text: key }, [])).toBe(false);
+    const circle: Record<string, unknown> = {};
+    circle["self"] = circle;
+    expect(repeatsSecret(circle, secrets)).toBe(false);
   });
 });

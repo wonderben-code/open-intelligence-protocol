@@ -74,7 +74,7 @@ describe("the recording that is kept", () => {
   it("is a telling as the README shows one, but for the addresses", () => {
     const lines = linesOf(cast);
     expect(readme).toContain(`\`\`\`\n${masked(lines.join("\n"))}\n\`\`\``);
-    expect(lines.at(-1)).toBe("27 things were verified in this telling.");
+    expect(lines.at(-1)).toBe("29 things were verified in this telling.");
   });
 
   it("is one telling in both its forms", () => {

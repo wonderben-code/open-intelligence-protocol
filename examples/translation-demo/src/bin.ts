@@ -6,4 +6,7 @@
 
 import { main } from "./main.ts";
 
-process.exitCode = await main(process.argv.slice(2), process);
+const code = await main(process.argv.slice(2), process);
+process.exitCode = code;
+// An interrupted telling was still at work somewhere: the process does not wait for it.
+if (code === 130) process.exit(code);

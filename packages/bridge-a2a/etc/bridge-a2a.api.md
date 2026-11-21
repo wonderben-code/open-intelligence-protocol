@@ -4,11 +4,11 @@
 
 ```ts
 
-import type { Capability } from '@oip/schema';
+import { Capability } from '@oip/schema';
 import { Clock } from '@oip/client';
 import { Machine } from '@oip/local';
 import { Opened } from '@oip/local';
-import type { Participant } from '@oip/schema';
+import { Participant } from '@oip/schema';
 import type { Validation } from '@oip/schema';
 import { Where } from '@oip/local';
 
@@ -240,7 +240,7 @@ export class Gateway {
     agents(): Bridged[];
     bridge(origin: string): Promise<Bridged>;
     bridged(origin: string): Bridged | undefined;
-    relay(origin: string): Promise<Relayed>;
+    relay(origin: string, spent?: () => boolean): Promise<Relayed>;
 }
 
 // @public
@@ -267,6 +267,7 @@ export interface Held {
     readonly answer?: A2aMessage;
     readonly artifacts: readonly Artifact[];
     readonly at: string;
+    readonly cancelling?: Readonly<Record<string, unknown>>;
     // (undocumented)
     readonly contextId: string;
     readonly history: readonly A2aMessage[];
@@ -352,6 +353,9 @@ export const MAX_FOLLOWED_SECONDS = 2592000;
 export const MAX_ID = 256;
 
 // @public
+export const MAX_IDLE_CONTEXT_SECONDS = 86400;
+
+// @public
 export const MAX_KEPT_SECONDS = 2592000;
 
 // @public
@@ -362,6 +366,9 @@ export const MAX_PARTS = 32;
 
 // @public
 export const MAX_REQUEST_BYTES = 1048576;
+
+// @public
+export const MAX_TASKS = 4096;
 
 // @public
 export const MAX_UNANNOUNCED_SECONDS = 86400;

@@ -23,8 +23,12 @@ import type { Received } from '@oip/client';
 export class Arrivals {
     constructor(opened: Opened, dir: string);
     done(id: string): void;
+    has(id: string): boolean;
     waiting(): Promise<KeptPacket[]>;
 }
+
+// @public
+export function asciiJson(words: string): string;
 
 // @public
 export function backupLockOf(context: Where, fresh: boolean): Promise<Lock>;
@@ -70,6 +74,25 @@ export function fetchOf(context: Where, config: Config): Fetch;
 export function fileNameOf(text: string): string;
 
 // @public
+export function guardedReach(guarded: Fetch, plain?: Fetch): Fetch;
+
+// @public
+export interface Hold {
+    beat(): void;
+    readonly held: boolean;
+    release(): void;
+}
+
+// @public
+export function hold(dir: string, name: string, what: string): Hold;
+
+// @public
+export const HOLD_BEAT_MS = 5000;
+
+// @public
+export const HOLD_STALE_MS = 30000;
+
+// @public
 export class Home {
     constructor(dir: string);
     readonly dir: string;
@@ -84,6 +107,9 @@ export class Home {
 
 // @public
 export function isLocal(place: unknown): place is string;
+
+// @public
+export function jsonText(value: unknown): string;
 
 // @public
 export function keepRecords(input: Pick<Opened, "mind" | "records">): void;
@@ -212,6 +238,9 @@ export function readObject(path: string, what: string): JsonObject;
 export function recordOf(opened: Opened, named: string, what: string): JsonObject;
 
 // @public
+export function recordText(text: string, most?: number): string;
+
+// @public
 export function refOf(record: JsonObject): string;
 
 // @public
@@ -235,6 +264,7 @@ export class Store<T> {
     }[];
     delete(key: string): void;
     get(key: string): T | undefined;
+    has(key: string): boolean;
     put(key: string, value: T): void;
 }
 

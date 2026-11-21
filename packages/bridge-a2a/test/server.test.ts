@@ -10,12 +10,12 @@
 import { carried, type Message, type Received, systemClock } from "@oip/client";
 import { contentId, type JsonObject } from "@oip/core";
 import { judgeRecord } from "@oip/identity";
-import { type Opened, openMind } from "@oip/local";
+import { fileNameOf, type Opened, openMind } from "@oip/local";
 import { join } from "node:path";
 import { clause } from "@oip/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { Book } from "../src/book.ts";
+import { Book, MAX_TASKS } from "../src/book.ts";
 import { A2aServer, Front, MAX_REQUEST_BYTES, OIP_EXTENSION } from "../src/index.ts";
 import { wrongAs } from "./conformance.ts";
 import { Place } from "./harness.ts";
@@ -556,6 +556,60 @@ describe("a message of an A2A client for a mind", () => {
   });
 });
 
+describe("a Receipt in a mind's answer", () => {
+  it(`${clause("L0 3.1")} ends a task only where it is the mind's own, about the request that began the task`, async () => {
+    const reply = await ask("SendMessage", {
+      message: message("Translate, and I shall ask again."),
+      configuration: { returnImmediately: true },
+    });
+    const task = taskOf(reply);
+    const { reached } = await minaAnswers(() => undefined);
+    const request = reached[0]?.id ?? "";
+    const session = reached[0]?.packet.session;
+    // Another mind signs that the request was fulfilled. It is a true record, and not the mind's.
+    const bilal = await place.mind("bilal");
+    let anothers: JsonObject;
+    try {
+      anothers = (await bilal.mind.receipt({
+        about: `${own}/${request}`,
+        outcome: "fulfilled",
+      })) as unknown as JsonObject;
+    } finally {
+      bilal.mind.close();
+    }
+    const opened = await place.mind("mina");
+    try {
+      // The mind passes it on with a word that it is at work: the task is at work, and has not ended.
+      await opened.mind.send({
+        to: [own],
+        verb: "ack",
+        content: { parts: [{ mediaType: "text/plain", body: "On it." }, carried(anothers)] },
+        replyTo: request,
+        ...(session === undefined ? {} : { session }),
+      });
+      await front.pump();
+      expect((await ask("GetTask", { id: task.id })).result).toMatchObject({
+        status: { state: "TASK_STATE_WORKING" },
+      });
+      // The mind's own Receipt about that request ends it, whatever the verb.
+      const mine = await opened.mind.receipt({ about: `${own}/${request}`, outcome: "broken" });
+      await opened.mind.send({
+        to: [own],
+        verb: "ack",
+        content: carried(mine),
+        replyTo: request,
+        ...(session === undefined ? {} : { session }),
+      });
+    } finally {
+      opened.mind.close();
+    }
+    await front.pump();
+    expect((await ask("GetTask", { id: task.id })).result).toMatchObject({
+      status: { state: "TASK_STATE_FAILED" },
+    });
+  });
+});
+
 describe("a task of a mind's", () => {
   it(`${clause("L0 3.2")} that needs input goes on with the client's next message: it answers what the mind asked, in the task's session`, async () => {
     const first = message("Translate the lease.");
@@ -742,14 +796,14 @@ describe("a task of a mind's", () => {
       clock: { now: () => systemClock.now() + ahead },
     });
     await keeper.pump();
-    expect(book.get("untold-long-ago")).toBeDefined();
+    expect(book.get(mina, "untold-long-ago")).toBeDefined();
     // Not an hour later.
     ahead = 3_000_000_000_000n;
     await keeper.pump();
-    expect(book.get("untold-long-ago")).toBeDefined();
+    expect(book.get(mina, "untold-long-ago")).toBeDefined();
     ahead = 3_700_000_000_000n;
     await keeper.pump();
-    expect(book.get("untold-long-ago")).toBeUndefined();
+    expect(book.get(mina, "untold-long-ago")).toBeUndefined();
   });
 
   it("is not begun where the mind cannot be given the message, and the client is told so", async () => {
@@ -1052,6 +1106,33 @@ describe("a packet that a message carries", () => {
     expect(await minaHas()).toStrictEqual([]);
   });
 
+  it(`${clause("L1 12.4")} is remembered by the gateway itself: one that was brought is not carried to the mind a second time`, async () => {
+    // The mind would discard a second copy. The gateway does not rest on that: it carries none.
+    const carried: unknown[] = [];
+    const counting = frontWith({
+      pass: (packet: unknown, to: string) => {
+        carried.push(packet);
+        return gateway.mind.pass(packet, to);
+      },
+    });
+    const served = await counting.served(id);
+    if (served === undefined) throw new Error("the mind is served");
+    const packet = await packetBy("bilal");
+    const said = (): Parameters<Front["send"]>[1] =>
+      carrying(packet)["message"] as Parameters<Front["send"]>[1];
+    await counting.send(served, said());
+    await counting.send(served, said());
+    // Another front on the gateway's directory, as after a restart, remembers it too.
+    await frontWith({
+      pass: (again: unknown) => {
+        carried.push(again);
+        return Promise.reject(new Error("carried a third time"));
+      },
+    }).send(served, said());
+    expect(carried).toStrictEqual([packet]);
+    expect(await minaHas()).toHaveLength(1);
+  });
+
   it(`${clause("L0 3.3", "L1 12.4")} is not brought where it does not verify, is not for this mind, or is out of its time, and the client is told why`, async () => {
     const good = await packetBy("bilal");
     const refused = async (packet: unknown): Promise<string> => {
@@ -1200,7 +1281,7 @@ describe("the JSON-RPC interface of a mind", () => {
     const answer = await server.handle({
       method: "POST",
       path: `/a2a/${id}`,
-      headers: { "a2a-version": "1.0", ...headers },
+      headers: { "content-type": "application/json", "a2a-version": "1.0", ...headers },
       body: typeof body === "string" ? utf8(body) : body,
     });
     return {
@@ -1279,6 +1360,11 @@ describe("the JSON-RPC interface of a mind", () => {
     expect((await ask("GetTask", { id: "t" }, {}, `/a2a/${id}?A2A-Version=1.0`)).error?.code).toBe(
       -32001,
     );
+    // A version that begins as this one does is another: 1.01 is not 1.0, and neither is 1.0x.
+    for (const version of ["1.01", "1.0x", "1.0.", "1.0.1.2", "1", "1.1", "2.0", "0.3", "v1.0"]) {
+      const refused = await ask("GetTask", { id: "t" }, { "a2a-version": version });
+      expect(refused.error?.code, version).toBe(-32009);
+    }
   });
 
   it("says of what this agent does not do that it does not: streams, push notifications, an extended card", async () => {
@@ -1317,7 +1403,7 @@ describe("the JSON-RPC interface of a mind", () => {
     const answer = await server.handle({
       method: "POST",
       path: `/a2a/${id}`,
-      headers: { "a2a-version": "1.0" },
+      headers: { "content-type": "application/json", "a2a-version": "1.0" },
       body: new Uint8Array(MAX_REQUEST_BYTES + 1),
     });
     expect(answer.status).toBe(413);
@@ -1354,7 +1440,7 @@ describe("the JSON-RPC interface of a mind", () => {
     const reply = await failing.handle({
       method: "POST",
       path: `/a2a/${id}`,
-      headers: { "a2a-version": "1.0" },
+      headers: { "content-type": "application/json", "a2a-version": "1.0" },
       body: utf8('{"jsonrpc":"2.0","id":3,"method":"GetTask","params":{"id":"t"}}'),
     });
     expect(JSON.parse(new TextDecoder().decode(reply.body))).toStrictEqual({
@@ -1495,5 +1581,271 @@ describe("a listing of a mind's tasks, for a client", () => {
     );
     expect(went.reply.result?.["task"]).not.toHaveProperty("history");
     expect(failures).toStrictEqual([]);
+  });
+});
+
+describe("what a gateway that serves keeps to, whoever asks", () => {
+  const cardOf = (mindId: string) =>
+    server.handle({
+      method: "GET",
+      path: `/a2a/${mindId}/.well-known/agent-card.json`,
+      headers: {},
+      body: new Uint8Array(),
+    });
+
+  /** Makes a mind whose profile lists a card at a URL made of the mind's ID. */
+  async function listing(name: string, url: (mindId: string) => string): Promise<string> {
+    const address = await place.make(name, { kind: "agent" });
+    const mindId = address.slice("did:oip:".length);
+    const opened = await place.mind(name);
+    try {
+      await opened.mind.publishProfile({ name, interfaces: { a2a: url(mindId) } });
+    } finally {
+      opened.mind.close();
+    }
+    return mindId;
+  }
+
+  it(`${clause("L0 3.2")} serves a mind whose profile lists the card this gateway serves for it, and none that lists another: another gateway's, or a URL that begins the same`, async () => {
+    const elsewhere = await listing(
+      "carol",
+      (mindId) => `https://other.example/a2a/${mindId}/.well-known/agent-card.json`,
+    );
+    const longer = await listing(
+      "dana",
+      (mindId) => `${BASE}/${mindId}/.well-known/agent-card.json?and=more`,
+    );
+    const under = await listing("erin", (mindId) => `${BASE}/${mindId}`);
+    for (const mindId of [elsewhere, longer, under]) {
+      expect((await cardOf(mindId)).status, mindId).toBe(404);
+    }
+    expect((await cardOf(id)).status).toBe(200);
+  });
+
+  it("gives a task to who asks the mind it is of, and to nobody who asks another mind this gateway serves", async () => {
+    const other = await listing(
+      "frank",
+      (mindId) => `${BASE}/${mindId}/.well-known/agent-card.json`,
+    );
+    expect((await cardOf(other)).status).toBe(200);
+    const reply = await ask("SendMessage", {
+      message: message("Translate, I shall ask again."),
+      configuration: { returnImmediately: true },
+    });
+    const task = taskOf(reply);
+    expect((await ask("GetTask", { id: task.id })).result).toMatchObject({ id: task.id });
+    // Asked of the other mind, there is no such task: to see, to cancel, to go on with or to list.
+    const elsewhere = `/a2a/${other}`;
+    for (const method of ["GetTask", "CancelTask"]) {
+      expect((await ask(method, { id: task.id }, undefined, elsewhere)).error?.code, method).toBe(
+        -32001,
+      );
+    }
+    const more = { message: message("And more.", { taskId: task.id }) };
+    expect((await ask("SendMessage", more, undefined, elsewhere)).error?.code).toBe(-32001);
+    expect(
+      (await ask("ListTasks", { contextId: task.contextId }, undefined, elsewhere)).result,
+    ).toMatchObject({ tasks: [], totalSize: 0 });
+    // It is as it was, for who asks the mind it is of.
+    expect((await ask("GetTask", { id: task.id })).result).toMatchObject({
+      status: { state: "TASK_STATE_SUBMITTED" },
+    });
+    await minaAnswers(() => ({ verb: "decline", ...text("Not today.") }));
+  });
+
+  it("has a task for an answer that the mind gave before the message's sending had returned", async () => {
+    // The mind answers at once, and the gateway reads its mailbox, while the packet that asked
+    // is still on its way back to the front that sent it.
+    let reading: Promise<number> | undefined;
+    const racing: Front = frontWith({
+      send: async (given: Message) => {
+        const sent = await gateway.mind.send(given);
+        const opened = await place.mind("mina");
+        try {
+          const got = await firstTo(opened);
+          await opened.mind.send({
+            to: [own],
+            verb: "deliver",
+            ...text("Done before you knew it."),
+            replyTo: got.id,
+            ...(got.packet.session === undefined ? {} : { session: got.packet.session }),
+          });
+        } finally {
+          opened.mind.close();
+        }
+        reading = racing.pump();
+        // The reading has all the time it needs to be done with the answer, if it does not wait.
+        await Promise.race([reading, sleep(1500)]);
+        return sent;
+      },
+    });
+    const served = await racing.served(id);
+    if (served === undefined) throw new Error("the mind is served");
+    const result = await racing.send(
+      served,
+      { messageId: "m-raced", role: "ROLE_USER", parts: [{ text: "Quickly." }] },
+      { returnImmediately: true },
+    );
+    await reading;
+    if (!("task" in result)) throw new Error("a client that does not wait is given a task");
+    expect(racing.get(served, result.task.id)).toMatchObject({
+      state: "TASK_STATE_COMPLETED",
+      artifacts: [{ parts: [{ text: "Done before you knew it." }] }],
+    });
+  });
+
+  it("signs one Receipt for a cancelling, though the mind could not be told at first", async () => {
+    const reply = await ask("SendMessage", {
+      message: message("Translate, I may change my mind."),
+      configuration: { returnImmediately: true },
+    });
+    const task = taskOf(reply);
+    await minaAnswers(() => undefined);
+    const receipts: string[] = [];
+    let reachable = false;
+    const flaky = frontWith({
+      send: (given: Message) => {
+        receipts.push(contentId((given.content as { body: JsonObject }).body));
+        return reachable
+          ? gateway.mind.send(given)
+          : Promise.reject(new Error("the network is away"));
+      },
+    });
+    const served = await flaky.served(id);
+    if (served === undefined) throw new Error("the mind is served");
+    await expect(flaky.cancel(served, task.id)).rejects.toThrow("the network is away");
+    // Nothing was told, and the task has not ended: its client asks again.
+    expect(flaky.get(served, task.id).state).toBe("TASK_STATE_SUBMITTED");
+    reachable = true;
+    expect((await flaky.cancel(served, task.id)).state).toBe("TASK_STATE_CANCELED");
+    expect(receipts).toHaveLength(2);
+    expect(receipts[1]).toBe(receipts[0]);
+    // The task as it is kept has nothing of the cancelling left in it.
+    expect(flaky.get(served, task.id)).not.toHaveProperty("cancelling");
+    const {
+      reached: [told],
+    } = await minaAnswers(() => undefined);
+    expect(contentId((told?.packet.content as { body: JsonObject }).body)).toBe(receipts[0]);
+  });
+
+  it("is told so where the mind was not given word of a cancelling, and the task is not said to be cancelled", async () => {
+    const reply = await ask("SendMessage", {
+      message: message("Translate, I may change my mind again."),
+      configuration: { returnImmediately: true },
+    });
+    const task = taskOf(reply);
+    await minaAnswers(() => undefined);
+    const deaf = frontWith({
+      send: async (given: Message) => {
+        const sent = await gateway.mind.send({ ...given, queue: false });
+        return { ...sent, deliveries: [{ to: mina, sealed: true, stored: false }] };
+      },
+    });
+    const served = await deaf.served(id);
+    if (served === undefined) throw new Error("the mind is served");
+    await expect(deaf.cancel(served, task.id)).rejects.toMatchObject({
+      code: -32603,
+      message: "The mind could not be given the word of it: none of its endpoints took it.",
+    });
+    expect(deaf.get(served, task.id).state).toBe("TASK_STATE_SUBMITTED");
+    await minaAnswers(() => ({ verb: "decline", ...text("Never mind.") }));
+  });
+
+  it(`${clause("core 1.1")} takes a client's text that no record holds as text that one does, and bytes in either alphabet of base64`, async () => {
+    const noncharacter = String.fromCodePoint(0xfffe);
+    const { reply, reached } = await exchange(
+      {
+        message: {
+          messageId: `m-${String(++sent)}`,
+          role: "ROLE_USER",
+          parts: [
+            { text: `caf${noncharacter}e` },
+            // "~~~???" in the alphabet of URLs, which A2A's own schema does not have.
+            { raw: "fn5-Pz8_", mediaType: "text/plain" },
+          ],
+        },
+      },
+      () => ({ verb: "deliver", ...text("Done.") }),
+    );
+    // No fault of the gateway's, and no refusal: the mind has the message, mended.
+    expect(reply.error).toBeUndefined();
+    // The packet is the first of its session, and carries the record that names it first.
+    const { parts } = reached[0]?.packet.content as { parts: unknown[] };
+    expect(parts.slice(-2)).toStrictEqual([
+      { mediaType: "text/plain", body: `caf${String.fromCodePoint(0xfffd)}e` },
+      { mediaType: "text/plain", body: "~~~???" },
+    ]);
+    // What the client is given back of its bytes is as A2A writes bytes. `ask` held the whole
+    // result against the A2A project's schema.
+    const history = (reply.result?.["task"] as { history: { parts: Record<string, unknown>[] }[] })
+      .history;
+    expect(history[0]?.parts[1]).toStrictEqual({ raw: "fn5+Pz8/", mediaType: "text/plain" });
+  });
+
+  it("reads a request that says it is JSON, and no other: a page in a browser cannot post one unasked", async () => {
+    const posted = (type: string | undefined) =>
+      server.handle({
+        method: "POST",
+        path: `/a2a/${id}?A2A-Version=1.0`,
+        headers: type === undefined ? {} : { "content-type": type },
+        body: utf8('{"jsonrpc":"2.0","id":1,"method":"GetTask","params":{"id":"t"}}'),
+      });
+    for (const type of [
+      undefined,
+      "text/plain",
+      "application/x-www-form-urlencoded",
+      "multipart/form-data",
+      "application/jsonx",
+    ]) {
+      const answer = await posted(type);
+      expect(answer.status, String(type)).toBe(415);
+      expect(new TextDecoder().decode(answer.body)).toBe(
+        "A request is JSON, and says so: Content-Type: application/json.\n",
+      );
+    }
+    for (const type of ["application/json", "Application/JSON; charset=utf-8"]) {
+      expect((await posted(type)).status, type).toBe(200);
+    }
+  });
+
+  it("keeps so many tasks of a mind, and takes no message that would begin one more", async () => {
+    const book = new Book(join(gateway.home.dir, "front"));
+    const before = book.count(mina);
+    const planted: string[] = [];
+    for (let n = before; n < MAX_TASKS; n++) {
+      const name = `planted-${String(n)}`;
+      planted.push(name);
+      book.put({
+        id: name,
+        mind: mina,
+        contextId: "ctx-planted",
+        state: "TASK_STATE_WORKING",
+        at: new Date().toISOString(),
+        artifacts: [],
+        history: [],
+        session: "bciqsession",
+        request: "bciqrequest",
+        announced: true,
+      });
+    }
+    try {
+      const full = await ask("SendMessage", { message: message("One more.") });
+      expect(full.error).toMatchObject({
+        code: -32004,
+        message: "This agent keeps as many tasks as it can. Ask again later.",
+      });
+      // Nothing was said to the mind.
+      const opened = await place.mind("mina");
+      try {
+        expect((await opened.mind.receive()).received).toStrictEqual([]);
+      } finally {
+        opened.mind.close();
+      }
+    } finally {
+      for (const name of planted) book.drop(mina, name);
+    }
+    expect(book.count(mina)).toBe(before);
+    // The tasks of a mind are in a directory of the mind's own.
+    expect(join(gateway.home.dir, "front", "tasks", fileNameOf(mina))).toMatch(/[0-9a-f]{40}$/u);
   });
 });

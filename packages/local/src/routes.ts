@@ -29,6 +29,30 @@ export function routed(routes: Readonly<Record<string, string>>, fetch: Fetch): 
   };
 }
 
+/** Where a route leads: a port of this machine, over plain HTTP, and nowhere else. */
+const ROUTED = /^http:\/\/127\.0\.0\.1(?::\d{1,5})?(?:[/?#]|$)/u;
+
+/**
+ * How a mind that runs unattended asks: under a guard, but for what a route
+ * carried.
+ *
+ * A mind asks at URLs that the records of strangers name: where a recipient
+ * is reached, where a mind's feed is served. On a person's machine that is
+ * the person's own doing. A gateway does it for whoever sends it a packet,
+ * and must not be led to the machine it runs on or the network behind it
+ * (BUILD.md 3.7). So everything it asks goes through `guarded`, which is to
+ * refuse such addresses: `GuardedFetcher.fetch` of `@oip/server` does.
+ *
+ * A request for a port of this machine over plain HTTP goes as it is. A
+ * client asks nothing but HTTPS, so such a request is one a route carried
+ * (`routed`), and a route is the operator's own setting.
+ *
+ * @param plain - How a routed request is made. Default: the platform's `fetch`.
+ */
+export function guardedReach(guarded: Fetch, plain: Fetch = (request) => fetch(request)): Fetch {
+  return (request) => (ROUTED.test(request.url) ? plain(request) : guarded(request));
+}
+
 /** A socket to an origin that has a route is opened where the route says, without TLS. */
 export function routedSocket(
   routes: Readonly<Record<string, string>>,

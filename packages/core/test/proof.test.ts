@@ -224,7 +224,7 @@ describe(`${clause("core 5.3")} creating a proof`, () => {
         reproduced++;
       }
     }
-    expect(reproduced).toBe(56);
+    expect(reproduced).toBe(58);
   });
 
   it("signs SHA-256(JCS(options)) followed by SHA-256(JCS(record without proof))", () => {
@@ -838,7 +838,7 @@ describe(`${clause("core 5.4")} verifying a proof`, () => {
         verified++;
       }
     }
-    expect(verified).toBe(56);
+    expect(verified).toBe(58);
   });
 
   it("says what it verified: the key, the reference, the digest and the claimed time", () => {

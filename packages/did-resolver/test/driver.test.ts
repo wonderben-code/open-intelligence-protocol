@@ -90,7 +90,9 @@ describe("a did:oip DID, resolved with the DIF did-resolver library", () => {
 
   it(`${clause("L1 2.4", "L1 5.2")} gives the document of an earlier version for a DID URL that names one, with its keys named as a proof pinned to it names them`, async () => {
     const result = await resolver.resolve(`${old}?versionId=${first}`);
-    expect(result.didDocumentMetadata).toMatchObject({ versionId: first, deactivated: false });
+    // The document is of the first version. That the mind has retired is said of the mind: a
+    // verifier that follows a key reference of a proof is told so.
+    expect(result.didDocumentMetadata).toMatchObject({ versionId: first, deactivated: true });
     const [method] = result.didDocument?.verificationMethod ?? [];
     expect(method?.id).toBe(`${old}?versionId=${first}#${String(method?.publicKeyMultibase)}`);
     // Where the mind takes packets is said of now, and is no part of an earlier document.
@@ -100,6 +102,22 @@ describe("a did:oip DID, resolved with the DIF did-resolver library", () => {
     const pinned = await resolver.resolve(`${ada}?versionId=${latest}`);
     expect(pinned.didDocument?.verificationMethod?.[0]?.id).toContain(`?versionId=${latest}#`);
     expect(pinned.didDocument?.service?.map(({ type }) => type)).toContain("OIPEndpoint");
+    // An earlier version of a mind that takes packets now: where it takes them now is no part
+    // of what it was then.
+    const opened = await place.mind("ada");
+    let before: string;
+    try {
+      before = opened.mind.state.versionId;
+      await opened.mind.addKey({ control: opened.lock, label: "second" });
+    } finally {
+      opened.mind.close();
+    }
+    const earlier = await resolver.resolve(`${ada}?versionId=${before}`);
+    expect(earlier.didDocumentMetadata).toMatchObject({ versionId: before, deactivated: false });
+    expect(earlier.didDocument?.service?.map(({ type }) => type)).toStrictEqual(["OIPHome"]);
+    const now = await resolver.resolve(ada);
+    expect(now.didDocumentMetadata.versionId).not.toBe(before);
+    expect(now.didDocument?.service?.map(({ type }) => type)).toContain("OIPEndpoint");
     // A version the log does not have.
     const none = await resolver.resolve(`${ada}?versionId=7-${contentId({ no: "event" })}`);
     expect(none).toStrictEqual({
@@ -139,8 +157,35 @@ describe("a did:oip DID, resolved with the DIF did-resolver library", () => {
     expect(
       (await resolveDid("did:web:example.com", place.options())).didResolutionMetadata.error,
     ).toBe("methodNotSupported");
-    expect((await resolveDid("not a DID", place.options())).didResolutionMetadata.error).toBe(
-      "methodNotSupported",
+    // What is no DID at all is no DID of another method: the scheme and the method are in
+    // small letters, and a method is followed by a colon and a name.
+    for (const none of ["not a DID", "did:oip", "DID:OIP:abc", "did:OIP:abc", "did::abc", ""]) {
+      expect((await resolveDid(none, place.options())).didResolutionMetadata, none).toStrictEqual({
+        error: "invalidDid",
+        message: "That is no DID: a DID is did:, a method, a colon and a name.",
+      });
+    }
+  });
+
+  it(`${clause("L1 2.4")} names a version by its identifier alone: a caller that names one by a time is not given today's document`, async () => {
+    for (const url of [
+      `${ada}?versionTime=2001-01-01T00:00:00Z`,
+      `${ada}?versionId=${first}&versionTime=2001-01-01T00:00:00Z`,
+    ]) {
+      expect(await resolveDid(url, place.options())).toStrictEqual({
+        didResolutionMetadata: {
+          error: "invalidDidUrl",
+          message:
+            "A version of a did:oip mind is named by versionId: this method has no document by versionTime.",
+        },
+        didDocument: null,
+        didDocumentMetadata: {},
+      });
+    }
+    // What says where to go in the document is the caller's to follow.
+    const whole = await resolveDid(ada, place.options());
+    expect((await resolveDid(`${ada}?service=home-0`, place.options())).didDocument).toStrictEqual(
+      whole.didDocument,
     );
   });
 

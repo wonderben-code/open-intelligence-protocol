@@ -57,6 +57,7 @@ describe("the README", () => {
       "--host <address>",
       "--every <seconds>",
       "OIP_PASSPHRASE",
+      "OIP_BRIDGE_FETCH_ALLOW",
       "--help",
       "--version",
     ]);

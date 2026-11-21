@@ -23,6 +23,7 @@ import { example as bridging } from "../examples/bridged.ts";
 import { example as naming } from "../examples/names.ts";
 import { example as keeping } from "../examples/outbox.ts";
 import { example as publishing } from "../examples/publish.ts";
+import { example as reading } from "../examples/read.ts";
 import { example as talking } from "../examples/session.ts";
 import * as client from "../src/index.ts";
 import { World } from "./world.ts";
@@ -71,6 +72,7 @@ describe("the README", () => {
       "session.ts",
       "move.ts",
       "deal.ts",
+      "read.ts",
       "collective.ts",
     ]) {
       const source = readFileSync(join(packageRoot, "examples", name), "utf8");
@@ -99,6 +101,9 @@ describe("the README", () => {
       "a later offer is the firm's: false",
       "the first still is: true",
       "kept with the offer: when 3 proofs came",
+      "sent for the agent: true",
+      "revocations found: 1",
+      "the delegation stands: false",
     ]);
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });
@@ -424,6 +429,29 @@ describe("the README", () => {
     expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
   });
 
+  it("shows the output the example of reading without a key really gives, against a resolver and a host", async () => {
+    world.resolver("https://resolver.example");
+    world.host("https://home.example");
+    // A clock that moves, as clocks do: a millisecond each time the client reads it.
+    const clock = { now: () => (world.clock.at += 1_000_000n) };
+    const output = await reading(
+      ["https://resolver.example"],
+      "https://home.example",
+      keychainLock(memoryKeychain(), "example"),
+      { fetch: world.fetch, clock },
+    );
+    expect(output).toStrictEqual([
+      "a stranger holds a Commitment and a Receipt",
+      "the Commitment binds the firm: true",
+      "and is fulfilled",
+      "by what another was handed, a later one binds the firm: true",
+      "Revocations on the firm's feed: 1",
+      "the delegation stands: false",
+      "the later one binds the firm: false",
+    ]);
+    expect(readme).toContain(`\`\`\`\n${output.join("\n")}\n\`\`\``);
+  });
+
   it("shows the output the example of a collective really gives, against a resolver", async () => {
     world.resolver("https://resolver.example");
     // A clock that moves, as clocks do: a millisecond each time the client reads it.
@@ -516,7 +544,7 @@ describe("the README", () => {
     );
   });
 
-  it("has a runnable example for every public method of a mind and of a lookup", () => {
+  it("has a runnable example for every public method of a mind, of a lookup and of a reader", () => {
     const examples = readdirSync(join(packageRoot, "examples"))
       .map((name) => readFileSync(join(packageRoot, "examples", name), "utf8"))
       .join("\n");
@@ -529,7 +557,12 @@ describe("the README", () => {
           )
           .map(([name]) => name),
       );
-    const methods = [...methodsOf(client.Mind), ...methodsOf(client.Lookup)];
+    const methods = [
+      ...methodsOf(client.Mind),
+      ...methodsOf(client.Lookup),
+      ...methodsOf(client.Reader),
+    ];
+    expect(methods).toContain("holdCarried");
     expect(methods).toContain("retire");
     expect(methods).toContain("create");
     expect(methods).toContain("aliases");

@@ -4,10 +4,16 @@
 
 ```ts
 
+import { Clock } from '@oip/client';
+import { Fetch } from '@oip/client';
+import { jsonText } from '@oip/local';
 import { JsonValue } from '@oip/core';
 import { Machine } from '@oip/local';
 import { Opened } from '@oip/local';
 import { Where } from '@oip/local';
+
+// @public
+export const ALLOW_VARIABLE = "OIP_BRIDGE_FETCH_ALLOW";
 
 // @public
 export function allows(policy: Policy, tool: string, minds: readonly string[]): boolean;
@@ -60,6 +66,7 @@ export function connector(options: {
 export interface Credentials {
     readonly env: Readonly<Record<string, string>>;
     readonly headers: Readonly<Record<string, string>>;
+    readonly query: Readonly<Record<string, string>>;
 }
 
 // @public
@@ -86,7 +93,7 @@ export class Gateway {
     }): Promise<BridgedNow>;
     bridged(endpoint: string): Bridged | undefined;
     directoryOf(endpoint: string): string;
-    relay(endpoint: string): Promise<Relayed>;
+    relay(endpoint: string, spent?: () => boolean): Promise<Relayed>;
     servers(): Bridged[];
 }
 
@@ -94,6 +101,9 @@ export class Gateway {
 export interface GatewayEdges {
     readonly connect: Connect;
 }
+
+// @public
+export const HOLD_FILE = "serve.hold";
 
 // @public
 export function holds(value: unknown): boolean;
@@ -112,8 +122,7 @@ export interface Host {
     };
 }
 
-// @public
-export function jsonText(value: unknown): string;
+export { jsonText }
 
 // @public
 export function main(argv: readonly string[], host: Host, reach?: Partial<Reach>): Promise<number | Serving>;
@@ -132,7 +141,13 @@ export interface Mapped {
 export const MAX_CAPABILITIES = 256;
 
 // @public
+export const MAX_CAPABILITIES_BYTES = 229376;
+
+// @public
 export const MAX_NAME = 128;
+
+// @public
+export const MAX_REFS = 8;
 
 // @public
 export const MAX_RESULT_BYTES = 196608;
@@ -147,7 +162,13 @@ export const MAX_SCHEMAS_BYTES = 131072;
 export const MAX_SUMMARY = 1024;
 
 // @public
+export const MAX_WAITING_SECONDS = 86400;
+
+// @public
 export const MCP_NAMESPACE = "oip.mcp";
+
+// @public
+export function mindsFetch(env?: Host["env"]): Fetch;
 
 // @public
 export const NOBODY: Policy;
@@ -205,6 +226,9 @@ export class Relay {
 }
 
 // @public
+export const RELAY_HOLD_FILE = "relay.hold";
+
+// @public
 export interface Relayed {
     readonly called: readonly string[];
     readonly declined: readonly string[];
@@ -213,6 +237,11 @@ export interface Relayed {
         readonly message: string;
     }[];
     readonly ignored: readonly string[];
+    readonly lost: readonly {
+        readonly id: string;
+        readonly to: string;
+        readonly why: string;
+    }[];
     readonly receipts: readonly {
         readonly id: string;
         readonly about: string;
@@ -226,7 +255,9 @@ export interface Relayed {
 
 // @public
 export interface RelayEdges {
+    readonly clock: Clock;
     readonly connect: Connect;
+    readonly spent?: () => boolean;
 }
 
 // @public
@@ -274,5 +305,8 @@ export interface ToolCapability {
 
 // @public
 export const VERSION = "0.0.0";
+
+// @public
+export const WITHHELD = "[a credential of the gateway's operator]";
 
 ```

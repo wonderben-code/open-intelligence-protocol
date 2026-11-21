@@ -527,7 +527,7 @@
       "keywords": {
         "MUST": 1
       },
-      "digest": "33f0e2691df4182eab7082037bc931c367464699b3e3f836f013af001a877275"
+      "digest": "866bb356e7c676ae901aa4877559057567f4fecbbff335d7209e640311580d86"
     },
     {
       "id": "L0 1.4",
@@ -537,9 +537,11 @@
       "level": "MUST",
       "keywords": {
         "MUST": 1,
-        "MUST NOT": 1
+        "MUST NOT": 1,
+        "SHOULD": 1,
+        "MAY": 1
       },
-      "digest": "8586160889c16e12c2fb3233104a05a7b4dc6fa40fb941f7443afaa6e2d725ab"
+      "digest": "5617c8568f2abd62c3ca913109cd9df879ecb630962f12d1b0f59024d90f9022"
     },
     {
       "id": "L0 1.5",
@@ -560,12 +562,12 @@
       "summary": "MCP servers as participants. A gateway bridging an MCP server: - maps each tool returned by `to…",
       "level": "MUST",
       "keywords": {
-        "MAY": 2,
-        "SHOULD": 1,
+        "MAY": 3,
+        "SHOULD": 2,
         "MUST NOT": 1,
         "MUST": 1
       },
-      "digest": "18245f1b48898eaadda26083aea46851cffbc0e494ded1715da01d007ba634d1"
+      "digest": "999afa0cdacc2615e8c8f267520dd5620507d0d9fe667e0947a5bfc0804730a1"
     },
     {
       "id": "L0 2.2",
@@ -983,7 +985,7 @@
       "summary": "DID document. Resolving a `did:oip` address produces a DID Core document: - `id`: the address.…",
       "level": "none",
       "keywords": {},
-      "digest": "a1d903229a2ca0d3227f67531618e30ed69d2406d153be33aef82b60f9014f49"
+      "digest": "7cb33b8346d2031b7732bfab09782502a8965fc8a9e8dd0b3b0ffbef8c5f7890"
     },
     {
       "id": "L1 5.3",

@@ -31,6 +31,7 @@ describe("the README", () => {
         "BridgedSystem",
         "Config",
         "Custody",
+        "Hold",
         "KeptPacket",
         "KeptRecord",
         "Machine",

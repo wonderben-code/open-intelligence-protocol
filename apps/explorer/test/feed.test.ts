@@ -8,7 +8,7 @@
  */
 
 import { LOCAL } from "@oip/cli";
-import { Reader, systemClock } from "@oip/client";
+import { Reader } from "@oip/client";
 import { checkpointRoot } from "@oip/net";
 import { clause } from "@oip/testkit";
 import { Stage, tell, type Told } from "@oip/translation-demo";
@@ -32,7 +32,7 @@ afterAll(async () => {
 describe("a feed, as a page shows it", () => {
   it(`${clause("L1 10.1", "L2 8.1", "L2 8.3")} lists what the mind published, each record with how it stands`, async () => {
     const lookup = stage.stranger();
-    const reader = new Reader({ lookup, clock: systemClock });
+    const reader = new Reader({ lookup });
     const view = await readFeed(lookup, reader, told.cast["amina"] ?? "");
     expect(view).toMatchObject({ author: told.cast["amina"], equivocation: 0, refused: 0 });
     expect(
@@ -56,16 +56,12 @@ describe("a feed, as a page shows it", () => {
 
   it(`${clause("L2 8.3")} judges a record by what the reader holds: the agent's feed alone has the promise, and not that it was kept`, async () => {
     const lookup = stage.stranger();
-    const view = await readFeed(
-      lookup,
-      new Reader({ lookup, clock: systemClock }),
-      told.cast["lexis-agent"] ?? "",
-    );
+    const view = await readFeed(lookup, new Reader({ lookup }), told.cast["lexis-agent"] ?? "");
     expect(view.entries.map(({ objectType, status }) => [objectType, status])).toStrictEqual([
       ["Commitment", "accepted"],
     ]);
     // A reader that has read Amina's feed too knows of her Receipt.
-    const reader = new Reader({ lookup, clock: systemClock });
+    const reader = new Reader({ lookup });
     await readFeed(lookup, reader, told.cast["amina"] ?? "");
     const again = await readFeed(lookup, reader, told.cast["lexis-agent"] ?? "");
     expect(again.entries.map(({ status }) => status)).toStrictEqual(["fulfilled"]);
@@ -73,11 +69,7 @@ describe("a feed, as a page shows it", () => {
 
   it(`${clause("L1 10.5")} says what a checkpoint over the feed must say: its size, its last entry, and the Merkle root of them all`, async () => {
     const lookup = stage.stranger();
-    const view = await readFeed(
-      lookup,
-      new Reader({ lookup, clock: systemClock }),
-      told.cast["amina"] ?? "",
-    );
+    const view = await readFeed(lookup, new Reader({ lookup }), told.cast["amina"] ?? "");
     const ids = view.entries.map(({ id }) => id);
     expect(view.covering).toStrictEqual({
       size: 3,
@@ -92,11 +84,7 @@ describe("a feed, as a page shows it", () => {
 
   it("has nothing for a mind that published nothing", async () => {
     const lookup = stage.stranger();
-    const view = await readFeed(
-      lookup,
-      new Reader({ lookup, clock: systemClock }),
-      told.cast["lexis-ltd"] ?? "",
-    );
+    const view = await readFeed(lookup, new Reader({ lookup }), told.cast["lexis-ltd"] ?? "");
     expect(view.entries).toStrictEqual([]);
     // A checkpoint covers at least one entry: there is none over nothing.
     expect(view.covering).toBeUndefined();

@@ -10,7 +10,7 @@
  * and shows what was found with the reason for each thing it says.
  */
 
-import { Lookup, Reader, systemClock } from "@oip/client";
+import { Lookup, Reader } from "@oip/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Asked } from "./oip/asked.ts";
@@ -59,7 +59,7 @@ export function App(): React.JSX.Element {
       indexers: settings.indexers,
       fetch: asked.fetch,
     });
-    return { asked, lookup, reader: new Reader({ lookup, clock: systemClock }) };
+    return { asked, lookup, reader: new Reader({ lookup }) };
   }, [settings]);
 
   return (

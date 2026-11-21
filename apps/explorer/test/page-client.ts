@@ -10,7 +10,7 @@
 import { join } from "node:path";
 
 import { LOCAL } from "@oip/cli";
-import { Lookup, Reader, systemClock } from "@oip/client";
+import { Lookup, Reader } from "@oip/client";
 import { readNetwork, routed } from "@oip/local";
 import type { Stage } from "@oip/translation-demo";
 
@@ -44,5 +44,5 @@ export function pageClient(
     return down.includes(origin) ? Promise.reject(new TypeError("fetch failed")) : carry(request);
   });
   const lookup = new Lookup({ resolvers, indexers, fetch: asked.fetch });
-  return { asked, lookup, reader: new Reader({ lookup, clock: systemClock }), made };
+  return { asked, lookup, reader: new Reader({ lookup }), made };
 }

@@ -21,9 +21,12 @@ import {
   formatRecordRef,
   formatTimestamp,
   type Instant,
+  isMindAddress,
   type JsonObject,
   OipError,
   type OipRecord,
+  parseRecordRef,
+  parseTimestamp,
 } from "@oip/core";
 import {
   authorityOf,
@@ -33,7 +36,7 @@ import {
   sentFor,
   witnessProofs,
 } from "@oip/delegation";
-import { FirstSeen, type JudgedRecord, judgeRecord } from "@oip/identity";
+import { FirstSeen, type IdentityView, type JudgedRecord, judgeRecord } from "@oip/identity";
 import {
   type AuthorityItem,
   type Collective as Charter,
@@ -48,7 +51,7 @@ import {
 import { countsFor, type Status, status, WebRecordSet, withHeld } from "@oip/web";
 
 import { accepted } from "./accepted.ts";
-import type { Clock, Lookup } from "./lookup.ts";
+import type { Lookup } from "./lookup.ts";
 import type { Own } from "./publish.ts";
 import { TransportError } from "./transport.ts";
 
@@ -136,6 +139,29 @@ function named(judged: JudgedRecord, into: Set<string>): void {
   for (const { proof } of judged.proofs) mindsIn(proof, into);
 }
 
+/**
+ * The minds whose logs decide whether a record counts, and for whom: its
+ * author, its sender and whoever it says it was sent for, its parties, and
+ * every mind its proofs name, which are their signers and the authors of
+ * the delegations and charters they rest on.
+ *
+ * A record names other minds too, wherever its author chose to write an
+ * address. Those decide nothing, and are asked for after these.
+ */
+function deciding(judged: JudgedRecord, into: Set<string>): void {
+  const { author, from, parties, provenance } = judged.record as {
+    author?: unknown;
+    from?: unknown;
+    parties?: unknown;
+    provenance?: { onBehalfOf?: unknown } | null;
+  };
+  mindsIn([author, from, provenance?.onBehalfOf], into);
+  for (const party of Array.isArray(parties) ? (parties as unknown[]) : []) {
+    mindsIn((party as { mind?: unknown } | null)?.mind, into);
+  }
+  for (const { proof } of judged.proofs) mindsIn(proof, into);
+}
+
 /** What a proof names to count for another mind (core 5.2): one chain, or one charter. */
 function authorityFor(acting: Acting | undefined): readonly AuthorityItem[] | undefined {
   if (acting === undefined) return undefined;
@@ -177,11 +203,27 @@ class EachProof extends FirstSeen {
   }
 }
 
-/** What reading records needs of the world: a way to ask for the logs of minds, and the time. */
+/** What reading records needs of the world. */
 export interface ReadingContext {
+  /**
+   * A way to ask for the logs of minds and for what they published. The
+   * reader reads the clock of this lookup, and no other: the times of what
+   * the lookup found and of what the reader holds are compared.
+   */
   readonly lookup: Lookup;
-  readonly clock: Clock;
 }
+
+/**
+ * How a reader has its own evidence of when a proof existed (core 9.4, item 1).
+ *
+ * - `live`: it takes records in as they are made, and notes when it first
+ *   obtained each proof. A mind's own client does.
+ * - `history`: it reads what was made before it looked. The order in which
+ *   it happens to take such records in says nothing of the order in which
+ *   they were made, so it holds every proof as of its latest look: its only
+ *   own evidence is that the proof existed by then.
+ */
+export type Sight = "live" | "history";
 
 /**
  * Records, held and judged, by a client that needs no key to do it.
@@ -195,15 +237,68 @@ export interface ReadingContext {
  * Hold every record that bears on the question: a Commitment, and the
  * Receipts about it. The logs of the minds they name are asked for when a
  * question is put, after the proofs were first seen (core 9.4).
+ *
+ * A reader made with nothing more said reads history. What it holds, it
+ * holds as of its latest look, in whatever order it took the records in: a
+ * Revocation counts against a signature made under the delegation it takes
+ * back, whichever of the two was read first (Layer 1, 11.4, item 7). Its
+ * verdict on a signature that rests on something with an end, a delegation
+ * that expires or a key that was removed, is the verdict of now: evidence
+ * that the signature was made in time is what a feed with anchored
+ * checkpoints gives (core 9.7), and a reader has none of its own.
  */
 export class Reader {
-  readonly #at: ReadingContext;
+  readonly #at: { readonly lookup: Lookup; readonly clock: Lookup["clock"] };
+  readonly #live: boolean;
   readonly #records = new WebRecordSet();
-  /** The records held, by content ID, each as the copy with every proof seen of it. */
+  /**
+   * The records held, by content ID, each as the copy with the proofs of
+   * every copy seen that verify. A record none of whose proofs verifies is
+   * held as it was given: it counts for nobody.
+   */
   readonly #held = new Map<string, OipRecord>();
+  /** The Revocations held that have counted for their authors, by content ID. */
+  readonly #revoked = new Set<string>();
+  /** For a reader of history: the proofs it has taken in, by digest. */
+  readonly #read = new Set<string>();
+  /** For a reader of history: when it last took anything in. */
+  #asOf: Instant | undefined;
 
-  constructor(at: ReadingContext) {
-    this.#at = at;
+  /**
+   * @param sight - How the reader has its own evidence of time. Default: `history`.
+   */
+  constructor(at: ReadingContext, sight: Sight = "history") {
+    this.#at = { lookup: at.lookup, clock: at.lookup.clock };
+    this.#live = sight === "live";
+  }
+
+  /**
+   * The logs and the evidence a record is judged by.
+   *
+   * For a reader of history, a proof it has taken in existed by its latest
+   * look, or by when a witness the lookup trusts first saw it, if that is
+   * earlier. The lookup's own first sight of such a proof, at the moment it
+   * happened to be fetched, is not used.
+   */
+  #context(): { identity: IdentityView; records: WebRecordSet } {
+    const { view, witnessed } = this.#at.lookup;
+    if (this.#live) return { identity: view, records: this.#records };
+    const asOf = this.#asOf;
+    const read = this.#read;
+    return {
+      identity: {
+        log: (mind) => view.log(mind),
+        evidence: {
+          eventSeen: (id) => view.evidence.eventSeen(id),
+          proofSeen: (digest) => {
+            if (!read.has(digest)) return view.evidence.proofSeen(digest);
+            const witness = witnessed.proofSeen(digest);
+            return witness !== undefined && (asOf === undefined || witness < asOf) ? witness : asOf;
+          },
+        },
+      },
+      records: this.#records,
+    };
   }
 
   /** Holds a record: see `Mind.hold`. */
@@ -215,21 +310,44 @@ export class Reader {
    * Takes a record in, and gives it back as the client holds it: judged,
    * with the proofs of every copy the client has seen (Layer 2, Section 2).
    */
-  #take(record: unknown, kept?: Sightings): { id: string; judged: JudgedRecord } {
+  #take(
+    record: unknown,
+    kept?: Sightings,
+    now: Instant = this.#at.clock.now(),
+  ): { id: string; judged: JudgedRecord } {
     const own = this.#at;
     const id = accepted(this.#records.add(record), "invalid-record", "that is no record");
     const judged = withHeld(
       accepted(judgeRecord(record), "invalid-record", "that is no record"),
       this.#records,
     );
-    this.#held.set(id, judged.record as OipRecord);
+    // The copy held has every proof that verifies, of every copy seen, and no other (Layer 2,
+    // Section 2). A copy with fewer proofs, or with proofs that verify nothing, takes none away.
+    const proofs = judged.proofs.map(({ proof }) => proof);
+    this.#held.set(
+      id,
+      (proofs.length === 0 ? judged.record : { ...judged.record, proof: proofs }) as OipRecord,
+    );
+    if (!this.#live) {
+      // A reader of history holds what it holds as of its latest look.
+      witnessProofs(
+        judged,
+        now,
+        new EachProof((digest, at) => {
+          this.#read.add(digest);
+          return at;
+        }),
+      );
+      if (this.#asOf === undefined || now > this.#asOf) this.#asOf = now;
+      return { id, judged };
+    }
     // Its proofs are first seen now, by this client (core 9.4, item 1): a delegation that a
     // later proof names is judged by when it was first held. Or they were first seen when
     // the client's own record, kept from before, says: never later than now, whatever it says.
     const { seen } = own.lookup;
     witnessProofs(
       judged,
-      own.clock.now(),
+      now,
       kept === undefined
         ? seen
         : new EachProof((digest, now) => {
@@ -247,11 +365,16 @@ export class Reader {
     if (record === undefined) return found;
     const judged = accepted(judgeRecord(record), "invalid-record", "that is no record");
     const { seen } = this.#at.lookup;
+    const asOf = this.#asOf;
     // Each was seen when the record was taken in: the earliest time held for it is the answer.
+    // A reader of history has one time for all it holds.
     witnessProofs(
       judged,
       this.#at.clock.now(),
-      new EachProof((digest, now) => (found[digest] = seen.sawProof(digest, now))),
+      new EachProof(
+        (digest, now) =>
+          (found[digest] = this.#live || asOf === undefined ? seen.sawProof(digest, now) : asOf),
+      ),
     );
     return found;
   }
@@ -269,18 +392,40 @@ export class Reader {
     const own = this.#at;
     const { id, judged } = this.#take(record);
     const now = own.clock.now();
+    // The minds whose logs decide, first: a record's author chooses what else it names, and in
+    // what order, and must not so choose whose log is left unasked.
     const minds = new Set<string>();
-    named(judged, minds);
+    deciding(judged, minds);
     // And the minds of what it rests on, among the records held: delegations it names,
     // Receipts about it, what supersedes it, Commitments that resolve it.
-    for (const related of [
+    const resting = [
       ...this.#records.receiptsAbout(id),
       ...this.#records.resolversOf(id),
       ...this.#records.supersedersOf(id),
-    ]) {
-      witnessProofs(related, now, own.lookup.seen);
-      named(related, minds);
+    ];
+    for (const related of resting) {
+      witnessProofs(
+        related,
+        now,
+        this.#live
+          ? own.lookup.seen
+          : new EachProof((digest, at) => {
+              this.#read.add(digest);
+              return at;
+            }),
+      );
+      deciding(related, minds);
     }
+    if (minds.size > MAX_MINDS) {
+      throw new OipError(
+        "too-large",
+        `the record rests on the logs of ${String(minds.size)} minds, and a client asks for ${String(MAX_MINDS)} to judge one record`,
+        { clause: "core 9.4" },
+      );
+    }
+    // Then whoever else it names, as far as the bound goes: they decide nothing.
+    named(judged, minds);
+    for (const related of resting) named(related, minds);
     for (const mind of [...minds].slice(0, MAX_MINDS)) {
       try {
         await own.lookup.resolve(mind);
@@ -295,14 +440,14 @@ export class Reader {
   /** Whether a record counts for a mind: see `Mind.countsFor`. */
   async countsFor(record: unknown, mind: string): Promise<boolean> {
     const { judged } = await this.#fresh(record);
-    return countsFor(judged, mind, { identity: this.#at.lookup.view, records: this.#records });
+    return countsFor(judged, mind, this.#context());
   }
 
   /** The status of a record: see `Mind.statusOf`. */
   async status(record: unknown): Promise<Status> {
     const { judged, now } = await this.#fresh(record);
     return accepted(
-      status(judged, now, { identity: this.#at.lookup.view, records: this.#records }),
+      status(judged, now, this.#context()),
       "invalid-record",
       "that record has no status",
     );
@@ -316,21 +461,121 @@ export class Reader {
    * @returns The mind, or `undefined` if the packet names none, or names one in words only.
    */
   async sentFor(packet: unknown): Promise<string | undefined> {
-    const subject = (packet as { provenance?: { onBehalfOf?: unknown } }).provenance?.onBehalfOf;
+    // What is no packet was sent for nobody.
+    const subject = (packet as { provenance?: { onBehalfOf?: unknown } | null } | null | undefined)
+      ?.provenance?.onBehalfOf;
     if (typeof subject !== "string") return undefined;
     const { judged } = await this.#fresh(packet);
-    const context = { identity: this.#at.lookup.view, records: this.#records };
-    return sentFor(judged, subject, context) === undefined ? undefined : subject;
+    return sentFor(judged, subject, this.#context()) === undefined ? undefined : subject;
   }
 
-  /** Holds the records a packet carries (Layer 1, 12.2): its body, or its parts, where they are records. */
+  /** What a record's proofs list as their authority: delegations carried whole, or named by reference. */
+  #authorityOf(record: unknown): unknown[] {
+    const proofs = (record as { proof?: unknown } | null)?.proof;
+    return (Array.isArray(proofs) ? (proofs as unknown[]) : []).flatMap((proof) => {
+      const authority = (proof as { authority?: unknown } | null)?.authority;
+      return Array.isArray(authority) ? (authority as unknown[]) : [];
+    });
+  }
+
+  /**
+   * Whether the delegations a record's proofs rest on stand now: see
+   * `Mind.delegationsStand`.
+   */
+  async delegationsStand(record: unknown): Promise<boolean> {
+    const now = this.#at.clock.now();
+    for (const item of this.#authorityOf(record)) {
+      // Carried whole, or named and held.
+      let delegation = item as
+        { type?: unknown; author?: unknown; expires?: unknown } | null | undefined;
+      if (typeof item === "string") {
+        const named = parseRecordRef(item);
+        delegation = named === undefined ? undefined : this.#held.get(named.contentId);
+        // One that is named and not held shows nothing.
+        if (delegation === undefined) return false;
+      }
+      // A charter is authority too, and is not taken back by a Revocation.
+      if (delegation?.type !== "Delegation") continue;
+      const { author, expires } = delegation;
+      if (!isMindAddress(author)) return false;
+      // One with no end that can be read is no delegation (Layer 1, 11.1).
+      const until = parseTimestamp(expires);
+      if (until === undefined || until <= now) return false;
+      const revoked = formatRecordRef(author, contentId(delegation));
+      for (const held of this.#held.values()) {
+        const { type, revokes } = held as { type: string; revokes?: unknown };
+        if (type !== "Revocation" || revokes !== revoked) continue;
+        // Its author's own word, whenever it was first seen.
+        if (await this.countsFor(held, author)) return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Reads what the authors of the delegations a record rests on have
+   * revoked, and holds it: see `Mind.holdRevocations`.
+   */
+  async holdRevocations(record: unknown): Promise<number> {
+    const { lookup } = this.#at;
+    const authors = new Set<string>();
+    for (const item of this.#authorityOf(record)) {
+      // A delegation is carried whole, or named by its reference: either says whose it is.
+      const author =
+        typeof item === "string"
+          ? parseRecordRef(item)?.mind
+          : (item as { author?: unknown } | null)?.author;
+      if (isMindAddress(author)) authors.add(author);
+    }
+    let held = 0;
+    for (const author of authors) {
+      let entries;
+      try {
+        ({
+          feed: { entries },
+        } = await lookup.feed(author));
+      } catch (error) {
+        // A mind with no home has no feed, and has published nothing there.
+        if (error instanceof OipError && error.code === "not-found") continue;
+        throw error;
+      }
+      for (const { entry } of entries) {
+        if (entry.objectType !== "Revocation" || this.#revoked.has(entry.object)) continue;
+        // A copy that is held shows nothing unless it counts for its author. Anyone who has
+        // read a Revocation can give out the same record, by its content ID, under a
+        // signature that is nobody's: with that copy held, the author's own is fetched still.
+        const before = this.#held.get(entry.object);
+        if (before === undefined || !(await this.countsFor(before, author))) {
+          const fetched = await lookup.record(author, entry.object);
+          this.hold(fetched.record);
+          held += 1;
+          continue;
+        }
+        // Its proofs are kept with every copy that comes later: it need not be asked of again.
+        this.#revoked.add(entry.object);
+      }
+    }
+    return held;
+  }
+
+  /**
+   * Holds the records a packet carries (Layer 1, 12.2): its body, or its
+   * parts, where they are records.
+   *
+   * They came together, and are first seen together: at one reading of the
+   * clock. A record whose proof names a delegation by reference counts by
+   * a delegation that another part carries, whichever of the two comes
+   * first in the packet (Layer 1, 11.4, item 1; 11.6).
+   */
   holdCarried(content: unknown): void {
-    const parts = (content as { parts?: unknown }).parts;
+    const now = this.#at.clock.now();
+    const parts = (content as { parts?: unknown } | null | undefined)?.parts;
     for (const part of Array.isArray(parts) ? (parts as unknown[]) : [content]) {
-      const { mediaType, body } = part as { mediaType?: unknown; body?: unknown };
+      // What a packet carries is data: a part that is no object carries no record.
+      const { mediaType, body } = (part ?? {}) as { mediaType?: unknown; body?: unknown };
       if (mediaType !== "application/oip+json") continue;
       // What a packet carries is data: what is no record is no record, and is not held.
-      if (this.#records.add(body).ok) this.hold(body);
+      if (this.#records.add(body).ok) this.#take(body, undefined, now);
     }
   }
 }
@@ -345,7 +590,8 @@ export class Dealings extends Reader {
   readonly #own: Own;
 
   constructor(own: Own) {
-    super(own);
+    // A mind takes records in as they are made, and notes when it first obtained each proof.
+    super(own, "live");
     this.#own = own;
   }
 

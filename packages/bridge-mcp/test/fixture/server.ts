@@ -9,13 +9,25 @@
 
 import { fileURLToPath } from "node:url";
 
-import { fromJsonSchema, McpServer, type McpServerFactory } from "@modelcontextprotocol/server";
+import {
+  fromJsonSchema,
+  inputRequired,
+  McpServer,
+  type McpServerFactory,
+} from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 
 /** How many tools the server lists, and in how many pages. */
-export const TOOLS = 3;
+export const TOOLS = 4;
 
-/** The server: `echo` says what it is told, `environment` says what a variable holds, `boom` throws. */
+/** How often `ask` was called, in this process. */
+export const asked = { times: 0 };
+
+/**
+ * The server: `echo` says what it is told, `environment` says what a
+ * variable holds, `boom` throws, and `ask` wants an answer of a person
+ * before it does anything.
+ */
 export const factory: McpServerFactory = () => {
   const server = new McpServer(
     { name: "fixture-server", version: "1.0.0" },
@@ -50,6 +62,24 @@ export const factory: McpServerFactory = () => {
     { description: "Fails.", inputSchema: fromJsonSchema<object>({ type: "object" }) },
     () => {
       throw new Error("The disk is full.");
+    },
+  );
+  server.registerTool(
+    "ask",
+    {
+      description: "Asks before it acts.",
+      inputSchema: fromJsonSchema<object>({ type: "object" }),
+    },
+    () => {
+      asked.times += 1;
+      return inputRequired({
+        inputRequests: {
+          confirm: inputRequired.elicit({
+            message: "Go on?",
+            requestedSchema: { type: "object", properties: { confirm: { type: "boolean" } } },
+          }),
+        },
+      });
     },
   );
   return server;

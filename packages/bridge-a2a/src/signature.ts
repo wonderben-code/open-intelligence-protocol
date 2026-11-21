@@ -187,7 +187,7 @@ function withoutDefaults(card: Readonly<Record<string, unknown>>): Record<string
  * them: the two say the same of the agent.
  *
  * @throws OipError if the card has no canonical form here: it holds a
- *   number that is not a whole number.
+ *   number that is not a whole number, say, or a text that is no Unicode.
  */
 function payloads(card: Readonly<Record<string, unknown>>): string[] {
   const { signatures: _, ...served } = card;
@@ -230,6 +230,15 @@ async function usableKey(jwk: PublicJwk, scheme: Scheme): Promise<webcrypto.Cryp
   }
 }
 
+/**
+ * The most signatures of a card that are verified, and the most keys of one
+ * name that a signature is tried under. A card is a stranger's, and so is a
+ * key set an agent serves: without these a card could cost its reader
+ * hundreds of fetches and many thousands of verifications.
+ */
+export const MAX_SIGNATURES = 8;
+export const MAX_KEYS_OF_A_NAME = 4;
+
 /** Whether a signature verifies over one of the payloads by one of the keys. */
 async function verifies(
   scheme: Scheme,
@@ -266,13 +275,20 @@ export async function verifySignatures(
 ): Promise<Validation<CardSignatures>> {
   const { signatures } = read.card;
   if (signatures.length === 0) return { ok: true, value: { signed: false, verifiedBy: [] } };
+  if (signatures.length > MAX_SIGNATURES) {
+    return refused(
+      `the card has more signatures than are verified: ${String(MAX_SIGNATURES)} at most`,
+      "/signatures",
+    );
+  }
   let payloadTexts: string[];
   try {
     payloadTexts = payloads(read.json);
   } catch (error) {
     if (!(error instanceof OipError)) throw error;
+    // Why it has none is in this reader's own words: a fraction, a text that is no Unicode, a nesting too deep.
     return refused(
-      "the card holds a number that is not a whole number: this gateway cannot put it in the form its signatures are over",
+      `the card cannot be put in the form its signatures are over: ${error.message}`,
       "",
     );
   }
@@ -319,6 +335,8 @@ export async function verifySignatures(
       if (jwk.kid !== undefined && jwk.kid !== kid) continue;
       const key = await usableKey(jwk, scheme);
       if (key !== undefined) usable.push(key);
+      // A name is one key's, or a few while a key is changed: no more of them are tried.
+      if (usable.length >= MAX_KEYS_OF_A_NAME) break;
     }
     if (usable.length === 0) continue;
     if (!(await verifies(scheme, usable, header, payloadTexts, bytes))) {

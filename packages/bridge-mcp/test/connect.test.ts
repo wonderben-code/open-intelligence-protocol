@@ -14,9 +14,9 @@ import { UsageError } from "@oip/local";
 import { clause } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
-import { everyPage, MAX_LISTED, MAX_PAGES, pinned } from "../src/connect.ts";
+import { MAX_LISTED, MAX_PAGES, pinned } from "../src/connect.ts";
 import { connector, endpointOf, NONE, Refused, type Target } from "../src/index.ts";
-import { factory, TOOLS } from "./fixture/server.ts";
+import { asked, factory, TOOLS } from "./fixture/server.ts";
 
 const URL_OF = "https://tools.example/mcp";
 const HTTP: Target = { kind: "http", url: URL_OF };
@@ -53,8 +53,8 @@ describe("how a bridged mind names its server", () => {
     expect(endpointOf({ kind: "http", url: "https://Tools.Example" })).toBe(
       "https://tools.example/",
     );
-    expect(endpointOf({ kind: "http", url: "https://tools.example:8443/mcp?tenant=7" })).toBe(
-      "https://tools.example:8443/mcp?tenant=7",
+    expect(endpointOf({ kind: "http", url: "https://tools.example:8443/mcp" })).toBe(
+      "https://tools.example:8443/mcp",
     );
     expect(endpointOf({ kind: "stdio", label: "files.v2_a-b", command: "x", args: [] })).toBe(
       "stdio:files.v2_a-b",
@@ -76,7 +76,7 @@ describe("how a bridged mind names its server", () => {
       "ftp://tools.example/mcp",
       "file:///etc/passwd",
     ]) {
-      expect(() => endpointOf({ kind: "http", url }), url).toThrow("is not reached over HTTPS");
+      expect(() => endpointOf({ kind: "http", url }), url).toThrow("is reached over HTTPS");
     }
   });
 
@@ -91,6 +91,34 @@ describe("how a bridged mind names its server", () => {
       );
     }
     expect(() => endpointOf({ kind: "http", url: "tools.example/mcp" })).toThrow("is no URL");
+  });
+
+  it("is none for a URL with a query: the URL is published, and a key in it would be", () => {
+    for (const url of [
+      "https://tools.example/mcp?key=sk-a-key-of-the-operator",
+      "https://tools.example/mcp?tenant=7",
+      "http://localhost:3000/mcp?key=sk-a-key-of-the-operator",
+    ]) {
+      expect(() => endpointOf({ kind: "http", url }), url).toThrow(
+        "goes in the credentials file, under `query`",
+      );
+    }
+    // And what is refused is not said back, whatever was wrong with it: a key may be in it.
+    for (const url of [
+      "https://tools.example/mcp?key=sk-a-key-of-the-operator",
+      "http://tools.example/mcp?key=sk-a-key-of-the-operator",
+      "tools.example/mcp?key=sk-a-key-of-the-operator",
+      "https://user:sk-a-key-of-the-operator@tools.example/mcp",
+    ]) {
+      let said = "";
+      try {
+        endpointOf({ kind: "http", url });
+      } catch (error) {
+        said = (error as Error).message;
+      }
+      expect(said, url).not.toBe("");
+      expect(said, url).not.toContain("sk-a-key");
+    }
     for (const label of ["", "Files", "has space", "-leading", "a/b", "é", "x".repeat(65)]) {
       const target: Target = { kind: "stdio", label, command: "x", args: [] };
       expect(() => endpointOf(target), label).toThrow(UsageError);
@@ -107,7 +135,7 @@ describe("a connection to a server over HTTP", () => {
     const server = await connector({ version: "1.2.3", fetch })(HTTP, NONE);
     try {
       const listed = (await server.tools()) as { name: string; inputSchema: unknown }[];
-      expect(listed.map(({ name }) => name)).toStrictEqual(["echo", "environment", "boom"]);
+      expect(listed.map(({ name }) => name)).toStrictEqual(["echo", "environment", "boom", "ask"]);
       expect(listed).toHaveLength(TOOLS);
       expect(listed[0]?.inputSchema).toMatchObject({
         type: "object",
@@ -142,7 +170,7 @@ describe("a connection to a server over HTTP", () => {
 
   it(`${clause("L0 2.1")} sends the operator's headers with each request, to the server's own origin and nowhere else`, async () => {
     const { fetch, asked } = served();
-    const credentials = { headers: { Authorization: "Bearer t0p-s3cret" }, env: {} };
+    const credentials = { ...NONE, headers: { Authorization: "Bearer t0p-s3cret" } };
     const server = await connector({ version: "1.2.3", fetch })(HTTP, credentials);
     try {
       await server.call("echo", { text: "With a key." });
@@ -246,45 +274,162 @@ describe("a connection to a server over HTTP, at its edges", () => {
   });
 });
 
+/**
+ * A `fetch` that hands a request to the fixture server, but answers
+ * `tools/list` itself, a page for each cursor: the list is the test's.
+ */
+function paged(page: (cursor: string | undefined) => { tools: unknown[]; nextCursor?: string }): {
+  fetch: typeof fetch;
+  asked: (string | undefined)[];
+} {
+  const { fetch: inner } = served();
+  const asked: (string | undefined)[] = [];
+  return {
+    asked,
+    fetch: (input, init = {}) => {
+      const sent: unknown = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
+      const { id, method, params } = (sent ?? {}) as {
+        id?: unknown;
+        method?: unknown;
+        params?: { cursor?: string };
+      };
+      if (method !== "tools/list") return inner(input, init);
+      asked.push(params?.cursor);
+      // As a server of the revision the fixture speaks ends a result.
+      const result = {
+        ...page(params?.cursor),
+        resultType: "complete",
+        ttlMs: 0,
+        cacheScope: "private",
+      };
+      return Promise.resolve(Response.json({ jsonrpc: "2.0", id, result }));
+    },
+  };
+}
+
+const tool = (name: string): unknown => ({ name, inputSchema: { type: "object" } });
+
+describe("a tool that asks for input", () => {
+  it(`${clause("L0 2.1")} is not answered: the gateway is a client that is nobody, the call ends, and the tool is not called again`, async () => {
+    const { fetch } = served();
+    const server = await connector({ version: "1.2.3", fetch })(HTTP, NONE);
+    const before = asked.times;
+    try {
+      // The gateway declares no person to ask and no model to lend, so the server itself ends
+      // the call where the tool asks for either.
+      const ended = await server.call("ask", {}).then(
+        () => "a result",
+        (error: unknown) => error,
+      );
+      expect(ended).toBeInstanceOf(Refused);
+      expect((ended as Error).message).toContain("Cannot request input");
+    } finally {
+      await server.close();
+    }
+    // One call of the tool, and no round after it in which the library answered for anybody.
+    expect(asked.times).toBe(before + 1);
+  });
+});
+
+describe("what a server wants in its query", () => {
+  it(`${clause("L0 2.1")} goes with each request, from the credentials, and is no part of how the mind names the server`, async () => {
+    const { fetch, asked } = served();
+    const credentials = { ...NONE, query: { key: "sk-a-key-of-the-operator", tenant: "7" } };
+    const server = await connector({ version: "1.2.3", fetch })(HTTP, credentials);
+    try {
+      await server.call("echo", { text: "With a key in the query." });
+    } finally {
+      await server.close();
+    }
+    expect(asked.length).toBeGreaterThan(0);
+    for (const { url } of asked) {
+      expect(url).toBe(`${URL_OF}?key=sk-a-key-of-the-operator&tenant=7`);
+    }
+    expect(endpointOf(HTTP)).toBe(URL_OF);
+  });
+});
+
 describe("a list of tools that comes in pages", () => {
   it(`${clause("L0 2.1")} is read to its end, page after page`, async () => {
     const pages: Record<string, { tools: unknown[]; nextCursor?: string }> = {
-      first: { tools: [{ name: "a" }, { name: "b" }], nextCursor: "second" },
-      second: { tools: [{ name: "c" }], nextCursor: "third" },
-      third: { tools: [{ name: "d" }] },
+      first: { tools: [tool("a"), tool("b")], nextCursor: "second" },
+      second: { tools: [tool("c")], nextCursor: "third" },
+      third: { tools: [tool("d")] },
     };
-    const asked: (string | undefined)[] = [];
-    const listed = await everyPage((cursor) => {
-      asked.push(cursor);
-      return Promise.resolve(pages[cursor ?? "first"] ?? { tools: [] });
-    });
-    expect(listed).toStrictEqual([{ name: "a" }, { name: "b" }, { name: "c" }, { name: "d" }]);
-    expect(asked).toStrictEqual([undefined, "second", "third"]);
+    const { fetch, asked } = paged((cursor) => pages[cursor ?? "first"] ?? { tools: [] });
+    const server = await connector({ version: "1.2.3", fetch })(HTTP, NONE);
+    try {
+      const listed = (await server.tools()) as { name: string }[];
+      expect(listed.map(({ name }) => name)).toStrictEqual(["a", "b", "c", "d"]);
+      expect(asked).toStrictEqual([undefined, "second", "third"]);
+    } finally {
+      await server.close();
+    }
   });
 
-  it("is read within bounds: a server that never ends its list does not keep the gateway", async () => {
-    let asked = 0;
-    const endless = await everyPage(() => {
-      asked += 1;
-      return Promise.resolve({ tools: [{ name: `tool-${String(asked)}` }], nextCursor: "more" });
-    });
-    expect(asked).toBe(MAX_PAGES);
-    expect(endless).toHaveLength(MAX_PAGES);
-    // And one that lists a great many at once is read as far as the bound.
-    asked = 0;
-    const wide = await everyPage(() => {
-      asked += 1;
-      return Promise.resolve({
-        tools: Array.from({ length: 3000 }, (_, at) => ({
-          name: `${String(asked)}-${String(at)}`,
-        })),
-        nextCursor: "more",
-      });
-    });
-    expect(asked).toBe(2);
-    expect(wide).toHaveLength(MAX_LISTED);
+  it("is read within bounds: a server that never ends its list is not listed, and does not keep the gateway", async () => {
+    const { fetch, asked } = paged((cursor) => ({
+      tools: [tool(`tool-${cursor ?? "0"}`)],
+      nextCursor: String(Number(cursor ?? "0") + 1),
+    }));
+    const server = await connector({ version: "1.2.3", fetch })(HTTP, NONE);
+    try {
+      // So many pages are asked for, and no more. A list that has not ended by then is none.
+      await expect(server.tools()).rejects.toThrow();
+      expect(asked).toHaveLength(MAX_PAGES);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("is cut where one page lists a great many: so many tools are looked at, and no more", async () => {
+    const { fetch, asked } = paged(() => ({
+      tools: Array.from({ length: MAX_LISTED + 500 }, (_, at) => tool(`tool-${String(at)}`)),
+    }));
+    const server = await connector({ version: "1.2.3", fetch })(HTTP, NONE);
+    try {
+      expect(await server.tools()).toHaveLength(MAX_LISTED);
+      expect(asked).toHaveLength(1);
+    } finally {
+      await server.close();
+    }
   });
 });
+
+/* eslint-disable no-console -- these tests are of what is written to the console */
+describe("what the client library writes to the console", () => {
+  it("is printed as a stranger's text while a server is connected, and as it was before and after", async () => {
+    const written: unknown[][] = [];
+    const before = console.warn;
+    console.warn = (...said: unknown[]): void => {
+      written.push(said);
+    };
+    try {
+      const { fetch } = served();
+      const server = await connector({ version: "1.2.3", fetch })(HTTP, NONE);
+      try {
+        // What a library would write of a server: a name with an escape and an override in it.
+        console.warn("[a-library] excluding tool 'dropped\u001b[2J\u202e' from the list");
+        console.warn(new Error("a server said \u001b[2J"));
+      } finally {
+        await server.close();
+        // Closed twice, the guard is taken off once.
+        await server.close();
+      }
+      console.warn("after\u001b[2J");
+    } finally {
+      console.warn = before;
+    }
+    expect(written[0]).toStrictEqual([
+      "[a-library] excluding tool 'dropped\\u001b[2J\\u202e' from the list",
+    ]);
+    expect(String(written[1]?.[0])).toContain("a server said \\u001b[2J");
+    expect(String(written[1]?.[0])).not.toContain("\u001b");
+    // With no server connected, the console is the program's own again.
+    expect(written[2]).toStrictEqual(["after\u001b[2J"]);
+  });
+});
+/* eslint-enable no-console */
 
 describe("a connection to a server that is a command", () => {
   const command: Target = {
@@ -300,7 +445,7 @@ describe("a connection to a server that is a command", () => {
   it(`${clause("L0 2.1")} starts the command with the operator's variables, and without the gateway's own`, async () => {
     process.env["OIP_PASSPHRASE_FOR_THIS_TEST"] = "the gateway's own secret";
     try {
-      const credentials = { headers: {}, env: { FIXTURE_KEY: "k-123" } };
+      const credentials = { ...NONE, env: { FIXTURE_KEY: "k-123" } };
       const server = await connector({ version: "1.2.3", stderr: "ignore" })(command, credentials);
       try {
         expect(server.name).toBe("fixture-server");

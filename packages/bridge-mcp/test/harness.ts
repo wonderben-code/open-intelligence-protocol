@@ -158,12 +158,22 @@ export const LISTED: readonly Record<string, unknown>[] = [
  * result, `refuse` is refused by the server, and `hang` does not end as a
  * call does. `big` returns more than a packet carries, and `odd` a text no
  * record holds.
+ *
+ * And a server that says back what it was sent, as servers do: `leak`
+ * answers with an error that repeats the header it was given, `mirror`
+ * returns it in a result, and `garble` fails as a transport fails, with
+ * the header in what it says. `infinite` returns a number that JSON has
+ * and a program has not.
  */
 export class Tools {
   /** Every call that was made, in order. */
   readonly calls: { tool: string; args: Readonly<Record<string, unknown>> }[] = [];
   /** What the gateway connected with, each time. */
   readonly connections: { target: Target; credentials: Credentials }[] = [];
+  /** How often the gateway tried to connect, whether or not it could. */
+  tried = 0;
+  /** Called as a call arrives, before the tool does anything: a test looks at what the gateway has written down by then. */
+  onCall: ((tool: string) => void) | undefined;
   closed = 0;
   /** Whether the server cannot be reached. */
   down = false;
@@ -173,8 +183,11 @@ export class Tools {
   name: string | undefined = "Lexis tools";
 
   readonly connect: Connect = (target, credentials) => {
+    this.tried += 1;
     if (this.down) return Promise.reject(new Error("the server is not to be reached"));
     this.connections.push({ target, credentials });
+    // What the server was given: a header, or else nothing it could say back.
+    const given = Object.values(credentials.headers)[0] ?? "(no header)";
     return Promise.resolve({
       ...(this.name === undefined ? {} : { name: this.name }),
       tools: () =>
@@ -183,7 +196,8 @@ export class Tools {
           : Promise.resolve([...this.listed]),
       call: (tool, args) => {
         this.calls.push({ tool, args });
-        return this.#call(tool, args);
+        this.onCall?.(tool);
+        return this.#call(tool, args, given);
       },
       close: () => {
         this.closed += 1;
@@ -192,7 +206,7 @@ export class Tools {
     });
   };
 
-  #call(tool: string, args: Readonly<Record<string, unknown>>): Promise<unknown> {
+  #call(tool: string, args: Readonly<Record<string, unknown>>, given: string): Promise<unknown> {
     const said = (text: string, more: object = {}): Promise<unknown> =>
       Promise.resolve({ content: [{ type: "text", text }], ...more });
     switch (tool) {
@@ -211,11 +225,23 @@ export class Tools {
         );
       case "hang":
         return Promise.reject(new Error("Request timed out"));
+      case "leak":
+        return Promise.reject(
+          new Refused(`401 Unauthorized: the header "Authorization: ${given}" is not valid`),
+        );
+      case "mirror":
+        return said(`You sent ${given}.`);
+      case "garble":
+        return Promise.reject(new Error(`HTTP 502: upstream said "Authorization: ${given}"`));
+      case "infinite":
+        return said("A balance.", { structuredContent: { balance: Number.POSITIVE_INFINITY } });
       case "big":
         return said("lease ".repeat(40_000));
       case "odd":
         return said(`A text with ${NONCHARACTER} and ${LONE} in it.`);
       default:
+        // A server may name its tools as it likes: every name that begins so is an echo.
+        if (tool.startsWith("echo")) return said(String(args["text"]));
         return Promise.reject(new Refused(`Unknown tool: ${tool}`));
     }
   }

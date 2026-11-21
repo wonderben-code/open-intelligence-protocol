@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { clause, repoRoot } from "@oip/testkit";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { NotSo, Stage, tell, teller, type Told } from "../src/index.ts";
 
@@ -46,11 +46,11 @@ describe("the telling", () => {
     ]);
   });
 
-  it("says of nothing that it is verified without having checked it: every step has its checks", () => {
+  it("counts what it verified, and has a check in every step", () => {
     const verified = lines.filter((line) => line.startsWith("   verified: "));
     expect(verified).toHaveLength(told.verified);
-    expect(told.verified).toBe(27);
-    expect(lines.at(-1)).toBe("27 things were verified in this telling.");
+    expect(told.verified).toBe(29);
+    expect(lines.at(-1)).toBe("29 things were verified in this telling.");
     // No step is words alone.
     const steps = lines
       .join("\n")
@@ -123,4 +123,47 @@ describe("a teller", () => {
     ]);
     expect(count()).toBe(1);
   });
+
+  it("stops where something that was to arrive did not, and says what", () => {
+    const { need, count } = teller(() => undefined);
+    expect(need("it came", "the packet reached her.")).toBe("it came");
+    expect(() => need(undefined, "the packet reached her.")).toThrow(NotSo);
+    expect(() => need(undefined, "the packet reached her.")).toThrow(
+      "not so: the packet reached her.",
+    );
+    // What must be there is no check that is counted: only what is verified is.
+    expect(count()).toBe(0);
+  });
+});
+
+describe("a telling on a network that is slow", () => {
+  it(`${clause("L1 18.5")} waits for what was sent: an indexer answers its sender before it forwards, and a host takes a moment`, async () => {
+    // Every packet and every record that is posted takes a twentieth of a second longer to
+    // arrive. The answer to the sender is no later for it, so each receiver looks before its
+    // packet is there.
+    const real = globalThis.fetch;
+    let held = 0;
+    const slow = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+      if (method === "POST") {
+        held += 1;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      return real(input, init);
+    });
+    const late = await Stage.open();
+    try {
+      const said: string[] = [];
+      const told = await tell(late, (line) => said.push(line));
+      expect(told.status).toBe("fulfilled");
+      expect(said).toContain(
+        "   verified: her packet reached the agent forwarded: it found her signature on the packet, and a broker's on its wrapper.",
+      );
+      expect(said.at(-1)).toBe("29 things were verified in this telling.");
+      expect(held).toBeGreaterThan(10);
+    } finally {
+      slow.mockRestore();
+      await late.close();
+    }
+  }, 120_000);
 });

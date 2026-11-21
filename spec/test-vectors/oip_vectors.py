@@ -2283,6 +2283,9 @@ def bridge_assurance(V, participant) -> str:
     name the same gateway, and the gateway's own feed entry for that
     genesis, named in the profile by its record-ref, counts for the
     gateway; `claimed` for any other `oip.bridge` block."""
+    # What is no profile shows nothing: the label that promises nothing.
+    if not network_ok(participant) or participant["type"] != "Participant":
+        return "claimed"
     block = (participant.get("ext") or {}).get("oip.bridge")
     mind = participant.get("author")
     try:
@@ -2303,7 +2306,7 @@ def bridge_assurance(V, participant) -> str:
     entry = V.resolve(named) if isinstance(named, str) else None
     if V.signed_time(participant, mind) is None or \
        (declared or {}).get("gateway") != gateway or \
-       not isinstance(entry, dict) or \
+       not isinstance(entry, dict) or not network_ok(entry) or \
        entry.get("type") != "Entry" or entry.get("author") != gateway or \
        entry.get("object") != content_id(genesis) or \
        entry.get("objectType") != "Genesis" or \
@@ -2545,8 +2548,11 @@ def network_ok(r) -> bool:
         if t == "Participant":
             caps = r.get("capabilities", [])
             ids = [c["id"] for c in caps]
+            # Layer 1, 16.2: a capability has an `id` and a `summary`.
             return _address(r["author"]) and isinstance(r["kind"], str) \
                 and len(set(ids)) == len(ids) and \
+                all(isinstance(c["id"], str) and
+                    isinstance(c["summary"], str) for c in caps) and \
                 all("ext" not in c or ext_ok(c["ext"]) for c in caps)
         return True
     except (KeyError, TypeError, ValueError, AttributeError):
@@ -2976,7 +2982,9 @@ def did_document(V, mind, version=None) -> dict:
         doc["service"] = [{"id": f"{mind}#home-{n}", "type": "OIPHome",
                            "serviceEndpoint": h}
                           for n, h in enumerate(st.homes)]
-    meta = {"versionId": st.version, "deactivated": st.retired,
+    # `deactivated` is of the mind, as the log stands: a mind that has
+    # retired is deactivated whichever of its versions is asked for.
+    meta = {"versionId": st.version, "deactivated": log.latest.retired,
             "parents": st.parents, "children": st.children}
     if log.duplicitous:
         meta["duplicitous"] = True      # Layer 1, 5.2 and 7.3
@@ -3166,6 +3174,17 @@ def build():
             "researcher_log": [res_gen, res_upd], "collective_log": [coll],
             "multi_log": [m_gen, m_upd], "assistant_log": [asst_gen],
             "gateway_log": [gw_gen], "bridged_log": [br_gen]}
+
+    # --- A mind that has retired (Layer 1, 3.10 and 5.2) ---------------
+    # It is no part of the baseline: nothing else is signed by it or for it.
+    rt_c0, rt_c1, rt_op = k("retired-control-0"), k("retired-control-1"), \
+        k("retired-ops")
+    rt_gen = key_controlled_genesis("service", rt_c0, rt_c1, [rt_op],
+                                    created="2026-10-30T08:20:00Z")
+    retired = did(content_id(rt_gen))
+    rt_retire = control_event("Retire", retired, rt_gen,
+                              "2026-10-30T08:30:00Z", [rt_c1], [],
+                              fields={"reason": "Wound up."})
 
     # --- Delegations ---------------------------------------------------
     # Lexis Ltd lets its agent commit the firm to work it is paid for, up
@@ -3524,6 +3543,10 @@ def build():
         "did_document_amina_at_genesis": did_document(
             dv, amina, version_id(a_gen)),
         "did_document_collective": did_document(dv, collective),
+        "retired": retired, "retired_log": [rt_gen, rt_retire],
+        "did_document_retired_at_genesis": did_document(
+            Verifier(logs=[[rt_gen, rt_retire]]), retired,
+            version_id(rt_gen)),
         "status": [
             {"of": "intent", "at": "2026-10-30T12:00:00Z",
              "records": ["intent", "commitment_accepted"],
@@ -4502,6 +4525,104 @@ def build():
                 "record": signed({kk: v for kk, v in
                                   variant(br_participant).items()
                                   if kk != "ext"}, br_op, br_vm),
+                "expect": "claimed"})
+    # Layer 0, 1.3, rule by rule: each of these breaks one of the things a
+    # verifier asks before it calls a mind bridged.
+    forged_entry = signed({"oip": OIP_VERSION, "type": "Entry",
+                           "author": gateway, "seq": 1,
+                           "prev": content_id(gw_entry),
+                           "created": "2026-10-30T08:11:30Z",
+                           "object": content_id(br_gen),
+                           "objectType": "Genesis"}, br_op, br_vm)
+    neg.append({"name": "bridge-entry-not-signed-by-the-gateway",
+                "reason": "The entry names the gateway as its author, and "
+                          "is signed by the bridged mind's own key. It does "
+                          "not count for the gateway (Layer 0, 1.3; Layer "
+                          "2, 7.1), so nothing shows that the gateway "
+                          "attests the mind: `claimed`.",
+                "kind": "assurance",
+                "record": signed(variant(br_participant, ext={
+                    "oip.bridge": {**bridge_block,
+                                   "attestation": record_ref(gateway,
+                                                             forged_entry)}}),
+                    br_op, br_vm),
+                "extraRecords": [forged_entry], "expect": "claimed"})
+    mistyped_entry = signed({"oip": OIP_VERSION, "type": "Entry",
+                             "author": gateway, "seq": 1,
+                             "prev": content_id(gw_entry),
+                             "created": "2026-10-30T08:11:30Z",
+                             "object": content_id(br_gen),
+                             "objectType": "Participant"}, gw_op, gw_vm)
+    neg.append({"name": "bridge-entry-of-another-type",
+                "reason": "The gateway's entry names the genesis by its "
+                          "content ID and calls it a `Participant`. An "
+                          "attestation is an entry whose `objectType` is "
+                          "`Genesis` (Layer 0, 1.2): this one attests "
+                          "nothing, and the mind is `claimed`.",
+                "kind": "assurance",
+                "record": signed(variant(br_participant, ext={
+                    "oip.bridge": {**bridge_block,
+                                   "attestation": record_ref(
+                                       gateway, mistyped_entry)}}),
+                    br_op, br_vm),
+                "extraRecords": [mistyped_entry], "expect": "claimed"})
+    neg.append({"name": "bridge-profile-signed-by-the-gateway",
+                "reason": "The profile is the bridged mind's, and is signed "
+                          "by the gateway's key. It does not count for the "
+                          "mind it describes (Layer 2, 7.1), so it names no "
+                          "gateway for that mind: `claimed`.",
+                "kind": "assurance",
+                "record": signed(variant(br_participant), gw_op, gw_vm),
+                "expect": "claimed"})
+
+    def bridged_by(label, named, created, capability_ext="oip.mcp"):
+        """A second mind the gateway attests, whose genesis names `named`
+        as its gateway: its log, the gateway's entry and its profile."""
+        c0, c1, op = k(f"{label}-control-0"), k(f"{label}-control-1"), \
+            k(f"{label}-ops")
+        gen = key_controlled_genesis(
+            "service", c0, c1, [op], created=f"2026-10-30T08:{created}:00Z",
+            extra={"ext": {"oip.bridge": {**bridge_block,
+                                          "gateway": named}}})
+        mind = did(content_id(gen))
+        entry = signed({"oip": OIP_VERSION, "type": "Entry",
+                        "author": gateway, "seq": 1,
+                        "prev": content_id(gw_entry),
+                        "created": f"2026-10-30T08:{created}:20Z",
+                        "object": content_id(gen), "objectType": "Genesis",
+                        "proofs": [proof_digest(p) for p in gen["proof"]]},
+                       gw_op, gw_vm)
+        profile = signed({
+            "oip": OIP_VERSION, "type": "Participant", "author": mind,
+            "created": f"2026-10-30T08:{created}:40Z",
+            "name": "Another MCP server", "kind": "service",
+            "capabilities": [{"id": "search", "summary": "Searches.",
+                              "ext": {capability_ext: {}}}],
+            "ext": {"oip.bridge": {**bridge_block,
+                                   "attestation": record_ref(gateway,
+                                                             entry)}}},
+            op, op_vm(mind, gen, op.mk))
+        return {"record": profile, "extraLogs": [[gen]],
+                "extraRecords": [entry]}
+    neg.append({"name": "bridge-genesis-names-another-gateway",
+                "reason": "The profile names the gateway, and the gateway "
+                          "attests the genesis. The genesis itself names "
+                          "another mind as its gateway. A mind is bridged "
+                          "by a gateway only if its genesis and its profile "
+                          "both name that gateway (Layer 0, 1.3): `claimed`.",
+                "kind": "assurance",
+                **bridged_by("bridged-elsewhere", assistant, "20"),
+                "expect": "claimed"})
+    neg.append({"name": "bridge-profile-not-well-formed",
+                "reason": "The genesis, the entry and the profile's block "
+                          "are as they should be. The profile lists a "
+                          "capability whose `ext` has a member that is no "
+                          "namespace (core 8.1), so it is not a well-formed "
+                          "record, and what is no record names no gateway: "
+                          "`claimed`.",
+                "kind": "assurance",
+                **bridged_by("bridged-malformed", gateway, "30",
+                             capability_ext="mcp"),
                 "expect": "claimed"})
     bad_sig("duplicity-unresolved",
             "Evidence cannot separate the two events at position 1 of "
@@ -5693,6 +5814,16 @@ def build():
     control("collective-threshold-not-met-before-its-members-change",
             extraLogs=[[coll3, c3_shrink]])
     control("member-proof-names-an-authority", log=[founded_with()])
+    # Layer 0, 1.3: with the one thing put right, the mind is bridged.
+    for name in ("bridge-entry-not-signed-by-the-gateway",
+                 "bridge-entry-of-another-type",
+                 "bridge-profile-signed-by-the-gateway"):
+        control(name, record=br_participant, extraRecords=None,
+                expect="bridged")
+    control("bridge-genesis-names-another-gateway", expect="bridged",
+            **bridged_by("bridged-also", gateway, "40"))
+    control("bridge-profile-not-well-formed", expect="bridged",
+            **bridged_by("bridged-well-formed", gateway, "50"))
     control("event-proof-dated-after-the-evidence",
             log=[o_gen, update_proved_at("2026-10-30T10:05:00Z")])
     control("event-evaluated-after-it-expires",
@@ -6424,7 +6555,18 @@ def check(VEC) -> list:
                                 ("did_document_collective", "collective",
                                  None)):
         assert did_document(V, c[mind], version) == c[name], name
-    done.append("DID documents, current and versioned")
+    # A mind that has retired, asked for at its first version: the document
+    # is of that version, and says that the mind is deactivated.
+    rt_log = c["retired_log"]
+    assert did(content_id(rt_log[0])) == c["retired"]
+    rt_doc = did_document(Verifier(logs=[rt_log]), c["retired"],
+                          version_id(rt_log[0]))
+    assert rt_doc == c["did_document_retired_at_genesis"]
+    assert rt_doc["didDocumentMetadata"]["versionId"] == \
+        version_id(rt_log[0])
+    assert rt_doc["didDocumentMetadata"]["deactivated"] is True
+    done.append("DID documents, current and versioned, and of a mind "
+                "that has retired")
     entry, entry1, offer = c["feed_entry"], c["feed_entry_1"], c["offer"]
     acc, prop = c["commitment_accepted"], c["commitment_proposed"]
     assert entry["object"] == content_id(offer)

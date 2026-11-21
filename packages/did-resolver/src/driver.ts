@@ -21,7 +21,12 @@ export const DID_JSON = "application/did+json";
 
 /** The errors of a resolution (DID Resolution, Section 10), as far as this method gives them. */
 export type DidResolutionError =
-  "invalidDid" | "notFound" | "representationNotSupported" | "methodNotSupported" | "internalError";
+  | "invalidDid"
+  | "invalidDidUrl"
+  | "notFound"
+  | "representationNotSupported"
+  | "methodNotSupported"
+  | "internalError";
 
 /**
  * A thing whose lists can be written to: the tools of the DID ecosystem
@@ -100,9 +105,12 @@ function takesJson(accept: string | undefined): boolean {
  *
  * Of a DID URL the DID is resolved, with the parameter `versionId` if it
  * has one (Layer 1, 2.4): the document is then of the log up to that event,
- * and its keys are named as a proof pinned to that version names them. A
- * path or a fragment is the caller's to follow: the document it is followed
- * in is the same.
+ * and its keys are named as a proof pinned to that version names them.
+ * Whether the mind is deactivated is said of the mind as its log stands,
+ * whichever version is asked for (5.2). A path, a fragment, or a parameter
+ * that says what to follow in the document (`service`, `relativeRef`) is
+ * the caller's to follow: the document it is followed in is the same. A
+ * `versionTime` is refused: this method names no version by a time.
  *
  * The aliases a mind lists are not shown: a document shows the aliases that
  * were verified in both directions (Layer 1, 5.3), and this driver fetches
@@ -124,6 +132,10 @@ export async function resolveDid(
   const [beforeFragment = ""] = didUrl.split("#");
   const [beforeQuery = "", query = ""] = beforeFragment.split("?");
   const [did = ""] = beforeQuery.split("/");
+  // DID Core, 3.1: `did:`, a method in small letters and digits, a colon, and what the method names.
+  if (!/^did:[a-z0-9]+:/u.test(did)) {
+    return none("invalidDid", "That is no DID: a DID is did:, a method, a colon and a name.");
+  }
   if (!did.startsWith("did:oip:")) {
     return none("methodNotSupported", "This driver resolves did:oip, and no other method.");
   }
@@ -136,7 +148,16 @@ export async function resolveDid(
       `A did:oip document is represented as ${DID_JSON}, and in no other way.`,
     );
   }
-  const versionId = new URLSearchParams(query).get("versionId");
+  const parameters = new URLSearchParams(query);
+  // A version is named by its identifier (Layer 1, 2.4). A caller that names one by a time is
+  // not given today's document in its place.
+  if (parameters.has("versionTime")) {
+    return none(
+      "invalidDidUrl",
+      "A version of a did:oip mind is named by versionId: this method has no document by versionTime.",
+    );
+  }
+  const versionId = parameters.get("versionId");
   try {
     // A lookup of its own for each resolution: nothing one caller asked about is kept for another.
     const resolved = await new Lookup(options).resolve(did);

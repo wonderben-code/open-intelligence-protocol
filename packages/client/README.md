@@ -1157,6 +1157,29 @@ export async function example(
   const kept = { record: offer, seen: amina.sightings(amina.hold(offer)) };
   amina.hold(kept.record, kept.seen);
   output.push(`kept with the offer: when ${String(Object.keys(kept.seen).length)} proofs came`);
+
+  // The agent lets the junior send packets for it. A packet says whom it is sent for, and
+  // its receiver asks whether that is so: a chain that covers `/oip/send` says.
+  const errand = await agent.delegate({
+    delegate: junior.address,
+    command: "/oip/send",
+    expires: month,
+  });
+  await junior.send({
+    to: [amina.address],
+    verb: "inform",
+    content: { mediaType: "text/plain", body: "The agent asks whether Friday suits." },
+    onBehalfOf: { mind: agent.address, chain: [errand] },
+  });
+  const packet = (await amina.receive()).received[0]?.packet;
+  output.push(`sent for the agent: ${String((await amina.sentFor(packet)) === agent.address)}`);
+  // The agent takes that back, and Amina is not told. Whether a packet of last week was sent
+  // for the agent is one question, and whether to act for the junior now is another. A
+  // program that is about to act reads what the authors of the delegations have published,
+  // and asks whether the delegations stand now.
+  await agent.revoke(errand);
+  output.push(`revocations found: ${String(await amina.holdRevocations(packet))}`);
+  output.push(`the delegation stands: ${String(await amina.delegationsStand(packet))}`);
   for (const mind of [firm, agent, junior, amina]) mind.close();
   return output;
 }
@@ -1173,6 +1196,9 @@ it is the record the firm signed: true
 a later offer is the firm's: false
 the first still is: true
 kept with the offer: when 3 proofs came
+sent for the agent: true
+revocations found: 1
+the delegation stands: false
 ```
 
 ## A collective
@@ -1402,20 +1428,120 @@ now a collective of 4, of whom 3 act
 
 ### Reading without a key
 
-Whether a record counts for a mind, and how an Intent, an Offer or a Commitment stands, follows from the records and the logs alone (Layer 2, Sections 7 and 8). A `Reader` works it out with a `Lookup` and a clock, and no key:
+Whether a record counts for a mind, and how an Intent, an Offer or a Commitment stands, follows from the records and the logs alone (Layer 2, Sections 7 and 8). A `Reader` works it out with a `Lookup`, and no key. [`examples/read.ts`](examples/read.ts) has two strangers read a deal after it was made:
 
 ```ts
-const lookup = new Lookup({ resolvers });
-const reader = new Reader({ lookup, clock: systemClock });
-const { feed } = await lookup.feed(mind);
-for (const { entry } of feed.entries) {
-  reader.hold((await lookup.record(mind, entry.object)).record);
+import { carried, type Clock, type Fetch, Lookup, Mind, Reader, systemClock } from "@oip/client";
+import { contentId, formatRecordRef, formatTimestamp } from "@oip/core";
+import { Keystore, type Lock, memoryStorage } from "@oip/keystore";
+
+/**
+ * A deal, read afterwards by strangers who hold no key: what the parties
+ * published is enough to work out who is bound, and how the deal stands.
+ *
+ * @param resolvers - The HTTPS origins of the resolvers they trust.
+ * @param home - The HTTPS origin of a host that takes the parties on.
+ * @param lock - What the parties' keys are sealed under.
+ * @param edges - What a test puts in the place of the network and the clock.
+ */
+export async function example(
+  resolvers: readonly string[],
+  home: string,
+  lock: Lock,
+  edges: { readonly fetch?: Fetch; readonly clock?: Clock } = {},
+): Promise<string[]> {
+  const output: string[] = [];
+  const clock = edges.clock ?? systemClock;
+  const mindOf = async (kind: string): Promise<Mind> => {
+    const keystore = await Keystore.create({ storage: memoryStorage(), locks: lock });
+    const mind = await Mind.create(
+      { keystore, lock, resolvers, memory: memoryStorage(), ...edges },
+      { kind, homes: [home] },
+    );
+    await mind.publishLocation();
+    return mind;
+  };
+  const amina = await mindOf("human");
+  const lexis = await mindOf("institution");
+  const agent = await mindOf("agent");
+  const day = 86_400_000_000_000n;
+  const promised = (promise: string) => ({
+    parties: [
+      { mind: lexis.address, role: "debtor", required: true },
+      { mind: amina.address, role: "creditor", required: true },
+    ],
+    promise,
+    terms: { deadline: formatTimestamp(clock.now() + 2n * day) },
+  });
+
+  // The firm lets its agent commit it, and the agent does. Amina signs, confirms, and publishes.
+  const mandate = await lexis.delegate({
+    delegate: agent.address,
+    command: "/oip/sign/Commitment",
+    expires: formatTimestamp(clock.now() + 30n * day),
+  });
+  const accepted = await amina.cosign(
+    await agent.commitment(promised("Lexis Ltd will deliver the translation."), {
+      chain: [mandate],
+    }),
+  );
+  await amina.publishRecord(accepted);
+  const about = formatRecordRef(agent.address, contentId(accepted));
+  await amina.publishRecord(await amina.receipt({ about, outcome: "fulfilled" }));
+
+  // A stranger: resolvers to ask, and no key. It reads Amina's feed, and holds what it lists.
+  const lookup = new Lookup({ resolvers, ...edges });
+  const reader = new Reader({ lookup });
+  const { feed } = await lookup.feed(amina.address);
+  for (const { entry } of feed.entries) {
+    reader.hold((await lookup.record(amina.address, entry.object)).record);
+  }
+  const held = reader.held().map((record) => record.type);
+  output.push(`a stranger holds a ${held.join(" and a ")}`);
+  output.push(
+    `the Commitment binds the firm: ${String(await reader.countsFor(accepted, lexis.address))}`,
+  );
+  output.push(`and is ${await reader.status(accepted)}`);
+
+  // The firm takes the delegation back. The agent signs for it once more all the same.
+  await lexis.revoke(mandate);
+  const late = await agent.commitment(promised("Lexis Ltd will deliver a second translation."), {
+    chain: [mandate],
+  });
+  // Another stranger is handed that Commitment, as the content of a packet.
+  const other = new Reader({ lookup: new Lookup({ resolvers, ...edges }) });
+  other.holdCarried(carried(late));
+  output.push(
+    `by what another was handed, a later one binds the firm: ${String(await other.countsFor(late, lexis.address))}`,
+  );
+  // Before it relies on that, it reads the feed of the delegation's author.
+  output.push(`Revocations on the firm's feed: ${String(await other.holdRevocations(late))}`);
+  output.push(`the delegation stands: ${String(await other.delegationsStand(late))}`);
+  output.push(
+    `the later one binds the firm: ${String(await other.countsFor(late, lexis.address))}`,
+  );
+  for (const mind of [amina, lexis, agent]) mind.close();
+  return output;
 }
-const [commitment] = reader.held().filter((record) => record.type === "Commitment");
-await reader.status(commitment); // "fulfilled", if a Receipt among them says so and counts
 ```
 
-It knows what it holds. A reader that holds a Commitment and not the Receipts about it finds the Commitment `accepted`: hold everything that bears on the question.
+```
+a stranger holds a Commitment and a Receipt
+the Commitment binds the firm: true
+and is fulfilled
+by what another was handed, a later one binds the firm: true
+Revocations on the firm's feed: 1
+the delegation stands: false
+the later one binds the firm: false
+```
+
+- **A reader knows what it holds.** One that holds a Commitment and not the Receipts about it finds the Commitment `accepted`. One that holds a Commitment an agent signed and not the Revocation of the agent's delegation finds the principal bound. Hold everything that bears on the question, and call `holdRevocations` before you rely on a signature a delegate made: it reads the feed of each delegation's author (Layer 1, 11.5).
+- **A reader of history holds what it holds as of its latest look.** It reads records long after they were made, and the order in which it happens to fetch them says nothing of the order in which they were made. So a Revocation it holds counts against every signature made under the delegation it takes back, whichever of the two it read first. The same holds for a delegation that has run out, and for a key that was removed: a reader has no evidence of its own that a signature was made in time (core 9.7). It fails towards "not bound".
+- **A mind is a reader that takes records in as they are made.** It notes when it first obtained each proof, and that is evidence (core 9.4, item 1): what a delegate signed before the mind saw the Revocation stands, for that mind. `new Reader({ lookup }, "live")` reads so too, for a program that follows records as they come.
+- **`held()` gives each record with every proof seen of it that verifies.** A copy with fewer proofs, or with signatures that verify nothing, takes none away. A record none of whose proofs verifies is held as it was given, and counts for nobody.
+- **A question holds the record it is asked of.** `countsFor(receipt, mind)` holds the Receipt, and the status of its Commitment is judged with it from then on.
+- **The logs that decide are asked for first**: those of the record's author, its parties, its signers and the authors of the delegations they rest on. A record that rests on more than 64 logs is refused with `too-large`, and no verdict is given. Whoever else a record names is asked for as far as that bound goes.
+- **The reader reads the clock of its `Lookup`.** The times of what the lookup found and of what the reader holds are compared, and one clock gives both.
 
 ### Collectives
 

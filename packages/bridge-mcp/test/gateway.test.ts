@@ -16,6 +16,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   BridgeError,
+  type Connect,
+  type Credentials,
   CREDENTIALS_FILE,
   Gateway,
   jsonText,
@@ -23,6 +25,7 @@ import {
   POLICY_FILE,
   readPolicy,
   type Target,
+  WITHHELD,
 } from "../src/index.ts";
 import { LISTED, Place, Tools } from "./harness.ts";
 
@@ -219,7 +222,7 @@ describe("a gateway bridging an MCP server", () => {
     expect(statSync(kept).mode & 0o777).toBe(0o600);
     expect(tools.connections.at(-1)).toStrictEqual({
       target,
-      credentials: { headers: { Authorization: "Bearer t0p-s3cret" }, env: {} },
+      credentials: { headers: { Authorization: "Bearer t0p-s3cret" }, query: {}, env: {} },
     });
     // Nothing the gateway published, and nothing it wrote down of the server, has the secret.
     const resolved = await place.reader().resolve(bridged.mind);
@@ -303,13 +306,84 @@ describe("a gateway bridging an MCP server", () => {
     );
   });
 
+  it("says nothing of the credentials where a server says them back as it fails", async () => {
+    const target: Target = { kind: "http", url: "https://echoing.example/mcp" };
+    const given = join(place.root, "echoed.json");
+    writeFileSync(given, JSON.stringify({ headers: { "X-Api-Key": "k-0123456789abcdef" } }), {
+      mode: 0o600,
+    });
+    const said = async (edges: { connect: Connect }): Promise<string> => {
+      try {
+        await new Gateway(place.where("gateway"), edges).bridge(target, { credentials: given });
+      } catch (error) {
+        expect(error).toBeInstanceOf(BridgeError);
+        return (error as Error).message;
+      }
+      throw new Error("the server was bridged");
+    };
+    const echo = (credentials: Credentials): Error =>
+      new Error(
+        `HTTP 401: the header x-api-key: ${credentials.headers["X-Api-Key"] ?? ""} is not valid`,
+      );
+    expect(await said({ connect: (_, credentials) => Promise.reject(echo(credentials)) })).toBe(
+      `the server https://echoing.example/mcp could not be reached: HTTP 401: the header x-api-key: ${WITHHELD} is not valid`,
+    );
+    expect(
+      await said({
+        connect: (_, credentials) =>
+          Promise.resolve({
+            tools: () => Promise.reject(echo(credentials)),
+            call: () => Promise.resolve({}),
+            close: () => Promise.resolve(),
+          }),
+      }),
+    ).toBe(
+      `the server https://echoing.example/mcp did not list its tools: HTTP 401: the header x-api-key: ${WITHHELD} is not valid`,
+    );
+  });
+
+  it("names the mind by where the server is, where the server gives itself no name, and makes any name text a record holds", async () => {
+    const nameOf = async (mind: string): Promise<string> => {
+      const profile = (await place.reader().resolve(mind)).participant?.record;
+      return (profile as unknown as { name: string }).name;
+    };
+    const before = tools.name;
+    try {
+      tools.name = "   ";
+      const blank = await gateway().bridge({ kind: "http", url: "https://nameless.example/mcp" });
+      expect(await nameOf(blank.mind)).toBe("nameless.example");
+      tools.name = undefined;
+      const none = await gateway().bridge({
+        kind: "stdio",
+        label: "nameless",
+        command: "x",
+        args: [],
+      });
+      expect(await nameOf(none.mind)).toBe("nameless");
+      // Half a pair of surrogates is in no record (core 1.1).
+      tools.name = `Tools${String.fromCodePoint(0xd800)} of a server`;
+      const odd = await gateway().bridge({ kind: "http", url: "https://odd-name.example/mcp" });
+      expect(await nameOf(odd.mind)).toBe(`Tools${String.fromCodePoint(0xfffd)} of a server`);
+    } finally {
+      tools.name = before;
+    }
+  });
+
   it("takes no target that is none", async () => {
     await expect(gateway().bridge({ kind: "http", url: "tools.example" })).rejects.toThrow(
       UsageError,
     );
     await expect(
       gateway().bridge({ kind: "http", url: "http://tools.example/mcp" }),
-    ).rejects.toThrow("is not reached over HTTPS");
+    ).rejects.toThrow("is reached over HTTPS");
+    // A URL with a query is none: the whole of it would be published, a key in it too.
+    await expect(
+      gateway().bridge({ kind: "http", url: "https://tools.example/mcp?key=sk-1234567890" }),
+    ).rejects.toThrow("carries no query");
+    // And a name is text.
+    for (const name of ["", "   "]) {
+      await expect(gateway().bridge(LEXIS, { name })).rejects.toThrow("a name is text");
+    }
     await expect(
       gateway().bridge({ kind: "stdio", label: "Has Spaces", command: "x", args: [] }),
     ).rejects.toThrow(UsageError);

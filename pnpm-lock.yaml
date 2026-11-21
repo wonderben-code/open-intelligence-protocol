@@ -361,6 +361,9 @@ importers:
       '@oip/local':
         specifier: workspace:*
         version: link:../local
+      '@oip/server':
+        specifier: workspace:*
+        version: link:../server
     devDependencies:
       '@modelcontextprotocol/server':
         specifier: 2.4.0

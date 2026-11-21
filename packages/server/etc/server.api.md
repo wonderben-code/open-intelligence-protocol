@@ -233,6 +233,7 @@ export interface Gauge {
 // @public
 export class GuardedFetcher {
     constructor(options?: GuardedFetcherOptions);
+    readonly fetch: (request: Request) => Promise<Response>;
     get(url: string, accept?: string): Promise<Fetched>;
     post(url: string, body: Uint8Array, contentType: string, accept?: string, headers?: Readonly<Record<string, string>>): Promise<Fetched>;
 }

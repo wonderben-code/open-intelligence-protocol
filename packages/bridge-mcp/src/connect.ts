@@ -14,11 +14,17 @@
  * own. Each request goes to the server's own origin and to no other, a
  * redirect is an error, and the operator's headers go where the requests
  * go.
+ *
+ * The client library writes to the console by itself, a tool's name among
+ * what it writes. While a server is connected, what goes to the console is
+ * printed as any stranger's text is: with nothing in it a terminal acts on.
  */
 
 import { Client, ProtocolError, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/client/stdio";
-import { UsageError } from "@oip/local";
+import { inspect } from "node:util";
+
+import { printable, UsageError } from "@oip/local";
 
 import type { Credentials } from "./credentials.ts";
 
@@ -64,7 +70,11 @@ export class Refused extends Error {
 /** Connects to a server. A test gives its own. */
 export type Connect = (target: Target, credentials: Credentials) => Promise<Server>;
 
-/** The most pages of `tools/list` that are read, and the most tools. */
+/**
+ * The most pages of `tools/list` that are read, and the most tools. The
+ * client library walks the pages itself, and gives up at this many: a
+ * server that lists more cannot be bridged.
+ */
 export const MAX_PAGES = 32;
 export const MAX_LISTED = 4096;
 const LABEL = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
@@ -76,7 +86,7 @@ const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
  *
  * @throws UsageError for a target that is none: a URL that is not HTTPS
  *   (plain HTTP reaches this machine alone), or that carries a name and a
- *   password, or a label that is no label.
+ *   password, a fragment or a query, or a label that is no label.
  */
 export function endpointOf(target: Target): string {
   if (target.kind === "stdio") {
@@ -89,18 +99,25 @@ export function endpointOf(target: Target): string {
     return `stdio:${target.label}`;
   }
   if (!URL.canParse(target.url)) {
-    throw new UsageError(`${target.url} is no URL: a server is named as https://tools.example/mcp`);
+    // What was given is not said back: a URL that is none may still hold a key.
+    throw new UsageError("that is no URL: a server is named as https://tools.example/mcp");
   }
   const url = new URL(target.url);
   const local = url.protocol === "http:" && LOOPBACK.has(url.hostname);
   if (url.protocol !== "https:" && !local) {
     throw new UsageError(
-      `${target.url} is not reached over HTTPS: plain HTTP is for a server on this machine alone`,
+      "a server is reached over HTTPS: plain HTTP is for a server on this machine alone",
     );
   }
   if (url.username !== "" || url.password !== "" || url.hash !== "") {
     throw new UsageError(
       "the URL of a server carries no name, password or fragment: credentials go in the credentials file",
+    );
+  }
+  if (url.search !== "") {
+    // The URL is the `endpoint` of the mind's genesis and of its profile: published, for good.
+    throw new UsageError(
+      "the URL of a server carries no query: the whole URL is published in the mind's records, and cannot be taken back. What the server wants there goes in the credentials file, under `query`",
     );
   }
   return url.href;
@@ -127,26 +144,40 @@ export function pinned(origin: string, inner: typeof fetch): typeof fetch {
   };
 }
 
+/** How many servers are connected now: while any is, the console is guarded. */
+let connected = 0;
+let unguarded: Pick<Console, "debug" | "error" | "info" | "log" | "warn"> | undefined;
+
 /**
- * Every tool of a list that comes in pages (`tools/list`), within what the
- * gateway reads of one server.
- *
- * @param page - Asks for one page: the first, or the one a cursor names.
+ * Has what is written to the console printed as a stranger's text: the
+ * client library writes there, and what it writes holds a server's words.
  */
-export async function everyPage(
-  page: (
-    cursor: string | undefined,
-  ) => Promise<{ readonly tools: readonly unknown[]; readonly nextCursor?: string | undefined }>,
-): Promise<unknown[]> {
-  const listed: unknown[] = [];
-  let cursor: string | undefined;
-  for (let pages = 0; pages < MAX_PAGES && listed.length < MAX_LISTED; pages += 1) {
-    const answer = await page(cursor);
-    listed.push(...answer.tools);
-    cursor = answer.nextCursor;
-    if (cursor === undefined) break;
-  }
-  return listed.slice(0, MAX_LISTED);
+function guardConsole(): void {
+  connected += 1;
+  if (unguarded !== undefined) return;
+  const { debug, error, info, log, warn } = console;
+  unguarded = { debug, error, info, log, warn };
+  const safe =
+    (write: (...said: unknown[]) => void) =>
+    (...said: unknown[]): void => {
+      // An error, or an object, is written as the console would show it, and then made safe: a
+      // server's words are in its message.
+      write(...said.map((one) => printable(typeof one === "string" ? one : inspect(one))));
+    };
+  Object.assign(console, {
+    debug: safe(debug),
+    error: safe(error),
+    info: safe(info),
+    log: safe(log),
+    warn: safe(warn),
+  });
+}
+
+function unguardConsole(): void {
+  connected -= 1;
+  if (connected > 0 || unguarded === undefined) return;
+  Object.assign(console, unguarded);
+  unguarded = undefined;
 }
 
 /**
@@ -173,28 +204,44 @@ export function connector(options: {
         versionNegotiation: { mode: "auto" },
         // A tool that asks for input is not answered: the call ends, and the requester is told.
         inputRequired: { autoFulfill: false },
+        listMaxPages: MAX_PAGES,
       },
     );
-    const transport =
-      target.kind === "http"
-        ? new StreamableHTTPClientTransport(new URL(target.url), {
-            fetch: pinned(new URL(target.url).origin, options.fetch ?? fetch),
-            requestInit: { headers: { ...credentials.headers } },
-          })
-        : new StdioClientTransport({
-            command: target.command,
-            args: [...target.args],
-            // What a command needs to start at all, and the operator's variables. Nothing else
-            // of the gateway's environment: its passphrase is there.
-            env: { ...getDefaultEnvironment(), ...credentials.env },
-            stderr: options.stderr ?? "inherit",
-          });
-    await client.connect(transport);
+    let transport: StreamableHTTPClientTransport | StdioClientTransport;
+    if (target.kind === "http") {
+      // What the server wants in its query is the operator's, and is in no record.
+      const url = new URL(target.url);
+      for (const [name, value] of Object.entries(credentials.query)) {
+        url.searchParams.append(name, value);
+      }
+      transport = new StreamableHTTPClientTransport(url, {
+        fetch: pinned(url.origin, options.fetch ?? fetch),
+        requestInit: { headers: { ...credentials.headers } },
+      });
+    } else {
+      transport = new StdioClientTransport({
+        command: target.command,
+        args: [...target.args],
+        // What a command needs to start at all, and the operator's variables. Nothing else
+        // of the gateway's environment: its passphrase is there.
+        env: { ...getDefaultEnvironment(), ...credentials.env },
+        stderr: options.stderr ?? "inherit",
+      });
+    }
+    guardConsole();
+    try {
+      await client.connect(transport);
+    } catch (error) {
+      unguardConsole();
+      throw error;
+    }
     const name = client.getServerVersion()?.name;
+    let closed = false;
     return {
       ...(typeof name === "string" && name !== "" ? { name } : {}),
-      tools: () =>
-        everyPage((cursor) => client.listTools(cursor === undefined ? undefined : { cursor })),
+      // The library reads every page, as far as `MAX_PAGES`, and leaves out a tool whose
+      // declarations of headers it cannot follow.
+      tools: async () => (await client.listTools()).tools.slice(0, MAX_LISTED),
       call: async (tool, args) => {
         try {
           return await client.callTool({ name: tool, arguments: { ...args } });
@@ -203,7 +250,15 @@ export function connector(options: {
           throw error;
         }
       },
-      close: () => client.close(),
+      close: async () => {
+        if (closed) return;
+        closed = true;
+        try {
+          await client.close();
+        } finally {
+          unguardConsole();
+        }
+      },
     };
   };
 }

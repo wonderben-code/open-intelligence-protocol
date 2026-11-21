@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
 // SPDX-License-Identifier: Apache-2.0
 
-import { parseJson } from "@oip/core";
+import { canonicalBytes, parseJson } from "@oip/core";
 import { clause } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
@@ -9,6 +9,7 @@ import {
   capabilitiesOf,
   jsonText,
   MAX_CAPABILITIES,
+  MAX_CAPABILITIES_BYTES,
   MAX_NAME,
   MAX_SCHEMA_BYTES,
   MAX_SCHEMAS_BYTES,
@@ -149,6 +150,87 @@ describe("the tools of an MCP server, as capabilities", () => {
       { name: "tool-256", why: "a profile has 256 capabilities at most" },
       { name: "tool-257", why: "a profile has 256 capabilities at most" },
     ]);
+  });
+
+  it(`${clause("core 1.6")} fit a profile that every implementation accepts: schemas go first, then summaries are cut, then tools are left out`, () => {
+    const sizeOf = (capabilities: unknown): number => canonicalBytes(capabilities).length;
+    const description = "d".repeat(MAX_SUMMARY);
+    const name = (at: number): string => `tool-${String(at).padStart(3, "0")}-${"n".repeat(110)}`;
+    // As many tools as a profile has, each with a summary as long as one may be: more than the
+    // profile has room for, with the schemas that fit beside them.
+    const full = capabilitiesOf(
+      Array.from({ length: MAX_CAPABILITIES }, (_, at) => ({
+        name: name(at),
+        description,
+        inputSchema: { type: "object", description: "s".repeat(400) },
+      })),
+    );
+    expect(sizeOf(full.capabilities)).toBeLessThanOrEqual(MAX_CAPABILITIES_BYTES);
+    // Every tool is a capability still: the schemas went, and the summaries were cut.
+    expect(full.capabilities).toHaveLength(MAX_CAPABILITIES);
+    expect(full.left).toStrictEqual([]);
+    expect(full.withoutSchema).toBe(MAX_CAPABILITIES);
+    expect(Array.from(full.capabilities[0]?.summary ?? "")).toHaveLength(256);
+    expect(full.capabilities[0]?.summary.endsWith(ELLIPSIS)).toBe(true);
+
+    // Where the schemas alone are too many, the last tools lose theirs and the first keep them.
+    const some = capabilitiesOf(
+      Array.from({ length: MAX_CAPABILITIES }, (_, at) => ({
+        name: name(at),
+        description: "d".repeat(380),
+        inputSchema: { type: "object", description: "s".repeat(400) },
+      })),
+    );
+    expect(sizeOf(some.capabilities)).toBeLessThanOrEqual(MAX_CAPABILITIES_BYTES);
+    expect(some.left).toStrictEqual([]);
+    expect(some.capabilities[0]?.ext).toBeDefined();
+    expect(some.capabilities.at(-1)?.ext).toBeUndefined();
+    expect(some.capabilities[0]?.summary).toBe("d".repeat(380));
+    expect(some.withoutSchema).toBe(
+      some.capabilities.filter(({ ext }) => ext === undefined).length,
+    );
+    expect(some.withoutSchema).toBeGreaterThan(0);
+    expect(some.withoutSchema).toBeLessThan(MAX_CAPABILITIES);
+    // No more went than had to: with one more schema, the profile would have no room.
+    const first = some.capabilities.findIndex(({ ext }) => ext === undefined);
+    const restored = some.capabilities.map((capability, at) =>
+      at === first ? { ...capability, ext: some.capabilities[0]?.ext } : capability,
+    );
+    expect(sizeOf(restored)).toBeGreaterThan(MAX_CAPABILITIES_BYTES);
+
+    // Names and summaries of characters that take four bytes each: cut, the summaries are
+    // still more than a profile has room for, and the last tools are left out, each said to be.
+    const wide = String.fromCodePoint(0x1f600);
+    const most = capabilitiesOf(
+      Array.from({ length: MAX_CAPABILITIES }, (_, at) => ({
+        name: `${String(at).padStart(3, "0")}${wide.repeat(MAX_NAME - 3)}`,
+        description: wide.repeat(MAX_SUMMARY),
+      })),
+    );
+    expect(sizeOf(most.capabilities)).toBeLessThanOrEqual(MAX_CAPABILITIES_BYTES);
+    expect(most.capabilities.length).toBeGreaterThan(0);
+    expect(most.capabilities.length).toBeLessThan(MAX_CAPABILITIES);
+    expect(most.capabilities.length + most.left.length).toBe(MAX_CAPABILITIES);
+    expect(most.left.every(({ why }) => why === "the profile has no room for it")).toBe(true);
+    // Left out from the end: the first tools are the ones that stay.
+    expect(most.capabilities[0]?.id.startsWith("000")).toBe(true);
+    expect(most.left[0]?.name?.startsWith("255")).toBe(true);
+    expect(most.withoutSchema).toBe(most.capabilities.length);
+    // No more were left out than had to be: one more would not fit.
+    const one = most.capabilities[0];
+    expect(sizeOf([...most.capabilities, one])).toBeGreaterThan(MAX_CAPABILITIES_BYTES);
+    // A list with nothing in it has room.
+    expect(capabilitiesOf([])).toStrictEqual({ capabilities: [], withoutSchema: 0, left: [] });
+  });
+
+  it("leave out a schema that JSON cannot say, and carry what a record holds as the parser read it", () => {
+    const { capabilities, withoutSchema } = capabilitiesOf([
+      { name: "endless", inputSchema: { type: "object", maximum: Number.POSITIVE_INFINITY } },
+      { name: "plain", inputSchema: SCHEMA },
+    ]);
+    expect(withoutSchema).toBe(1);
+    expect(capabilities[0]?.ext).toBeUndefined();
+    expect(capabilities[1]?.ext).toStrictEqual({ "oip.mcp": { inputSchema: SCHEMA } });
   });
 
   it(`${clause("core 1.1")} have a summary that a record holds, of a bounded length`, () => {

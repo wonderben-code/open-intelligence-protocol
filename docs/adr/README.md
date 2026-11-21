@@ -32,6 +32,10 @@ An ADR records a decision that is hard to reverse: what was decided, why, and wh
 | [0026](0026-the-command.md)                       | The `oip` command                                                             |
 | [0027](0027-a-mind-on-one-machine.md)             | A mind on one machine: `@oip/local`                                           |
 | [0028](0028-the-mcp-server.md)                    | The MCP server                                                                |
+| [0029](0029-the-a2a-gateway.md)                   | The A2A gateway                                                               |
+| [0030](0030-the-did-resolver-drivers.md)          | The drivers for DID resolvers                                                 |
+| [0031](0031-the-mcp-gateway.md)                   | The gateway for MCP servers                                                   |
+| [0034](0034-what-the-gateway-reviews-changed.md)  | What the reviews of the gateways changed                                      |
 
 ## Writing one
 

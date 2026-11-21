@@ -84,6 +84,7 @@ import {
   type Inbox,
   type Message,
   Messaging,
+  type Received,
   type Retried,
   type Sent,
 } from "./messages.ts";
@@ -234,6 +235,24 @@ export interface CollectiveChanges {
 export interface MemberOptions {
   /** What opens this mind's invocation keys. They are unlocked for the one signature and locked again. */
   readonly invocation: Lock;
+}
+
+/** How the mailboxes are read. */
+export interface ReceiveOptions {
+  /**
+   * Called with the packets a mailbox served and the client accepted,
+   * before the client notes that it has them and before they are removed
+   * from the mailbox. A caller that must lose no packet writes them down
+   * here. If the process stops after that and before `receive` returns, the
+   * next reading finds them in the mailbox still.
+   *
+   * So a packet may be given here in more than one reading, and one that
+   * another process of the mind accepted meanwhile may be given too: a
+   * caller tells them by their IDs. `receive` returns each once.
+   *
+   * What it throws ends the reading. Nothing of that mailbox is removed.
+   */
+  readonly keep?: (accepted: readonly Received[]) => void | Promise<void>;
 }
 
 /** The keys of everyday work, unlocked. */
@@ -701,17 +720,39 @@ export class Mind {
    * A participant's `Resume` is answered: what it lacks of this mind's
    * packets is sent to it again. `sessions` says what was found and done.
    *
+   * A caller that reads the packets after `receive` has returned can lose
+   * some: the client has noted them and removed them from the mailbox by
+   * then, and a process that stops before they are dealt with does not find
+   * them again. A program that must lose none gives `keep`, and writes down
+   * what it is given.
+   *
    * @returns The packets accepted, what was refused, and what waits.
    */
-  async receive(): Promise<Inbox> {
-    const inbox = await this.#messaging.receive();
-    const received = [];
-    for (const arrived of inbox.received) {
+  async receive(options: ReceiveOptions = {}): Promise<Inbox> {
+    /** Each packet as it is returned, made once: by its ID. */
+    const whole = new Map<string, Received>();
+    const finished = async (arrived: Received): Promise<Received> => {
+      const made = whole.get(arrived.id);
+      if (made !== undefined) return made;
       // The records the packets carry are held, to be judged when they are asked about.
       this.#dealings.holdCarried(arrived.packet.content);
       const sentFor = await this.#dealings.sentFor(arrived.packet);
-      received.push(sentFor === undefined ? arrived : { ...arrived, sentFor });
-    }
+      const one = sentFor === undefined ? arrived : { ...arrived, sentFor };
+      whole.set(arrived.id, one);
+      return one;
+    };
+    const { keep } = options;
+    const inbox = await this.#messaging.receive(
+      keep === undefined
+        ? undefined
+        : async (accepted) => {
+            const kept = [];
+            for (const arrived of accepted) kept.push(await finished(arrived));
+            await keep(kept);
+          },
+    );
+    const received = [];
+    for (const arrived of inbox.received) received.push(await finished(arrived));
     return { ...inbox, received };
   }
 
@@ -1171,13 +1212,76 @@ export class Mind {
   /**
    * Whether a record counts for a mind (Layer 2, Section 7): by the mind's
    * own key, or by a delegate's proof whose chain of delegations covers
-   * the record. The logs of the minds the record names are fetched afresh
-   * first.
+   * the record. The logs that decide are fetched afresh first: those of the
+   * record's author, its parties, its signers and the authors of the
+   * delegations they rest on.
+   *
+   * The record is held, as by `hold`: what is asked next is judged with it.
    *
    * @param mind - Default: this mind.
+   * @throws OipError `too-large` if the record rests on more than 64 logs.
    */
   countsFor(record: unknown, mind: string = this.address): Promise<boolean> {
     return this.#dealings.countsFor(record, mind);
+  }
+
+  /**
+   * The mind a packet was sent for (Layer 1, 11.2): the one it names in
+   * `provenance.onBehalfOf`, if its sender's proof carries a chain of
+   * delegations from that mind that covers `/oip/send`, as this mind judges
+   * it now, by the records it holds.
+   *
+   * `receive` says the same of each packet as it arrives. A program that
+   * acts on a packet later asks again when it acts: a delegation may have
+   * been revoked since (`holdRevocations`).
+   *
+   * @returns The mind, or `undefined` if the packet names none, names one in
+   *   words only, or names one whose delegation does not hold.
+   */
+  sentFor(packet: unknown): Promise<string | undefined> {
+    return this.#dealings.sentFor(packet);
+  }
+
+  /**
+   * Reads what the authors of the delegations a record rests on have
+   * revoked, and holds it (Layer 1, 11.5). An author publishes its
+   * Revocations in its feed, and a verifier checks that feed "when the
+   * value at stake warrants it": a program that is about to act for a
+   * delegate calls this first, and asks `countsFor` or `sentFor` after.
+   *
+   * The delegations are those the record's proofs carry or name in
+   * `authority`. The feed of each of their authors is read, and every
+   * `Revocation` it lists is fetched and held, unless this mind holds a
+   * copy that counts for its author. A copy that does not count is no
+   * reason to leave the author's own unread: anyone can give out a record
+   * they have read under a signature that is nobody's. A mind with no home
+   * has no feed.
+   *
+   * @returns How many Revocations were fetched and held.
+   * @throws What `Lookup.feed` and `Lookup.record` throw, where a feed or
+   *   a record it lists cannot be had: nothing was shown either way.
+   */
+  holdRevocations(record: unknown): Promise<number> {
+    return this.#dealings.holdRevocations(record);
+  }
+
+  /**
+   * Whether the delegations a record's proofs rest on stand now: none has
+   * expired, and none is revoked by a `Revocation` this mind holds that
+   * counts for its author.
+   *
+   * `countsFor` and `sentFor` judge a proof as of when it was made, by the
+   * evidence of time (core 9): a record that was signed before a
+   * revocation was first seen counts still, and that is right for what a
+   * record binds its principal to. Whether to act for a delegate is
+   * another question, and is asked of now: a program that is about to do
+   * something for whoever a packet was sent for calls `holdRevocations`,
+   * and then this.
+   *
+   * @returns `false` too where a proof names a delegation this mind does not hold.
+   */
+  delegationsStand(record: unknown): Promise<boolean> {
+    return this.#dealings.delegationsStand(record);
   }
 
   /**

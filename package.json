@@ -31,7 +31,7 @@
     "api:check": "pnpm clean && pnpm build && pnpm -r --no-sort --if-present run api:check",
     "bench": "vitest bench --run --reporter=verbose",
     "demo": "node --conditions=@oip/source examples/translation-demo/src/bin.ts",
-    "demo:record": "node --conditions=@oip/source examples/translation-demo/src/record.ts",
+    "demo:record": "node --conditions=@oip/source examples/translation-demo/src/bin.ts --record examples/translation-demo/recording",
     "explorer:demo": "node --conditions=@oip/source apps/explorer/demo/bin.ts",
     "mutation": "stryker run",
     "docs": "typedoc",

@@ -611,7 +611,7 @@ export const POSITIVE_CHECKS: readonly PositiveCheck[] = [
         ["did_document_amina_at_genesis", "amina", genesis],
         ["did_document_collective", "collective", undefined],
       ];
-      return documents
+      const missed = documents
         .filter(
           ([name, mind, versionId]) =>
             !sameMembers(
@@ -620,6 +620,18 @@ export const POSITIVE_CHECKS: readonly PositiveCheck[] = [
             ),
         )
         .map(([name]) => `${name} was not reproduced`);
+      // A mind that has retired, asked for at its first version: `deactivated` is of the mind
+      // (Layer 1, 5.2). Its log is no part of the baseline, and is given beside it.
+      const retired = namedLog(vectors, "retired_log");
+      const first = `0-${contentId(retired[0] ?? {})}`;
+      const name = "did_document_retired_at_genesis";
+      const resolved = didDocument(addressOf(vectors, "retired"), first, {
+        ...view,
+        extraLogs: [retired],
+      });
+      return sameMembers(resolved, vectors.cases[name])
+        ? missed
+        : [...missed, `${name} was not reproduced`];
     },
   },
   {

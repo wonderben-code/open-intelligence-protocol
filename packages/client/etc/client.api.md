@@ -16,6 +16,7 @@ import type { Commitment } from '@oip/schema';
 import { Delegation } from '@oip/schema';
 import { DidResolution } from '@oip/identity';
 import type { Entry } from '@oip/schema';
+import { EvidenceView } from '@oip/identity';
 import { FirstSeen } from '@oip/identity';
 import { HeldLocation } from '@oip/net';
 import { HeldParticipant } from '@oip/net';
@@ -294,12 +295,14 @@ export class Lookup {
         did: DidResolution;
     }>;
     assurance(mind: string): Promise<Assured>;
+    get clock(): Clock;
     feed(mind: string): Promise<ReadFeed>;
     find(query: CapabilityQuery): Promise<Finding>;
     record(mind: string, id: string): Promise<JudgedRecord>;
     resolve(mind: string): Promise<Resolved>;
     get seen(): FirstSeen;
     get view(): IdentityView;
+    get witnessed(): EvidenceView;
 }
 
 // @public
@@ -378,12 +381,14 @@ export class Mind {
     countsFor(record: unknown, mind?: string): Promise<boolean>;
     static create(options: MindOptions, fields: NewMind): Promise<Mind>;
     delegate(grant: Grant): Promise<Delegation>;
+    delegationsStand(record: unknown): Promise<boolean>;
     fork(child: string, options: ControlOptions & {
         readonly terms?: JsonObject;
         readonly changes?: IdentityChanges;
     }): Promise<IdentityState>;
     foundCollective(fields: NewCollective, options: MemberOptions): Promise<IdentityEvent>;
     hold(record: unknown, seen?: Sightings): string;
+    holdRevocations(record: unknown): Promise<number>;
     intent(fields: Fields<Intent>, acting?: Acting): Promise<Intent>;
     leaveSession(session: string): Promise<boolean>;
     listen(options: ListenOptions): Listening;
@@ -405,7 +410,7 @@ export class Mind {
     publishProfile(fields: ProfileFields): Promise<Participant>;
     publishRecord(record: object): Promise<Entry>;
     receipt(fields: Fields<Receipt>, acting?: Acting): Promise<Receipt>;
-    receive(): Promise<Inbox>;
+    receive(options?: ReceiveOptions): Promise<Inbox>;
     records(): OipRecord[];
     refresh(): Promise<IdentityState>;
     get resolved(): Resolved;
@@ -420,6 +425,7 @@ export class Mind {
         readonly compromisedSince?: string;
     }): Promise<IdentityState>;
     send(message: Message): Promise<Sent>;
+    sentFor(packet: unknown): Promise<string | undefined>;
     sessions(): Promise<SessionView[]>;
     sightings(id: string): Sightings;
     sign<T extends object>(record: T, authority?: readonly AuthorityItem[]): Promise<T & {
@@ -519,11 +525,13 @@ export interface Ranking {
 
 // @public
 export class Reader {
-    constructor(at: ReadingContext);
+    constructor(at: ReadingContext, sight?: Sight);
     countsFor(record: unknown, mind: string): Promise<boolean>;
+    delegationsStand(record: unknown): Promise<boolean>;
     held(): OipRecord[];
     hold(record: unknown, seen?: Sightings): string;
     holdCarried(content: unknown): void;
+    holdRevocations(record: unknown): Promise<number>;
     sentFor(packet: unknown): Promise<string | undefined>;
     sightings(id: string): Sightings;
     status(record: unknown): Promise<Status>;
@@ -537,9 +545,6 @@ export interface ReadFeed {
 
 // @public
 export interface ReadingContext {
-    // (undocumented)
-    readonly clock: Clock;
-    // (undocumented)
     readonly lookup: Lookup;
 }
 
@@ -552,6 +557,11 @@ export interface Received {
     readonly sealed: boolean;
     readonly sentFor?: string;
     readonly time: Instant;
+}
+
+// @public
+export interface ReceiveOptions {
+    readonly keep?: (accepted: readonly Received[]) => void | Promise<void>;
 }
 
 // @public
@@ -638,6 +648,9 @@ export interface SessionView {
     readonly sent: number;
     readonly session: Session;
 }
+
+// @public
+export type Sight = "live" | "history";
 
 // @public
 export type Sightings = Readonly<Record<string, Instant>>;

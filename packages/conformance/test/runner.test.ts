@@ -584,7 +584,7 @@ describe("the positive checks", () => {
     expect(check({ name: "half", contentId: () => "" })?.outcome).toBe("pending");
     const none = check({ ...referenceAdapter, didDocument: () => undefined });
     expect(none?.detail).toBe(
-      "did_document_amina was not reproduced; did_document_amina_at_genesis was not reproduced; did_document_collective was not reproduced",
+      "did_document_amina was not reproduced; did_document_amina_at_genesis was not reproduced; did_document_collective was not reproduced; did_document_retired_at_genesis was not reproduced",
     );
     // The versioned document is asked for by the version of the genesis.
     const unversioned = check({
@@ -592,7 +592,24 @@ describe("the positive checks", () => {
       didDocument: (mind, _versionId, view) =>
         referenceAdapter.didDocument?.(mind, undefined, view),
     });
-    expect(unversioned?.detail).toBe("did_document_amina_at_genesis was not reproduced");
+    expect(unversioned?.detail).toBe(
+      "did_document_amina_at_genesis was not reproduced; did_document_retired_at_genesis was not reproduced",
+    );
+    // An implementation that says of a version what was so at that version: the mind had not
+    // retired at its first, and it is deactivated all the same (Layer 1, 5.2).
+    const ofTheVersion = check({
+      ...referenceAdapter,
+      didDocument: (mind, versionId, view) => {
+        const resolved = referenceAdapter.didDocument?.(mind, versionId, view) as
+          { didDocumentMetadata: Record<string, unknown> } | undefined;
+        if (resolved === undefined || versionId === undefined) return resolved;
+        return {
+          ...resolved,
+          didDocumentMetadata: { ...resolved.didDocumentMetadata, deactivated: false },
+        };
+      },
+    });
+    expect(ofTheVersion?.detail).toBe("did_document_retired_at_genesis was not reproduced");
   });
 
   it("leave every check pending for an adapter that has none of the methods", () => {

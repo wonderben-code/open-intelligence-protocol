@@ -218,6 +218,18 @@
       "seed_hex": "764ad613947a7c9d3df854870369ff35b3882599417c72d8190a47cd88f36c0f",
       "multikey": "z6MkggW6KEUmJ4Rq2zZChZfPnbY8JAgaqG1CwMWnqY6Z5tXn"
     },
+    "retired-control-0": {
+      "seed_hex": "2c739a8dafff28674874bc5dfb160185cdafa87d9330c4df921b036e17bb6f47",
+      "multikey": "z6MkpRD9NXQnhuAdcBHG3qp1K7QYQ8461LfgaVMUsURn2HEJ"
+    },
+    "retired-control-1": {
+      "seed_hex": "927fb60ab886c83108896754563ae7a9f7fd141152e5342bdf760fe6dda110ea",
+      "multikey": "z6Mkmf3Pe2Vzowqtv9zS3SQx7dhNf6xHyqy9uBHoAwdgbtDP"
+    },
+    "retired-ops": {
+      "seed_hex": "840a39096fcb8fcebd93a5882921f5975277c798b4f0bbbcb39361de2b91c57b",
+      "multikey": "z6MkttdcLsDUan2HuCcALmwhET4YmrLWAzyNvJFXgvSJ3k6C"
+    },
     "amina-control-2b": {
       "seed_hex": "756d83050c47268263aa340157d9293004aab9f8878c04b50a901bddfd167daa",
       "multikey": "z6Mkrbyv6VK3EM5RW5CAbGNEMn4s3XZ2bGdrEj2o4HE18FNf"
@@ -274,6 +286,30 @@
       "seed_hex": "328e1f93d44d0bde216be997724ec74e92862e71152c0fc74ac267152ce07a5c",
       "multikey": "z6Mkq9EFaM916M76ssiBxmSrLbEZgfFRs89YJdsGAh3rQPcn"
     },
+    "bridged-elsewhere-control-0": {
+      "seed_hex": "1b4197fe8b417c0ccc96275473ff57d112d3cf26bf6c28df5e13bee39b2c4e9d",
+      "multikey": "z6MkqXdH9AJLfNbfo3AqxXonkmTKExN2e5kGU5rdNuM9uroK"
+    },
+    "bridged-elsewhere-control-1": {
+      "seed_hex": "a114aa2992d5ddb0fa5d42b7644dae49cc95ce2aa2b31688f54d75c74fe4d38a",
+      "multikey": "z6Mkpx9icuER2ytVQG2TrfSwv1xgyUnmwmohrrqnFjhw79WM"
+    },
+    "bridged-elsewhere-ops": {
+      "seed_hex": "8143e17e8d698cfc3503ff5a4e8dd135ad7bea236c818cdaa1076ebacecd31e8",
+      "multikey": "z6MkvtL9b6LYuRttEs6pHoru2d2yLUeo3TqpQ4DBTnoxVTkr"
+    },
+    "bridged-malformed-control-0": {
+      "seed_hex": "4593785bcba544be0e7cb93c8102f0cb34d67ea8429996c4124002df092a4b55",
+      "multikey": "z6MkiwFmbeVeeUFJ9WfGHyCNqAoK9vSnXjGj1BXHVGmPfh9p"
+    },
+    "bridged-malformed-control-1": {
+      "seed_hex": "f30711722a5e21f188894f1b15d9fb60a8e8100cc1a5eeb71d32b374357dfdb4",
+      "multikey": "z6MkeVssWt5YMZdk4YKE19q4ux3evk8VHAhJnvSgMmfVj8ys"
+    },
+    "bridged-malformed-ops": {
+      "seed_hex": "fed0d4f3b51a16c076f20787a52c75c61d8915bb180d7c62b02debbd50ac9770",
+      "multikey": "z6MkoGcgvv5RFKf1QHhdypL9vcw9aacUgg1Cwu5QngHBhwCw"
+    },
     "oep2-control-0": {
       "seed_hex": "b9706cdafe2d4c455c6f61f2be3d2b22b50132656e99323f69bcae83433d8387",
       "multikey": "z6Mkqkk5PqwFAaZxR4RYkvjuyi2om2KraohnZDWC6GVcWBmp"
@@ -309,6 +345,30 @@
     "lexisltd-control-2": {
       "seed_hex": "ac3842108da90f6d3141c4e941e4c8002c9ad7d76301cc66f29e723fc3f36cc9",
       "multikey": "z6MkgaFKmLNgQ2UZa8nAXvFTHH89DiXpi5xmpfFc5LZPm155"
+    },
+    "bridged-also-control-0": {
+      "seed_hex": "985e012fe33198b42086d5f83d25635a622b89a805bec59304d07b498832027a",
+      "multikey": "z6MkwSnqsyNYiDipPM8gS9TMeyiSUM38QAFWxKvZMqhBpMAD"
+    },
+    "bridged-also-control-1": {
+      "seed_hex": "05e48a7ce921874d61aa9ee073891efca5f40f90d86f2191a67082145f1745bb",
+      "multikey": "z6MkvEqGfWvHjsNNG9KbBU4f1aeqCCawJfv8ybw6jpjJ7rtK"
+    },
+    "bridged-also-ops": {
+      "seed_hex": "d16c72e43b1ff46c1b60318a5e1759079d6d6991ee29ac0c876a82ab37f33d18",
+      "multikey": "z6MkeZxrAMN5ePQC5qN5zrkEAmKNF6cZMRxFFVdk4dkrT68Y"
+    },
+    "bridged-well-formed-control-0": {
+      "seed_hex": "1d7391e0fbe1d4fa6543ada471762be711d1ddd0aa275374ab1fdf4cf11355d1",
+      "multikey": "z6MkhJw5jFzDdpBvESbQmKv7fPfbbfns8yx94zrfA7tnHhbW"
+    },
+    "bridged-well-formed-control-1": {
+      "seed_hex": "7f3c50584bb9dfeb572db6f2c44de80ed77230eb56fd1078aa01d5d0e50cb775",
+      "multikey": "z6MkkrP4Ccr68PXH9KV6w1jjAYhkcncycYmFLyQewMFMsA7n"
+    },
+    "bridged-well-formed-ops": {
+      "seed_hex": "56ac52247a3ae2a4c0368af392740b2bc5585686e8150c1fe548cc07609b9fd9",
+      "multikey": "z6MkfqijpRPzhi9r5duJhxYBNZiSzoW3xMyBzAgGEMYWrwuG"
     }
   },
   "cases": {
@@ -2222,6 +2282,99 @@
           "did:oip:bciqavlv3ss6aztr6f3jn4mix5wl2tgy6wamfb7whutrujsi3zmrdeua"
         ],
         "threshold": 2
+      }
+    },
+    "retired": "did:oip:bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a",
+    "retired_log": [
+      {
+        "oip": "1",
+        "type": "Genesis",
+        "kind": "service",
+        "created": "2026-10-30T08:20:00Z",
+        "controller": {
+          "keys": [
+            "z6MkpRD9NXQnhuAdcBHG3qp1K7QYQ8461LfgaVMUsURn2HEJ"
+          ],
+          "next": [
+            "bciqjt2wqabujupmsz3ccmonuqe6cktusb3b7qzxnn7dmusjjutzt7ei"
+          ],
+          "nextThreshold": 1
+        },
+        "keys": [
+          {
+            "key": "z6MkttdcLsDUan2HuCcALmwhET4YmrLWAzyNvJFXgvSJ3k6C",
+            "label": "retired-ops"
+          }
+        ],
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:key:z6MkpRD9NXQnhuAdcBHG3qp1K7QYQ8461LfgaVMUsURn2HEJ#z6MkpRD9NXQnhuAdcBHG3qp1K7QYQ8461LfgaVMUsURn2HEJ",
+            "proofPurpose": "capabilityInvocation",
+            "created": "2026-10-30T08:20:00Z",
+            "proofValue": "z5cRfhBYuyqysCCz3M1irA3FP6Gwwiq8yKEi6AiDF6qQqp2Mw9HN7hN4YhMW4wfpPw6UAkBBrKWkpwKS1HYQRDc8A"
+          }
+        ]
+      },
+      {
+        "oip": "1",
+        "type": "Retire",
+        "mind": "did:oip:bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a",
+        "seq": 1,
+        "prev": "bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a",
+        "created": "2026-10-30T08:30:00Z",
+        "controller": {
+          "keys": [
+            "z6Mkmf3Pe2Vzowqtv9zS3SQx7dhNf6xHyqy9uBHoAwdgbtDP"
+          ],
+          "next": []
+        },
+        "reason": "Wound up.",
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:key:z6Mkmf3Pe2Vzowqtv9zS3SQx7dhNf6xHyqy9uBHoAwdgbtDP#z6Mkmf3Pe2Vzowqtv9zS3SQx7dhNf6xHyqy9uBHoAwdgbtDP",
+            "proofPurpose": "capabilityInvocation",
+            "created": "2026-10-30T08:30:00Z",
+            "proofValue": "z5Y1d95q3G9aLKgxatP8XdGEUGPMwaheKu2Q6pFc19Lo4nerZmMw26qDttrXJCjABgAEW7r8Z2WrVkL6Jks6j6ZP2"
+          }
+        ]
+      }
+    ],
+    "did_document_retired_at_genesis": {
+      "didDocument": {
+        "id": "did:oip:bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a",
+        "verificationMethod": [
+          {
+            "id": "did:oip:bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a?versionId=0-bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a#z6MkttdcLsDUan2HuCcALmwhET4YmrLWAzyNvJFXgvSJ3k6C",
+            "type": "Multikey",
+            "controller": "did:oip:bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a",
+            "publicKeyMultibase": "z6MkttdcLsDUan2HuCcALmwhET4YmrLWAzyNvJFXgvSJ3k6C"
+          }
+        ],
+        "authentication": [
+          "did:oip:bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a?versionId=0-bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a#z6MkttdcLsDUan2HuCcALmwhET4YmrLWAzyNvJFXgvSJ3k6C"
+        ],
+        "assertionMethod": [
+          "did:oip:bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a?versionId=0-bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a#z6MkttdcLsDUan2HuCcALmwhET4YmrLWAzyNvJFXgvSJ3k6C"
+        ],
+        "capabilityDelegation": [
+          "did:oip:bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a?versionId=0-bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a#z6MkttdcLsDUan2HuCcALmwhET4YmrLWAzyNvJFXgvSJ3k6C"
+        ],
+        "capabilityInvocation": [],
+        "keyAgreement": []
+      },
+      "didDocumentMetadata": {
+        "versionId": "0-bciqk7gcc3jspifpmsrkoedgy4idxsg6zuhjqj5spptcodhjkvn5a52a",
+        "deactivated": true,
+        "parents": [],
+        "children": [],
+        "nextKeyHashes": [
+          "bciqjt2wqabujupmsz3ccmonuqe6cktusb3b7qzxnn7dmusjjutzt7ei"
+        ],
+        "nextThreshold": 1
       }
     },
     "status": [
@@ -17621,6 +17774,372 @@
           }
         ]
       },
+      "expect": "claimed"
+    },
+    {
+      "name": "bridge-entry-not-signed-by-the-gateway",
+      "reason": "The entry names the gateway as its author, and is signed by the bridged mind's own key. It does not count for the gateway (Layer 0, 1.3; Layer 2, 7.1), so nothing shows that the gateway attests the mind: `claimed`.",
+      "kind": "assurance",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy",
+        "created": "2026-10-30T08:12:00Z",
+        "name": "Example MCP tools",
+        "kind": "service",
+        "summary": "An MCP server, bridged into OIP by its gateway.",
+        "ext": {
+          "oip.bridge": {
+            "protocol": "mcp",
+            "endpoint": "https://tools.example/mcp",
+            "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+            "assurance": "bridged",
+            "attestation": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi/bciqh5nob36a6462z6j65ox2tovoi3ak4sjl5bpaxdjtmcqw7vfjwsga"
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy?versionId=0-bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy#z6MkggW6KEUmJ4Rq2zZChZfPnbY8JAgaqG1CwMWnqY6Z5tXn",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T08:12:00Z",
+            "proofValue": "zp89wxKtsKb6f4iuVmGsrAZ6LFURX3PScfvVs6kZXoHQfxq21v2T4gx25T5xgBxWPsQjf88uLx1oFwPwM2oYo3MM"
+          }
+        ]
+      },
+      "extraRecords": [
+        {
+          "oip": "1",
+          "type": "Entry",
+          "author": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+          "seq": 1,
+          "prev": "bciqafe6h7xf2luzpg7rub34h3m5tjkzm2m6dki7rzhvacee3oukllmy",
+          "created": "2026-10-30T08:11:30Z",
+          "object": "bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy",
+          "objectType": "Genesis",
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy?versionId=0-bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy#z6MkggW6KEUmJ4Rq2zZChZfPnbY8JAgaqG1CwMWnqY6Z5tXn",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T08:11:30Z",
+              "proofValue": "z2svhM4MDNSNqPKs38xUhfVqifXE7svCZ8kzqyoPr3jdStFF9mLr7tLPejHMrqoP3STQpuez7RUJHNWRUQSsX92Wk"
+            }
+          ]
+        }
+      ],
+      "expect": "claimed"
+    },
+    {
+      "name": "bridge-entry-of-another-type",
+      "reason": "The gateway's entry names the genesis by its content ID and calls it a `Participant`. An attestation is an entry whose `objectType` is `Genesis` (Layer 0, 1.2): this one attests nothing, and the mind is `claimed`.",
+      "kind": "assurance",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy",
+        "created": "2026-10-30T08:12:00Z",
+        "name": "Example MCP tools",
+        "kind": "service",
+        "summary": "An MCP server, bridged into OIP by its gateway.",
+        "ext": {
+          "oip.bridge": {
+            "protocol": "mcp",
+            "endpoint": "https://tools.example/mcp",
+            "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+            "assurance": "bridged",
+            "attestation": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi/bciqewkyskijpda7c56cv42iamjqgox4x5e2x4al7isxssvfzidgozkq"
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy?versionId=0-bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy#z6MkggW6KEUmJ4Rq2zZChZfPnbY8JAgaqG1CwMWnqY6Z5tXn",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T08:12:00Z",
+            "proofValue": "z2R3nmNmJAQyCeu42rchwXFWXhYCpFRVjJbXWiReXenmqgDpT3bQujKwKqcVfghtMm4CnNc4ihkCki9FMn2TZ6jnk"
+          }
+        ]
+      },
+      "extraRecords": [
+        {
+          "oip": "1",
+          "type": "Entry",
+          "author": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+          "seq": 1,
+          "prev": "bciqafe6h7xf2luzpg7rub34h3m5tjkzm2m6dki7rzhvacee3oukllmy",
+          "created": "2026-10-30T08:11:30Z",
+          "object": "bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy",
+          "objectType": "Participant",
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi?versionId=0-bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi#z6Mkvh74WEmoV1TRUyw9FWr2YvqQKCUrobrWVMu94Da1mK5f",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T08:11:30Z",
+              "proofValue": "znd1SCD3irjRXrN9467SW9Wbim9Zp1h5P2NkmN1y6noxYPBK5dBenCzg3188FZqj2iv3tkFgXeK5aN1uX2dWHTrp"
+            }
+          ]
+        }
+      ],
+      "expect": "claimed"
+    },
+    {
+      "name": "bridge-profile-signed-by-the-gateway",
+      "reason": "The profile is the bridged mind's, and is signed by the gateway's key. It does not count for the mind it describes (Layer 2, 7.1), so it names no gateway for that mind: `claimed`.",
+      "kind": "assurance",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy",
+        "created": "2026-10-30T08:12:00Z",
+        "name": "Example MCP tools",
+        "kind": "service",
+        "summary": "An MCP server, bridged into OIP by its gateway.",
+        "ext": {
+          "oip.bridge": {
+            "protocol": "mcp",
+            "endpoint": "https://tools.example/mcp",
+            "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+            "assurance": "bridged",
+            "attestation": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi/bciqafe6h7xf2luzpg7rub34h3m5tjkzm2m6dki7rzhvacee3oukllmy"
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi?versionId=0-bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi#z6Mkvh74WEmoV1TRUyw9FWr2YvqQKCUrobrWVMu94Da1mK5f",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T08:12:00Z",
+            "proofValue": "z5uBoN4wYhj8o63163QZAicF8pd67Rcy4Ec5dkuLubeHmiPpX9X2nufdTjQoLYLVhgTgeKYH1kUM1Yz7UedKKzWrB"
+          }
+        ]
+      },
+      "expect": "claimed"
+    },
+    {
+      "name": "bridge-genesis-names-another-gateway",
+      "reason": "The profile names the gateway, and the gateway attests the genesis. The genesis itself names another mind as its gateway. A mind is bridged by a gateway only if its genesis and its profile both name that gateway (Layer 0, 1.3): `claimed`.",
+      "kind": "assurance",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqgaju2by66dppv4ozbdeclbn5isrt45fhk4jmkj2ujs75icenztra",
+        "created": "2026-10-30T08:20:40Z",
+        "name": "Another MCP server",
+        "kind": "service",
+        "capabilities": [
+          {
+            "id": "search",
+            "summary": "Searches.",
+            "ext": {
+              "oip.mcp": {}
+            }
+          }
+        ],
+        "ext": {
+          "oip.bridge": {
+            "protocol": "mcp",
+            "endpoint": "https://tools.example/mcp",
+            "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+            "assurance": "bridged",
+            "attestation": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi/bciqklcdbrtld4abjvovjic2hqp6aol6vxw3d3g6ofbdvfia3szaemny"
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqgaju2by66dppv4ozbdeclbn5isrt45fhk4jmkj2ujs75icenztra?versionId=0-bciqgaju2by66dppv4ozbdeclbn5isrt45fhk4jmkj2ujs75icenztra#z6MkvtL9b6LYuRttEs6pHoru2d2yLUeo3TqpQ4DBTnoxVTkr",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T08:20:40Z",
+            "proofValue": "z57K8pvv9Rmz7vTB4b2Y68AMegmi7PF8RGW8TzWN9EJRBmf5Wc4BPMXteeArmybbMd8LtvU8qqwn7mM3X1S4QLcjL"
+          }
+        ]
+      },
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "service",
+            "created": "2026-10-30T08:20:00Z",
+            "controller": {
+              "keys": [
+                "z6MkqXdH9AJLfNbfo3AqxXonkmTKExN2e5kGU5rdNuM9uroK"
+              ],
+              "next": [
+                "bciqetgpmplalvs3nqh6z3gfxwrwi53eayg6yyvofug3hkhrohh7sofa"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkvtL9b6LYuRttEs6pHoru2d2yLUeo3TqpQ4DBTnoxVTkr",
+                "label": "bridged-elsewhere-ops"
+              }
+            ],
+            "ext": {
+              "oip.bridge": {
+                "protocol": "mcp",
+                "endpoint": "https://tools.example/mcp",
+                "gateway": "did:oip:bciqdijuuvrylgdjtyylenmf7llyctlbzzqnvj5plxhrxl7oiipox2na",
+                "assurance": "bridged"
+              }
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkqXdH9AJLfNbfo3AqxXonkmTKExN2e5kGU5rdNuM9uroK#z6MkqXdH9AJLfNbfo3AqxXonkmTKExN2e5kGU5rdNuM9uroK",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T08:20:00Z",
+                "proofValue": "z4ahmiJykcDNSqCNLKfe7nzko6jKhKz8M4utqXfEzcAKJa65HrubwWH1oGYa8H4NctDsZvK5iZk7TjQNRcDviuYwd"
+              }
+            ]
+          }
+        ]
+      ],
+      "extraRecords": [
+        {
+          "oip": "1",
+          "type": "Entry",
+          "author": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+          "seq": 1,
+          "prev": "bciqafe6h7xf2luzpg7rub34h3m5tjkzm2m6dki7rzhvacee3oukllmy",
+          "created": "2026-10-30T08:20:20Z",
+          "object": "bciqgaju2by66dppv4ozbdeclbn5isrt45fhk4jmkj2ujs75icenztra",
+          "objectType": "Genesis",
+          "proofs": [
+            "sha256:8ebcddc957bc51f359b7f9b4dc04fb86b8cef70d1485759d6541a51a66ac1a07"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi?versionId=0-bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi#z6Mkvh74WEmoV1TRUyw9FWr2YvqQKCUrobrWVMu94Da1mK5f",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T08:20:20Z",
+              "proofValue": "z4kPMVPG6yp99if1XjunsfJ2Um4XD8ib9dyrmNqjGeuiWEhTZ5hw91UVcPzg4nrSeJsMrwo1ryPSGWmLppaVVchXd"
+            }
+          ]
+        }
+      ],
+      "expect": "claimed"
+    },
+    {
+      "name": "bridge-profile-not-well-formed",
+      "reason": "The genesis, the entry and the profile's block are as they should be. The profile lists a capability whose `ext` has a member that is no namespace (core 8.1), so it is not a well-formed record, and what is no record names no gateway: `claimed`.",
+      "kind": "assurance",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqhuhv5rgezpoof76nk5ia7wivk7sic4b7iovhrkxfwqgpjh43usty",
+        "created": "2026-10-30T08:30:40Z",
+        "name": "Another MCP server",
+        "kind": "service",
+        "capabilities": [
+          {
+            "id": "search",
+            "summary": "Searches.",
+            "ext": {
+              "mcp": {}
+            }
+          }
+        ],
+        "ext": {
+          "oip.bridge": {
+            "protocol": "mcp",
+            "endpoint": "https://tools.example/mcp",
+            "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+            "assurance": "bridged",
+            "attestation": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi/bciqdhelq2srg435wnmimffbupfb5ujpaazhqvjj3f5tc77rc6osna3y"
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqhuhv5rgezpoof76nk5ia7wivk7sic4b7iovhrkxfwqgpjh43usty?versionId=0-bciqhuhv5rgezpoof76nk5ia7wivk7sic4b7iovhrkxfwqgpjh43usty#z6MkoGcgvv5RFKf1QHhdypL9vcw9aacUgg1Cwu5QngHBhwCw",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T08:30:40Z",
+            "proofValue": "z5UEd3AoZRDrMDzme6tQv9teSGBBuCMQSFePvboEMFsbWVUyaeoGsQ9gBPtpMhXhrbojELQUW3bGHAxMmWqU1AfDx"
+          }
+        ]
+      },
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "service",
+            "created": "2026-10-30T08:30:00Z",
+            "controller": {
+              "keys": [
+                "z6MkiwFmbeVeeUFJ9WfGHyCNqAoK9vSnXjGj1BXHVGmPfh9p"
+              ],
+              "next": [
+                "bciqefcup3pj2htjlisgce5x64jexiqtr4z7amh3pactwjzoi3o5p6fi"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkoGcgvv5RFKf1QHhdypL9vcw9aacUgg1Cwu5QngHBhwCw",
+                "label": "bridged-malformed-ops"
+              }
+            ],
+            "ext": {
+              "oip.bridge": {
+                "protocol": "mcp",
+                "endpoint": "https://tools.example/mcp",
+                "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+                "assurance": "bridged"
+              }
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkiwFmbeVeeUFJ9WfGHyCNqAoK9vSnXjGj1BXHVGmPfh9p#z6MkiwFmbeVeeUFJ9WfGHyCNqAoK9vSnXjGj1BXHVGmPfh9p",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T08:30:00Z",
+                "proofValue": "zQk4mrWegPiJRxhKaWwnyEfv9zazDp3KsHrmr9E4pQ8ThrANg4pKMF1L2wNaMXcjPHzMvQPZvKtWpYP3Uf2nw2mF"
+              }
+            ]
+          }
+        ]
+      ],
+      "extraRecords": [
+        {
+          "oip": "1",
+          "type": "Entry",
+          "author": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+          "seq": 1,
+          "prev": "bciqafe6h7xf2luzpg7rub34h3m5tjkzm2m6dki7rzhvacee3oukllmy",
+          "created": "2026-10-30T08:30:20Z",
+          "object": "bciqhuhv5rgezpoof76nk5ia7wivk7sic4b7iovhrkxfwqgpjh43usty",
+          "objectType": "Genesis",
+          "proofs": [
+            "sha256:51e92435f81f76a3a631a2b84d9138076c12a2bf476fac0f2285cad1c2ca7362"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi?versionId=0-bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi#z6Mkvh74WEmoV1TRUyw9FWr2YvqQKCUrobrWVMu94Da1mK5f",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T08:30:20Z",
+              "proofValue": "z5gPKq6NmeQi5RV84LB2Tk1Yz9Uo6jBCdKKcj6idB8g6iwwnn9mud49ky9mYCe484oe4amWNQm2xTv3HyrEU464gq"
+            }
+          ]
+        }
+      ],
       "expect": "claimed"
     },
     {
@@ -43995,6 +44514,323 @@
           }
         ]
       ]
+    },
+    {
+      "name": "bridge-entry-not-signed-by-the-gateway",
+      "kind": "assurance",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy",
+        "created": "2026-10-30T08:12:00Z",
+        "name": "Example MCP tools",
+        "kind": "service",
+        "summary": "An MCP server, bridged into OIP by its gateway.",
+        "ext": {
+          "oip.bridge": {
+            "protocol": "mcp",
+            "endpoint": "https://tools.example/mcp",
+            "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+            "assurance": "bridged",
+            "attestation": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi/bciqafe6h7xf2luzpg7rub34h3m5tjkzm2m6dki7rzhvacee3oukllmy"
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy?versionId=0-bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy#z6MkggW6KEUmJ4Rq2zZChZfPnbY8JAgaqG1CwMWnqY6Z5tXn",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T08:12:00Z",
+            "proofValue": "z5nzuGEMNRBiWkDKGSAMh2GbmZiBa15ir5iALzke6mbSDycdoLjoRi9QMa9aQA7Q3VA4uVZj1ZFwYPvBERUW1ZpxJ"
+          }
+        ]
+      },
+      "expect": "bridged"
+    },
+    {
+      "name": "bridge-entry-of-another-type",
+      "kind": "assurance",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy",
+        "created": "2026-10-30T08:12:00Z",
+        "name": "Example MCP tools",
+        "kind": "service",
+        "summary": "An MCP server, bridged into OIP by its gateway.",
+        "ext": {
+          "oip.bridge": {
+            "protocol": "mcp",
+            "endpoint": "https://tools.example/mcp",
+            "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+            "assurance": "bridged",
+            "attestation": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi/bciqafe6h7xf2luzpg7rub34h3m5tjkzm2m6dki7rzhvacee3oukllmy"
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy?versionId=0-bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy#z6MkggW6KEUmJ4Rq2zZChZfPnbY8JAgaqG1CwMWnqY6Z5tXn",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T08:12:00Z",
+            "proofValue": "z5nzuGEMNRBiWkDKGSAMh2GbmZiBa15ir5iALzke6mbSDycdoLjoRi9QMa9aQA7Q3VA4uVZj1ZFwYPvBERUW1ZpxJ"
+          }
+        ]
+      },
+      "expect": "bridged"
+    },
+    {
+      "name": "bridge-profile-signed-by-the-gateway",
+      "kind": "assurance",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy",
+        "created": "2026-10-30T08:12:00Z",
+        "name": "Example MCP tools",
+        "kind": "service",
+        "summary": "An MCP server, bridged into OIP by its gateway.",
+        "ext": {
+          "oip.bridge": {
+            "protocol": "mcp",
+            "endpoint": "https://tools.example/mcp",
+            "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+            "assurance": "bridged",
+            "attestation": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi/bciqafe6h7xf2luzpg7rub34h3m5tjkzm2m6dki7rzhvacee3oukllmy"
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy?versionId=0-bciqpohq7nb6ehsuxw7izxfsmgftsgkindhih7p7sxrtg7ywmwmjuaoy#z6MkggW6KEUmJ4Rq2zZChZfPnbY8JAgaqG1CwMWnqY6Z5tXn",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T08:12:00Z",
+            "proofValue": "z5nzuGEMNRBiWkDKGSAMh2GbmZiBa15ir5iALzke6mbSDycdoLjoRi9QMa9aQA7Q3VA4uVZj1ZFwYPvBERUW1ZpxJ"
+          }
+        ]
+      },
+      "expect": "bridged"
+    },
+    {
+      "name": "bridge-genesis-names-another-gateway",
+      "kind": "assurance",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqbniz5solzxuyd6l23mcxna5j6tsx5qc6vpqltywhywpl22mdquyi",
+        "created": "2026-10-30T08:40:40Z",
+        "name": "Another MCP server",
+        "kind": "service",
+        "capabilities": [
+          {
+            "id": "search",
+            "summary": "Searches.",
+            "ext": {
+              "oip.mcp": {}
+            }
+          }
+        ],
+        "ext": {
+          "oip.bridge": {
+            "protocol": "mcp",
+            "endpoint": "https://tools.example/mcp",
+            "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+            "assurance": "bridged",
+            "attestation": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi/bciqhuds6pxxoewa4iiii4gmorpkzbwbjpfzs2em6a3enbkxcm4xyu3q"
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqbniz5solzxuyd6l23mcxna5j6tsx5qc6vpqltywhywpl22mdquyi?versionId=0-bciqbniz5solzxuyd6l23mcxna5j6tsx5qc6vpqltywhywpl22mdquyi#z6MkeZxrAMN5ePQC5qN5zrkEAmKNF6cZMRxFFVdk4dkrT68Y",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T08:40:40Z",
+            "proofValue": "z3Wvmb9rDQ3bTW3PB4gV6YXpW8tkkrAv4MPbDVp2qRRHLY3XHjFKvCTuGg7nVfkVE25ChKUEQ8GVxDzpoD3sKqfZ9"
+          }
+        ]
+      },
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "service",
+            "created": "2026-10-30T08:40:00Z",
+            "controller": {
+              "keys": [
+                "z6MkwSnqsyNYiDipPM8gS9TMeyiSUM38QAFWxKvZMqhBpMAD"
+              ],
+              "next": [
+                "bciqicdsdrvygsea42h2e3uzbhjwgk5dcj7kw5bnyuu7yu4uygwi5ypi"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkeZxrAMN5ePQC5qN5zrkEAmKNF6cZMRxFFVdk4dkrT68Y",
+                "label": "bridged-also-ops"
+              }
+            ],
+            "ext": {
+              "oip.bridge": {
+                "protocol": "mcp",
+                "endpoint": "https://tools.example/mcp",
+                "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+                "assurance": "bridged"
+              }
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkwSnqsyNYiDipPM8gS9TMeyiSUM38QAFWxKvZMqhBpMAD#z6MkwSnqsyNYiDipPM8gS9TMeyiSUM38QAFWxKvZMqhBpMAD",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T08:40:00Z",
+                "proofValue": "zrmgrSUQBwBHEufuLNNEfwo2mDHyk77pGYHzeHYav9V57qZGtPcGR49sFzK9Bu3izgHNrXmXUprpDSFDVAhgUEQT"
+              }
+            ]
+          }
+        ]
+      ],
+      "extraRecords": [
+        {
+          "oip": "1",
+          "type": "Entry",
+          "author": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+          "seq": 1,
+          "prev": "bciqafe6h7xf2luzpg7rub34h3m5tjkzm2m6dki7rzhvacee3oukllmy",
+          "created": "2026-10-30T08:40:20Z",
+          "object": "bciqbniz5solzxuyd6l23mcxna5j6tsx5qc6vpqltywhywpl22mdquyi",
+          "objectType": "Genesis",
+          "proofs": [
+            "sha256:cef9d426f39988487f02dd316749239b93560c09174cec2d0e2d5572f410f6c9"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi?versionId=0-bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi#z6Mkvh74WEmoV1TRUyw9FWr2YvqQKCUrobrWVMu94Da1mK5f",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T08:40:20Z",
+              "proofValue": "zxi4MNddHM4FiPF3RETfnwChomhx3femFCStDcuRoVXEnBaU1HHr7EzYPY6oEjJ28Y463a3xAj75TB9ZY8iYZqR1"
+            }
+          ]
+        }
+      ],
+      "expect": "bridged"
+    },
+    {
+      "name": "bridge-profile-not-well-formed",
+      "kind": "assurance",
+      "record": {
+        "oip": "1",
+        "type": "Participant",
+        "author": "did:oip:bciqfxe5djm2lvvzvky3y43nye7wmkvbopm2lmhfaux3ovmd7g4um56q",
+        "created": "2026-10-30T08:50:40Z",
+        "name": "Another MCP server",
+        "kind": "service",
+        "capabilities": [
+          {
+            "id": "search",
+            "summary": "Searches.",
+            "ext": {
+              "oip.mcp": {}
+            }
+          }
+        ],
+        "ext": {
+          "oip.bridge": {
+            "protocol": "mcp",
+            "endpoint": "https://tools.example/mcp",
+            "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+            "assurance": "bridged",
+            "attestation": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi/bciqdmfu3npoltcdaelrsst2vrwdnfs4rrgg5wlehbkrglubxzjyfgoy"
+          }
+        },
+        "proof": [
+          {
+            "type": "DataIntegrityProof",
+            "cryptosuite": "eddsa-jcs-2022",
+            "verificationMethod": "did:oip:bciqfxe5djm2lvvzvky3y43nye7wmkvbopm2lmhfaux3ovmd7g4um56q?versionId=0-bciqfxe5djm2lvvzvky3y43nye7wmkvbopm2lmhfaux3ovmd7g4um56q#z6MkfqijpRPzhi9r5duJhxYBNZiSzoW3xMyBzAgGEMYWrwuG",
+            "proofPurpose": "assertionMethod",
+            "created": "2026-10-30T08:50:40Z",
+            "proofValue": "z29cPLNrTTkRi3rbKrS7HDfBkfzfANgzPUyRwXLd5s3gEgQuXDXd38HcLjgcuQcoRDT9Y2b6k7PGoYXpFwkDKzBiF"
+          }
+        ]
+      },
+      "extraLogs": [
+        [
+          {
+            "oip": "1",
+            "type": "Genesis",
+            "kind": "service",
+            "created": "2026-10-30T08:50:00Z",
+            "controller": {
+              "keys": [
+                "z6MkhJw5jFzDdpBvESbQmKv7fPfbbfns8yx94zrfA7tnHhbW"
+              ],
+              "next": [
+                "bciqdgathevmcsto45vzdwluppujnbacw5sbnepupbzatznop6ldl5za"
+              ],
+              "nextThreshold": 1
+            },
+            "keys": [
+              {
+                "key": "z6MkfqijpRPzhi9r5duJhxYBNZiSzoW3xMyBzAgGEMYWrwuG",
+                "label": "bridged-well-formed-ops"
+              }
+            ],
+            "ext": {
+              "oip.bridge": {
+                "protocol": "mcp",
+                "endpoint": "https://tools.example/mcp",
+                "gateway": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+                "assurance": "bridged"
+              }
+            },
+            "proof": [
+              {
+                "type": "DataIntegrityProof",
+                "cryptosuite": "eddsa-jcs-2022",
+                "verificationMethod": "did:key:z6MkhJw5jFzDdpBvESbQmKv7fPfbbfns8yx94zrfA7tnHhbW#z6MkhJw5jFzDdpBvESbQmKv7fPfbbfns8yx94zrfA7tnHhbW",
+                "proofPurpose": "capabilityInvocation",
+                "created": "2026-10-30T08:50:00Z",
+                "proofValue": "z4TcesY9QpZyRe7dfhucuwYdDz6Hhnw5DoABKdCELeARrLqjjuT5AkGTAt3DQqgvLBqKCAC49wdW3WDNhjbMLNKEM"
+              }
+            ]
+          }
+        ]
+      ],
+      "extraRecords": [
+        {
+          "oip": "1",
+          "type": "Entry",
+          "author": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi",
+          "seq": 1,
+          "prev": "bciqafe6h7xf2luzpg7rub34h3m5tjkzm2m6dki7rzhvacee3oukllmy",
+          "created": "2026-10-30T08:50:20Z",
+          "object": "bciqfxe5djm2lvvzvky3y43nye7wmkvbopm2lmhfaux3ovmd7g4um56q",
+          "objectType": "Genesis",
+          "proofs": [
+            "sha256:11cbbcf9906649411f676768e5d793980f142928d792ecf48a37bb8232cbb1a8"
+          ],
+          "proof": [
+            {
+              "type": "DataIntegrityProof",
+              "cryptosuite": "eddsa-jcs-2022",
+              "verificationMethod": "did:oip:bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi?versionId=0-bciqlxggkcjzhynfpcgeegynbmbemy3vc677i34pkw62dowygtzlnybi#z6Mkvh74WEmoV1TRUyw9FWr2YvqQKCUrobrWVMu94Da1mK5f",
+              "proofPurpose": "assertionMethod",
+              "created": "2026-10-30T08:50:20Z",
+              "proofValue": "z3CV8FzHgditcU8Rzwdic5NaHK7p3t4feniaFUohAxeQfFg2XgyyeH5iyjzBP2bmK8ZozfsWaFznCsaETKY9K9A8E"
+            }
+          ]
+        }
+      ],
+      "expect": "bridged"
     },
     {
       "name": "event-proof-dated-after-the-evidence",

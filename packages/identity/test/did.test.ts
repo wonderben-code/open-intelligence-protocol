@@ -185,7 +185,8 @@ describe(`${clause("L1 2.4")} resolution with versionId`, () => {
         `${ada.address}?versionId=${versionId}#${keys[position]}`,
       ]);
       expect(metadata.versionId).toBe(versionId);
-      expect(metadata.deactivated).toBe(position === 2);
+      // The mind has retired. That is said of the mind, whichever of its versions is asked for.
+      expect(metadata.deactivated).toBe(true);
       expect("service" in document).toBe(position > 0);
     });
     expect(resolve(log).didDocumentMetadata.versionId).toBe(ada.versionId(2));

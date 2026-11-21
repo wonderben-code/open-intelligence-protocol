@@ -4,7 +4,7 @@ title: Bridge clarifications found while building the MCP server and the gateway
 authors:
   - Claude Code, building the reference implementation for Ekram Alam (@wonderben-code)
 status: Review # Draft | Review | Accepted | Rejected | Withdrawn | Final
-type: Layer 0 # Core | Layer 0 | Layer 1 | Layer 2 | Process (item 4 also changes Layer 1, 16.2)
+type: Layer 0 # Core | Layer 0 | Layer 1 | Layer 2 | Process (item 4 also changes Layer 1, 16.2, and item 7 Layer 1, 5.2)
 created: 2026-11-20
 requires: [1, 2, 3, 4, 5]
 replaces: []
@@ -16,7 +16,7 @@ revision: # the specification revision that adopted the change; empty until Fina
 
 ## Summary
 
-Writing the OIP MCP server showed one place where Layer 0 (revision 2026-11-17, with OEP-0001 to OEP-0005) protects the user from one kind of record and not from another that needs it as much. Writing the rule that tells a bridged mind from one that only says it is showed one place where two implementations read the same sentence differently. Writing the gateway for MCP servers showed three places where 2.1 asks for something a record cannot hold, or does not say what a gateway does. This proposal settles all of them.
+Writing the OIP MCP server showed one place where Layer 0 (revision 2026-11-17, with OEP-0001 to OEP-0005) protects the user from one kind of record and not from another that needs it as much. Writing the rule that tells a bridged mind from one that only says it is showed one place where two implementations read the same sentence differently. Writing the gateway for MCP servers showed three places where 2.1 asks for something a record cannot hold, or does not say what a gateway does. The independent reviews of the gateways and of the DID resolver showed two more: one in what a DID document says of a mind that has retired, and one in what a verifier makes of a profile that is no record. This proposal settles all of them.
 
 ## Motivation
 
@@ -38,6 +38,10 @@ A gateway that bridges an MCP server (2.1) writes a profile with a capability fo
 
 6. **What is returned when there is no result, and what is the digest of?** 2.1 says the result is returned in a packet with verb `deliver`. A tool can fail, and MCP then gives a result marked `isError`. A server can refuse a call, and a gateway can refuse one too, for want of authority. 2.1 asks for "the tool result's digest" as evidence, and does not say which bytes are digested, or how a request says which Commitment it is made under. A tool may also have no description, and a capability must have a `summary`.
 
+7. **Of which state is `deactivated`?** Layer 1, 5.2 lists `deactivated` among the metadata of a DID document, "true when retired". A document may be of an earlier version (2.4), and every proof names its key by a version. Both implementations said `deactivated` of the version asked for. A verifier of the DID ecosystem that follows the key reference of a proof was therefore never told that the mind had retired: the mind had not, at that version.
+
+8. **What of a profile that is not a well-formed record?** 1.3 speaks of "its profile". The reference implementation judges a record before it reads it, and answers `claimed` for one that is none. The independent checker asked whether the profile was signed, and not whether it was a well-formed `Participant`: for a bridged mind's profile with a capability that is malformed it answered `bridged`.
+
 ## Specification
 
 Each item is a change to `spec/layer-0-bridge.md`, made in the same commits as the code. Item 4 changes `spec/layer-1-mind-network.md` too.
@@ -48,6 +52,9 @@ Each item is a change to `spec/layer-0-bridge.md`, made in the same commits as t
 4. **A capability carries `ext` (Layer 1, 16.2; Layer 0, 2.1).** A capability object has an optional member `ext`: extension blocks about that capability, as core, Section 8.1 defines them for a record. A capability has no `critical`: a reader ignores a block of a capability that it does not understand. 2.1 says that the input schema is under `ext["oip.mcp"].inputSchema` of the capability.
 5. **JSON that a record cannot hold is carried as text (2.1).** An input schema, a call's arguments and a tool's result are each carried as they are where the record can hold them, and otherwise as their JSON text, a string. A gateway MUST take the `body` of a request in either form, and a requester does the same for a result. A gateway MAY leave an input schema out of a profile, and leaves out those the profile has no room for.
 6. **A call that fails, and the evidence of a call (2.1).** The result is returned as the `body` of content with media type `application/json`. A result that the server marks as an error is returned in the same way, in a packet with verb `error`. Where the gateway does not make the call, or the server gives no result, a packet with verb `error` and the same `replyTo` says why. The evidence in a Receipt is an item of kind `hash` whose digest is of the canonical form of the `body` returned, or of the UTF-8 bytes of the `body` where it is JSON text. A request names the Commitment it is made under in `context.refs`. A capability's `summary` is the tool's description, or its title, or else its name.
+
+7. **`deactivated` is of the mind (Layer 1, 5.2).** `deactivated` is of the mind as its log stands. Where the document is of an earlier version, the other members of the metadata are of that version, and `deactivated` still says whether the mind has retired since.
+8. **A profile that is no record shows nothing (1.3).** A profile that is not a well-formed record shows nothing: the level is `claimed`.
 
 ## Rationale and alternatives
 
@@ -69,11 +76,16 @@ Each item is a change to `spec/layer-0-bridge.md`, made in the same commits as t
 - **Item 6: `deliver` for every result.** An `isError` result is a result, and MCP returns it as one so that a model can read it. But a verb says what a packet is for, and a requester that is not a model should not have to open the content to learn that nothing was delivered. Verbs bind nobody (Layer 1, 12.3), so a reader that ignores the verb loses nothing.
 - **Item 6: the digest of what the server sent.** The bytes of the server's own answer are the truest evidence. But the requester never sees them: it sees a record. A digest of what the requester holds is one it can check.
 
+- **Item 7: `deactivated` of the version asked for.** It is what the words "the document as it stood" suggest. But `deactivated` is DID Core's word for a property of the DID, and a resolver that answers `false` for a retired mind tells a verifier to go on trusting keys that sign nothing any more (Layer 1, 3.10). Whoever wants the state at a version has the events.
+- **Item 8: judge the block of a profile that is malformed elsewhere.** The block may be sound where a capability is not. But a verifier that reads part of a record it would refuse whole has two answers to "is this a profile", and the two implementations showed how they come apart.
+
 ## Backwards compatibility
 
 No record format changes for items 1 to 3. Item 4 adds an optional member, as core 8.5 allows within major version `"1"`. A profile whose capability had an `ext` was well formed before, because a reader ignores what it does not recognise (core 1.7); it is malformed now if that `ext` is not as core 8.1 says. No such profile is known. Items 5 and 6 say what 2.1 left open: a gateway built to the earlier text returned every result with `deliver` and could carry no fraction.
 
 Item 1 is a SHOULD, as it was: a server built to the earlier text conforms as before, and protects its user less. Item 2 says what 1.2 said already: a gateway that followed 1.2 wrote a reference, and nothing changes for it. A verifier that took a carried entry now answers `claimed` where it answered `bridged`. For item 3, a verifier that holds the mind's log now answers `claimed` for a profile without a block where the genesis has one, and `native` as before where it does not.
+
+For item 7, a resolver that said `deactivated: false` of an earlier version of a mind that has retired now says `true`. No record changes: the metadata of a DID document is made by whoever resolves, and is signed by nobody. For item 8, a verifier that answered `bridged` for a profile that is not well formed now answers `claimed`. The reference implementation did so already.
 
 ## Security and privacy considerations
 
@@ -91,6 +103,10 @@ For item 2, one negative case of kind `assurance`: `bridge-attestation-inline`, 
 
 For item 4, three cases of kind `participant`: `profile-with-an-extension-of-a-capability`, which is the agent's current profile, and `profile-with-a-capability-extension-of-no-namespace` with its control, a profile that is nobody's because the block of its capability is named `mcp`. Items 5 and 6 are about what a gateway does with a packet, and the vectors hold no gateway at work.
 
+For the rule of 1.3 as a whole, five negative cases of kind `assurance`, each with a control that is `bridged`: an entry that names the gateway and that the bridged mind signed (`bridge-entry-not-signed-by-the-gateway`), an entry of the gateway's that calls the genesis a `Participant` (`bridge-entry-of-another-type`), the profile signed by the gateway (`bridge-profile-signed-by-the-gateway`), a mind whose genesis names another gateway than its profile and the entry do (`bridge-genesis-names-another-gateway`), and, for item 8, a profile with a capability whose `ext` names no namespace (`bridge-profile-not-well-formed`). With the three cases there were, an implementation that never asked whether the entry counts for the gateway passed.
+
+For item 7, a mind that has retired among the positive cases, `retired`, with the DID document of its first version, `did_document_retired_at_genesis`: `deactivated` is true there.
+
 ## Reference implementation
 
 `@oip/mcp-server`, in `packages/mcp-server`: `tools/web.ts` (the confirmation before `oip_receipt` signs), `question.ts` (the question), `policy.ts` (the part of `policy.json` for Receipts). Its tests: `tools.test.ts` and `injection.test.ts`.
@@ -103,6 +119,8 @@ For item 4, three cases of kind `participant`: `profile-with-an-extension-of-a-c
 
 1. **A Delegation.** 2.2 names it, and no tool of 2.2 signs one. A server that adds such a tool is bound by the rule. The reference server adds none: an assistant is given the use of a mind, and no way to hand that use on.
 2. **How a bridged mind enters into a Commitment.** 2.1 speaks of "any Commitment it entered into" and does not say how a gateway comes to sign one. The reference gateway signs none by itself: its operator signs for the bridged mind, with the mind's own directory. A convention by which a requester proposes a Commitment for one call, in words the gateway can check, would let a gateway enter into it unasked. It is left for a later proposal.
+3. **One entry of a feed.** A verifier that works out an assurance level needs one entry of the gateway's feed, which the profile names by its content ID. Layer 1, 13.1 serves a feed page by page from its start, and an object by its content ID, and an entry is no object. The reference client reads pages until it has the entry, and gives up where it stops reading a feed (10,000 entries): a mind whose attestation lies further on reads as `claimed`. A way to ask a home for one entry by its content ID would end that. It is left for a later proposal, with a place to fetch a checkpoint from (10.5), which 13.1 does not name either.
+4. **A gateway that is a collective.** 1.1 and 1.2 say a gateway and a bridged mind are key-controlled minds. 1.3 does not ask a verifier to check it, and neither implementation does: a mind that a collective attests is `bridged`. Whether a verifier should check, and what a collective's custody of a bridged mind's keys would mean, is left open.
 
 ## Copyright
 

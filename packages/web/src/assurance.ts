@@ -102,6 +102,12 @@ function levelOf(profile: JudgedRecord, context: DelegationContext): Assurance {
  *   content ID of the mind's `Genesis` and whose `objectType` is `Genesis`;
  * - that entry counts for the gateway.
  *
+ * The mind's log is the verifier's to hold. A verifier that holds none
+ * cannot see the `Genesis`: for a profile without a block it answers
+ * `native`, which is the default of 1.3, and for a profile with one,
+ * `claimed`. A caller that wants the answer of 1.3 resolves the mind first,
+ * as `Lookup.assurance` of `@oip/client` does.
+ *
  * Where a check was cut short the answer is `claimed`: nothing was shown.
  * A caller that keeps answers compares `cutShortCount()`, as for any
  * function that answers with a value (ADR-0010).

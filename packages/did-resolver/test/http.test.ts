@@ -88,12 +88,21 @@ describe("GET /1.0/identifiers/<did>", () => {
     const inside = await get(`/1.0/identifiers/${encodeURIComponent(`${old}?versionId=${first}`)}`);
     const after = await get(`/1.0/identifiers/${old}?versionId=${first}`);
     for (const answer of [inside, after]) {
+      // The mind has retired since its first version: 410, with the document of that version.
       expect(answer).toMatchObject({
-        status: 200,
-        body: { didDocumentMetadata: { versionId: first, deactivated: false } },
+        status: 410,
+        body: {
+          didDocument: { id: old },
+          didDocumentMetadata: { versionId: first, deactivated: true },
+        },
       });
     }
     expect(inside.body).toStrictEqual(after.body);
+    // A version that is named by a time is no version this method has.
+    expect(await get(`/1.0/identifiers/${old}?versionTime=2001-01-01T00:00:00Z`)).toMatchObject({
+      status: 400,
+      body: { didResolutionMetadata: { error: "invalidDidUrl" }, didDocument: null },
+    });
   });
 
   it("answers for a mind that has retired with 410, and its document all the same", async () => {
@@ -111,6 +120,8 @@ describe("GET /1.0/identifiers/<did>", () => {
     ["what is no address", () => "did:oip:tooshort", 400, "invalidDid"],
     ["what cannot be read as a name", () => "did:oip:%E0%A4%A", 400, "invalidDid"],
     ["a DID of another method", () => "did:web:example.com", 501, "methodNotSupported"],
+    ["what is no DID", () => "did:oip", 400, "invalidDid"],
+    ["a DID that is not in small letters", () => "DID:OIP:abc", 400, "invalidDid"],
   ])(
     "answers for %s with the status of the error, and the error",
     async (_, did, status, error) => {
@@ -151,5 +162,15 @@ describe("the resolver's HTTP interface", () => {
       expect((await get(path)).status, path).toBe(404);
     }
     expect((await get(`/1.0/identifiers/${ada}`, undefined, "POST")).status).toBe(405);
+  });
+
+  it("answers what is no path with 400: a client's mistake is not the resolver's fault", async () => {
+    for (const path of ["//[", "http://[/x"]) {
+      expect(await get(path), path).toStrictEqual({
+        status: 400,
+        type: "text/plain; charset=utf-8",
+        body: "That is no path.\n",
+      });
+    }
   });
 });

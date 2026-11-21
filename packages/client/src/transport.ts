@@ -164,7 +164,11 @@ export async function exchange(asking: Asking, options: TransportOptions = {}): 
         headers,
         redirect: "error",
         signal,
-        ...(asking.body === undefined ? {} : { body: asking.body.bytes }),
+        // The bytes are in memory of this program's own. A browser's types ask to be told so: a
+        // body there may not be memory that is shared.
+        ...(asking.body === undefined
+          ? {}
+          : { body: asking.body.bytes as Uint8Array<ArrayBuffer> }),
       }),
     );
   } catch {

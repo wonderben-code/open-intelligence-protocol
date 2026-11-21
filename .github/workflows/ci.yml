@@ -164,7 +164,7 @@ jobs:
         run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('keychain.json', 'utf8')); if (numPassedTests !== 2) { console.error(numPassedTests + ' tests passed, and 2 were to'); process.exit(1); }"
 
   browser:
-    name: The client in a browser (Chromium)
+    name: The client and the Explorer in a browser (Chromium)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -189,6 +189,11 @@ jobs:
       # A run in which the tests were skipped would be green too.
       - name: All four tests ran
         run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('browser.json', 'utf8')); if (numPassedTests !== 4) { console.error(numPassedTests + ' tests passed, and 4 were to'); process.exit(1); }"
+      # BUILD.md, M11: the Explorer against the demo network, in a page.
+      - name: The Explorer shows the demo network
+        run: pnpm exec vitest run --project @oip/explorer test/browser.test.ts --reporter=default --reporter=json --outputFile.json=explorer.json
+      - name: All eight tests ran
+        run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('explorer.json', 'utf8')); if (numPassedTests !== 8) { console.error(numPassedTests + ' tests passed, and 8 were to'); process.exit(1); }"
 
   newcomer:
     name: The five-minute promise (a newcomer follows the README)

@@ -11,6 +11,13 @@ SPDX-License-Identifier: Apache-2.0
       name="description"
       content="Look up any mind of the Open Intelligence Protocol, and watch every signature verify in your browser."
     />
+    <!-- Scripts and styles from this site alone. Requests to the services a reader chooses, over HTTPS, and nowhere else. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https:; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="light dark" />
     <title>OIP Explorer</title>
   </head>
   <body>

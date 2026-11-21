@@ -227,6 +227,28 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@24.19.2)(@vitest/coverage-v8@5.1.0)(vite@8.3.7(@types/node@24.19.2)(yaml@2.9.1))
 
+  examples/translation-demo:
+    dependencies:
+      '@oip/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@oip/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@oip/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@oip/keystore':
+        specifier: workspace:*
+        version: link:../../packages/keystore
+      '@oip/local':
+        specifier: workspace:*
+        version: link:../../packages/local
+    devDependencies:
+      '@oip/testkit':
+        specifier: workspace:*
+        version: link:../../packages/testkit
+
   packages/bridge-a2a:
     dependencies:
       '@oip/client':

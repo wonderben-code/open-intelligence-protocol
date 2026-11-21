@@ -30,6 +30,7 @@
     "api": "pnpm clean && pnpm build && pnpm -r --no-sort --if-present run api",
     "api:check": "pnpm clean && pnpm build && pnpm -r --no-sort --if-present run api:check",
     "bench": "vitest bench --run --reporter=verbose",
+    "demo": "node --conditions=@oip/source examples/translation-demo/src/bin.ts",
     "mutation": "stryker run",
     "docs": "typedoc",
     "changeset": "changeset",

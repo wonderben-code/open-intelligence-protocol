@@ -6,7 +6,7 @@ This file is the live status of the Open Intelligence Protocol project, so that 
 
 ## Where the build stands on this branch (21 November)
 
-This branch is `m10-demo`. It is stacked on `m9-bridge`, `m8-mcp-server`, `m7-cli`, `m6-client`, `m5-servers`, `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
+This branch is `m11-explorer`. It is stacked on `m10-demo`, `m9-bridge`, `m8-mcp-server`, `m7-cli`, `m6-client`, `m5-servers`, `m4-network`, `m3-delegation-web` and `m2-identity`, which are each ahead of `main`. The table below this section is the one on `main`, and is rewritten milestone by milestone as each closes; this section says where the work really is.
 
 | Milestone | Branch | Built | `pnpm run ci` | Still owed before its pull request |
 |---|---|---|---|---|
@@ -19,6 +19,7 @@ This branch is `m10-demo`. It is stacked on `m9-bridge`, `m8-mcp-server`, `m7-cl
 | M8. The MCP server | `m8-mcp-server`, pushed | Yes, see below | Green | Reviews, the mutation score, the review record. A look at it in Claude Desktop needs Eks |
 | M9. The A2A bridge | `m9-bridge` | The A2A gateway, the gateway for MCP servers and the DID resolver, see below | To run | The A2A TCK and the two new images, which run on GitHub and not here. Reviews, the mutation score, the review record |
 | M10. The demo network | `m10-demo` | The demo, its recording and its option to play on a running network, see below | To run | The review, the review record. Nothing for the mutation score: the demo is an example, and has no package of the stack |
+| M11. OIP Explorer | `m11-explorer` | The Explorer, its window on the demo network, its tests in Chromium and under Lighthouse, see below | To run | The review, the review record. Nothing for the mutation score beyond `src/oip/`, which is a layout of what the client found |
 
 Reviews are made by fresh agents, which were not to be had between 19 and 21 November (a usage limit). The build went on with what does not need them.
 
@@ -56,6 +57,26 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
 - **It runs in a browser too** ([ADR-0022](docs/adr/0022-the-client-in-a-browser.md)): a page of Chromium runs the README's examples against the same services, with its keys sealed in IndexedDB, and the test checks that each service would have let a browser make every request the page made (`packages/client/test/browser.real.test.ts`, the `browser` job of CI).
 
 **Everything on M6's build list is built**, and every public method of `Mind` and of `Lookup` is called in a runnable example the README shows, which a test holds. The API report was read through and is frozen for 0.x: the reading found that closing a mind left its sockets open, which it no longer does. What remains before the milestone closes: the independent reviews and the mutation run.
+
+**What M11 has:**
+
+- **`apps/explorer`**, the OIP Explorer ([README](apps/explorer/README.md), [ADR-0032](docs/adr/0032-the-explorer.md), [threat model](docs/threat-models/explorer.md)): a static site, built with Vite and React, that looks a mind up and verifies it in the browser with `Lookup` and `Reader` of `@oip/client`. It holds no key and keeps nothing but the services its reader chose.
+  - **A mind's page**: how many events and signatures were checked, the identity log as a line of events, each key with the stretch of the log in which it is the mind's, the profile and the location, the DID document, and what each resolver answered.
+  - **Its feed**, read when the reader says so: each entry with its record, the status of each Intent and Commitment as `Reader` works it out, the record as text, and what a checkpoint over the feed must say (its size, its last entry, its Merkle root).
+  - **Browsing**: the minds the chosen indexers list, each profile verified, narrowed by tags.
+  - **Why**: beside each thing shown, what was checked and the clauses that ask for it, linked to their sections. The clauses come from `spec/clauses.json`, and a test fails if a reason names one the specifications do not have.
+- **`pnpm explorer:demo`** opens it in a window of Chromium on a network of this machine, with the translation demo played on it, or on the network `oip demo` runs (`--network`). The services of that network have HTTPS origins that are names, so the program carries the page's requests as the `oip` command carries its own.
+- **The acceptance criteria**, each held by a test that the browser job of CI runs:
+  - *Playwright against the demo network*: a walk of the site as shipped, in Chromium, over the five minds of the demo (`test/browser.test.ts`, 8 tests), and the program (`test/demo.test.ts`, 6).
+  - *Lighthouse*: performance 99 to 100, accessibility 100, best practices 100, for the pages a reader meets first (`test/lighthouse.test.ts`). BUILD.md asks for 95.
+  - *No data leaves the browser except to the services chosen*: the walk ends by reading the origin of every request the page made. A mind's homes, which serve its feed, are asked only when the reader presses the button, after the page has said which they are (ADR-0032, decision 4).
+
+**What M11 found:**
+
+- **No service serves a mind's checkpoints, and the client cannot publish one.** Layer 1, 10.5 defines a checkpoint and 13.1 names no place to fetch one from. The Explorer shows what a checkpoint must say and fetches none. A place for them wants an OEP: it is in the specification feedback queue below.
+- **A person cannot point a browser at `oip demo`.** Its services are names with no certificate. The answer is the window of `pnpm explorer:demo`, and the page still asks nothing over plain HTTP.
+- **A profile signed by a key since given up is not shown**, as Layer 1, 15.2 has it: the Explorer's test of a rotated mind republishes its profile before it expects one.
+- **Verified aliases (Layer 0, Section 4) are not shown yet.** A profile's name is the mind's own word, and the page says so. Showing a domain a mind has proved is the next thing the Explorer should gain.
 
 **What M10 has:**
 
@@ -260,6 +281,7 @@ Gaps and ambiguities that the build has found. Q1 to Q8 were settled in M1 by [O
 | Q27 | M5 | Should receivers be required to reject duplicate member names? core 1.1 says SHOULD. A MUST would let the vectors include the case. | Both implementations reject them. |
 | Q28 | M5 | Is there a limit on the text of a record, as distinct from its canonical form? White space and escapes are unbounded. | 8 MiB of text by default, reported as an implementation limit, and set by the reader. |
 | Q29 | M5 | How should the vectors carry cases too large to write out, such as a record of exactly 1 MiB? Each would add a megabyte to the file. | The two implementations are compared at the size limit in the differential tests; no vector is at it. |
+| Q30 | M11 | Where is a mind's checkpoint fetched from, and how does a mind publish one? L1 10.5 defines the record and 10.6 its anchoring. Section 13 names resources for a feed and its entries, and none for a checkpoint. | No service serves one, and the client publishes none. The Explorer shows what a checkpoint over a feed must say, and fetches none. |
 
 ## Done earlier (on `main`, Bitcoin-timestamped)
 

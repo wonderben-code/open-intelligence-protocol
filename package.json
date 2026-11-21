@@ -32,6 +32,7 @@
     "bench": "vitest bench --run --reporter=verbose",
     "demo": "node --conditions=@oip/source examples/translation-demo/src/bin.ts",
     "demo:record": "node --conditions=@oip/source examples/translation-demo/src/record.ts",
+    "explorer:demo": "node --conditions=@oip/source apps/explorer/demo/bin.ts",
     "mutation": "stryker run",
     "docs": "typedoc",
     "changeset": "changeset",

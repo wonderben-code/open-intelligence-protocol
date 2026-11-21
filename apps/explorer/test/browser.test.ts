@@ -18,25 +18,17 @@
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { LOCAL, type Network, startNetwork } from "@oip/cli";
-import { NETWORK_FILE, routed } from "@oip/local";
+import { NETWORK_FILE } from "@oip/local";
 import { Stage, tell, type Told } from "@oip/translation-demo";
 import { type Browser, chromium, type Page } from "playwright-core";
-import { build } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-const CHROMIUM = process.env["OIP_CHROMIUM"];
-const here = dirname(fileURLToPath(import.meta.url));
-const SITE = "https://explorer.example";
+import { buildSite, serveTo, SITE } from "../demo/window.ts";
 
-const TYPES: Readonly<Record<string, string>> = {
-  html: "text/html; charset=utf-8",
-  js: "text/javascript; charset=utf-8",
-  css: "text/css; charset=utf-8",
-};
+const CHROMIUM = process.env["OIP_CHROMIUM"];
 
 describe.skipIf(CHROMIUM === undefined)("the Explorer in a browser", () => {
   let root: string;
@@ -45,8 +37,6 @@ describe.skipIf(CHROMIUM === undefined)("the Explorer in a browser", () => {
   let told: Told;
   let browser: Browser;
   let page: Page;
-  /** The files of the site, by path. */
-  const files = new Map<string, string>();
   /** The origin of every request the page made, in order. */
   const asked: string[] = [];
   /** What the page wrote to its console as an error, and what it threw. */
@@ -65,23 +55,7 @@ describe.skipIf(CHROMIUM === undefined)("the Explorer in a browser", () => {
     told = await tell(stage, () => undefined);
 
     // The site, built as it is shipped.
-    const built = await build({
-      configFile: join(here, "..", "vite.config.ts"),
-      root: join(here, ".."),
-      logLevel: "silent",
-      build: { write: false },
-    });
-    const [bundle] = (Array.isArray(built) ? built : [built]) as {
-      output: { fileName: string; code?: string; source?: string | Uint8Array }[];
-    }[];
-    const output = bundle?.output ?? [];
-    for (const file of output) {
-      const text = file.code ?? file.source ?? "";
-      files.set(
-        `/${file.fileName}`,
-        typeof text === "string" ? text : Buffer.from(text).toString(),
-      );
-    }
+    const files = await buildSite();
     expect([...files.keys()]).toContain("/index.html");
 
     browser = await chromium.launch(
@@ -93,34 +67,8 @@ describe.skipIf(CHROMIUM === undefined)("the Explorer in a browser", () => {
     });
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("request", (request) => asked.push(new URL(request.url()).origin));
-    // The site's own files.
-    await page.route(`${SITE}/**`, (route) => {
-      const { pathname } = new URL(route.request().url());
-      const body = files.get(pathname === "/" ? "/index.html" : pathname);
-      if (body === undefined) return route.fulfill({ status: 404, body: "no such file" });
-      const type = TYPES[pathname.split(".").at(-1) ?? ""] ?? TYPES["html"] ?? "";
-      return route.fulfill({ status: 200, contentType: type, body });
-    });
-    // The three services, each at its own origin, reached where the network says they are.
-    const carry = routed(network.routes, (request) => fetch(request));
-    for (const origin of [LOCAL.resolver, LOCAL.host, LOCAL.indexer]) {
-      await page.route(`${origin}/**`, async (route) => {
-        const request = route.request();
-        const body = request.postDataBuffer();
-        const answer = await carry(
-          new Request(request.url(), {
-            method: request.method(),
-            headers: request.headers(),
-            ...(body === null ? {} : { body: new Uint8Array(body) }),
-          }),
-        );
-        await route.fulfill({
-          status: answer.status,
-          headers: Object.fromEntries(answer.headers),
-          body: Buffer.from(await answer.arrayBuffer()),
-        });
-      });
-    }
+    // The site's own files, and the three services, each reached where the network says it is.
+    await serveTo(page, files, { ...LOCAL, routes: network.routes });
   });
   afterAll(async () => {
     await browser.close();
@@ -159,6 +107,17 @@ describe.skipIf(CHROMIUM === undefined)("the Explorer in a browser", () => {
     expect(listed).toHaveLength(5);
     expect(listed.join("\n")).toContain("Lexis translation agent, agent");
     expect(listed.join("\n")).toContain("translate-legal-sw-en");
+    // Narrowed by what a mind can do: one of the five translates Swahili.
+    await page.getByLabel("Only minds that can do what these tags say (optional)").fill("lang:sw");
+    await page.getByRole("button", { name: "List the minds the indexers know" }).click();
+    await expect.poll(() => page.locator("ul.minds > li").count()).toBe(1);
+    expect(await page.locator("ul.minds > li").textContent()).toContain("Lexis translation agent");
+    await page.getByLabel("Only minds that can do what these tags say (optional)").fill("lang:xx");
+    await page.getByRole("button", { name: "List the minds the indexers know" }).click();
+    await page.getByText("The indexers list no such mind.").waitFor();
+    await page.getByLabel("Only minds that can do what these tags say (optional)").fill("");
+    await page.getByRole("button", { name: "List the minds the indexers know" }).click();
+    await amina.waitFor();
     await amina.click();
     await page.getByRole("heading", { name: "Verified in this browser" }).waitFor();
     expect(page.url()).toBe(`${SITE}/#/mind/${told.cast["amina"] ?? ""}`);

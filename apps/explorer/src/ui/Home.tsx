@@ -19,6 +19,10 @@ type Listed =
   | { readonly state: "failed"; readonly failure: Failure }
   | { readonly state: "listed"; readonly listing: Listing };
 
+/** The tags a reader typed, with spaces or commas between. */
+export const tagsIn = (typed: string): string[] =>
+  typed.split(/[\s,]+/u).filter((tag) => tag !== "");
+
 /** Where a reader starts: an address to look up, or the minds an indexer lists. */
 export function Home({
   lookup,
@@ -29,6 +33,7 @@ export function Home({
 }): React.JSX.Element {
   const [typed, setTyped] = useState("");
   const [wrong, setWrong] = useState(false);
+  const [tags, setTags] = useState("");
   const [listed, setListed] = useState<Listed>({ state: "unasked" });
   const go = (event: React.SyntheticEvent): void => {
     event.preventDefault();
@@ -39,10 +44,11 @@ export function Home({
     }
     window.location.hash = hashOf({ page: "mind", address });
   };
-  const list = (): void => {
+  const list = (event: React.SyntheticEvent): void => {
+    event.preventDefault();
     if (lookup === undefined) return;
     setListed({ state: "asking" });
-    browse(lookup).then(
+    browse(lookup, tagsIn(tags)).then(
       (listing) => {
         setListed({ state: "listed", listing });
       },
@@ -100,9 +106,24 @@ export function Home({
                 the minds it lists.
               </p>
             ) : (
-              <button type="button" onClick={list} disabled={listed.state === "asking"}>
-                List the minds the indexers know
-              </button>
+              <form onSubmit={list} noValidate>
+                <label htmlFor="tags">Only minds that can do what these tags say (optional)</label>
+                <input
+                  id="tags"
+                  name="tags"
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="lang:sw domain:legal"
+                  value={tags}
+                  onChange={(event) => {
+                    setTags(event.target.value);
+                  }}
+                />
+                <button type="submit" disabled={listed.state === "asking"}>
+                  List the minds the indexers know
+                </button>
+              </form>
             )}
             <div aria-live="polite">
               {listed.state === "asking" && <p>Asking the indexers, and verifying each profile.</p>}
@@ -117,7 +138,7 @@ export function Home({
 }
 
 function Minds({ listing }: { listing: Listing }): React.JSX.Element {
-  if (listing.minds.length === 0) return <p>The indexers list no mind.</p>;
+  if (listing.minds.length === 0) return <p>The indexers list no such mind.</p>;
   return (
     <>
       <ul className="minds">

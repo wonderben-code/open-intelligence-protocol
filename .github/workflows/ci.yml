@@ -194,6 +194,11 @@ jobs:
         run: pnpm exec vitest run --project @oip/explorer test/browser.test.ts --reporter=default --reporter=json --outputFile.json=explorer.json
       - name: All eight tests ran
         run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('explorer.json', 'utf8')); if (numPassedTests !== 8) { console.error(numPassedTests + ' tests passed, and 8 were to'); process.exit(1); }"
+      # `pnpm explorer:demo`, with a browser that has no window.
+      - name: The Explorer opens on the demo network, as a program
+        run: pnpm exec vitest run --project @oip/explorer test/demo.test.ts --reporter=default --reporter=json --outputFile.json=explorer-demo.json
+      - name: All six tests ran
+        run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('explorer-demo.json', 'utf8')); if (numPassedTests !== 6) { console.error(numPassedTests + ' tests passed, and 6 were to'); process.exit(1); }"
       # BUILD.md, M11: accessibility, performance and best practices, each at 95 or more.
       - name: The Explorer under Lighthouse
         run: pnpm exec vitest run --project @oip/explorer test/lighthouse.test.ts --reporter=default --reporter=json --outputFile.json=lighthouse.json

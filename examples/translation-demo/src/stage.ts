@@ -11,7 +11,7 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -27,6 +27,7 @@ import {
   type Machine,
   NETWORK_FILE,
   optionsOf,
+  UsageError,
   type Where,
 } from "@oip/local";
 
@@ -50,12 +51,12 @@ const NO_KEYCHAIN: Keychain = {
 /** The place of one telling. */
 export class Stage {
   readonly root: string;
-  readonly #network: Network;
+  readonly #network: Network | undefined;
   readonly #config: Config;
   readonly #machine: Machine;
   readonly #players: Player[] = [];
 
-  private constructor(root: string, network: Network, config: Config) {
+  private constructor(root: string, network: Network | undefined, config: Config) {
     this.root = root;
     this.#network = network;
     this.#config = config;
@@ -69,21 +70,40 @@ export class Stage {
     };
   }
 
-  /** Starts a resolver, a host and an indexer on ports of this machine. */
-  static async open(): Promise<Stage> {
+  /**
+   * Opens the place of a telling.
+   *
+   * @param network - The directory of a network that runs already, as
+   *   `oip demo` runs one and writes where it is. The telling is played on
+   *   it, and what the minds publish stays there when the telling ends.
+   *   Default: a resolver, a host and an indexer of the telling's own, on
+   *   ports of this machine, which end with it.
+   * @throws UsageError if a directory is given and no network says where it is there.
+   */
+  static async open(network?: string): Promise<Stage> {
     const root = mkdtempSync(join(tmpdir(), "oip-translation-demo-"));
-    const directory = join(root, "network");
-    const network = await startNetwork({ directory });
-    writeFileSync(
-      join(directory, NETWORK_FILE),
-      JSON.stringify({ ...LOCAL, routes: network.routes }),
-    );
-    return new Stage(root, network, {
+    const config = (directory: string): Config => ({
       resolvers: [LOCAL.resolver],
       indexers: [LOCAL.indexer],
       lock: "passphrase",
       network: directory,
     });
+    if (network !== undefined) {
+      if (!existsSync(join(network, NETWORK_FILE))) {
+        rmSync(root, { recursive: true, force: true });
+        throw new UsageError(
+          `no network says where it is in ${network}: \`oip demo\` runs one, and writes ${NETWORK_FILE} in its directory`,
+        );
+      }
+      return new Stage(root, undefined, config(network));
+    }
+    const directory = join(root, "network");
+    const started = await startNetwork({ directory });
+    writeFileSync(
+      join(directory, NETWORK_FILE),
+      JSON.stringify({ ...LOCAL, routes: started.routes }),
+    );
+    return new Stage(root, started, config(directory));
   }
 
   #where(name: string): Where {
@@ -118,10 +138,11 @@ export class Stage {
     return new Lookup(lookupOptions(this.#where("a-stranger"), this.#config));
   }
 
-  /** Ends the telling: the minds are closed, the network stopped, and the directory removed. */
+  /** Ends the telling: the minds are closed, the telling's own network stopped, and the keys removed. */
   async close(): Promise<void> {
     for (const { mind } of this.#players) mind.close();
-    await this.#network.stop();
+    // A network that was running before the telling runs on after it.
+    await this.#network?.stop();
     rmSync(this.root, { recursive: true, force: true });
   }
 }

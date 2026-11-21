@@ -15,6 +15,15 @@ pnpm demo
 
 It starts a resolver, a host and an indexer on ports of this machine, makes the minds, plays the scenario, and stops everything again. It takes a few seconds, and needs no network beyond this machine.
 
+To play it on a network that runs already, and look afterwards at what the minds published there:
+
+```sh
+oip demo                          # in one terminal: a network, until it is stopped
+pnpm demo --network ~/.oip-demo   # in another
+```
+
+The keys of the cast are thrown away when the telling ends. Their identity logs, profiles, feeds and the records of the deal stay on that network, for anyone to read.
+
 Every line that begins with `verified` is something the program checked before it said so: a signature, a chain of delegations, a status worked out from the records. If a check does not hold, the telling stops there, says which, and the program exits with 1.
 
 ## What it prints
@@ -157,5 +166,5 @@ try {
 ## Notes
 
 - The keys are sealed with a passphrase that is made for the telling, kept in the process, and never shown. The directory they are in is removed at the end.
-- The network is the one [`oip demo`](../../packages/cli/README.md) runs. To keep one running and work on it by hand, use that command.
+- The network is the one [`oip demo`](../../packages/cli/README.md) runs. [`compose.yaml`](../../compose.yaml) runs the same three services in containers ([the guide](../../docs/guides/containers.md)).
 - The same scenario, with fixed keys and fixed dates, is what the [test vectors](../../spec/test-vectors/README.md) hold. There every value is reproduced byte for byte. Here the minds are made anew, and what is checked is that the protocol's rules give the outcome the papers describe.

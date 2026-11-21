@@ -1,0 +1,20 @@
+---
+"@oip/net": minor
+---
+
+First version: the Mind Network (Layer 1, Sections 10 and 12 to 16).
+
+- `merkleTreeHash`, `checkpointRoot`: the Merkle Tree Hash of RFC 9162 and the root a checkpoint signs over a feed's entries (Layer 1, 10.5).
+- `verifyFeed`, `verifyCheckpoint`, `committedProofs`: a mind's public feed verified from the entries held, with feed equivocation reported and the entries of a compromised key left out; a checkpoint verified against the feed, with the proofs it commits to (Layer 1, 10.1 to 10.5).
+- `currentLocation`, `isStale`, `endpointsToTry`, `postUrl`, `webSocketUrl`: the current location record of a mind under the current-state rule, when it goes stale, and its endpoints in the order a sender tries them (Layer 1, Section 15).
+- `verifyParticipant`, `currentParticipant`: whether a profile counts for the mind it describes, and which profile is current (Layer 1, Section 16).
+- `receivePacket`: the rules for receiving a packet (Layer 1, 12.4), as one function with the present and the receiver's memory as parameters. A packet is accepted if it is addressed to the receiver, its dates allow it, and its sender signed it, by its threshold for a collective. A packet addressed to a query is accepted inside a `Forwarded` record from its broker. The receiver's own first sight of the proofs is recorded for a packet that is for it. `AcceptedPackets` remembers what was accepted until it can no longer be accepted, and a duplicate is told only after it has verified.
+- `Sessions`: each sender's packets of a session in order (Layer 1, 14.2, 14.3), with duplicates, gaps, and equivocation as for a feed. A chain is the same in whatever order its packets arrive. `resume`, `lacking` and `against` write and check a `Resume` (14.4). `sessionCarried` and `recordsCarried` find the records a packet carries.
+- `verifyHello` and `Challenges`: authentication of a mind to a server (Layer 1, 13.3): one proof over the server's challenge and origin, by a key of the mind's latest state.
+- `draftAck`, `verifyAck`, `acknowledges` and `ackEvidence`: acknowledgements (Layer 1, 13.2). An `Ack` lists the digests of the packet's own proofs (`proofs`, OEP-0004), and is evidence of time for those and for the proofs on the records the packet carries, and for no other (core 9.4).
+- Nothing is kept of a check that was cut short ([ADR-0010](../docs/adr/0010-checks-cut-short.md)): every judge refuses with `implementation limit`, a function that finds finds nothing, `Sessions.take` records a packet as taken by its last operation, and `verifyHello` uses a challenge up only for an answer that stands.
+- `sealPacket` and `receiveSealed`: `Sealed` records (Layer 1, 12.6). A signed packet is sealed with HPKE to the first agreement key of the recipient's latest state that can be sealed to, with the recipient's address as associated data. A record is opened only to the canonical form of a `Packet`, which is then judged as any packet that arrives; nothing of one that does not pass is returned.
+- `verifyBranch`: a fork's `Branch` proposal (Layer 1, 14.5): one record, for a session held, naming the parent's `Fork` event for the sender, with the lineage acknowledged.
+- `signRequest`, `verifyRequest`, `signatureBase`, `contentDigest` and `RequestNonces`: authenticated HTTP requests (Layer 1, 13.3) as RFC 9421 message signatures with `ed25519`, over the method, the target URI and the `Content-Digest` of a body (RFC 9530, `sha-256`), valid for at most 300 seconds, with a nonce used once for a key. The key is judged as a proof's key is, under the current-state rule. Checked against RFC 9421, Appendix B.2.6. `parseDictionary`, `writeInnerList` and `writeItem` read and write the structured fields these use (RFC 8941), strictly.
+- A location record or a profile held in several copies is judged with the proofs of them all (core 3.1), as an entry of a feed is: a collective's record counts when its members' proofs came on separate copies.
+- `signatureBase` refuses, and `parseDictionary` reads nothing, where the reading was cut short (ADR-0010). The package's `judging` and `finding` are those of `@oip/schema`.

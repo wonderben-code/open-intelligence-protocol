@@ -1,0 +1,135 @@
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+// SPDX-License-Identifier: Apache-2.0
+
+/**
+ * Learning the log of a mind a service cannot judge yet.
+ *
+ * A record is judged by its author's identity log. A service holds the
+ * logs it was given. For a mind it has not met, or one whose log has grown
+ * since, it asks the resolvers its operator configured (Layer 1, 17.1),
+ * and takes of the bundle what verifies.
+ *
+ * What a record names is its sender's to write, so asking is bounded: a
+ * mind that was asked after is not asked after again for a while, only so
+ * many are asked after at once, and only the configured resolvers are
+ * asked, at the path of 17.1 and nowhere else.
+ */
+
+import { MAX_TEXT_LENGTH, MEDIA_TYPE, mindId } from "@oip/core";
+
+import type { LogArchive } from "./archive.ts";
+import type { Clock } from "./edges.ts";
+import { recordFrom } from "./http.ts";
+import type { Log } from "./log.ts";
+import type { Metrics } from "./metrics.ts";
+
+/** How a lookup is made. */
+export interface LookupOptions {
+  /** The identity logs the service holds, which what is learned goes into. */
+  readonly archive: LogArchive;
+  /** Fetches a URL: `GuardedFetcher.get`. */
+  readonly get: (url: string, accept: string) => Promise<{ status: number; body: Uint8Array }>;
+  /** The origins of the resolvers to ask, in order. With none, nothing is asked. */
+  readonly resolvers: readonly string[];
+  readonly clock: Clock;
+  readonly log: Log;
+  readonly metrics: Metrics;
+  /** The service's name in its metrics, as in `oip_host_lookups_total`. */
+  readonly service: string;
+  /** How long a mind that was asked after is not asked after again, in nanoseconds. A minute by default. */
+  readonly rest?: bigint;
+  /** How many minds are asked after at once. 8 by default. */
+  readonly maxAtOnce?: number;
+  /** The most bytes of a bundle that are read. `MAX_TEXT_LENGTH` of `@oip/core` by default. */
+  readonly maxBundleBytes?: number;
+  /**
+   * How many minds the lookup remembers having asked after. 10,000 by
+   * default. Beyond that the one asked after longest ago is forgotten, and
+   * may be asked after again sooner.
+   */
+  readonly remembered?: number;
+}
+
+/** Asks resolvers for the logs of minds a service cannot judge. */
+export class Lookup {
+  readonly #options: LookupOptions;
+  /** When each mind may be asked after again, by the content ID of its genesis. */
+  readonly #rests = new Map<string, bigint>();
+  readonly #asking = new Map<string, Promise<boolean>>();
+  readonly #asked;
+
+  constructor(options: LookupOptions) {
+    this.#options = options;
+    this.#asked = options.metrics.counter(
+      `oip_${options.service}_lookups_total`,
+      "Times a resolver was asked for the log of a mind, by what came of it.",
+      ["outcome"],
+    );
+  }
+
+  /**
+   * Asks the resolvers for the log of a mind, and takes what verifies of it.
+   *
+   * @param mind - An address, as a packet gave it. What is no address is not asked after.
+   * @returns Whether the service now holds events of the mind's log that it did
+   *   not hold before. It never rejects: a resolver that fails, or says
+   *   what does not verify, has taught nothing.
+   */
+  learn(mind: string): Promise<boolean> {
+    const { clock, resolvers } = this.#options;
+    const id = mindId(mind);
+    if (id === undefined || resolvers.length === 0) return Promise.resolve(false);
+    const asking = this.#asking.get(id);
+    if (asking !== undefined) return asking;
+    const now = clock.now();
+    const rests = this.#rests.get(id);
+    if (
+      (rests !== undefined && now < rests) ||
+      this.#asking.size >= (this.#options.maxAtOnce ?? 8)
+    ) {
+      this.#asked.add({ outcome: "not-asked" });
+      return Promise.resolve(false);
+    }
+    this.#rest(id, now);
+    const asked = this.#ask(id).finally(() => this.#asking.delete(id));
+    this.#asking.set(id, asked);
+    return asked;
+  }
+
+  /** Notes that a mind was asked after now, and forgets the oldest notes beyond what is remembered. */
+  #rest(id: string, now: bigint): void {
+    this.#rests.delete(id);
+    this.#rests.set(id, now + (this.#options.rest ?? 60_000_000_000n));
+    const remembered = this.#options.remembered ?? 10_000;
+    for (const oldest of this.#rests.keys()) {
+      if (this.#rests.size <= remembered) break;
+      this.#rests.delete(oldest);
+    }
+  }
+
+  async #ask(id: string): Promise<boolean> {
+    const { archive, get, log, resolvers } = this.#options;
+    const maxBundleBytes = this.#options.maxBundleBytes ?? MAX_TEXT_LENGTH;
+    for (const resolver of resolvers) {
+      try {
+        const fetched = await get(`${resolver}/oip/v1/resolve/${id}`, MEDIA_TYPE);
+        if (fetched.status !== 200) continue;
+        const bundle = recordFrom(fetched.body, maxBundleBytes);
+        if (bundle.type !== "Bundle") continue;
+        // Only what verifies of it is kept, as of anything published to an archive.
+        if (archive.publish(id, bundle).added > 0) {
+          this.#asked.add({ outcome: "learned" });
+          return true;
+        }
+      } catch (error) {
+        // Which resolver, and no more: what a failure carries is not known to be fit to log.
+        log.event("warn", "lookup failed", {
+          resolver,
+          reason: error instanceof Error ? error.name : "unknown",
+        });
+      }
+    }
+    this.#asked.add({ outcome: "nothing" });
+    return false;
+  }
+}

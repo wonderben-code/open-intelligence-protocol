@@ -1,0 +1,50 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`oip verify, given a log, a bundle or a mind > [L1 4.1] verifies a bundle a resolver served: its log, and what it carries 1`] = `
+"did:oip:<mind>
+  ok         the log verifies: 2 events of did:oip:<mind> (L1 4.1)
+  ok         the resolvers hold the same log (L1 17.1)
+  ok         its location: it is a well-formed Location (core 2.1)
+  ok         its location: proof 0 is a good signature by the key <key> (core 5.4)
+  ok         its location: proof 0 is by a key of did:oip:<mind> that was valid at <time> (L1 6.1)
+  ok         its location: it counts for did:oip:<mind> (L2 7.1)
+  ok         its participant: it is a well-formed Participant (core 2.1)
+  ok         its participant: proof 0 is a good signature by the key <key> (core 5.4)
+  ok         its participant: proof 0 is by a key of did:oip:<mind> that was valid at <time> (L1 6.1)
+  ok         its participant: it counts for did:oip:<mind> (L2 7.1)
+It verifies.
+"
+`;
+
+exports[`oip verify, given a log, a bundle or a mind > [L1 17.1] verifies a mind by its address: each event of its log, as the resolvers serve it 1`] = `
+"did:oip:<mind>
+  ok         event 0 (Genesis) verifies, and takes effect at <time> (L1 3.6)
+  ok         event 1 (Update) verifies, and takes effect at <time> (L1 4.1)
+  ok         no two events were seen for one position (L1 7.1)
+  ok         https://resolver.oip.localhost served 2 events (L1 17.1)
+It verifies.
+"
+`;
+
+exports[`oip verify, given a record > [L1 11.4] [L2 7.1] says for whom a record counts, and through which delegations 1`] = `
+"Commitment <id>
+  ok         it is a well-formed Commitment (core 2.1)
+  ok         proof 0 is a good signature by the key <key> (core 5.4)
+  ok         proof 0 is by a key of did:oip:<mind> that was valid at <time> (L1 6.1)
+  ok         proof 0 counts for did:oip:<mind> through the delegations it names (L1 11.4)
+  ok         it counts for did:oip:<mind> (L2 7.1)
+  ok         it counts for did:oip:<mind> (L2 7.1)
+  no         it does not count for did:oip:<mind>: no signature on it is that mind's, or made for it (L2 7.1)
+It verifies.
+"
+`;
+
+exports[`oip verify, given a record > [core 5.4] [L1 6.1] says of each proof whose key made it, and that the key was that mind's then 1`] = `
+"Intent <id>
+  ok         it is a well-formed Intent (core 2.1)
+  ok         proof 0 is a good signature by the key <key> (core 5.4)
+  ok         proof 0 is by a key of did:oip:<mind> that was valid at <time> (L1 6.1)
+  ok         it counts for did:oip:<mind> (L2 7.1)
+It verifies.
+"
+`;

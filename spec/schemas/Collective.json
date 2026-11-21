@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Collective",
+  "title": "Collective",
+  "description": "A collective's charter: its purpose, roles and assignments (Layer 2, 6.2).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "author",
+    "type",
+    "name",
+    "purpose"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "author": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "supersedes": {
+      "$ref": "urn:oip:schema:def:recordRef"
+    },
+    "status": {
+      "type": "string"
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "rel",
+          "ref"
+        ],
+        "properties": {
+          "rel": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "type": {
+      "type": "string",
+      "const": "Collective"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "purpose": {
+      "type": "string"
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string"
+          },
+          "powers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "command"
+              ],
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "pattern": "^/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                },
+                "policy": {
+                  "$ref": "urn:oip:schema:Policy"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "assignments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "mind",
+          "role"
+        ],
+        "properties": {
+          "mind": {
+            "$ref": "urn:oip:schema:def:mindAddress"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "procedures": {
+      "type": "object"
+    }
+  },
+  "dependentRequired": {
+    "status": [
+      "supersedes"
+    ]
+  }
+}

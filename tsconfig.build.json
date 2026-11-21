@@ -1,0 +1,62 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/schema/tsconfig.build.json"
+    },
+    {
+      "path": "packages/core/tsconfig.build.json"
+    },
+    {
+      "path": "packages/identity/tsconfig.build.json"
+    },
+    {
+      "path": "packages/delegation/tsconfig.build.json"
+    },
+    {
+      "path": "packages/web/tsconfig.build.json"
+    },
+    {
+      "path": "packages/net/tsconfig.build.json"
+    },
+    {
+      "path": "packages/keystore/tsconfig.build.json"
+    },
+    {
+      "path": "packages/client/tsconfig.build.json"
+    },
+    {
+      "path": "packages/server/tsconfig.build.json"
+    },
+    {
+      "path": "packages/resolver/tsconfig.build.json"
+    },
+    {
+      "path": "packages/host/tsconfig.build.json"
+    },
+    {
+      "path": "packages/indexer/tsconfig.build.json"
+    },
+    {
+      "path": "packages/conformance/tsconfig.build.json"
+    },
+    {
+      "path": "packages/local/tsconfig.build.json"
+    },
+    {
+      "path": "packages/cli/tsconfig.build.json"
+    },
+    {
+      "path": "packages/mcp-server/tsconfig.build.json"
+    },
+    {
+      "path": "packages/bridge-a2a/tsconfig.build.json"
+    },
+    {
+      "path": "packages/bridge-mcp/tsconfig.build.json"
+    },
+    {
+      "path": "packages/did-resolver/tsconfig.build.json"
+    }
+  ]
+}

@@ -1,0 +1,624 @@
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+// SPDX-License-Identifier: Apache-2.0
+
+/**
+ * A host (Layer 1, Section 13): the minds it serves, the packets that
+ * arrive for them, and their mailboxes. This is what the host does with a
+ * record once it has been read. The HTTP interface is `app.ts`.
+ *
+ * - **The inbox** (13.2) takes a packet as its recipient would (12.4): it
+ *   is addressed to the mind, its dates allow it, and its sender signed it,
+ *   by the sender's log as the host holds it. A packet that passes is kept
+ *   for the mind and answered: with an `Ack` if the host signs for the
+ *   mind, and with `{ "stored": true }` if it does not. The same packet
+ *   again gets the same answer, and is not kept twice.
+ * - **A sealed record** is kept as it is. The host cannot open it, so it
+ *   cannot judge the packet inside: that is the recipient's to do.
+ * - **The mailbox** (13.5) keeps what is posted to it until its owner
+ *   removes it or it has been there longer than the host keeps things.
+ * - **The feed** (10.1, 13.1) is the one the mind brings, entry by entry,
+ *   with every record an entry lists. The host holds one entry at each
+ *   position, so a mind whose instances all publish through its host has a
+ *   single writer (10.3).
+ *
+ * What the host keeps for a mind is bounded, in items and in bytes: anyone
+ * can post to a mailbox.
+ */
+
+import {
+  contentId,
+  createProofSync,
+  formatKeyRef,
+  formatTimestamp,
+  type Instant,
+  type JsonObject,
+  OipError,
+  type OipRecord,
+  type SyncSigner,
+  withProofs,
+} from "@oip/core";
+import {
+  FirstSeen,
+  type IdentityView,
+  judgeRecord,
+  latestState,
+  ownSignedTime,
+  witnessRecord,
+} from "@oip/identity";
+import { draftAck, receivePacket, verifyAck } from "@oip/net";
+import {
+  type Entry,
+  isRecordType,
+  validateExtensionRecord,
+  validateRecord,
+  validateRecordOfType,
+} from "@oip/schema";
+import {
+  type Database,
+  HttpFailure,
+  kept,
+  type LogArchive,
+  overlaid,
+  seenAt,
+  standing,
+} from "@oip/server";
+
+import { HostStore, type MailboxItem } from "./store.ts";
+
+/** How much a host keeps for one mind, and for how long. */
+export interface HostLimits {
+  /** The most items in one mailbox. */
+  readonly mailboxItems: number;
+  /** The most bytes in one mailbox. */
+  readonly mailboxBytes: number;
+  /** How long an item stays in a mailbox, in nanoseconds. Layer 1, 13.5 asks for 30 days at least. */
+  readonly retention: bigint;
+  /** How far back the host remembers a packet that states no `expires`, in nanoseconds (12.4). */
+  readonly window: bigint;
+  /** The most bytes of records in one page of a mailbox or of a feed. A page holds one item at least. */
+  readonly pageBytes: number;
+  /** The most bytes of records the host serves for one mind by their content IDs. */
+  readonly objectBytes: number;
+  /** The most entries in the feed of one mind. */
+  readonly feedEntries: number;
+}
+
+const DAY = 86_400_000_000_000n;
+
+/**
+ * A thousand items and 64 MiB for each mailbox, kept 30 days; an hour's
+ * memory of packets; pages of 4 MiB; 256 MiB of records and a million feed
+ * entries for each mind.
+ */
+export const DEFAULT_HOST_LIMITS: HostLimits = {
+  mailboxItems: 1000,
+  mailboxBytes: 64 * 1024 * 1024,
+  retention: 30n * DAY,
+  window: 3_600_000_000_000n,
+  pageBytes: 4 * 1024 * 1024,
+  objectBytes: 256 * 1024 * 1024,
+  feedEntries: 1_000_000,
+};
+
+/** How a host is made. */
+export interface HostOptions {
+  /** Its database, opened with `HOST_MIGRATIONS`. */
+  readonly db: Database;
+  /** The identity logs it holds, and its record of first sight. */
+  readonly archive: LogArchive;
+  readonly limits?: Partial<HostLimits>;
+  /**
+   * The key the host signs with for a mind it serves, if it holds one: an
+   * operational key of the mind. A host that holds none acknowledges
+   * nothing, and answers `{ "stored": true }` (13.2).
+   */
+  readonly signer?: (mind: string) => SyncSigner | undefined;
+}
+
+/** What the host answers to a record it has kept: an `Ack`, or that it is stored. */
+export type Answer = JsonObject;
+
+const STORED: Answer = Object.freeze({ stored: true });
+
+/** The problem for a packet that the inbox does not take (core 10.2). */
+function refusalOf(
+  issues: readonly [{ path: string; message: string; clause: string }, ...unknown[]],
+  senderKnown: boolean,
+): OipError {
+  const [first] = issues;
+  const options = { clause: first.clause, issues: issues as never };
+  // Addressed to another, or forwarded by a broker the packet does not name (18.5).
+  if (/\/(?:to|brokers)$/u.test(first.path)) {
+    return new OipError("forbidden", first.message, options);
+  }
+  if (/\/(?:created|expires)$/u.test(first.path)) {
+    return new OipError("expired", first.message, options);
+  }
+  if (first.path.endsWith("/proof")) {
+    // Without the logs of the sender and of its broker, the host cannot tell a forgery
+    // from a stranger.
+    return senderKnown
+      ? new OipError("invalid-proof", first.message, options)
+      : new OipError(
+          "stale-version",
+          "the host holds no log that verifies of the packet's sender, or of the broker that forwarded it, so it cannot judge their proofs",
+          options,
+        );
+  }
+  return new OipError("invalid-record", first.message, options);
+}
+
+/** The problem for a value that is no record of the form asked for. */
+function malformed(
+  refused: { readonly issues: readonly [{ message: string; clause: string }, ...unknown[]] },
+  prefix = "",
+): never {
+  const [first] = refused.issues;
+  throw new OipError("invalid-record", prefix + first.message, {
+    clause: first.clause,
+    issues: refused.issues as never,
+  });
+}
+
+/** A record of first sight that notes which proofs were recorded in it. */
+class Noted extends FirstSeen {
+  readonly proofs: string[] = [];
+
+  override sawProof(digest: string, at: Instant): Instant {
+    this.proofs.push(digest);
+    return super.sawProof(digest, at);
+  }
+}
+
+/**
+ * The minds whose logs a record at an inbox is judged by: the sender of
+ * the packet, and the broker if one forwarded it (Layer 1, 18.5). What is
+ * no address is left out.
+ */
+export function partiesOf(record: OipRecord): string[] {
+  const { from, broker, packet } = record as { from?: unknown; broker?: unknown; packet?: unknown };
+  const carried = typeof packet === "object" && packet !== null ? packet : {};
+  return [from, broker, (carried as { from?: unknown }).from].filter(
+    (party) => typeof party === "string",
+  );
+}
+
+/** A host. */
+export class Host {
+  readonly #db: Database;
+  readonly #archive: LogArchive;
+  readonly #store: HostStore;
+  readonly #limits: HostLimits;
+  readonly #signer: (mind: string) => SyncSigner | undefined;
+  /** Those to tell when a mind's mailbox has something new, by mind. */
+  readonly #listeners = new Map<string, Set<() => void>>();
+
+  constructor(options: HostOptions) {
+    this.#db = options.db;
+    this.#archive = options.archive;
+    this.#store = new HostStore(options.db);
+    this.#limits = { ...DEFAULT_HOST_LIMITS, ...options.limits };
+    this.#signer = options.signer ?? (() => undefined);
+  }
+
+  /** Whether the host serves a mind. */
+  hosts(mind: string): boolean {
+    return this.#store.hosts(mind);
+  }
+
+  /**
+   * Takes a mind on. The host must hold a log of it that verifies: a mind
+   * is served by what its own log says of it.
+   *
+   * @throws OipError `not-found` if the host holds no such log.
+   */
+  adopt(mind: string): void {
+    this.#archive.witnessing((_seen, now) => {
+      if (!this.#archive.view(now).log(mind).ok) {
+        throw new OipError("not-found", "the host holds no log of that mind");
+      }
+      this.#store.adopt(mind, now);
+    });
+  }
+
+  /** How many minds the host serves. */
+  get minds(): number {
+    return this.#store.minds();
+  }
+
+  #served(mind: string): void {
+    if (!this.#store.hosts(mind))
+      throw new OipError("not-found", "the host does not serve that mind");
+  }
+
+  /**
+   * Whether there is room for a record in a mind's mailbox.
+   *
+   * @throws HttpFailure 507 if there is none.
+   */
+  #room(mind: string, record: JsonObject): void {
+    const held = this.#store.held(mind);
+    const bytes = Buffer.byteLength(JSON.stringify(record));
+    if (held.items >= this.#limits.mailboxItems || held.bytes + bytes > this.#limits.mailboxBytes) {
+      throw new HttpFailure(507, "Insufficient Storage");
+    }
+  }
+
+  /** Keeps a record for a mind, and tells whoever waits for its mail. */
+  #put(mind: string, id: string, record: JsonObject, now: Instant): void {
+    if (!this.#store.put(mind, id, record, now)) return;
+    for (const listener of this.#listeners.get(mind) ?? []) {
+      try {
+        listener();
+      } catch {
+        // A listener that fails is its own affair.
+      }
+    }
+  }
+
+  /** The `Ack` for a packet, signed for the mind, if the host holds a key of the mind's that is valid. */
+  #acknowledged(
+    mind: string,
+    received: Parameters<typeof draftAck>[0]["received"],
+    now: Instant,
+  ): Answer | undefined {
+    const signer = this.#signer(mind);
+    const log = this.#archive.view(now).log(mind);
+    if (signer === undefined || !log.ok) return undefined;
+    const state = latestState(log.value);
+    if (!state.keys.includes(signer.publicKey)) return undefined;
+    const at = formatTimestamp(now);
+    const ack = draftAck({ received, recipient: mind, at, created: at });
+    const proof = createProofSync(
+      ack,
+      { verificationMethod: formatKeyRef(mind, state.versionId, signer.publicKey), created: at },
+      signer,
+    );
+    return withProofs(ack, [proof]) as unknown as Answer;
+  }
+
+  /**
+   * Layer 1, 13.2: a record that arrives at a mind's inbox.
+   *
+   * @param record - A `Packet`, a `Forwarded` record that carries one from a
+   *   broker (18.5), or a `Sealed` record, already read.
+   * @returns What to answer with `202`: an `Ack`, or `{ "stored": true }`.
+   * @throws OipError `not-found` if the host does not serve the mind;
+   *   `forbidden` for a record addressed to another; `expired`,
+   *   `invalid-proof` or `invalid-record` for a packet that 12.4 does not
+   *   let a recipient accept; `stale-version` if the host cannot judge the
+   *   packet because it holds no log of its sender or of its broker.
+   * @throws HttpFailure 507 if the mind's mailbox is full.
+   * @throws Unavailable if the judging was cut short.
+   */
+  deliver(mind: string, record: OipRecord): Answer {
+    this.#served(mind);
+    if (record.type === "Sealed") return this.post(mind, record);
+    return this.#archive.witnessing((seen, now) => {
+      const view = this.#archive.view(now);
+      // Judged with its proofs, and those of a broker's wrapper, noted as first seen now.
+      // The note becomes the archive's only if the packet is kept: one that is refused
+      // leaves nothing behind.
+      const noted = new Noted();
+      const received = standing(() =>
+        receivePacket(record, {
+          address: mind,
+          now,
+          seen: noted,
+          view: overlaid(view, (digest) => noted.proofSeen(digest)),
+          accepted: (id) => this.#store.answered(mind, id) !== undefined,
+          window: this.#limits.window,
+        }),
+      );
+      if (!received.ok) {
+        const known = partiesOf(record).every((party) => view.log(party).ok);
+        throw refusalOf(received.issues, known);
+      }
+      const { id, duplicate, forgetAfter } = received.value;
+      // It is a duplicate because an answer is held for it.
+      if (duplicate) return kept(this.#store.answered(mind, id), "the answer to a packet");
+      this.#room(mind, record as unknown as JsonObject);
+      for (const digest of noted.proofs) seen.sawProof(digest, now);
+      const answer = this.#acknowledged(mind, received.value, now) ?? STORED;
+      this.#put(mind, id, record as unknown as JsonObject, now);
+      this.#store.accept(mind, id, forgetAfter, answer);
+      return answer;
+    });
+  }
+
+  /**
+   * Layer 1, 13.5: a record posted to a mind's mailbox. It is kept as it
+   * is, for the mind to judge when it drains the mailbox.
+   *
+   * @param record - A `Packet`, a `Sealed` record, or a `Forwarded` record
+   *   from a broker (18.5), already read: a mailbox is where a packet goes
+   *   when no other endpoint takes it (15.3), whoever carries it.
+   * @throws OipError `not-found` if the host does not serve the mind;
+   *   `invalid-record` for any other record; `forbidden` for one addressed
+   *   to another.
+   * @throws HttpFailure 507 if the mailbox is full.
+   */
+  post(mind: string, record: OipRecord): Answer {
+    this.#served(mind);
+    if (record.type !== "Sealed" && record.type !== "Packet" && record.type !== "Forwarded") {
+      throw new OipError(
+        "invalid-record",
+        "a mailbox takes a Packet, a Sealed record or a Forwarded record",
+        { clause: "L1 13.5" },
+      );
+    }
+    // Its form is checked, and no more: the mind judges what it drains.
+    const formed = standing(() => validateRecordOfType(record.type, record));
+    if (!formed.ok) malformed(formed);
+    const { to, packet } = record as { to?: unknown; packet?: object };
+    // A packet names its recipients in a list. A sealed record and a broker's wrapper name one.
+    const addressed =
+      record.type === "Packet" ? Array.isArray(to) && to.includes(mind) : to === mind;
+    if (!addressed) {
+      throw new OipError("forbidden", "the record is addressed to another mind", {
+        clause: "L1 12.4",
+      });
+    }
+    // A forwarded packet is kept under the packet's own content ID, as at the inbox: the
+    // same packet from two brokers is one packet (18.5).
+    const id = contentId(record.type === "Forwarded" && packet !== undefined ? packet : record);
+    this.#archive.witnessing((_seen, now) => {
+      this.#room(mind, record as unknown as JsonObject);
+      this.#put(mind, id, record as unknown as JsonObject, now);
+    });
+    return STORED;
+  }
+
+  /**
+   * Layer 1, 13.5: the items of a mind's mailbox after a cursor.
+   *
+   * @param after - The cursor of the last item the owner has. 0 for the first.
+   * @param limit - The most items in the page. A page is bounded in bytes
+   *   as well, and may hold fewer.
+   * @returns The items, and the cursor to ask after next if there are more.
+   */
+  drain(mind: string, after: number, limit: number): { items: MailboxItem[]; next?: number } {
+    this.#served(mind);
+    const items = this.#store.after(mind, after, limit, this.#limits.pageBytes);
+    const last = items.at(-1)?.cursor;
+    return last !== undefined && this.#store.more(mind, last) ? { items, next: last } : { items };
+  }
+
+  /** Layer 1, 13.5: removes an item from a mind's mailbox. Whether it was there. */
+  remove(mind: string, cursor: number): boolean {
+    this.#served(mind);
+    return this.#db.transaction(() => this.#store.remove(mind, cursor));
+  }
+
+  /**
+   * Layer 1, 13.2, 13.4: takes the mind's own acknowledgement of a record
+   * the host keeps for it. The mind has the record, so it goes from the
+   * mailbox. This is how a mind's instance that receives its mail over a
+   * socket says what it has: a record, as every message there is.
+   *
+   * @param record - An `Ack`, already read.
+   * @returns Whether the mailbox held the record the `Ack` names: the
+   *   `Sealed` record if it names one, and the packet if not.
+   * @throws OipError `not-found` if the host does not serve the mind;
+   *   `invalid-record` for what is no `Ack`; `invalid-proof` for one its
+   *   author did not sign; `forbidden` for another mind's.
+   */
+  acknowledge(mind: string, record: OipRecord): boolean {
+    this.#served(mind);
+    return this.#archive.witnessing((_seen, now) => {
+      // Judged as first seen now. The host is no witness of it, and keeps no record of that.
+      const seen = new FirstSeen();
+      const verified = standing(() =>
+        verifyAck(record, {
+          now,
+          seen,
+          view: overlaid(this.#archive.view(now), (digest) => seen.proofSeen(digest)),
+        }),
+      );
+      if (!verified.ok) {
+        const [first] = verified.issues;
+        throw new OipError(
+          first.path === "/proof" ? "invalid-proof" : "invalid-record",
+          first.message,
+          { clause: first.clause, issues: verified.issues },
+        );
+      }
+      if (verified.value.recipient !== mind) {
+        throw new OipError("forbidden", "the Ack is another mind's", { clause: "L1 13.2" });
+      }
+      const { packet, sealed } = verified.value.ack;
+      return this.#store.removeById(mind, sealed ?? packet);
+    });
+  }
+
+  /**
+   * Layer 1, 10.2, 13.1: keeps a record a mind brings, to serve it by its
+   * content ID. A record held already is replaced by the copy brought: a
+   * record gains proofs, and its content ID stays.
+   *
+   * Its form is checked and its proofs are not: a feed may list records
+   * of other minds, whose logs the host need not hold. Whoever fetches the
+   * record judges it.
+   *
+   * @returns The record's content ID, and whether the host did not hold it before.
+   * @throws OipError `not-found` if the host does not serve the mind;
+   *   `invalid-record` for what is no record.
+   * @throws HttpFailure 507 if the mind has no room left.
+   */
+  keep(mind: string, record: OipRecord): { id: string; fresh: boolean } {
+    this.#served(mind);
+    const formed = standing(() =>
+      isRecordType(record.type) ? validateRecord(record) : validateExtensionRecord(record),
+    );
+    if (!formed.ok) malformed(formed);
+    const id = contentId(record);
+    return this.#db.transaction(() => {
+      const held = this.#store.objectHeld(mind, id);
+      const bytes = Buffer.byteLength(JSON.stringify(record));
+      if (this.#store.objectBytes(mind) - (held?.bytes ?? 0) + bytes > this.#limits.objectBytes) {
+        throw new HttpFailure(507, "Insufficient Storage");
+      }
+      this.#store.keep(mind, id, record.type, record as unknown as JsonObject);
+      return { id, fresh: held === undefined };
+    });
+  }
+
+  /** Layer 1, 13.1: a record the host serves for a mind by its content ID, if it holds it. */
+  object(mind: string, id: string): JsonObject | undefined {
+    this.#served(mind);
+    return this.#store.object(mind, id);
+  }
+
+  /**
+   * Layer 1, 10.1: adds entries to the feed the host serves for a mind.
+   *
+   * An entry is taken if it is the mind's own (signed by a valid
+   * operational key, judged as first seen now), stands at the end of the
+   * feed held and names the entry before it, and lists a record the host
+   * holds for the mind (10.2). An entry the host holds already is passed
+   * over. All of the entries given are taken, or none.
+   *
+   * The host holds one entry at each position. Another valid entry at a
+   * position it holds is refused, not served beside the first: that would
+   * be feed equivocation (10.3), and a mind that publishes through its
+   * host is kept from it. If the entry held there no longer verifies, as
+   * after its key was declared compromised (10.4), it and what follows it
+   * are dropped, and the feed goes on with the entry given.
+   *
+   * @returns How many entries were added.
+   * @throws OipError `not-found` if the host does not serve the mind;
+   *   `invalid-record` for a value that is no entry of the mind's, that
+   *   does not stand at the end of the feed, or that lists a record the
+   *   host does not hold; `invalid-proof` for one the mind did not sign;
+   *   `duplicity` for one at a position where the host holds another.
+   * @throws HttpFailure 507 if the feed is as long as the host keeps one.
+   */
+  append(mind: string, entries: readonly unknown[]): number {
+    this.#served(mind);
+    return this.#archive.witnessing((seen, now) => {
+      const view = this.#archive.view(now);
+      let added = 0;
+      for (const [index, value] of entries.entries()) {
+        const where = `entry ${index}: `;
+        const judged = standing(() => judgeRecord(value));
+        if (!judged.ok) malformed(judged, where);
+        const { type, author } = judged.value.record as { type: string; author?: unknown };
+        if (type !== "Entry" || author !== mind) {
+          throw new OipError("invalid-record", `${where}it is no entry of this mind's feed`, {
+            clause: "L1 10.1",
+          });
+        }
+        const entry = judged.value.record as Entry;
+        const id = contentId(entry);
+        if (this.#store.entryAt(mind, entry.seq)?.id === id) continue;
+        const digests = new Set(judged.value.proofs.map((proof) => proof.digest));
+        const own = overlaid(view, seenAt(digests, now));
+        if (standing(() => ownSignedTime(judged.value, mind, own)) === undefined) {
+          throw new OipError(
+            "invalid-proof",
+            `${where}it is not signed by a valid operational key of the mind`,
+            { clause: "L1 10.1" },
+          );
+        }
+        const length = this.#length(mind, entry.seq, view, where);
+        if (entry.seq !== length) {
+          throw new OipError(
+            "invalid-record",
+            `${where}the feed held here has ${length} entries, and the next is at seq ${length}`,
+            { clause: "L1 10.1" },
+          );
+        }
+        if (entry.seq > 0 && this.#store.entryAt(mind, entry.seq - 1)?.id !== entry.prev) {
+          throw new OipError("invalid-record", `${where}it does not name the entry before it`, {
+            clause: "L1 10.1",
+          });
+        }
+        if (this.#store.objectHeld(mind, entry.object)?.type !== entry.objectType) {
+          throw new OipError(
+            "invalid-record",
+            `${where}the host holds no ${entry.objectType} record with the content ID it lists: bring the record first`,
+            { clause: "L1 10.2" },
+          );
+        }
+        if (length >= this.#limits.feedEntries) throw new HttpFailure(507, "Insufficient Storage");
+        witnessRecord(judged.value, now, seen);
+        this.#store.append(mind, entry.seq, id, judged.value.record as unknown as JsonObject);
+        added++;
+      }
+      return added;
+    });
+  }
+
+  /**
+   * How long a mind's feed is for an entry given at `seq`: as long as it
+   * is held, unless the entry held at `seq` no longer verifies. Then the
+   * feed ends before it (10.4).
+   *
+   * @throws OipError `duplicity` if the entry held at `seq` is valid.
+   */
+  #length(mind: string, seq: number, view: IdentityView, where: string): number {
+    const length = this.#store.feedLength(mind);
+    const held = seq < length ? this.#store.entryAt(mind, seq) : undefined;
+    if (held === undefined) return length;
+    // Whether it still verifies. An answer that a cut-short check went into drops nothing.
+    const valid = standing(() => {
+      const judged = judgeRecord(held.entry);
+      return judged.ok && ownSignedTime(judged.value, mind, view) !== undefined;
+    });
+    if (valid) {
+      throw new OipError(
+        "duplicity",
+        `${where}the feed holds another valid entry at seq ${seq}, and a feed has one at each (10.3)`,
+        { clause: "L1 10.3" },
+      );
+    }
+    this.#store.truncate(mind, seq);
+    return seq;
+  }
+
+  /**
+   * Layer 1, 13.1: a page of a mind's feed.
+   *
+   * @param after - The `seq` of the last entry the reader has, or
+   *   `undefined` to start at `seq` 0.
+   * @returns The entries in order, and what to pass as `after` next if there are more.
+   */
+  feed(
+    mind: string,
+    after: number | undefined,
+    limit: number,
+  ): { entries: JsonObject[]; next?: number } {
+    this.#served(mind);
+    const from = after === undefined ? 0 : after + 1;
+    const entries = this.#store.entriesFrom(mind, from, limit, this.#limits.pageBytes);
+    const last = from + entries.length - 1;
+    return entries.length > 0 && last + 1 < this.#store.feedLength(mind)
+      ? { entries, next: last }
+      : { entries };
+  }
+
+  /**
+   * Lets go of what is kept only for a time. A host calls it now and then.
+   *
+   * @returns How many things went.
+   */
+  prune(now: Instant): number {
+    return this.#db.transaction(() => this.#store.prune(now, now - this.#limits.retention));
+  }
+
+  /**
+   * Asks to be told when a mind's mailbox has something new: for the mind's
+   * own instance, which holds a socket open (13.4).
+   *
+   * @returns How to stop being told.
+   */
+  subscribe(mind: string, listener: () => void): () => void {
+    const listeners = this.#listeners.get(mind) ?? new Set();
+    listeners.add(listener);
+    this.#listeners.set(mind, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) this.#listeners.delete(mind);
+    };
+  }
+}

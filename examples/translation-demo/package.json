@@ -1,0 +1,28 @@
+{
+  "name": "@oip/translation-demo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The scenario of the Open Intelligence Protocol's papers, run on a network on this machine and told as it happens.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@oip/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=24.15"
+  },
+  "dependencies": {
+    "@oip/cli": "workspace:*",
+    "@oip/client": "workspace:*",
+    "@oip/core": "workspace:*",
+    "@oip/keystore": "workspace:*",
+    "@oip/local": "workspace:*"
+  },
+  "devDependencies": {
+    "@oip/testkit": "workspace:*"
+  }
+}

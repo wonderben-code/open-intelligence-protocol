@@ -1,0 +1,55 @@
+{
+  "name": "@oip/web",
+  "version": "0.0.0",
+  "description": "The Mind Web for the Open Intelligence Protocol: whether a record counts for a mind by its own authority, a delegation or a charter role, and the status of intents, offers and commitments.",
+  "license": "Apache-2.0",
+  "author": "Ekram Alam",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wonderben-code/open-intelligence-protocol.git",
+    "directory": "packages/web"
+  },
+  "homepage": "https://github.com/wonderben-code/open-intelligence-protocol/tree/main/packages/web#readme",
+  "bugs": "https://github.com/wonderben-code/open-intelligence-protocol/issues",
+  "keywords": [
+    "oip",
+    "open-intelligence-protocol",
+    "commitment",
+    "intent",
+    "status"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "@oip/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "api": "api-extractor run --local",
+    "api:check": "api-extractor run"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@oip/core": "workspace:*",
+    "@oip/delegation": "workspace:*",
+    "@oip/identity": "workspace:*",
+    "@oip/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@oip/testkit": "workspace:*"
+  }
+}

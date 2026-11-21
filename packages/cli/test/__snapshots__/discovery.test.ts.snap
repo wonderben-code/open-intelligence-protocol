@@ -1,0 +1,34 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`oip find > [L1 18.4] finds a mind by what it can do, and shows only what it verified 1`] = `
+"2 found. Indexers that answered: 1 of 1.
+1. did:oip:<mind>
+  profile    Ada: Reviews a translation (review)
+  record     <id>
+  ranked     <score> by https://indexer.oip.localhost
+2. did:oip:<mind>
+  profile    Ada: Translates legal texts (translate)
+  record     <id>
+  ranked     <score> by https://indexer.oip.localhost
+"
+`;
+
+exports[`oip publish profile > [L1 16.1] publishes what the mind is and can do, and [L1 16.4] it is the mind's current profile 1`] = `
+"The mind's profile is published: <id>
+It is Ada, with 2 capabilities.
+Services that took it: 3 of 3.
+"
+`;
+
+exports[`oip resolve > [L1 17.1] resolves any mind by its address, with no mind of one's own 1`] = `
+"did:oip:<mind>
+  kind       agent
+  log        1 event
+  keys       1 to sign with, 1 to be sealed to
+  homes      https://host.oip.localhost
+  names      none
+  location   active, 2 endpoints
+  profile    Ada, 2 capabilities
+  resolvers  https://resolver.oip.localhost (1 event)
+"
+`;

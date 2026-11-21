@@ -1,0 +1,38 @@
+{
+  "name": "@oip/explorer",
+  "version": "0.0.0",
+  "private": true,
+  "description": "OIP Explorer: look up any mind and watch every signature verify in the browser.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24.15"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@oip/client": "workspace:*",
+    "@oip/core": "workspace:*",
+    "@oip/delegation": "workspace:*",
+    "@oip/identity": "workspace:*",
+    "@oip/net": "workspace:*",
+    "@oip/schema": "workspace:*",
+    "@oip/web": "workspace:*",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@oip/cli": "workspace:*",
+    "@oip/local": "workspace:*",
+    "@oip/testkit": "workspace:*",
+    "@oip/translation-demo": "workspace:*",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "lighthouse": "13.6.0",
+    "playwright-core": "1.63.0",
+    "vite": "8.3.7"
+  }
+}

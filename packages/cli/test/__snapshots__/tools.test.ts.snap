@@ -1,0 +1,265 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`oip completions > prints the same for zsh, and one of its own for fish 1`] = `
+"# oip: completion for fish. Load it with: oip completions fish | source
+complete -c oip -f
+complete -c oip -l dir
+complete -c oip -l json
+complete -c oip -l get
+complete -c oip -l help
+complete -c oip -l version
+complete -c oip -n __fish_use_subcommand -a init -d 'Makes a mind: its keys, sealed in its directory, and its first event with its resolvers'
+complete -c oip -n __fish_use_subcommand -a show -d 'Shows the mind of this directory, as its resolvers have it'
+complete -c oip -n __fish_use_subcommand -a rotate -d 'Rotates the mind'\\''s control keys: the next are revealed, and new ones committed to'
+complete -c oip -n __fish_use_subcommand -a add-key -d 'Makes a new key of everyday work, and adds it to the mind'\\''s keys'
+complete -c oip -n __fish_use_subcommand -a revoke-key -d 'Takes a key of everyday work from the mind'\\''s keys for good, and destroys it here'
+complete -c oip -n __fish_use_subcommand -a fork -d 'Makes a child of this mind in a directory of its own, and acknowledges it'
+complete -c oip -n __fish_use_subcommand -a publish -d 'publish: see oip --help'
+complete -c oip -n __fish_use_subcommand -a resolve -d 'Resolves any mind by its address: fetches its log from the resolvers, and verifies it'
+complete -c oip -n __fish_use_subcommand -a find -d 'Finds minds by what they can do: asks the indexers, and verifies what they name'
+complete -c oip -n __fish_use_subcommand -a send -d 'Sends a packet to one mind or several: signed, and sealed to each'
+complete -c oip -n __fish_use_subcommand -a inbox -d 'Reads the mind'\\''s mailboxes: the packets that arrived, each verified, and kept'
+complete -c oip -n __fish_use_subcommand -a intent -d 'Says what the mind wants: signs an Intent'
+complete -c oip -n __fish_use_subcommand -a offer -d 'Says what the mind provides, and on what terms: signs an Offer'
+complete -c oip -n __fish_use_subcommand -a commit -d 'Makes a promise between minds: writes a Commitment, or signs one another wrote'
+complete -c oip -n __fish_use_subcommand -a receipt -d 'Says what became of a record, usually a Commitment: signs a Receipt'
+complete -c oip -n __fish_use_subcommand -a status -d 'Says where a record stands: its status, and whom it binds'
+complete -c oip -n __fish_use_subcommand -a delegate -d 'Lets another mind sign for this one, within limits: signs a Delegation'
+complete -c oip -n __fish_use_subcommand -a revoke -d 'Takes a delegation back: signs a Revocation, and puts it on the mind'\\''s feed'
+complete -c oip -n __fish_use_subcommand -a collective -d 'collective: see oip --help'
+complete -c oip -n __fish_use_subcommand -a verify -d 'Verifies a record, a log, a bundle or a mind, and says why of every verdict'
+complete -c oip -n __fish_use_subcommand -a keys -d 'keys: see oip --help'
+complete -c oip -n __fish_use_subcommand -a doctor -d 'Looks at the mind'\\''s directory and its services, and says what is well and what is not'
+complete -c oip -n __fish_use_subcommand -a demo -d 'Runs a network on this machine: a resolver, a host and an indexer, until it is stopped'
+complete -c oip -n __fish_use_subcommand -a completions -d 'Prints a script that teaches a shell the commands and their options'
+complete -c oip -n '__fish_seen_subcommand_from init' -l kind -r -d 'What the mind says it is: agent, human, institution, service. Default: agent'
+complete -c oip -n '__fish_seen_subcommand_from init' -l resolver -r -d 'A resolver the mind trusts, as an HTTPS origin. Name two, run by different people'
+complete -c oip -n '__fish_seen_subcommand_from init' -l host -r -d 'A host that serves the mind'\\''s records and takes its packets'
+complete -c oip -n '__fish_seen_subcommand_from init' -l indexer -r -d 'An indexer the mind lists itself at, and asks'
+complete -c oip -n '__fish_seen_subcommand_from init' -l no-host -d 'Name no host: the mind signs and reads, and takes no packets'
+complete -c oip -n '__fish_seen_subcommand_from init' -l local -d 'Use the network \`oip demo\` runs on this machine, for what is not named'
+complete -c oip -n '__fish_seen_subcommand_from init' -l network -r -d 'The directory of that network. Default: ~/.oip-demo'
+complete -c oip -n '__fish_seen_subcommand_from init' -l keychain -d 'Seal the keys with a key in this machine'\\''s keychain, in place of a passphrase'
+complete -c oip -n '__fish_seen_subcommand_from add-key' -l label -r -d 'A name for the key, of at most 64 characters: where it is used, say'
+complete -c oip -n '__fish_seen_subcommand_from revoke-key' -l compromised-since -r -d 'If the key was stolen: from when what it signed is withdrawn, as 2026-01-31T12:00:00Z'
+complete -c oip -n '__fish_seen_subcommand_from fork' -l kind -r -d 'What the child says it is. Default: what this mind is'
+complete -c oip -n '__fish_seen_subcommand_from fork' -l host -r -d 'A host that serves the child. Default: the hosts of this mind'
+complete -c oip -n '__fish_seen_subcommand_from fork' -l terms -r -d 'What the child received, in the parent'\\''s words: a file with a JSON object'
+complete -c oip -n '__fish_seen_subcommand_from fork' -l acknowledge -r -d 'Make no mind: acknowledge one that is made already, by its address'
+complete -c oip -n '__fish_seen_subcommand_from publish; and not __fish_seen_subcommand_from profile' -a profile -d 'Publishes what the mind is and can do: its profile, which others find it by'
+complete -c oip -n '__fish_seen_subcommand_from publish; and __fish_seen_subcommand_from profile' -l name -r -d 'The mind'\\''s name. Anyone can take any name: it identifies nobody'
+complete -c oip -n '__fish_seen_subcommand_from publish; and __fish_seen_subcommand_from profile' -l summary -r -d 'What the mind is, in a sentence or two'
+complete -c oip -n '__fish_seen_subcommand_from publish; and __fish_seen_subcommand_from profile' -l capability -r -d 'Something the mind can do: a short ID, and what it is in a sentence'
+complete -c oip -n '__fish_seen_subcommand_from publish; and __fish_seen_subcommand_from profile' -l tag -r -d 'A tag of every capability named here, as domain:legal or lang:de'
+complete -c oip -n '__fish_seen_subcommand_from publish; and __fish_seen_subcommand_from profile' -l file -r -d 'A JSON object with the whole profile, for what the options do not say'
+complete -c oip -n '__fish_seen_subcommand_from publish; and not __fish_seen_subcommand_from location' -a location -d 'Publishes where the mind takes packets, and whether it takes them now'
+complete -c oip -n '__fish_seen_subcommand_from publish; and __fish_seen_subcommand_from location' -l status -r -d 'active, paused or migrating. Default: as before, or else active'
+complete -c oip -n '__fish_seen_subcommand_from publish; and __fish_seen_subcommand_from location' -l resume-after -r -d 'When a mind that is paused means to be back, as 2026-01-31T12:00:00Z'
+complete -c oip -n '__fish_seen_subcommand_from publish; and __fish_seen_subcommand_from location' -l ttl -r -d 'How long the record is good for: 60 to 86400. Default: as before, or else an hour'
+complete -c oip -n '__fish_seen_subcommand_from publish; and not __fish_seen_subcommand_from record' -a record -d 'Puts a record on the mind'\\''s public feed, at its hosts'
+complete -c oip -n '__fish_seen_subcommand_from resolve' -l aliases -d 'Check each other name the mind lists: it is the mind'\\''s only if it points back'
+complete -c oip -n '__fish_seen_subcommand_from resolve' -l local -d 'Ask the network \`oip demo\` runs on this machine, with no mind of your own'
+complete -c oip -n '__fish_seen_subcommand_from resolve' -l network -r -d 'The directory of that network. Default: ~/.oip-demo'
+complete -c oip -n '__fish_seen_subcommand_from resolve' -l out -r -d 'Write the mind'\\''s bundle to this file: its log, with its location and profile'
+complete -c oip -n '__fish_seen_subcommand_from find' -l want -r -d 'What is wanted, in words'
+complete -c oip -n '__fish_seen_subcommand_from find' -l tag -r -d 'A tag a result must have, as domain:legal. oasf:nlp/* is any tag that begins so'
+complete -c oip -n '__fish_seen_subcommand_from find' -l kind -r -d 'What to find: participant, offer or intent. Default: participant'
+complete -c oip -n '__fish_seen_subcommand_from find' -l limit -r -d 'The most results: 1 to 100. Default: 20'
+complete -c oip -n '__fish_seen_subcommand_from find' -l local -d 'Ask the network \`oip demo\` runs on this machine, with no mind of your own'
+complete -c oip -n '__fish_seen_subcommand_from find' -l network -r -d 'The directory of that network. Default: ~/.oip-demo'
+complete -c oip -n '__fish_seen_subcommand_from send' -l text -r -d 'What to say, as plain text'
+complete -c oip -n '__fish_seen_subcommand_from send' -l record -r -d 'A record to carry: the ID of one the mind holds, or a file. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from send' -l verb -r -d 'What kind of message it is: inform, request, propose, accept… Default: inform'
+complete -c oip -n '__fish_seen_subcommand_from send' -l goal -r -d 'What it is for, in a line'
+complete -c oip -n '__fish_seen_subcommand_from send' -l reply-to -r -d 'The packet it answers, by its ID'
+complete -c oip -n '__fish_seen_subcommand_from send' -l thread -r -d 'The thread it belongs to'
+complete -c oip -n '__fish_seen_subcommand_from send' -l expires-in -r -d 'How long it may be delivered: at most 604800, seven days. Default: an hour'
+complete -c oip -n '__fish_seen_subcommand_from send' -l unsealed -d 'Send it in the clear, signed but readable by the hosts that carry it'
+complete -c oip -n '__fish_seen_subcommand_from inbox' -l all -d 'Show every packet that is kept, and not the new ones alone'
+complete -c oip -n '__fish_seen_subcommand_from inbox' -l listen -d 'Stay, and show each packet as it arrives, until stopped with Ctrl-C'
+complete -c oip -n '__fish_seen_subcommand_from intent' -l want -r -d 'The outcome wanted, in words'
+complete -c oip -n '__fish_seen_subcommand_from intent' -l deadline -r -d 'By when, as 2026-01-31T12:00:00Z'
+complete -c oip -n '__fish_seen_subcommand_from intent' -l budget -r -d 'The most it may cost, as 500 or 99.50'
+complete -c oip -n '__fish_seen_subcommand_from intent' -l currency -r -d 'What the budget is counted in: USD'
+complete -c oip -n '__fish_seen_subcommand_from intent' -l require -r -d 'Something an answer must meet. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from intent' -l audience -r -d 'Who it is meant for: public, or a mind. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from intent' -l expires -r -d 'Until when it stands, as 2026-01-31T12:00:00Z'
+complete -c oip -n '__fish_seen_subcommand_from intent' -l for -r -d 'The mind it is signed for, in place of this one: a collective this mind is a member of'
+complete -c oip -n '__fish_seen_subcommand_from intent' -l authority -r -d 'A delegation that lets this mind sign for another: an ID or a file. A chain, root first'
+complete -c oip -n '__fish_seen_subcommand_from intent' -l charter -r -d 'The charter that gives this mind a role in the collective it signs for'
+complete -c oip -n '__fish_seen_subcommand_from intent' -l publish -d 'Put it on the mind'\\''s public feed, at its hosts, where anyone may read it'
+complete -c oip -n '__fish_seen_subcommand_from intent' -l send-to -r -d 'Send it to this mind, sealed. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l provides -r -d 'What is provided, in words'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l summary -r -d 'The terms in a line. Default: what is provided'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l price -r -d 'What it costs, as 120 or 99.50'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l currency -r -d 'What the price is counted in: USD'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l delivery-by -r -d 'By when it is delivered'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l quantity -r -d 'How many times it can be taken up'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l condition -r -d 'A condition of the terms. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l answers -r -d 'The Intent it answers: the ID of one the mind holds, or a file'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l capability -r -d 'The capability of the mind'\\''s profile it is an offer of'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l audience -r -d 'Who it is meant for: public, or a mind. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l expires -r -d 'Until when it stands, as 2026-01-31T12:00:00Z'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l for -r -d 'The mind it is signed for, in place of this one: a collective this mind is a member of'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l authority -r -d 'A delegation that lets this mind sign for another: an ID or a file. A chain, root first'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l charter -r -d 'The charter that gives this mind a role in the collective it signs for'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l publish -d 'Put it on the mind'\\''s public feed, at its hosts, where anyone may read it'
+complete -c oip -n '__fish_seen_subcommand_from offer' -l send-to -r -d 'Send it to this mind, sealed. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l offer -r -d 'Take up this Offer: its author owes, this mind is owed, on the Offer'\\''s terms'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l debtor -r -d 'A mind that owes what is promised. \`me\` is this mind'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l creditor -r -d 'A mind that is owed it. \`me\` is this mind'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l witness -r -d 'A mind that witnesses it'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l promise -r -d 'What is promised, in words'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l deadline -r -d 'By when, as 2026-01-31T12:00:00Z'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l price -r -d 'What is paid, as 120 or 99.50'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l currency -r -d 'What the price is counted in: USD'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l payer -r -d 'Who pays. Default: the first creditor'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l payee -r -d 'Who is paid. Default: the first debtor'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l resolves -r -d 'An Intent or an Offer it resolves: an ID or a file'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l closes-intent -d 'Once accepted, the Intent it resolves is satisfied'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l for -r -d 'The mind it is signed for, in place of this one: a collective this mind is a member of'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l authority -r -d 'A delegation that lets this mind sign for another: an ID or a file. A chain, root first'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l charter -r -d 'The charter that gives this mind a role in the collective it signs for'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l publish -d 'Put it on the mind'\\''s public feed, at its hosts, where anyone may read it'
+complete -c oip -n '__fish_seen_subcommand_from commit' -l send-to -r -d 'Send it to this mind, sealed. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from receipt' -l outcome -r -d 'What became of it: accepted, progress, fulfilled, broken, cancelled, disputed, or one of a namespace'
+complete -c oip -n '__fish_seen_subcommand_from receipt' -l statement -r -d 'More of it, in words'
+complete -c oip -n '__fish_seen_subcommand_from receipt' -l score -r -d 'A rating from 0 to 1, as 0.9'
+complete -c oip -n '__fish_seen_subcommand_from receipt' -l for -r -d 'The mind it is signed for, in place of this one: a collective this mind is a member of'
+complete -c oip -n '__fish_seen_subcommand_from receipt' -l authority -r -d 'A delegation that lets this mind sign for another: an ID or a file. A chain, root first'
+complete -c oip -n '__fish_seen_subcommand_from receipt' -l charter -r -d 'The charter that gives this mind a role in the collective it signs for'
+complete -c oip -n '__fish_seen_subcommand_from receipt' -l publish -d 'Put it on the mind'\\''s public feed, at its hosts, where anyone may read it'
+complete -c oip -n '__fish_seen_subcommand_from receipt' -l send-to -r -d 'Send it to this mind, sealed. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from delegate' -l command -r -d 'What it may do: /oip/sign/Commitment, /oip/sign/Offer, /oip/send…'
+complete -c oip -n '__fish_seen_subcommand_from delegate' -l days -r -d 'For how many days from now'
+complete -c oip -n '__fish_seen_subcommand_from delegate' -l expires -r -d 'Or until when, as 2026-01-31T12:00:00Z'
+complete -c oip -n '__fish_seen_subcommand_from delegate' -l not-before -r -d 'From when. Default: from now'
+complete -c oip -n '__fish_seen_subcommand_from delegate' -l policy -r -d 'What must hold of each record it signs so: a file with a JSON array of statements'
+complete -c oip -n '__fish_seen_subcommand_from delegate' -l authority -r -d 'A delegation that lets this mind sign for another: an ID or a file. A chain, root first'
+complete -c oip -n '__fish_seen_subcommand_from delegate' -l send-to -r -d 'Send it to this mind, sealed. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from delegate' -l publish -d 'Put it on the mind'\\''s public feed, at its hosts, where anyone may read it'
+complete -c oip -n '__fish_seen_subcommand_from revoke' -l send-to -r -d 'Send it to this mind, sealed. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from collective; and not __fish_seen_subcommand_from create' -a create -d 'Founds a collective with other minds: drafts its first event, and signs it as a member'
+complete -c oip -n '__fish_seen_subcommand_from collective; and __fish_seen_subcommand_from create' -l member -r -d 'A founding member besides this mind. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from collective; and __fish_seen_subcommand_from create' -l threshold -r -d 'How many members act for it: a majority of them'
+complete -c oip -n '__fish_seen_subcommand_from collective; and __fish_seen_subcommand_from create' -l host -r -d 'A host that will serve the collective'\\''s records'
+complete -c oip -n '__fish_seen_subcommand_from collective; and __fish_seen_subcommand_from create' -l out -r -d 'Write the event to this file too, with the proofs it has'
+complete -c oip -n '__fish_seen_subcommand_from collective; and __fish_seen_subcommand_from create' -l send-to -r -d 'Send it to this mind, sealed. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from collective; and not __fish_seen_subcommand_from sign' -a sign -d 'Signs, as a member of a collective, one of its identity events or a record in its name'
+complete -c oip -n '__fish_seen_subcommand_from collective; and __fish_seen_subcommand_from sign' -l publish -d 'An event: publish the collective'\\''s log with it. A record: put it on this mind'\\''s feed'
+complete -c oip -n '__fish_seen_subcommand_from collective; and __fish_seen_subcommand_from sign' -l out -r -d 'Write the event to this file too, with the proofs it has'
+complete -c oip -n '__fish_seen_subcommand_from collective; and __fish_seen_subcommand_from sign' -l send-to -r -d 'Send it to this mind, sealed. It may be given several times'
+complete -c oip -n '__fish_seen_subcommand_from verify' -l offline -d 'Ask no service: check what can be checked without one'
+complete -c oip -n '__fish_seen_subcommand_from verify' -l local -d 'Ask the network \`oip demo\` runs on this machine, with no mind of your own'
+complete -c oip -n '__fish_seen_subcommand_from verify' -l network -r -d 'The directory of that network. Default: ~/.oip-demo'
+complete -c oip -n '__fish_seen_subcommand_from keys; and not __fish_seen_subcommand_from backup' -a backup -d 'Writes the mind'\\''s keys to a file, sealed with a passphrase of its own'
+complete -c oip -n '__fish_seen_subcommand_from keys; and __fish_seen_subcommand_from backup' -l replace -d 'Write over a file that is there'
+complete -c oip -n '__fish_seen_subcommand_from keys; and not __fish_seen_subcommand_from restore' -a restore -d 'Makes the mind'\\''s directory again from a backup of its keys'
+complete -c oip -n '__fish_seen_subcommand_from keys; and __fish_seen_subcommand_from restore' -l resolver -r -d 'A resolver the mind trusts, as an HTTPS origin. Name two, run by different people'
+complete -c oip -n '__fish_seen_subcommand_from keys; and __fish_seen_subcommand_from restore' -l indexer -r -d 'An indexer the mind lists itself at, and asks'
+complete -c oip -n '__fish_seen_subcommand_from keys; and __fish_seen_subcommand_from restore' -l local -d 'Use the network \`oip demo\` runs on this machine, for what is not named'
+complete -c oip -n '__fish_seen_subcommand_from keys; and __fish_seen_subcommand_from restore' -l network -r -d 'The directory of that network. Default: ~/.oip-demo'
+complete -c oip -n '__fish_seen_subcommand_from keys; and __fish_seen_subcommand_from restore' -l keychain -d 'Seal the keys with a key in this machine'\\''s keychain, in place of a passphrase'
+complete -c oip -n '__fish_seen_subcommand_from demo' -l network -r -d 'Where the network keeps what it holds. Default: ~/.oip-demo'
+"
+`;
+
+exports[`oip completions > teaches bash every command and its options, from the commands themselves 1`] = `
+"# oip: completion for bash. Load it with: source <(oip completions bash)
+_oip() {
+  local cur="\${COMP_WORDS[COMP_CWORD]}"
+  local first="\${COMP_WORDS[1]}" second="\${COMP_WORDS[2]}"
+  local flags="--dir --json --get --help --version"
+  case "$first $second" in
+    "publish profile") flags="--name --summary --capability --tag --file --dir --json --get --help --version" ;;
+    "publish location") flags="--status --resume-after --ttl --dir --json --get --help --version" ;;
+    "publish record") flags="--dir --json --get --help --version" ;;
+    "collective create") flags="--member --threshold --host --out --send-to --dir --json --get --help --version" ;;
+    "collective sign") flags="--publish --out --send-to --dir --json --get --help --version" ;;
+    "keys backup") flags="--replace --dir --json --get --help --version" ;;
+    "keys restore") flags="--resolver --indexer --local --network --keychain --dir --json --get --help --version" ;;
+    *)
+      case "$first" in
+        init) flags="--kind --resolver --host --indexer --no-host --local --network --keychain --dir --json --get --help --version" ;;
+        show) flags="--dir --json --get --help --version" ;;
+        rotate) flags="--dir --json --get --help --version" ;;
+        add-key) flags="--label --dir --json --get --help --version" ;;
+        revoke-key) flags="--compromised-since --dir --json --get --help --version" ;;
+        fork) flags="--kind --host --terms --acknowledge --dir --json --get --help --version" ;;
+        resolve) flags="--aliases --local --network --out --dir --json --get --help --version" ;;
+        find) flags="--want --tag --kind --limit --local --network --dir --json --get --help --version" ;;
+        send) flags="--text --record --verb --goal --reply-to --thread --expires-in --unsealed --dir --json --get --help --version" ;;
+        inbox) flags="--all --listen --dir --json --get --help --version" ;;
+        intent) flags="--want --deadline --budget --currency --require --audience --expires --for --authority --charter --publish --send-to --dir --json --get --help --version" ;;
+        offer) flags="--provides --summary --price --currency --delivery-by --quantity --condition --answers --capability --audience --expires --for --authority --charter --publish --send-to --dir --json --get --help --version" ;;
+        commit) flags="--offer --debtor --creditor --witness --promise --deadline --price --currency --payer --payee --resolves --closes-intent --for --authority --charter --publish --send-to --dir --json --get --help --version" ;;
+        receipt) flags="--outcome --statement --score --for --authority --charter --publish --send-to --dir --json --get --help --version" ;;
+        status) flags="--dir --json --get --help --version" ;;
+        delegate) flags="--command --days --expires --not-before --policy --authority --send-to --publish --dir --json --get --help --version" ;;
+        revoke) flags="--send-to --dir --json --get --help --version" ;;
+        verify) flags="--offline --local --network --dir --json --get --help --version" ;;
+        doctor) flags="--dir --json --get --help --version" ;;
+        demo) flags="--network --dir --json --get --help --version" ;;
+        completions) flags="--dir --json --get --help --version" ;;
+      esac ;;
+  esac
+  if [[ "$cur" == -* ]]; then
+    COMPREPLY=($(compgen -W "$flags" -- "$cur"))
+  elif [[ $COMP_CWORD -eq 1 ]]; then
+    COMPREPLY=($(compgen -W "init show rotate add-key revoke-key fork publish resolve find send inbox intent offer commit receipt status delegate revoke collective verify keys doctor demo completions" -- "$cur"))
+  elif [[ $COMP_CWORD -eq 2 ]]; then
+    case "$first" in
+      publish) COMPREPLY=($(compgen -W "profile location record" -- "$cur")) ;;
+      collective) COMPREPLY=($(compgen -W "create sign" -- "$cur")) ;;
+      keys) COMPREPLY=($(compgen -W "backup restore" -- "$cur")) ;;
+      *) COMPREPLY=($(compgen -f -- "$cur")) ;;
+    esac
+  else
+    COMPREPLY=($(compgen -f -- "$cur"))
+  fi
+}
+complete -F _oip oip
+"
+`;
+
+exports[`oip doctor > says what is well with a mind and what should be seen to, and asks for no passphrase 1`] = `
+"  ok         a mind's directory is at <home>/ada
+  ok         the network on this machine is running, from <home>/.oip-demo
+  ok         the keys are in <home>/ada/keys, sealed with a passphrase
+  warn       no backup holds the keys as they are now (control, operational, invocation, agreement)
+             do: oip keys backup <file>
+  ok         https://resolver.oip.localhost serves the mind's log: 1 event
+  ok         this machine's clock agrees with the resolver's
+  ok         https://host.oip.localhost is ready
+  ok         the mind is active, at 2 endpoints
+  warn       the mind has no profile: nobody finds it by what it can do
+             do: oip publish profile --name <name>
+  ok         https://indexer.oip.localhost is ready
+The mind works. 2 things should be seen to.
+"
+`;
+
+exports[`oip doctor > says where there is no mind, or no network for it, and ends with 1 1`] = `
+"  FAILS      there is no mind in <home>/nobody: make one with \`oip init\`
+             do: oip init
+The mind cannot do its work until what fails is mended.
+"
+`;
+
+exports[`oip keys backup and oip keys restore > makes the mind's directory again from a backup: the same mind, which signs and changes as before 1`] = `
+"The mind is did:oip:<mind>
+  keys       restored to <home>/restored/keys, and sealed afresh
+  log        1 event
+  signs      yes: the backup holds a key the mind signs with now
+  identity   can change: the backup holds the control keys the log commits to
+What the mind's client remembered is not restored: publish where it is with \`oip publish location\`.
+"
+`;
+
+exports[`oip keys backup and oip keys restore > writes the keys to a file, sealed with a passphrase of its own, and nothing of them in the clear 1`] = `
+"The backup is in <home>/first.backup
+  holds      4 keys, of did:oip:<mind>
+  sealed     with the backup's own passphrase: without it, nothing of it can be read
+Keep the file and its passphrase apart from this machine, and from each other.
+"
+`;

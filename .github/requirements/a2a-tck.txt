@@ -1,0 +1,7 @@
+# Pinned, with its hash, so that CI installs exactly this file (pip --require-hashes).
+# uv runs the A2A TCK (scripts/a2a-tck.ts): it reads the TCK's own lock file, which pins
+# everything the TCK needs, with hashes. The hash is of the wheel for x86-64 Linux, which
+# is what the job runs on.
+
+uv==0.11.32 \
+    --hash=sha256:3da76cd4e2697de30928b8a8524bd39183ac1e08cb7e72833807c022b7cba6c4

@@ -1,0 +1,18 @@
+---
+"@oip/delegation": minor
+---
+
+First version: delegation (Layer 1, Section 11).
+
+- `isCommand`, `isDelegableCommand`, `covers`, `signCommand`, `DELEGABLE_TYPES`, `SEND_COMMAND`: commands (Layer 1, 11.2). Every command whose first segment is `oip`, other than the four that sign and the one that sends, is reserved, so no grant is a blanket.
+- `evaluatePolicy`, `policyHolds`, `select`: the policy language (Layer 1, 11.3). Ordering compares integers and decimal strings only; every statement is evaluated in full; an error anywhere fails the policy, so `not` and `or` never turn a missing or malformed value into a pass. The work one policy may ask for one record is bounded and counted alike by every verifier, `MAX_POLICY_WORK` (262,144): one for each value a statement is tried on, and the bytes of both canonical forms for a comparison by canonical form. The evaluator does no more work than it counts.
+- `delegatedProofTime`, `delegatedTime`: whether a proof counts for another mind through the delegation chain its `authority` lists (Layer 1, 11.4, 11.6). The list is checked exactly as given, root first, and never searched. Each refusal names the entry of `authority` at fault and the item of 11.4 it breaks.
+- `revokedTime`: a revocation takes effect from its own evaluation time, and only its delegation's author can make one (Layer 1, 11.5).
+- `RecordSet`, `RecordView`: the records a verifier holds. A record keeps every proof it was shown with that verified, from whichever copy: no copy takes a proof away.
+- `sentFor`: whether a packet counts as sent on another mind's behalf (Layer 1, 11.2): it names the subject, and a proof by its own sender lists a chain from the subject that covers `/oip/send`.
+- `draftDelegation`, `draftSubDelegation`, `draftRevocation`, `authorityOf`: write a delegation, the next link of a chain (with the subject, every statement and no later expiry than its parent, Layer 1, 11.4), a revocation, and the `authority` a proof lists.
+- A policy is read whole before any of it is asked of a record. A statement that is none makes the policy not hold wherever it stands, the statement of a quantifier over an empty array among them. `null` is not a policy.
+- `witnessProofs`: a verifier's own first sight of a record that arrives, with the delegations and charters its proofs carry whole. Their signatures need evidence of their own (Layer 1, 11.4, item 1).
+- A proof counts through a chain only if each delegation's author can still stand behind it at the proof's time: the author is not retired, and not duplicitous from its first conflicting event on (Layer 1, 11.4, item 8), and the verifier holds the author's log, and its members' for a collective, up to the evidence for the proof (core 9.4). A stale copy of a delegator's log no longer hides a revocation.
+- A revocation is judged with compromise declarations disregarded, so it stands whatever is later declared of the key that signed it (Layer 1, 11.5).
+- A check that was cut short is refused, and is never the answer that lets a delegate act ([ADR-0010](../docs/adr/0010-checks-cut-short.md)). `delegatedProofTime`, `evaluatePolicy` and `RecordSet.add` refuse with the clause `implementation limit`; `delegatedTime` and `sentFor` give no time. `revokedTime` answers with a result, whose value is `undefined` for a delegation that is not revoked, so that a look for a revocation that could not be finished is not read as none found. `witnessProofs` answers with a result too: a look that was cut short says so, and is made again with the same reading. A `RecordSet` holds a record by the last thing it does, so a revocation is never held and unlisted.

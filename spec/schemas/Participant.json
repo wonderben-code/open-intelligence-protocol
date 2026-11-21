@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Participant",
+  "title": "Participant",
+  "description": "A mind's profile: what it is and what it can do (Layer 1, 16.1). Judged under the current-state rule.",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "type",
+    "author",
+    "name",
+    "kind"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "type": {
+      "type": "string",
+      "const": "Participant"
+    },
+    "author": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "summary"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "summary": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "urn:oip:schema:def:namespaced"
+            },
+            "maxItems": 64
+          },
+          "subject": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]+(?:\\.[a-z0-9_-]+)*$"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "terms": {
+            "$ref": "urn:oip:schema:def:offerTerms"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "urn:oip:schema:def:evidence"
+            }
+          },
+          "attestations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ext": {
+            "$ref": "urn:oip:schema:def:ext"
+          }
+        }
+      },
+      "maxItems": 256
+    },
+    "actsFor": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "mind",
+          "authority"
+        ],
+        "properties": {
+          "mind": {
+            "$ref": "urn:oip:schema:def:mindAddress"
+          },
+          "authority": {
+            "$ref": "urn:oip:schema:def:recordRef"
+          }
+        }
+      }
+    },
+    "interfaces": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "attestations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "supersedes": {
+      "$ref": "urn:oip:schema:def:recordRef"
+    }
+  }
+}

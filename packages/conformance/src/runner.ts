@@ -1,0 +1,990 @@
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+// SPDX-License-Identifier: Apache-2.0
+
+/** Runs the golden vectors against an implementation, case by case. */
+
+import { patterns } from "@oip/schema";
+
+import {
+  type ConformanceAdapter,
+  METHOD_FOR_KIND,
+  NOT_JUDGED,
+  type ProofRequest,
+  type VerifierView,
+} from "./adapter.ts";
+import {
+  type CaseKind,
+  type JsonObject,
+  namedLog,
+  namedRecord,
+  positiveRecords,
+  type Section,
+  SECTIONS,
+  type VectorCase,
+  type Vectors,
+} from "./vectors.ts";
+
+/**
+ * `pass`: the implementation gave the required verdict. `fail`: it did not.
+ * `pending`: the adapter does not implement what the case needs yet.
+ */
+export type Outcome = "pass" | "fail" | "pending";
+
+export interface CaseResult {
+  readonly section: Section | "positive";
+  readonly kind: CaseKind | "reproduce";
+  readonly name: string;
+  readonly outcome: Outcome;
+  /** For a failure, what was required and what happened. */
+  readonly detail?: string;
+}
+
+/** The verifier's view for a case: the baseline plus what the case adds. */
+export function viewFor(vectors: Vectors, vectorCase: VectorCase): VerifierView {
+  return {
+    logs: vectors.baseline.logs.map((name) => namedLog(vectors, name)),
+    extraLogs: vectorCase.extraLogs ?? [],
+    branches: vectorCase.branches ?? [],
+    records: vectors.baseline.records.map((name) => namedRecord(vectors, name)),
+    extraRecords: vectorCase.extraRecords ?? [],
+    seen: vectorCase.seen,
+  };
+}
+
+/**
+ * Whether a case's claim holds for the implementation: the log verifies, the
+ * record counts for (or was sent for) the mind, the status or assurance is
+ * the one expected, the record is well formed, the text is JSON within the
+ * profile, or what a case of the Mind Network says is so. `undefined` when the adapter lacks the method the case needs,
+ * or says that it does not judge the case yet.
+ *
+ * It lets an exception from the adapter through. A verifier judges hostile
+ * input and answers; one that throws has not answered, and must never pass a
+ * negative case by crashing on it.
+ */
+export function claimHolds(
+  adapter: ConformanceAdapter,
+  vectors: Vectors,
+  vectorCase: VectorCase,
+): boolean | undefined {
+  if (adapter[METHOD_FOR_KIND[vectorCase.kind]] === undefined) return undefined;
+  const view = viewFor(vectors, vectorCase);
+  switch (vectorCase.kind) {
+    case "log":
+      return verdict(adapter.logVerifies?.(vectorCase.log, view));
+    case "countsFor": {
+      const answer = adapter.countsFor?.(vectorCase.record, vectorCase.mind, view);
+      return answer === NOT_JUDGED ? undefined : verdict(answer);
+    }
+    case "sentFor":
+      return verdict(adapter.sentFor?.(vectorCase.record, vectorCase.mind, view));
+    case "status":
+      return (
+        named(adapter.status?.(vectorCase.of, vectorCase.records, vectorCase.at, view)) ===
+        vectorCase.expect
+      );
+    case "assurance":
+      return named(adapter.assurance?.(vectorCase.record, view)) === vectorCase.expect;
+    case "record":
+      return verdict(adapter.recordIsWellFormed?.(vectorCase.record));
+    case "json":
+      return verdict(adapter.jsonIsWithinProfile?.(vectorCase.text));
+    case "feed":
+      return held(adapter.feed?.(vectorCase, view));
+    case "checkpoint":
+      return held(adapter.checkpoint?.(vectorCase, view));
+    case "receive":
+      return held(adapter.receive?.(vectorCase, view));
+    case "chain":
+      return held(adapter.chain?.(vectorCase, view));
+    case "hello":
+      return held(adapter.hello?.(vectorCase, view));
+    case "ack":
+      return held(adapter.ack?.(vectorCase, view));
+    case "location":
+      return held(adapter.location?.(vectorCase, view));
+    case "participant":
+      return held(adapter.participant?.(vectorCase, view));
+  }
+}
+
+/**
+ * An answer must be exactly `true` or `false`. Anything else (`undefined`
+ * from a method that forgot to return, a truthy object) is not a verdict,
+ * and reading it as "rejected" would pass the negative cases.
+ */
+function verdict(answer: unknown): boolean {
+  if (typeof answer !== "boolean") {
+    throw new TypeError(`the adapter answered ${describe(answer)}, not true or false`);
+  }
+  return answer;
+}
+
+/** Whether the claim of a network case holds, from an answer that says so with `holds`. */
+function held(answer: unknown): boolean {
+  if (typeof answer !== "object" || answer === null) {
+    throw new TypeError(`the adapter answered ${describe(answer)}, not an answer with \`holds\``);
+  }
+  return verdict((answer as { readonly holds?: unknown }).holds);
+}
+
+function named(answer: unknown): string {
+  if (typeof answer !== "string") {
+    throw new TypeError(`the adapter answered ${describe(answer)}, not a string`);
+  }
+  return answer;
+}
+
+function describe(answer: unknown): string {
+  if (answer === null || answer === undefined) return String(answer);
+  return typeof answer === "object" ? "an object" : `a ${typeof answer}`;
+}
+
+/**
+ * Whether a case requires its claim to hold. Must-accept cases and controls
+ * do. A negative case requires it not to hold, except for `status` and
+ * `assurance` cases, whose `expect` already is the safe result (not the one
+ * an attacker wanted).
+ */
+export function claimMustHold(section: Section, kind: CaseKind): boolean {
+  return section !== "negative" || kind === "status" || kind === "assurance";
+}
+
+/** Runs one case. An adapter that throws fails the case, whatever the case requires. */
+export function runCase(
+  adapter: ConformanceAdapter,
+  vectors: Vectors,
+  section: Section,
+  vectorCase: VectorCase,
+): CaseResult {
+  const base = { section, kind: vectorCase.kind, name: vectorCase.name };
+  let holds: boolean | undefined;
+  try {
+    holds = claimHolds(adapter, vectors, vectorCase);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ...base, outcome: "fail", detail: `the implementation threw: ${message}` };
+  }
+  if (holds === undefined) return { ...base, outcome: "pending" };
+  const required = claimMustHold(section, vectorCase.kind);
+  if (holds === required) return { ...base, outcome: "pass" };
+  const wanted = required ? "accepted" : "rejected";
+  const reason = vectorCase.reason === undefined ? "" : ` ${vectorCase.reason}`;
+  return { ...base, outcome: "fail", detail: `must be ${wanted}.${reason}` };
+}
+
+const CONTENT_ID = new RegExp(patterns.contentId);
+
+/** Every string in the vectors that has the shape of a content ID, wherever it stands. */
+function contentIdsIn(value: unknown, found = new Set<string>()): Set<string> {
+  if (typeof value === "string") {
+    for (const match of value.matchAll(/\bb[a-z2-7]{55}\b/g)) found.add(match[0]);
+  } else if (Array.isArray(value)) {
+    for (const item of value) contentIdsIn(item, found);
+  } else if (typeof value === "object" && value !== null) {
+    for (const member of Object.values(value)) contentIdsIn(member, found);
+  }
+  return found;
+}
+
+const eventOf = (log: string, position: number) => (vectors: Vectors) =>
+  namedLog(vectors, log)[position] ?? {};
+const recordOf = (name: string) => (vectors: Vectors) => namedRecord(vectors, name);
+
+/** The record each name in `cases.content_ids` is the content ID of. */
+const CONTENT_ID_SOURCES: Readonly<Record<string, (vectors: Vectors) => JsonObject>> = {
+  amina_genesis: eventOf("amina_log", 0),
+  amina_update: eventOf("amina_log", 1),
+  delegation: recordOf("delegation"),
+  delegation_sub: recordOf("delegation_sub"),
+  delegation_amina: recordOf("delegation_amina"),
+  intent: recordOf("intent"),
+  offer: recordOf("offer"),
+  commitment: recordOf("commitment_proposed"),
+  commitment_agents: recordOf("commitment_agents"),
+  receipt: recordOf("receipt"),
+  collective_charter: recordOf("collective_charter"),
+  session: recordOf("session"),
+  packet: recordOf("packet"),
+  checkpoint: recordOf("checkpoint"),
+  bridged_genesis: eventOf("bridged_log", 0),
+};
+
+/** The records of the positive part that are signed by their authors' own keys, and by whom. */
+const SIGNED_BY_THEIR_AUTHORS: readonly (readonly [record: string, author: string])[] = [
+  ["intent", "amina"],
+  ["offer", "lexis_agent"],
+  ["offer_glossary", "lexis_ltd"],
+  ["receipt", "amina"],
+  ["packet", "lexis_agent"],
+  ["ack", "amina"],
+  ["hello", "lexis_agent"],
+  ["delegation", "lexis_ltd"],
+  ["delegation_sub", "lexis_agent"],
+  ["delegation_amina", "amina"],
+  ["delegation_send", "amina"],
+  ["participant", "lexis_agent"],
+  ["location", "lexis_agent"],
+  ["feed_entry", "lexis_agent"],
+  ["feed_entry_1", "lexis_agent"],
+  ["checkpoint", "lexis_agent"],
+  ["lineage", "lexis_agent"],
+  ["gateway_entry", "gateway"],
+  ["bridged_participant", "bridged"],
+];
+
+/** The verifier's view with nothing added: the baseline of the vectors. */
+function baselineView(vectors: Vectors): VerifierView {
+  return {
+    logs: vectors.baseline.logs.map((name) => namedLog(vectors, name)),
+    extraLogs: [],
+    branches: [],
+    records: vectors.baseline.records.map((name) => namedRecord(vectors, name)),
+    extraRecords: [],
+    seen: undefined,
+  };
+}
+
+/** The address of a mind the positive part names. */
+function addressOf(vectors: Vectors, name: string): string {
+  const address = vectors.cases[name];
+  if (typeof address !== "string") throw new Error(`the vectors name no mind ${name}`);
+  return address;
+}
+
+/** The negative cases whose record carries a proof that must not verify, whoever it is for. */
+const BAD_PROOF_CASES = ["signature-s-not-reduced", "signature-r-identity", "wrong-proof-purpose"];
+
+/** Every identity log of the positive part, by name. A log `x_log` belongs to the mind named `x`. */
+function logsOf(vectors: Vectors): [name: string, log: readonly JsonObject[]][] {
+  return Object.keys(vectors.cases)
+    .filter((name) => name.endsWith("_log"))
+    .map((name) => [name, namedLog(vectors, name)]);
+}
+
+function controllerOf(event: JsonObject | undefined): JsonObject | undefined {
+  const controller = event?.["controller"];
+  return typeof controller === "object" && controller !== null
+    ? (controller as JsonObject)
+    : undefined;
+}
+
+function proofsOf(record: JsonObject): readonly JsonObject[] {
+  const proofs = record["proof"];
+  return Array.isArray(proofs) ? (proofs as readonly JsonObject[]) : [];
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  return Uint8Array.from({ length: hex.length / 2 }, (_, i) =>
+    Number.parseInt(hex.slice(2 * i, 2 * i + 2), 16),
+  );
+}
+
+/** Whether two JSON values are equal, whatever the order of their members. */
+function sameMembers(a: unknown, b: unknown): boolean {
+  if (typeof a !== "object" || a === null || typeof b !== "object" || b === null) return a === b;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((item, i) => sameMembers(item, b[i]))
+    );
+  }
+  const names = Object.keys(a);
+  return (
+    names.length === Object.keys(b).length &&
+    names.every(
+      (name) =>
+        Object.hasOwn(b, name) && sameMembers((a as JsonObject)[name], (b as JsonObject)[name]),
+    )
+  );
+}
+
+/**
+ * Whether a record counts for a mind the positive part names, as the
+ * baseline verifier sees it. `undefined` if the adapter cannot say yet.
+ */
+function countsIn(
+  adapter: ConformanceAdapter,
+  vectors: Vectors,
+): ((record: JsonObject, mind: string) => boolean) | undefined {
+  const countsFor = adapter.countsFor?.bind(adapter);
+  if (countsFor === undefined) return undefined;
+  const view = baselineView(vectors);
+  const probe = countsFor(
+    namedRecord(vectors, "commitment_agents"),
+    addressOf(vectors, "amina"),
+    view,
+  );
+  // An adapter that does not judge delegated proofs yet cannot run these checks.
+  if (probe === NOT_JUDGED) return undefined;
+  return (record, mind) => verdict(countsFor(record, addressOf(vectors, mind), view));
+}
+
+/**
+ * Signs a changed copy of a record that carried one proof, as its signer
+ * would: with the test key named, the same verification method and the same
+ * `authority`, at the record's own `created`. `undefined` if the adapter
+ * cannot sign.
+ */
+function resigner(
+  adapter: ConformanceAdapter,
+  vectors: Vectors,
+): ((changed: JsonObject, key: string) => JsonObject) | undefined {
+  const createProof = adapter.createProof?.bind(adapter);
+  if (createProof === undefined) return undefined;
+  return (changed, key) => {
+    const seed = vectors.keys[key]?.seed_hex;
+    const [proof] = proofsOf(changed);
+    if (seed === undefined || proof === undefined) {
+      throw new Error(`the vectors have no test key ${key}, or the record has no proof`);
+    }
+    const { proof: _signed, ...content } = changed;
+    const { verificationMethod, authority } = proof as Readonly<Record<string, unknown>> &
+      ProofRequest;
+    const request: ProofRequest = {
+      verificationMethod,
+      created: String(content["created"]),
+      ...(authority === undefined ? {} : { authority }),
+    };
+    return { ...content, proof: [createProof(content, request, hexToBytes(seed))] };
+  };
+}
+
+/** One check of the positive part of the vectors: values an implementation must reproduce. */
+export interface PositiveCheck {
+  readonly name: string;
+  /** The milestone of the reference implementation in which the check turns green. */
+  readonly milestone: string;
+  /** Returns `undefined` when the adapter cannot run it yet, or a list of mismatches (empty for a pass). */
+  run(adapter: ConformanceAdapter, vectors: Vectors): string[] | undefined;
+}
+
+/** Whether two lists hold the same strings, in whatever order. */
+function sameSet(a: readonly string[], b: readonly string[]): boolean {
+  const [left, right] = [new Set(a), new Set(b)];
+  return left.size === right.size && [...left].every((one) => right.has(one));
+}
+
+/**
+ * The checks of the positive part, in the order of the Python checker's
+ * `check()`. Each names the milestone of the reference implementation in
+ * which it turned green. One whose method an adapter lacks is pending.
+ */
+export const POSITIVE_CHECKS: readonly PositiveCheck[] = [
+  {
+    name: "every record in the positive vectors is well formed",
+    milestone: "M0",
+    run(adapter, vectors) {
+      if (adapter.recordIsWellFormed === undefined) return undefined;
+      return positiveRecords(vectors)
+        .filter(({ record }) => adapter.recordIsWellFormed?.(record) !== true)
+        .map(({ name }) => `${name} was rejected`);
+    },
+  },
+  {
+    name: "JCS example",
+    milestone: "M1",
+    run(adapter, vectors) {
+      if (adapter.canonicalize === undefined) return undefined;
+      const example = vectors.cases["jcs_example"] as { input: unknown; output: string };
+      const got = adapter.canonicalize(example.input);
+      return got === example.output ? [] : [`expected ${example.output}, got ${got}`];
+    },
+  },
+  {
+    name: "content IDs use the canonical spelling and reproduce",
+    milestone: "M1",
+    run(adapter, vectors) {
+      const contentId = adapter.contentId?.bind(adapter);
+      if (contentId === undefined) return undefined;
+      const mismatches: string[] = [];
+      for (const id of contentIdsIn([vectors.cases, vectors.valid, vectors.controls])) {
+        if (!CONTENT_ID.test(id)) mismatches.push(`${id} is not in the canonical spelling`);
+      }
+      const expected = vectors.cases["content_ids"] as Readonly<Record<string, string>>;
+      for (const [name, id] of Object.entries(expected)) {
+        const source = CONTENT_ID_SOURCES[name];
+        if (source === undefined) {
+          mismatches.push(`content_ids.${name}: this suite does not know which record it names`);
+          continue;
+        }
+        const got = contentId(source(vectors));
+        if (got !== id) mismatches.push(`content_ids.${name}: expected ${id}, got ${got}`);
+      }
+      for (const [name, log] of logsOf(vectors)) {
+        const address = vectors.cases[name.slice(0, -"_log".length)];
+        const got = `did:oip:${contentId(log[0] ?? {})}`;
+        if (got !== address) mismatches.push(`${name}: the address should be ${got}`);
+        log.forEach((event, i) => {
+          const previous = log[i - 1];
+          if (previous !== undefined && event["prev"] !== contentId(previous)) {
+            mismatches.push(`${name}[${i}].prev is not the content ID of the event before it`);
+          }
+        });
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "key hashes reproduce: every revealed control key was committed to",
+    milestone: "M1",
+    run(adapter, vectors) {
+      const keyHash = adapter.keyHash?.bind(adapter);
+      if (keyHash === undefined) return undefined;
+      const mismatches: string[] = [];
+      for (const [name, log] of logsOf(vectors)) {
+        log.forEach((event, i) => {
+          const committed = controllerOf(log[i - 1])?.["next"];
+          const revealed = controllerOf(event)?.["keys"];
+          if (!Array.isArray(committed) || !Array.isArray(revealed)) return;
+          for (const key of revealed as readonly string[]) {
+            if (!committed.includes(keyHash(key))) {
+              mismatches.push(`${name}[${i}]: the hash of ${key} is not in the event before`);
+            }
+          }
+        });
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "every proofValue reproduces from its test key",
+    milestone: "M1",
+    run(adapter, vectors) {
+      const createProof = adapter.createProof?.bind(adapter);
+      if (createProof === undefined) return undefined;
+      const seeds = new Map(
+        Object.values(vectors.keys).map((key) => [key.multikey, hexToBytes(key.seed_hex)]),
+      );
+      const mismatches: string[] = [];
+      for (const { name, record } of positiveRecords(vectors)) {
+        proofsOf(record).forEach((proof, i) => {
+          const { verificationMethod, created, challenge, domain, authority } = proof as Readonly<
+            Record<string, unknown>
+          > &
+            ProofRequest;
+          const seed = seeds.get(verificationMethod.split("#")[1] ?? "");
+          if (seed === undefined) {
+            mismatches.push(`${name} proof ${i}: the vectors have no test key for it`);
+            return;
+          }
+          const request: ProofRequest = {
+            verificationMethod,
+            created,
+            ...(challenge === undefined ? {} : { challenge }),
+            ...(domain === undefined ? {} : { domain }),
+            ...(authority === undefined ? {} : { authority }),
+          };
+          const got = createProof(record, request, seed);
+          if (got["proofValue"] !== proof["proofValue"] || !sameMembers(got, proof)) {
+            mismatches.push(`${name} proof ${i} was not reproduced`);
+          }
+        });
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "proofs verify, and signatures that break core 4.4 do not",
+    milestone: "M1",
+    run(adapter, vectors) {
+      const proofVerifies = adapter.proofVerifies?.bind(adapter);
+      if (proofVerifies === undefined) return undefined;
+      const mismatches: string[] = [];
+      for (const { name, record } of positiveRecords(vectors)) {
+        proofsOf(record).forEach((proof, i) => {
+          if (!verdict(proofVerifies(record, proof))) {
+            mismatches.push(`${name} proof ${i} did not verify`);
+          }
+        });
+      }
+      for (const name of BAD_PROOF_CASES) {
+        const found = vectors.negative.find((entry) => entry.name === name);
+        const record = found !== undefined && "record" in found ? found.record : undefined;
+        if (typeof record !== "object" || record === null) {
+          mismatches.push(`the vectors have no negative case ${name}`);
+          continue;
+        }
+        proofsOf(record as JsonObject).forEach((proof, i) => {
+          if (verdict(proofVerifies(record as JsonObject, proof))) {
+            mismatches.push(`${name}: proof ${i} verified, and must not`);
+          }
+        });
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "identity logs verify; addresses derive from genesis",
+    milestone: "M2",
+    run(adapter, vectors) {
+      const logVerifies = adapter.logVerifies?.bind(adapter);
+      const contentId = adapter.contentId?.bind(adapter);
+      if (logVerifies === undefined || contentId === undefined) return undefined;
+      const view = baselineView(vectors);
+      const mismatches: string[] = [];
+      for (const [name, log] of logsOf(vectors)) {
+        const address = vectors.cases[name.slice(0, -"_log".length)];
+        if (`did:oip:${contentId(log[0] ?? {})}` !== address) {
+          mismatches.push(`${name}: the address is not derived from the genesis`);
+        }
+        if (!verdict(logVerifies(log, view))) mismatches.push(`${name} did not verify`);
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "2-of-3 pre-rotation with distinct keys",
+    milestone: "M2",
+    run(adapter, vectors) {
+      const didDocument = adapter.didDocument?.bind(adapter);
+      if (didDocument === undefined) return undefined;
+      // The genesis commits to three keys, two of which must sign. The update
+      // reveals two of them, and commits to one.
+      const [genesis, update] = namedLog(vectors, "multi_log");
+      const revealed = controllerOf(update)?.["keys"];
+      const mismatches: string[] = [];
+      if (controllerOf(genesis)?.["nextThreshold"] !== 2 || !Array.isArray(revealed)) {
+        mismatches.push("multi_log is not the log this check was written for");
+      } else if (new Set(revealed).size < 2) {
+        mismatches.push("the update does not reveal two distinct keys");
+      }
+      const resolved = didDocument(addressOf(vectors, "multi"), undefined, baselineView(vectors));
+      const metadata = (resolved as { didDocumentMetadata?: JsonObject } | null)
+        ?.didDocumentMetadata;
+      if (metadata?.["nextThreshold"] !== 1) {
+        mismatches.push("after the update, the next threshold should be 1");
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "lineage acknowledged by a Fork event and by a Lineage record",
+    milestone: "M2",
+    run(adapter, vectors) {
+      const lineage = adapter.lineage?.bind(adapter);
+      if (lineage === undefined) return undefined;
+      const parent = addressOf(vectors, "lexis_agent");
+      const mismatches: string[] = [];
+      for (const child of ["lexis_fork", "lexis_fork2"]) {
+        const got = lineage(addressOf(vectors, child), baselineView(vectors));
+        if (!sameMembers(got, { [parent]: "acknowledged" })) {
+          mismatches.push(`${child}: its parent should acknowledge it, got ${JSON.stringify(got)}`);
+        }
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "signatures count for their authors (purpose and key checks)",
+    milestone: "M2",
+    run(adapter, vectors) {
+      const countsFor = adapter.countsFor?.bind(adapter);
+      if (countsFor === undefined) return undefined;
+      const view = baselineView(vectors);
+      const mismatches: string[] = [];
+      let undecided = false;
+      for (const [record, author] of SIGNED_BY_THEIR_AUTHORS) {
+        const answer = countsFor(namedRecord(vectors, record), addressOf(vectors, author), view);
+        if (answer === NOT_JUDGED) undecided = true;
+        else if (!verdict(answer)) mismatches.push(`${record} does not count for ${author}`);
+      }
+      // A wrong answer is a failure, whatever else was left unjudged: an
+      // implementation that judges one record less must not turn its
+      // failures into "not built yet".
+      return mismatches.length === 0 && undecided ? undefined : mismatches;
+    },
+  },
+  {
+    name: "DID documents, current and versioned",
+    milestone: "M2",
+    run(adapter, vectors) {
+      const didDocument = adapter.didDocument?.bind(adapter);
+      const contentId = adapter.contentId?.bind(adapter);
+      if (didDocument === undefined || contentId === undefined) return undefined;
+      const view = baselineView(vectors);
+      const genesis = `0-${contentId(namedLog(vectors, "amina_log")[0] ?? {})}`;
+      const documents: [name: string, mind: string, versionId: string | undefined][] = [
+        ["did_document_amina", "amina", undefined],
+        ["did_document_amina_at_genesis", "amina", genesis],
+        ["did_document_collective", "collective", undefined],
+      ];
+      const missed = documents
+        .filter(
+          ([name, mind, versionId]) =>
+            !sameMembers(
+              didDocument(addressOf(vectors, mind), versionId, view),
+              vectors.cases[name],
+            ),
+        )
+        .map(([name]) => `${name} was not reproduced`);
+      // A mind that has retired, asked for at its first version: `deactivated` is of the mind
+      // (Layer 1, 5.2). Its log is no part of the baseline, and is given beside it.
+      const retired = namedLog(vectors, "retired_log");
+      const first = `0-${contentId(retired[0] ?? {})}`;
+      const name = "did_document_retired_at_genesis";
+      const resolved = didDocument(addressOf(vectors, "retired"), first, {
+        ...view,
+        extraLogs: [retired],
+      });
+      return sameMembers(resolved, vectors.cases[name])
+        ? missed
+        : [...missed, `${name} was not reproduced`];
+    },
+  },
+  {
+    name: "packet sent on Amina's behalf under a /oip/send delegation",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const sentFor = adapter.sentFor?.bind(adapter);
+      if (sentFor === undefined) return undefined;
+      const view = baselineView(vectors);
+      const packet = namedRecord(vectors, "packet_on_behalf");
+      const mismatches: string[] = [];
+      if (!verdict(sentFor(packet, addressOf(vectors, "amina"), view))) {
+        mismatches.push("packet_on_behalf was not sent for amina");
+      }
+      if (verdict(sentFor(packet, addressOf(vectors, "lexis_ltd"), view))) {
+        mismatches.push("packet_on_behalf was sent for lexis_ltd, and must not be");
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "co-signing keeps the content ID; delegated party proof",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const contentId = adapter.contentId?.bind(adapter);
+      const counts = countsIn(adapter, vectors);
+      const status = adapter.status?.bind(adapter);
+      if (contentId === undefined || counts === undefined || status === undefined) {
+        return undefined;
+      }
+      const accepted = namedRecord(vectors, "commitment_accepted");
+      const proposed = namedRecord(vectors, "commitment_proposed");
+      const mismatches: string[] = [];
+      if (contentId(accepted) !== contentId(proposed)) {
+        mismatches.push("a second proof changed the content ID of the commitment");
+      }
+      for (const mind of ["amina", "lexis_ltd"]) {
+        if (!counts(accepted, mind))
+          mismatches.push(`commitment_accepted does not count for ${mind}`);
+      }
+      if (counts(proposed, "amina")) mismatches.push("commitment_proposed counts for amina");
+      // Layer 2, 7.3: accepted with both parties' proofs, and proposed with one.
+      const view = baselineView(vectors);
+      const at = "2026-10-31T12:00:00Z";
+      if (named(status(accepted, [accepted], at, view)) !== "accepted") {
+        mismatches.push("commitment_accepted is not accepted");
+      }
+      if (named(status(proposed, [proposed], at, view)) !== "proposed") {
+        mismatches.push("commitment_proposed is not proposed");
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "two agents sign for their principals, in either order",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const contentId = adapter.contentId?.bind(adapter);
+      const counts = countsIn(adapter, vectors);
+      if (contentId === undefined || counts === undefined) return undefined;
+      const rush = namedRecord(vectors, "commitment_agents");
+      const turned = { ...rush, proof: [...proofsOf(rush)].reverse() };
+      const mismatches: string[] = [];
+      for (const [order, record] of [
+        ["as signed", rush],
+        ["with its proofs in the other order", turned],
+      ] as const) {
+        for (const mind of ["lexis_ltd", "amina"]) {
+          if (!counts(record, mind)) {
+            mismatches.push(`commitment_agents ${order} does not count for ${mind}`);
+          }
+        }
+      }
+      if (contentId(turned) !== contentId(rush)) {
+        mismatches.push("the order of the proofs changed the content ID");
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "delegation policy enforced (120, 500 ok; 500.01, 900 not)",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const counts = countsIn(adapter, vectors);
+      const sign = resigner(adapter, vectors);
+      if (counts === undefined || sign === undefined) return undefined;
+      const proposed = namedRecord(vectors, "commitment_proposed");
+      const terms = proposed["terms"] as JsonObject;
+      const mismatches: string[] = [];
+      for (const [amount, within] of [
+        ["120", true],
+        ["500", true],
+        ["500.01", false],
+        ["900", false],
+      ] as const) {
+        const record = sign(
+          {
+            ...proposed,
+            terms: { ...terms, price: { ...(terms["price"] as JsonObject), amount } },
+          },
+          "lexis-agent-i1",
+        );
+        if (!counts(record, "lexis_agent")) {
+          mismatches.push(
+            `for ${amount}, the commitment does not count for the agent that signed it`,
+          );
+        }
+        if (counts(record, "lexis_ltd") !== within) {
+          mismatches.push(
+            `for ${amount}, the commitment ${within ? "does not count" : "counts"} for lexis_ltd`,
+          );
+        }
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "two-step delegation chain (150 ok; 300 beyond the sub-limit)",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const counts = countsIn(adapter, vectors);
+      const sign = resigner(adapter, vectors);
+      const status = adapter.status?.bind(adapter);
+      if (counts === undefined || sign === undefined || status === undefined) return undefined;
+      const chain = namedRecord(vectors, "commitment_via_chain");
+      const terms = chain["terms"] as JsonObject;
+      const mismatches: string[] = [];
+      if (!counts(chain, "lexis_ltd")) {
+        mismatches.push("commitment_via_chain does not count for lexis_ltd");
+      }
+      if (
+        named(status(chain, [chain], "2026-10-30T12:00:00Z", baselineView(vectors))) !== "accepted"
+      ) {
+        mismatches.push("commitment_via_chain is not accepted");
+      }
+      const over = sign(
+        {
+          ...chain,
+          terms: { ...terms, price: { ...(terms["price"] as JsonObject), amount: "300" } },
+        },
+        "lexis-fork-i1",
+      );
+      if (counts(over, "lexis_ltd")) {
+        mismatches.push(
+          "for 300, beyond the sub-delegation's limit, the commitment counts for lexis_ltd",
+        );
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "collective signs by 2-of-3 threshold and by a charter role",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const counts = countsIn(adapter, vectors);
+      if (counts === undefined) return undefined;
+      return ["collective_charter", "commitment_by_steward"]
+        .filter((name) => !counts(namedRecord(vectors, name), "collective"))
+        .map((name) => `${name} does not count for the collective`);
+    },
+  },
+  {
+    name: "Layer 2 status (every state of Intent, Offer and Commitment)",
+    milestone: "M3",
+    run(adapter, vectors) {
+      const status = adapter.status?.bind(adapter);
+      if (status === undefined) return undefined;
+      const expected = vectors.cases["status"];
+      if (!Array.isArray(expected)) return ["the vectors have no cases.status"];
+      const view = baselineView(vectors);
+      const mismatches: string[] = [];
+      for (const entry of expected as readonly JsonObject[]) {
+        const { of, at, records, expect } = entry as {
+          readonly of: string;
+          readonly at: string;
+          readonly records: readonly string[];
+          readonly expect: string;
+        };
+        const got = named(
+          status(
+            namedRecord(vectors, of),
+            records.map((name) => namedRecord(vectors, name)),
+            at,
+            view,
+          ),
+        );
+        if (got !== expect) {
+          mismatches.push(`${of} at ${at} with ${records.join(", ")}: ${got}, not ${expect}`);
+        }
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "feed entries commit to proofs; checkpoint Merkle root",
+    milestone: "M4",
+    run(adapter, vectors) {
+      const id = adapter.contentId?.bind(adapter);
+      const feed = adapter.feed?.bind(adapter);
+      const checkpoint = adapter.checkpoint?.bind(adapter);
+      const ack = adapter.ack?.bind(adapter);
+      if (id === undefined || feed === undefined || checkpoint === undefined || ack === undefined) {
+        return undefined;
+      }
+      const view = baselineView(vectors);
+      const [entry, entry1] = [
+        namedRecord(vectors, "feed_entry"),
+        namedRecord(vectors, "feed_entry_1"),
+      ];
+      const entries = [entry, entry1];
+      const author = addressOf(vectors, "lexis_agent");
+      const mismatches: string[] = [];
+      if (entry["object"] !== id(namedRecord(vectors, "offer"))) {
+        mismatches.push("feed_entry does not name the offer");
+      }
+      if (entry1["prev"] !== id(entry)) mismatches.push("feed_entry_1 does not name feed_entry");
+      const location = namedRecord(vectors, "location")["feed"] as JsonObject | undefined;
+      if (location?.["head"] !== id(entry)) {
+        mismatches.push("the location record does not name feed_entry as the head of the feed");
+      }
+      const read = feed({ kind: "feed", name: "the feed", author, entries }, view);
+      if (!read.holds || read.value.verified !== 2) {
+        mismatches.push("the two entries do not verify as the agent's feed");
+      }
+      const covered = checkpoint(
+        {
+          kind: "checkpoint",
+          name: "the checkpoint",
+          checkpoint: namedRecord(vectors, "checkpoint"),
+          entries,
+        },
+        view,
+      );
+      const committed = entries.flatMap((one) => one["proofs"] as string[]);
+      if (!sameSet(covered.value ?? [], committed)) {
+        mismatches.push("the checkpoint does not cover the proofs its two entries commit to");
+      }
+      // The first entry commits to the proofs on the offer. The packet carries the offer, so
+      // those are the proofs its acknowledgement is evidence for.
+      const acknowledged = ack(
+        {
+          kind: "ack",
+          name: "the acknowledgement",
+          ack: namedRecord(vectors, "ack"),
+          packet: namedRecord(vectors, "packet"),
+        },
+        view,
+      );
+      if (!sameSet(acknowledged.value ?? [], entry["proofs"] as string[])) {
+        mismatches.push("feed_entry does not commit to the proofs on the offer");
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "packet opens its session; Ack names the packet",
+    milestone: "M4",
+    run(adapter, vectors) {
+      const id = adapter.contentId?.bind(adapter);
+      const receive = adapter.receive?.bind(adapter);
+      const chain = adapter.chain?.bind(adapter);
+      const ack = adapter.ack?.bind(adapter);
+      if (id === undefined || receive === undefined || chain === undefined || ack === undefined) {
+        return undefined;
+      }
+      const view = baselineView(vectors);
+      const packet = namedRecord(vectors, "packet");
+      const session = namedRecord(vectors, "session");
+      const receiver = addressOf(vectors, "amina");
+      const mismatches: string[] = [];
+      if (packet["session"] !== id(session))
+        mismatches.push("the packet does not name the session");
+      const arrived = receive(
+        {
+          kind: "receive",
+          name: "the packet",
+          arrived: packet,
+          receiver,
+          at: "2026-10-30T10:04:10Z",
+        },
+        view,
+      );
+      if (arrived.value?.packet !== id(packet)) mismatches.push("Amina does not accept the packet");
+      const chains = chain(
+        { kind: "chain", name: "the session", session, packets: [packet], receiver },
+        view,
+      );
+      const delivered = Object.values(chains.value).flatMap((one) => one.delivered);
+      if (!chains.holds || delivered.length !== 1 || delivered[0] !== id(packet)) {
+        mismatches.push("the packet does not open its sender's chain in the session");
+      }
+      const acknowledged = ack(
+        { kind: "ack", name: "the acknowledgement", ack: namedRecord(vectors, "ack"), packet },
+        view,
+      );
+      if (namedRecord(vectors, "ack")["packet"] !== id(packet) || !acknowledged.holds) {
+        mismatches.push("the Ack does not acknowledge the packet");
+      }
+      return mismatches;
+    },
+  },
+  {
+    name: "a bridged mind, attested in its gateway's feed",
+    milestone: "M9",
+    run: (adapter, vectors) => {
+      if (adapter.assurance === undefined) return undefined;
+      const view = baselineView(vectors);
+      const level = (name: string): string | undefined =>
+        adapter.assurance?.(namedRecord(vectors, name), view);
+      const mismatches: string[] = [];
+      // Layer 0, 1.3: the gateway's entry for the mind's genesis is among the records held.
+      if (level("bridged_participant") !== "bridged") {
+        mismatches.push("the profile of the bridged mind is not `bridged`");
+      }
+      if (level("participant") !== "native") {
+        mismatches.push("a profile that names no gateway is not `native`");
+      }
+      return mismatches;
+    },
+  },
+];
+
+/** Runs one check of the positive part. A check that throws has failed. */
+export function runPositiveCheck(
+  check: PositiveCheck,
+  adapter: ConformanceAdapter,
+  vectors: Vectors,
+): CaseResult {
+  const base = { section: "positive", kind: "reproduce", name: check.name } as const;
+  let mismatches: string[] | undefined;
+  try {
+    mismatches = check.run(adapter, vectors);
+  } catch (error) {
+    mismatches = [`threw ${error instanceof Error ? error.message : String(error)}`];
+  }
+  if (mismatches === undefined) return { ...base, outcome: "pending" };
+  if (mismatches.length === 0) return { ...base, outcome: "pass" };
+  return { ...base, outcome: "fail", detail: mismatches.join("; ") };
+}
+
+/** Runs every positive check and every case. */
+export function runVectors(adapter: ConformanceAdapter, vectors: Vectors): CaseResult[] {
+  return [
+    ...POSITIVE_CHECKS.map((check) => runPositiveCheck(check, adapter, vectors)),
+    ...SECTIONS.flatMap((section) =>
+      vectors[section].map((vectorCase) => runCase(adapter, vectors, section, vectorCase)),
+    ),
+  ];
+}
+
+/** How many results had each outcome. */
+export function tally(results: readonly CaseResult[]): Record<Outcome, number> {
+  const counts: Record<Outcome, number> = { pass: 0, fail: 0, pending: 0 };
+  for (const result of results) counts[result.outcome]++;
+  return counts;
+}

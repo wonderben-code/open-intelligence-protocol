@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Resume",
+  "title": "Resume",
+  "description": "Says where each sending chain of a session stands, so that missing packets can be sent again (Layer 1, 14.4).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "type",
+    "session",
+    "lastReceived"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "not": {}
+    },
+    "type": {
+      "type": "string",
+      "const": "Resume"
+    },
+    "session": {
+      "$ref": "urn:oip:schema:def:contentId"
+    },
+    "lastSent": {
+      "type": "object",
+      "required": [
+        "seq",
+        "packet"
+      ],
+      "properties": {
+        "seq": {
+          "$ref": "urn:oip:schema:def:count"
+        },
+        "packet": {
+          "$ref": "urn:oip:schema:def:contentId"
+        },
+        "instance": {
+          "type": "string",
+          "maxLength": 64
+        }
+      }
+    },
+    "lastReceived": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "mind",
+          "seq",
+          "packet"
+        ],
+        "properties": {
+          "mind": {
+            "$ref": "urn:oip:schema:def:mindAddress"
+          },
+          "seq": {
+            "$ref": "urn:oip:schema:def:count"
+          },
+          "packet": {
+            "$ref": "urn:oip:schema:def:contentId"
+          },
+          "instance": {
+            "type": "string",
+            "maxLength": 64
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,260 @@
+/*
+SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+SPDX-License-Identifier: Apache-2.0
+*/
+
+:root {
+  color-scheme: light dark;
+  --ink: #16202a;
+  --paper: #ffffff;
+  --quiet: #4a5866;
+  --line: #c9d2db;
+  --mark: #0b5cad;
+  --good: #116329;
+  --bad: #a11a1a;
+  --panel: #f4f6f8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e8edf2;
+    --paper: #10161c;
+    --quiet: #a9b6c3;
+    --line: #34414e;
+    --mark: #8cc4ff;
+    --good: #7fd69b;
+    --bad: #ff9c9c;
+    --panel: #18212a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font:
+    1rem/1.55 system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+
+header,
+main,
+footer {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+}
+
+header nav {
+  display: flex;
+  gap: 1.5rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.75rem;
+}
+
+header nav a:first-child {
+  font-weight: 700;
+}
+
+footer {
+  color: var(--quiet);
+  border-top: 1px solid var(--line);
+  margin-top: 2rem;
+  font-size: 0.9rem;
+}
+
+a {
+  color: var(--mark);
+}
+
+h1 {
+  font-size: 1.7rem;
+  margin: 1rem 0 0.5rem;
+}
+
+h1:focus {
+  outline: none;
+}
+
+h2 {
+  font-size: 1.25rem;
+  margin: 2rem 0 0.5rem;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.25rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+  margin: 1rem 0 0.25rem;
+}
+
+code,
+pre {
+  font:
+    0.9rem/1.45 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  overflow-wrap: anywhere;
+}
+
+pre {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 0.75rem;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.address {
+  font-size: 1rem;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-top: 0.75rem;
+}
+
+input[type="text"],
+textarea {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--quiet);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font:
+    1rem/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+}
+
+button {
+  margin-top: 0.75rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--mark);
+  border-radius: 4px;
+  background: var(--mark);
+  color: var(--paper);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled,
+button[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--mark);
+  outline-offset: 2px;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: minmax(8rem, max-content) 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0.5rem 0;
+}
+
+dt {
+  color: var(--quiet);
+}
+
+dd {
+  margin: 0;
+}
+
+ol.timeline,
+ol.entries,
+ul.minds,
+ul.keys {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+ol.timeline > li,
+ol.entries > li {
+  border-left: 3px solid var(--line);
+  padding: 0 0 0.5rem 0.9rem;
+  margin: 0 0 0.5rem;
+}
+
+ul.minds > li,
+ul.keys > li {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--line);
+}
+
+/* A name and its value on one line where there is room, and one under the other where there is not. */
+@media (max-width: 30rem) {
+  dl {
+    grid-template-columns: 1fr;
+    gap: 0 1rem;
+  }
+
+  dd {
+    margin-bottom: 0.4rem;
+  }
+}
+
+.status {
+  font-weight: 600;
+  color: var(--good);
+}
+
+.verified {
+  color: var(--good);
+}
+
+.failed {
+  color: var(--bad);
+}
+
+.notice {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 0.75rem;
+}
+
+details.why {
+  margin: 0.5rem 0;
+  color: var(--quiet);
+}
+
+details.why summary {
+  cursor: pointer;
+  color: var(--mark);
+  width: fit-content;
+}
+
+details.why ul {
+  margin: 0.25rem 0;
+}
+
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

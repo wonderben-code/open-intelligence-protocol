@@ -1,0 +1,36 @@
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+// SPDX-License-Identifier: Apache-2.0
+
+/**
+ * The Mind Web of the Open Intelligence Protocol (Layer 2): whether a record
+ * counts for a mind, and what state an intent, an offer or a commitment is
+ * in.
+ *
+ * @packageDocumentation
+ */
+
+export { charterInForce, roleProofTime, roleTime } from "./charter.ts";
+export { type Assurance, assuranceOf, BRIDGE_BLOCK } from "./assurance.ts";
+export { actsFor, countsFor, signedTime } from "./counts.ts";
+export { evidenceIsChecked, evidenceMatches } from "./evidence.ts";
+export {
+  referenced,
+  type WebContext,
+  type WebRecords,
+  WebRecordSet,
+  withCopy,
+  withHeld,
+} from "./records.ts";
+export {
+  type CharterStatus,
+  charterStatus,
+  commitmentAccepted,
+  type CommitmentStatus,
+  commitmentStatus,
+  type IntentStatus,
+  intentStatus,
+  type OfferStatus,
+  offerStatus,
+  type Status,
+  status,
+} from "./status.ts";

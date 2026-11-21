@@ -1,0 +1,60 @@
+{
+  "name": "@oip/core",
+  "version": "0.0.0",
+  "description": "The foundation of the Open Intelligence Protocol: the JSON profile, canonical form, content IDs, keys, and Data Integrity proofs with strict Ed25519.",
+  "license": "Apache-2.0",
+  "author": "Ekram Alam",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wonderben-code/open-intelligence-protocol.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/wonderben-code/open-intelligence-protocol/tree/main/packages/core#readme",
+  "bugs": "https://github.com/wonderben-code/open-intelligence-protocol/issues",
+  "keywords": [
+    "oip",
+    "open-intelligence-protocol",
+    "ed25519",
+    "jcs",
+    "data-integrity",
+    "did"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "@oip/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "api": "api-extractor run --local",
+    "api:check": "api-extractor run"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@hpke/chacha20poly1305": "1.8.1",
+    "@hpke/core": "1.10.1",
+    "@hpke/dhkem-x25519": "1.8.1",
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "@oip/schema": "workspace:*",
+    "@scure/base": "2.4.0",
+    "canonicalize": "5.1.0"
+  },
+  "devDependencies": {
+    "@oip/testkit": "workspace:*"
+  }
+}

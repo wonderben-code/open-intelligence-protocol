@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Branch",
+  "title": "Branch",
+  "description": "A fork's proposal to continue from its parent's session in a new one (Layer 1, 14.5).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "type",
+    "parentSession",
+    "fork"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "not": {}
+    },
+    "type": {
+      "type": "string",
+      "const": "Branch"
+    },
+    "parentSession": {
+      "$ref": "urn:oip:schema:def:contentId"
+    },
+    "fork": {
+      "$ref": "urn:oip:schema:def:versionedMind"
+    }
+  }
+}

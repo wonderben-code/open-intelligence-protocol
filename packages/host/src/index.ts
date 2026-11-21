@@ -1,0 +1,31 @@
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+// SPDX-License-Identifier: Apache-2.0
+
+/**
+ * The host (Layer 1, Section 13): a mind's well-known resources, its inbox,
+ * its WebSocket and its mailbox.
+ *
+ * @packageDocumentation
+ */
+
+export { hostApp, type HostAppOptions } from "./app.ts";
+export {
+  type Answer,
+  DEFAULT_HOST_LIMITS,
+  Host,
+  type HostLimits,
+  type HostOptions,
+  partiesOf,
+} from "./host.ts";
+export { deliverLearning } from "./lookup.ts";
+export { type Edges, PREFIX, type Running, SETTINGS, start } from "./main.ts";
+export { HOST_MIGRATIONS, HostStore, type MailboxItem } from "./store.ts";
+export {
+  CLOSE,
+  type Connection,
+  Sockets,
+  type SocketsOptions,
+  SUBPROTOCOL,
+  type Wire,
+} from "./sockets.ts";
+export { attachSockets, type UpgradeOptions } from "./upgrade.ts";

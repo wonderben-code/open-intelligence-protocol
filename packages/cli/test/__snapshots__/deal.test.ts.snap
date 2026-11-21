@@ -1,0 +1,51 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the scenario of the papers, through the command > [L1 11.1] a firm lets its agent commit it, within limits, and gives it the delegation 1`] = `
+"The Delegation is <id>
+  delegate   did:oip:<mind>
+  may        /oip/sign/Commitment
+  until      <time>
+  delivered  did:oip:<mind>, sealed
+"
+`;
+
+exports[`the scenario of the papers, through the command > [L1 11.5] [core 9.4] the firm takes the delegation back: what its agent signed before stands, and what it signs after does not bind 1`] = `
+"The Revocation is <id>
+  revokes    did:oip:<mind>/<id>
+  feed       it is on the mind's feed
+  delivered  did:oip:<mind>, sealed
+"
+`;
+
+exports[`the scenario of the papers, through the command > [L2 4.1] someone says what she wants 1`] = `
+"The Intent is <id>
+  status     open
+  feed       position 0
+  delivered  did:oip:<mind>, sealed
+"
+`;
+
+exports[`the scenario of the papers, through the command > [L2 4.2] an Offer is published, found, and taken up 1`] = `
+"1 found. Indexers that answered: 1 of 1.
+1. did:oip:<mind>
+  offer      An English translation of a commercial lease. (120 USD)
+  record     <id>
+  ranked     <score> by https://indexer.oip.localhost
+"
+`;
+
+exports[`the scenario of the papers, through the command > [L2 5.1] [L1 11.4] the agent writes a Commitment and signs it for the firm, which it binds 1`] = `
+"The Commitment is <id>
+  status     proposed
+  debtor     did:oip:<mind>: bound
+  creditor   did:oip:<mind>: not bound
+  delivered  did:oip:<mind>, sealed
+"
+`;
+
+exports[`the scenario of the papers, through the command > [L2 6.1] [L2 8.3] the firm says it delivered, and she, who is owed it, confirms 1`] = `
+"The Receipt is <id>
+  about      <id>, which is now claimed-fulfilled
+  delivered  did:oip:<mind>, sealed
+"
+`;

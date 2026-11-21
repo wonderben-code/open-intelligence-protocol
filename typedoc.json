@@ -1,0 +1,30 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "Open Intelligence Protocol: API reference",
+  "entryPointStrategy": "packages",
+  "entryPoints": [
+    "packages/schema",
+    "packages/core",
+    "packages/identity",
+    "packages/delegation",
+    "packages/web",
+    "packages/net",
+    "packages/keystore",
+    "packages/client",
+    "packages/local",
+    "packages/cli",
+    "packages/mcp-server",
+    "packages/bridge-a2a",
+    "packages/bridge-mcp",
+    "packages/did-resolver",
+    "packages/conformance"
+  ],
+  "packageOptions": {
+    "entryPoints": ["src/index.ts"],
+    "tsconfig": "tsconfig.build.json",
+    "excludeInternal": true
+  },
+  "out": "docs/api",
+  "readme": "none",
+  "treatWarningsAsErrors": true
+}

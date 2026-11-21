@@ -11,6 +11,8 @@ These documents are the normative specification of the Open Intelligence Protoco
 | [layer-2-mind-web.md](layer-2-mind-web.md) | Intent, Offer, Commitment, Receipt, Collective; signing for parties; status computation; evidence |
 | [layer-0-bridge.md](layer-0-bridge.md) | Gateway minds, assurance levels, MCP, A2A, HTTP APIs, people, identity systems, payments, ActivityStreams |
 | [test-vectors/](test-vectors/) | Deterministic vectors and an independent Python implementation that checks them |
+| [schemas/](schemas/) | JSON Schemas (2020-12) for every record type, generated from the reference implementation. A convenience; these documents are normative |
+| [clauses.json](clauses.json) | Every numbered clause of these documents, with its key words, for tools that trace requirements to tests |
 
 ## Conventions
 

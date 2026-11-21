@@ -1,0 +1,223 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`what every command prints > is held, for every command there is 1`] = `
+{
+  "add-key": "The mind has a new key: <key>
+This mind's log has 3 events. Resolvers that have the new one: 1 of 1.
+",
+  "collective create": "The collective will be did:oip:<mind>
+  event      <id>
+  signed     did:oip:<mind>
+  waiting    did:oip:<mind>
+  acts by    2 of 2 members
+  delivered  did:oip:<mind>, sealed
+It exists once every member has signed: oip collective sign <event>
+",
+  "collective sign": "The event is <id>
+  signed     did:oip:<mind>
+  signed     did:oip:<mind>
+  acts by    2 of 2 members
+The collective is did:oip:<mind>
+  log        1 event
+",
+  "commit": "The Commitment is <id>
+  status     proposed
+  debtor     did:oip:<mind>: bound
+  creditor   did:oip:<mind>: not bound
+  delivered  did:oip:<mind>, sealed
+",
+  "completions": "# oip: completion for bash. Load it with: source <(oip completions bash)
+_oip() {
+  local cur="\${COMP_WORDS[COMP_CWORD]}"
+  local first="\${COMP_WORDS[1]}" second="\${COMP_WORDS[2]}"
+  local flags="--dir --json --get --help --version"
+  case "$first $second" in
+    "publish profile") flags="--name --summary --capability --tag --file --dir --json --get --help --version" ;;
+    "publish location") flags="--status --resume-after --ttl --dir --json --get --help --version" ;;
+    "publish record") flags="--dir --json --get --help --version" ;;
+    "collective create") flags="--member --threshold --host --out --send-to --dir --json --get --help --version" ;;
+    "collective sign") flags="--publish --out --send-to --dir --json --get --help --version" ;;
+    "keys backup") flags="--replace --dir --json --get --help --version" ;;
+    "keys restore") flags="--resolver --indexer --local --network --keychain --dir --json --get --help --version" ;;
+    *)
+      case "$first" in
+        init) flags="--kind --resolver --host --indexer --no-host --local --network --keychain --dir --json --get --help --version" ;;
+        show) flags="--dir --json --get --help --version" ;;
+        rotate) flags="--dir --json --get --help --version" ;;
+        add-key) flags="--label --dir --json --get --help --version" ;;
+        revoke-key) flags="--compromised-since --dir --json --get --help --version" ;;
+        fork) flags="--kind --host --terms --acknowledge --dir --json --get --help --version" ;;
+        resolve) flags="--aliases --local --network --out --dir --json --get --help --version" ;;
+        find) flags="--want --tag --kind --limit --local --network --dir --json --get --help --version" ;;
+        send) flags="--text --record --verb --goal --reply-to --thread --expires-in --unsealed --dir --json --get --help --version" ;;
+        inbox) flags="--all --listen --dir --json --get --help --version" ;;
+        intent) flags="--want --deadline --budget --currency --require --audience --expires --for --authority --charter --publish --send-to --dir --json --get --help --version" ;;
+        offer) flags="--provides --summary --price --currency --delivery-by --quantity --condition --answers --capability --audience --expires --for --authority --charter --publish --send-to --dir --json --get --help --version" ;;
+        commit) flags="--offer --debtor --creditor --witness --promise --deadline --price --currency --payer --payee --resolves --closes-intent --for --authority --charter --publish --send-to --dir --json --get --help --version" ;;
+        receipt) flags="--outcome --statement --score --for --authority --charter --publish --send-to --dir --json --get --help --version" ;;
+        status) flags="--dir --json --get --help --version" ;;
+        delegate) flags="--command --days --expires --not-before --policy --authority --send-to --publish --dir --json --get --help --version" ;;
+        revoke) flags="--send-to --dir --json --get --help --version" ;;
+        verify) flags="--offline --local --network --dir --json --get --help --version" ;;
+        doctor) flags="--dir --json --get --help --version" ;;
+        demo) flags="--network --dir --json --get --help --version" ;;
+        completions) flags="--dir --json --get --help --version" ;;
+      esac ;;
+  esac
+  if [[ "$cur" == -* ]]; then
+    COMPREPLY=($(compgen -W "$flags" -- "$cur"))
+  elif [[ $COMP_CWORD -eq 1 ]]; then
+    COMPREPLY=($(compgen -W "init show rotate add-key revoke-key fork publish resolve find send inbox intent offer commit receipt status delegate revoke collective verify keys doctor demo completions" -- "$cur"))
+  elif [[ $COMP_CWORD -eq 2 ]]; then
+    case "$first" in
+      publish) COMPREPLY=($(compgen -W "profile location record" -- "$cur")) ;;
+      collective) COMPREPLY=($(compgen -W "create sign" -- "$cur")) ;;
+      keys) COMPREPLY=($(compgen -W "backup restore" -- "$cur")) ;;
+      *) COMPREPLY=($(compgen -f -- "$cur")) ;;
+    esac
+  else
+    COMPREPLY=($(compgen -f -- "$cur"))
+  fi
+}
+complete -F _oip oip
+",
+  "delegate": "The Delegation is <id>
+  delegate   did:oip:<mind>
+  may        /oip/sign/Offer
+  until      <time>
+",
+  "demo": "A network is running on this machine:
+  resolver  https://resolver.oip.localhost  (http://127.0.0.1:<port>)
+  host      https://host.oip.localhost  (http://127.0.0.1:<port>)
+  indexer   https://indexer.oip.localhost  (http://127.0.0.1:<port>)
+In another terminal, make a mind on it:
+  oip init --local
+What it holds is kept in <home>/.oip-demo. Stop it with Ctrl-C.
+The network has stopped.
+",
+  "doctor": "  ok         a mind's directory is at <home>/ada
+  ok         the network on this machine is running, from <home>/.oip-demo
+  ok         the keys are in <home>/ada/keys, sealed with a passphrase
+  ok         a backup holds every key
+  ok         https://resolver.oip.localhost serves the mind's log: 5 events
+  ok         this machine's clock agrees with the resolver's
+  ok         https://host.oip.localhost is ready
+  ok         the mind is active, at 2 endpoints
+  ok         its profile is published: Ada
+  ok         https://indexer.oip.localhost is ready
+All is well.
+",
+  "find": "1 found. Indexers that answered: 1 of 1.
+1. did:oip:<mind>
+  profile    Ada: Translates legal texts (translate)
+  record     <id>
+  ranked     <score> by https://indexer.oip.localhost
+",
+  "fork": "The child is did:oip:<mind>
+Its keys are in <home>/child/keys.
+This mind's log acknowledges it.
+This mind's log has 5 events. Resolvers that have the new one: 1 of 1.
+",
+  "inbox": "1 new packet. 1 kept in all.
+
+<id>
+  from       did:oip:<mind>
+  at         <time>, sealed to this mind
+  verb       request: A translation
+  text
+    By Friday?
+",
+  "init": "Your mind is did:oip:<mind>
+Its keys are in <home>/ada/keys, sealed with your passphrase.
+Resolvers that have its first event: 1 of 1.
+It takes packets at https://host.oip.localhost.
+Back the keys up before you rely on it: oip keys backup <file>
+",
+  "intent": "The Intent is <id>
+  status     open
+",
+  "keys backup": "The backup is in <home>/ada.backup
+  holds      4 keys, of did:oip:<mind>
+  sealed     with the backup's own passphrase: without it, nothing of it can be read
+Keep the file and its passphrase apart from this machine, and from each other.
+",
+  "keys restore": "The mind is did:oip:<mind>
+  keys       restored to <home>/restored/keys, and sealed afresh
+  log        5 events
+  signs      yes: the backup holds a key the mind signs with now
+  identity   can change: the backup holds the control keys the log commits to
+What the mind's client remembered is not restored: publish where it is with \`oip publish location\`.
+",
+  "offer": "The Offer is <id>
+  status     open
+",
+  "publish location": "The mind is active, at 2 endpoints, for 600 seconds.
+Services that took it: 3 of 3.
+",
+  "publish profile": "The mind's profile is published: <id>
+It is Ada, with 1 capability.
+Services that took it: 3 of 3.
+",
+  "publish record": "The record is on the mind's feed, at position 0: <id>
+Services that took it: 1 of 1.
+",
+  "receipt": "The Receipt is <id>
+  about      <id>, which is now claimed-fulfilled
+",
+  "resolve": "did:oip:<mind>
+  kind       agent
+  log        5 events
+  keys       1 to sign with, 1 to be sealed to
+  homes      https://host.oip.localhost
+  names      none
+  child      did:oip:<mind>
+  location   active, 2 endpoints
+  profile    Ada, 1 capability
+  resolvers  https://resolver.oip.localhost (5 events)
+",
+  "revoke": "The Revocation is <id>
+  revokes    did:oip:<mind>/<id>
+  feed       it is on the mind's feed
+",
+  "revoke-key": "The key is revoked: <key>
+This mind's log has 4 events. Resolvers that have the new one: 1 of 1.
+",
+  "rotate": "The control keys are rotated.
+This mind's log has 2 events. Resolvers that have the new one: 1 of 1.
+",
+  "send": "The packet is <id>
+  verb       request: A translation
+  text
+    By Friday?
+  delivered  did:oip:<mind>, sealed
+",
+  "show": "did:oip:<mind>
+  kind       agent
+  log        5 events
+  keys       1 to sign with, 1 to be sealed to
+  homes      https://host.oip.localhost
+  names      none
+  child      did:oip:<mind>
+  location   active, 2 endpoints
+  profile    Ada, 1 capability
+  resolvers  https://resolver.oip.localhost
+  indexers   https://indexer.oip.localhost
+",
+  "status": "<id>
+  type       Commitment
+  status     claimed-fulfilled
+  debtor     did:oip:<mind>: bound
+  creditor   did:oip:<mind>: bound
+",
+  "verify": "Commitment <id>
+  ok         it is a well-formed Commitment (core 2.1)
+  ok         proof 0 is a good signature by the key <key> (core 5.4)
+  ok         proof 1 is a good signature by the key <key> (core 5.4)
+  ok         proof 0 is by a key of did:oip:<mind> that was valid at <time> (L1 6.1)
+  ok         proof 1 is by a key of did:oip:<mind> that was valid at <time> (L1 6.1)
+  ok         it counts for did:oip:<mind> (L2 7.1)
+  ok         it counts for did:oip:<mind> (L2 7.1)
+It verifies.
+",
+}
+`;

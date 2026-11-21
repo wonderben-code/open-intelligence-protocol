@@ -1,0 +1,32 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`a collective, through the command > [L1 9.2] is founded by its members, each of whom signs its first event 1`] = `
+"The collective will be did:oip:<mind>
+  event      <id>
+  signed     did:oip:<mind>
+  waiting    did:oip:<mind>
+  waiting    did:oip:<mind>
+  acts by    2 of 3 members
+  delivered  did:oip:<mind>, sealed
+  delivered  did:oip:<mind>, sealed
+It exists once every member has signed: oip collective sign <event>
+"
+`;
+
+exports[`a collective, through the command > [L1 9.4] each member signs with a key of its own, and the last publishes the log 1`] = `
+"The event is <id>
+  signed     did:oip:<mind>
+  signed     did:oip:<mind>
+  signed     did:oip:<mind>
+  acts by    2 of 3 members
+The collective is did:oip:<mind>
+  log        1 event
+"
+`;
+
+exports[`a collective, through the command > [L1 9.5] a record in its name is the collective's once enough of its members have signed 1`] = `
+"The Intent is <id>
+  in name of did:oip:<mind>
+  counts     yes: enough of its members have signed
+"
+`;

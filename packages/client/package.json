@@ -1,0 +1,65 @@
+{
+  "name": "@oip/client",
+  "version": "0.0.0",
+  "description": "The library applications use for the Open Intelligence Protocol: make and manage a mind, publish, resolve, find, send and receive, and verify everything that is received.",
+  "license": "Apache-2.0",
+  "author": "Ekram Alam",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wonderben-code/open-intelligence-protocol.git",
+    "directory": "packages/client"
+  },
+  "homepage": "https://github.com/wonderben-code/open-intelligence-protocol/tree/main/packages/client#readme",
+  "bugs": "https://github.com/wonderben-code/open-intelligence-protocol/issues",
+  "keywords": [
+    "oip",
+    "open-intelligence-protocol",
+    "client",
+    "sdk",
+    "did",
+    "agent"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "@oip/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "api": "api-extractor run --local",
+    "api:check": "api-extractor run"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@oip/core": "workspace:*",
+    "@oip/delegation": "workspace:*",
+    "@oip/identity": "workspace:*",
+    "@oip/keystore": "workspace:*",
+    "@oip/net": "workspace:*",
+    "@oip/schema": "workspace:*",
+    "@oip/web": "workspace:*"
+  },
+  "devDependencies": {
+    "@oip/host": "workspace:*",
+    "@oip/indexer": "workspace:*",
+    "@oip/resolver": "workspace:*",
+    "@oip/server": "workspace:*",
+    "@oip/testkit": "workspace:*",
+    "playwright-core": "1.63.0",
+    "vite": "8.3.7"
+  }
+}

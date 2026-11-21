@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Location",
+  "title": "Location",
+  "description": "Where a mind can be reached now (Layer 1, 15.1). Judged under the current-state rule.",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "type",
+    "author",
+    "seq",
+    "ttl",
+    "status",
+    "endpoints"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "type": {
+      "type": "string",
+      "const": "Location"
+    },
+    "author": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "seq": {
+      "$ref": "urn:oip:schema:def:safeInteger"
+    },
+    "ttl": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 86400
+    },
+    "status": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "active"
+        },
+        {
+          "type": "string",
+          "const": "paused"
+        },
+        {
+          "type": "string",
+          "const": "migrating"
+        }
+      ]
+    },
+    "resumeAfter": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "endpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "binding",
+          "url"
+        ],
+        "properties": {
+          "binding": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "priority": {
+            "$ref": "urn:oip:schema:def:safeInteger"
+          }
+        }
+      },
+      "maxItems": 32
+    },
+    "homes": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:oip:schema:def:httpsOrigin"
+      }
+    },
+    "participant": {
+      "$ref": "urn:oip:schema:def:contentId"
+    },
+    "feed": {
+      "type": "object",
+      "required": [
+        "seq",
+        "head"
+      ],
+      "properties": {
+        "seq": {
+          "$ref": "urn:oip:schema:def:count"
+        },
+        "head": {
+          "$ref": "urn:oip:schema:def:contentId"
+        }
+      }
+    }
+  }
+}

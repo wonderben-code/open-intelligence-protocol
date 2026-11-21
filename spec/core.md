@@ -6,21 +6,23 @@ This document defines what every OIP record has in common, at every layer. See [
 
 ## 1. Records
 
-1.1. A **record** is a JSON object (RFC 8259), encoded as UTF-8, that is also an I-JSON message (RFC 7493): it MUST NOT contain duplicate member names, and every string MUST be valid Unicode (no unpaired surrogates). Receivers SHOULD reject records with duplicate member names. Content IDs and proofs cover the record as parsed, so a receiver that cannot detect duplicates may disagree with others about whether a record is valid, but never accepts a value its signer did not sign.
+1.1. A **record** is a JSON object (RFC 8259), encoded as UTF-8, that is also an I-JSON message (RFC 7493): it MUST NOT contain duplicate member names, and every string, member names included, MUST be valid Unicode with no noncharacter in it: no unpaired surrogate, no code point from U+FDD0 to U+FDEF, and no code point whose last sixteen bits are FFFE or FFFF (RFC 7493, Section 2.1). Receivers SHOULD reject records with duplicate member names. Content IDs and proofs cover the record as parsed, so a receiver that cannot detect duplicates may disagree with others about whether a record is valid, but never accepts a value its signer did not sign.
 
 1.2. The values permitted anywhere in a record are objects, arrays, strings, `true`, `false`, `null`, and numbers whose value is an integer `n` with −(2⁵³−1) ≤ `n` ≤ 2⁵³−1. A record containing a number whose value has a fractional part, or lies outside that range, MUST be rejected. Validity depends on a number's value, not on how it is written: `1.0` and `1e2` are the integers 1 and 100, which canonical form writes as `1` and `100`. Producers MUST write integers without a fraction or exponent.
 
-1.3. **Decimal quantities** (prices, amounts, scores) MUST be strings matching `^-?(0|[1-9][0-9]*)(\.[0-9]+)?$`, using the ASCII digits only. **Amounts** (prices, budgets and other sums of money or assets) MUST be non-negative, matching `^(0|[1-9][0-9]*)(\.[0-9]+)?$`. Wherever this specification compares two decimal strings, the comparison is numeric. Ordering comparisons (less than, greater than) are defined only between decimals; a string that does not match the pattern is not a decimal, however it looks (`"1,000"`, `"1e2"`, `" 400 "`, `"-Infinity"` and full-width digits are not decimals). A decimal string MUST NOT exceed 64 characters, and decimals are compared with exact decimal arithmetic, never binary floating point.
+1.3. **Decimal quantities** (prices, amounts, scores) MUST be strings matching `^-?(0|[1-9][0-9]*)(\.[0-9]+)?$`, using the ASCII digits only. **Amounts** (prices, budgets and other sums of money or assets) MUST be non-negative, matching `^(0|[1-9][0-9]*)(\.[0-9]+)?$`. Wherever this specification compares two decimal strings, the comparison is numeric. Ordering comparisons (less than, greater than) are defined only between decimals; a string that does not match the pattern is not a decimal, however it looks (`"1,000"`, `"1e2"`, `" 400 "`, `"-Infinity"` and full-width digits are not decimals). A decimal string MUST NOT exceed 64 characters, and decimals are compared with exact decimal arithmetic, never binary floating point. `"-0"`, with or without a fraction of zeros, is a decimal equal to `"0"`; it is not an amount, because an amount has no sign.
 
-1.4. **Timestamps** MUST be RFC 3339 strings in UTC matching `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$` that name a real date and time (no month 13, no second 60 or above). Timestamps are compared as instants at full precision (up to nanoseconds), never as strings.
+1.4. **Timestamps** MUST be RFC 3339 strings in UTC matching `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$` that name a real date and time (no month 13, no second 60 or above). Years run from `0000` to `9999` of the proleptic Gregorian calendar, as in RFC 3339; year `0000` is a leap year. Timestamps are compared as instants at full precision (up to nanoseconds), never as strings.
 
-1.5. **Durations** MUST be ISO 8601 durations matching `^P(?!$)([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?([0-9]+S)?)?$`, for example `P30D` or `PT15M`.
+1.5. **Durations** MUST be ISO 8601 durations matching `^P(?!$)([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?([0-9]+S)?)?$`, for example `P30D` or `PT15M`. A duration string MUST NOT exceed 64 characters.
 
-1.6. **Size.** The canonical form (Section 2) of a record MUST NOT exceed 1 MiB. Implementations MAY apply lower limits to particular record types but MUST accept records of at least 256 KiB. Larger content is carried by reference (Layer 1, Section 12). `Bundle`, `LogPage`, `FeedPage` and `DuplicityEvidence` are containers: the limit applies to each record they contain, not to the container. A `Sealed` record MAY exceed the limit by its encoding overhead.
+1.6. **Size.** The canonical form (Section 2) of a record, with its `proof` member, MUST NOT exceed 1 MiB. Implementations MAY apply lower limits to particular record types but MUST accept records of at least 256 KiB. Larger content is carried by reference (Layer 1, Section 12). `Bundle`, `LogPage`, `FeedPage` and `DuplicityEvidence` are containers: the limit applies to each record they contain, and to the container without the members that hold those records (`log`, `location` and `participant` of a `Bundle`; `events`; `entries`; `pairs`). It does not apply to the two together. A `Sealed` record MAY exceed the limit by its encoding overhead.
 
 1.7. **Field names** use camelCase. Implementations MUST preserve fields they do not recognise when storing or forwarding a record, because those fields are covered by its proofs, and MUST otherwise ignore them (Section 8).
 
 1.8. **String lengths** ("at most N characters") are counted in Unicode code points.
+
+1.9. **Depth.** The arrays and objects of a record MUST NOT nest more than 64 deep: the record itself is at depth 1, and a value that is neither an array nor an object adds no depth. A record that nests more deeply MUST be rejected. For a container (1.6), the limit applies to each record it contains, counted from that record, and to the container without the members that hold them, so that a container can carry any record that is valid alone. The rules of this section apply to the whole record, including every entry of `proof`.
 
 ## 2. Canonical form
 
@@ -44,7 +46,7 @@ An OIP content ID is a multibase-encoded multihash. It is not an IPFS CID: stori
 
 3.3. The 32-byte digest inside a content ID equals the `transformedDocumentHash` of every `eddsa-jcs-2022` proof on the record (Section 5).
 
-3.4. The **key hash** of a Multikey string `k`, used for pre-rotation commitments, is `"b" + base32lower(0x12 ‖ 0x20 ‖ SHA-256(UTF-8(k)))`.
+3.4. The **key hash** of a Multikey string `k`, used for pre-rotation commitments, is `"b" + base32lower(0x12 ‖ 0x20 ‖ SHA-256(UTF-8(k)))`. A key hash has the form of a content ID and MUST match the pattern of 3.2.
 
 ## 4. Keys
 
@@ -69,7 +71,7 @@ Because no point with a torsion component is accepted, the cofactored and cofact
 
 ## 5. Proofs
 
-5.1. A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 proof objects (a W3C Data Integrity *proof set*). Records that this specification defines as unsigned (such as `Bundle`, `Session` and `Sealed`) MUST NOT carry `proof`.
+5.1. A signed record carries a member `proof` whose value MUST be a non-empty array of at most 256 proof objects (a W3C Data Integrity *proof set*). Every entry MUST be a JSON object. An entry that is an object but is not a valid proof does not count (5.5) and does not make the record malformed. Records that this specification defines as unsigned (such as `Bundle`, `Session` and `Sealed`) MUST NOT carry `proof`.
 
 5.2. Each proof object MUST conform to W3C Data Integrity 1.0 with the `eddsa-jcs-2022` cryptosuite, and MUST contain exactly these members, plus any optional members listed:
 
@@ -132,6 +134,8 @@ control-key-ref  = "did:key:" multikey "#" multikey
 record-ref       = mind-address "/" content-id
 ```
 
+`seq` is the position of an identity event in its log, which is an integer of a record (1.2): a `seq` greater than 2⁵³−1 names no event.
+
 6.2. A proof by a mind's operational key MUST use a `key-ref`, which pins the version of the mind's identity at which the key is asserted to be valid. A proof by a control key MUST use a `control-key-ref` in which both occurrences of the Multikey are identical.
 
 6.3. A `record-ref` names a record by its content ID and says which mind's records to fetch it from. A record-ref matches a record when its content ID equals the record's content ID; the mind part is only a hint for fetching and MUST be ignored when matching. The content ID alone is sufficient to check that a fetched record is the one referenced.
@@ -143,9 +147,9 @@ record-ref       = mind-address "/" content-id
 | Field | Meaning |
 |---|---|
 | `oip` | REQUIRED in every record. The string `"1"`. Records with any other value MUST be rejected. |
-| `type` | REQUIRED in every record. A record type defined by this specification or by a critical extension. |
+| `type` | REQUIRED in every record. A record type defined by this specification or by a critical extension: a record whose `type` this specification does not define MUST list in `critical` the namespace of the extension that defines it, and a reader that does not understand that extension treats the record as Section 8.3 says. |
 | `author` | The mind making a statement. Identity events use `mind` and packets use `from` instead. |
-| `created` | REQUIRED in every record except the containers and `Sealed` (Section 11). The author's claimed creation time: a claim, never evidence of when the record existed (Section 9). |
+| `created` | REQUIRED in every record except the containers and `Sealed` (Section 11), which have no such member: a reader ignores one there, as it ignores any member it does not recognise (Section 1.7). The author's claimed creation time: a claim, never evidence of when the record existed (Section 9). |
 | `expires` | OPTIONAL. After this instant the record is closed for any purpose that depends on it being open. |
 | `ext` | OPTIONAL. Extension blocks (Section 8). |
 | `critical` | OPTIONAL. Extension namespaces the reader must understand (Section 8). |
@@ -158,9 +162,11 @@ record-ref       = mind-address "/" content-id
 - a short name recognised by this specification: `x402`, `ap2`, `acp`, `l402`, `vc`, `as2`;
 - a name beginning `oip.`, reserved for profiles published by the OIP project.
 
+A record whose `ext` has a member with any other name is malformed.
+
 8.2. An extension block MAY contain a member `v` giving its own version.
 
-8.3. `critical` is an array of namespaces, each of which MUST also appear in `ext`. An implementation that does not understand a namespace listed in `critical` MAY store and forward the record but MUST NOT act on it or treat it as valid for any decision.
+8.3. `critical` is an array of namespaces, each of which MUST also appear in `ext`. Naming a namespace more than once has the effect of naming it once. An implementation that does not understand a namespace listed in `critical` MAY store and forward the record but MUST NOT act on it or treat it as valid for any decision.
 
 8.4. Extensions MUST NOT change the validity of a record under this specification unless they are listed in `critical`.
 
@@ -184,13 +190,13 @@ where `τ(p)` is the earliest time for which the verifier holds evidence (9.4) t
 1. the verifier's own record that it obtained the proof at `t`;
 2. the record of a witness the verifier chooses to trust, such as its resolver or indexer, that it first saw the proof at `t` (Layer 1, Section 17);
 3. an anchored checkpoint (Layer 1, Section 10) covering a feed entry that commits to the proof, where `t` is the anchor's time;
-4. an `Ack` (Layer 1, Section 13.2) covering a packet that carries the proof, signed by a recipient the verifier trusts for this purpose, where `t` is its `received` time.
+4. an `Ack` (Layer 1, Section 13.2) signed by a recipient the verifier trusts for this purpose, where `t` is its `received` time: for a proof on a record in the `content` of the packet the `Ack` names, and for a proof on that packet itself whose digest the `Ack` lists.
 
 A proof's own `created` is never evidence, and neither is another proof on the same record (5.5). Evidence concerns one proof: adding a proof does not change a record's content ID (5.3), so evidence that a record existed with some proofs is not evidence for a proof added to it later. Implementations therefore key evidence by the proof's digest, `"sha256:" + hex(SHA-256(JCS(proof)))` (Layer 1, Section 10.1). For identity events, evidence concerns the event as a whole (9.5).
 
-**Holding the evidence.** Comparing two times means something only if both come from evidence. Before counting a proof `p` by a key of mind `X`, a verifier MUST hold `X`'s identity log as a witness it trusts (Layer 1, Section 17) served it at some time no earlier than `τ(p)`, together with that witness's first-seen times, unless the verifier has itself followed `X`'s log as a witness since before `τ(p)`. It MUST take the evaluation times of `X`'s events from the earliest evidence it holds (the witness's first-seen times, or anchors), never from its own later first sight of them. Otherwise the former holder of a removed key could sign after the removal and win the race against the verifier's own first sight of it.
+**Holding the evidence.** Comparing two times means something only if both come from evidence. Before counting a proof `p` by a key of mind `X`, a verifier MUST hold `X`'s identity log as a witness it trusts (Layer 1, Section 17) served it at some time no earlier than `τ(p)`, together with that witness's first-seen times, unless the verifier has itself followed `X`'s log as a witness since before `τ(p)`. It MUST take the evaluation times of `X`'s events from the earliest evidence it holds (the witness's first-seen times, or anchors), never from its own later first sight of them. Otherwise the former holder of a removed key could sign after the removal and win the race against the verifier's own first sight of it. The same is required of each log that decides whether the proof counts: the log of a collective under whose threshold the proof is counted (Layer 1, Section 9.5), or for which it is counted through a charter role (Layer 2, Section 7.1), held as served no earlier than `τ(p)`; the log of the author of each delegation of a chain through which it is counted (Layer 1, Section 11.4), and of each mind that was a member of such an author at or before `t(p)`, held as served no earlier than `τ(p)`, since a copy obtained earlier may lack the event that retired the author, or that removed the key a revocation was signed with; and, for a member's proof on an identity event `e`, the member's log, held as served no earlier than the latest `τ` among `e` and the events before it in its log, since `e` takes effect no earlier than they do (9.5).
 
-9.5. **Identity events.** The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where `τ(e)` is the earliest time for which the verifier holds evidence that `e` existed with proofs meeting Layer 1, Section 4: its own first-seen record, a trusted witness's first-seen record, or an anchored checkpoint covering a feed entry for `e`. It is never earlier than the evaluation time of the event before it in the same log, and an event whose `created` is more than 300 seconds after `τ(e)` is invalid. An event that removes a key, changes membership or retires a mind takes effect at its evaluation time, so a backdated event cannot withdraw records already made. Members' proofs on a collective's identity events are judged at the event's evaluation time (Layer 1, Section 6.4). The one deliberately retroactive statement is `compromisedSince` (Layer 1, Section 6.2), and it reaches back only over the mind's own records: it is public and attributable, and a Commitment that loses a party's signature this way shows as `disputed` (Layer 2, Section 8.3) rather than silently changing.
+9.5. **Identity events.** The evaluation time of an identity event `e` is `max(e.created, τ(e))`, where `τ(e)` is the earliest time for which the verifier holds evidence that `e` existed with proofs meeting Layer 1, Section 4: its own first-seen record, a trusted witness's first-seen record, or an anchored checkpoint covering a feed entry for `e`. It is never earlier than the evaluation time of the event before it in the same log, and an event whose `created` is more than 300 seconds after `τ(e)` does not verify for that verifier. An event that removes a key, changes membership or retires a mind takes effect at its evaluation time, so a backdated event cannot withdraw records already made. Members' proofs on a collective's identity events are judged at the event's evaluation time (Layer 1, Section 6.4). Evidence for an event is evidence for the proofs it stood with, and for no proof added to it later: a verifier or a witness records its first sight of an event only once the event has verified, never on sight of its content alone, which the content ID names with or without valid proofs. It does so as soon as the event verifies for it, with every proof it holds for the event, in however many copies they came (Layer 1, 7.1), and with the logs those proofs are judged by: recorded later, a proof by a key the event removes that was first seen in between would count. For the same reason a feed entry is evidence for an event only if it commits to proofs that make the event valid (Layer 1, Section 10.1): anyone can list a content ID in a feed of their own. For a proof on an identity event, `τ(p)` is `τ(e)`: a proof there whose `created` is more than 300 seconds after `τ(e)` does not count (9.3), and one evaluated more than 300 seconds after the event's `expires` does not count (9.6). The one deliberately retroactive statement is `compromisedSince` (Layer 1, Section 6.2), and it reaches back only over the mind's own records: it is public and attributable, and a Commitment that loses a party's signature this way shows as `disputed` (Layer 2, Section 8.3) rather than silently changing.
 
 9.6. **Expiry.** A proof whose evaluation time is more than 300 seconds after its record's `expires` does not count.
 
@@ -236,4 +242,4 @@ A proof's own `created` is never evidence, and neither is another proof on the s
 
 ## 12. Security considerations
 
-The security analysis of the protocol is in Section 8 of the technical architecture paper. Three rules from this document are essential: proofs are evaluated independently, so an attacker cannot invalidate a record by adding a bad proof; unknown fields are preserved, so a record can never be altered silently by an implementation that does not understand part of it; and time rules use evidence rather than claims (Section 9), so a stolen or retired key cannot be used by writing an earlier date.
+The security analysis of the protocol is in Section 8 of the technical architecture paper. Three rules from this document are essential: proofs are evaluated independently, so an attacker cannot invalidate a record by adding a bad proof (for an identity event that a verifier holds in several copies, Layer 1, Section 7.1 says which copies' proofs count), and the limits on size and depth (1.6, 1.9) are applied to each record a container carries and never to the container as a whole, so an attacker cannot stop a log or a feed from being served by adding one; unknown fields are preserved, so a record can never be altered silently by an implementation that does not understand part of it; and time rules use evidence rather than claims (Section 9), so a stolen or retired key cannot be used by writing an earlier date.

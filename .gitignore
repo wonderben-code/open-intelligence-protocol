@@ -13,3 +13,13 @@ coverage/
 .env.*
 *.log
 .DS_Store
+
+# Generated API reference (pnpm docs)
+docs/api/
+
+# API Extractor's working copy of each API report
+temp/
+
+# Mutation testing
+.stryker-tmp/
+reports/

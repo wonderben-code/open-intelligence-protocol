@@ -1,0 +1,22 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`oip send and oip inbox > [L1 12.1] sends a packet, signed and sealed, and the recipient reads it once it is verified 1`] = `
+"The packet is <id>
+  verb       request: A translation
+  text
+    Could you translate a lease by Friday?
+  delivered  did:oip:<mind>, sealed
+"
+`;
+
+exports[`oip send and oip inbox > [L1 12.1] sends a packet, signed and sealed, and the recipient reads it once it is verified 2`] = `
+"1 new packet. 1 kept in all.
+
+<id>
+  from       did:oip:<mind>
+  at         <time>, sealed to this mind
+  verb       request: A translation
+  text
+    Could you translate a lease by Friday?
+"
+`;

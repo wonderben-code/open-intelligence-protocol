@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oip:schema:Entry",
+  "title": "Entry",
+  "description": "One entry of a mind's public feed, committing to a record and to its proofs (Layer 1, 10.1).",
+  "type": "object",
+  "required": [
+    "oip",
+    "created",
+    "proof",
+    "type",
+    "author",
+    "seq",
+    "object",
+    "objectType"
+  ],
+  "properties": {
+    "oip": {
+      "type": "string",
+      "const": "1"
+    },
+    "expires": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "ext": {
+      "$ref": "urn:oip:schema:def:ext"
+    },
+    "critical": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created": {
+      "$ref": "urn:oip:schema:def:timestamp"
+    },
+    "proof": {
+      "$ref": "urn:oip:schema:def:proofSet"
+    },
+    "type": {
+      "type": "string",
+      "const": "Entry"
+    },
+    "author": {
+      "$ref": "urn:oip:schema:def:mindAddress"
+    },
+    "seq": {
+      "$ref": "urn:oip:schema:def:count"
+    },
+    "prev": {
+      "$ref": "urn:oip:schema:def:contentId"
+    },
+    "object": {
+      "$ref": "urn:oip:schema:def:contentId"
+    },
+    "objectType": {
+      "type": "string"
+    },
+    "proofs": {
+      "type": "array",
+      "items": {
+        "$ref": "urn:oip:schema:def:sha256Digest"
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "seq": {
+        "minimum": 1
+      }
+    },
+    "required": [
+      "seq"
+    ]
+  },
+  "then": {
+    "required": [
+      "prev"
+    ]
+  }
+}

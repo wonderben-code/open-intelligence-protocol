@@ -1,0 +1,302 @@
+# SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+# SPDX-License-Identifier: Apache-2.0
+
+name: CI
+
+# Every gate of BUILD.md, Section 2, that applies to the code in the
+# repository so far. The "checks" job runs `pnpm run ci` (scripts/ci.ts), the
+# same script a contributor runs before pushing, so the two cannot drift
+# apart. Actions are pinned by commit SHA; Dependabot keeps the pins current.
+
+on:
+  push:
+    paths-ignore:
+      - "timestamps/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A push and a pull request for the same commit each keep their own run:
+  # a skipped job must never stand in for a failed one on a required check.
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  # A newer push replaces a run still in progress, except on main, where
+  # every commit keeps its own result.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  # The differential tests fail, rather than skip, if Python is missing.
+  OIP_REQUIRE_PYTHON: "1"
+
+jobs:
+  checks:
+    name: Every check (pnpm run ci)
+    runs-on: ubuntu-latest
+    # Every check in order, on one machine, takes most of an hour: the tests are
+    # run three times over (for the clauses they cite, with coverage, and as the
+    # golden vectors), and the identity logs compared with the Python checker
+    # take twenty minutes of it. The limit is there to end a run that hangs.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Install the Python checker's dependency and the REUSE tool, by hash
+        run: |
+          python -m pip install --require-hashes -r .github/requirements/vector-checker.txt
+          python -m pip install --require-hashes -r .github/requirements/reuse.txt
+      - name: Install with a frozen lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Every check, in order
+        run: pnpm run ci
+
+  containers:
+    name: The service images pass the conformance suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install with a frozen lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Build the images and start the three services (ADR-0014)
+        run: docker compose up --build --wait --wait-timeout 120
+      - name: Each service runs as a user that is not root, on a read-only file system
+        run: |
+          for service in resolver host indexer; do
+            id="$(docker compose ps --quiet "$service")"
+            test "$(docker inspect --format '{{.Config.User}} {{.HostConfig.ReadonlyRootfs}}' "$id")" = "65532:65532 true"
+          done
+      # A signed request and a Hello name the origin a service knows itself by (Layer 1, 13.3).
+      - name: The Resolver profile
+        run: node --conditions=@oip/source packages/conformance/src/bin.ts resolver http://127.0.0.1:8081 --origin https://resolver.localhost
+      - name: The Host profile
+        run: node --conditions=@oip/source packages/conformance/src/bin.ts host http://127.0.0.1:8082 --origin https://host.localhost
+      # What an indexer forwards is checked where the suite has an inbox to watch, which the
+      # tests of @oip/conformance give it. Here those checks are skipped, and nothing may fail.
+      - name: The Indexer profile
+        run: node --conditions=@oip/source packages/conformance/src/bin.ts indexer http://127.0.0.1:8083 --origin https://indexer.localhost --allow-skipped
+      # BUILD.md 3.8: a server container starts within two seconds (ADR-0015).
+      - name: Each service is ready within two seconds of its start
+        run: node scripts/container-start.ts
+      # The two images that are no services of the network: the DID resolver, which is asked
+      # here for what is no address, and the A2A gateway, which is asked for its version.
+      - name: The images of the DID resolver and of the A2A gateway build and start
+        run: |
+          docker build --target did-resolver --tag oip-did-resolver:dev .
+          docker build --target bridge-a2a --tag oip-bridge-a2a:dev .
+          test "$(docker run --rm --read-only --cap-drop ALL oip-bridge-a2a:dev dist/bin.js --version)" = "0.0.0"
+          docker run --detach --name oip-did --read-only --cap-drop ALL \
+            --publish 127.0.0.1:8084:8080 --env OIP_DID_RESOLVERS=https://resolver.localhost \
+            oip-did-resolver:dev
+          for attempt in $(seq 1 40); do
+            curl --fail --silent http://127.0.0.1:8084/healthz && break
+            sleep 0.25
+          done
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8084/1.0/identifiers/did:oip:tooshort)" = "400"
+          test "$(docker inspect --format '{{.Config.User}}' oip-did)" = "65532:65532"
+          docker rm --force oip-did
+      - name: What the services logged, if a step failed
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop the services
+        if: always()
+        run: docker compose down --volumes
+
+  keychain:
+    name: The keystore under the system's keychain (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      # The tests of the real keychain are skipped without this.
+      OIP_KEYCHAIN: real
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install with a frozen lockfile
+        run: pnpm install --frozen-lockfile
+      # macOS and Windows have a keychain for the user the job runs as. Linux has one in a
+      # desktop session: the Secret Service, which GNOME Keyring provides here (ADR-0019).
+      - name: A Secret Service to test against
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends gnome-keyring
+      - name: The keychain keeps and gives a keystore's keys (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          dbus-run-session -- bash -c '
+            echo -n "an unlocked keyring for the test" | gnome-keyring-daemon --unlock --components=secrets
+            pnpm exec vitest run --project @oip/keystore test/keychain.real.test.ts --reporter=default --reporter=json --outputFile.json=keychain.json
+          '
+      - name: The keychain keeps and gives a keystore's keys (macOS, Windows)
+        if: runner.os != 'Linux'
+        run: pnpm exec vitest run --project @oip/keystore test/keychain.real.test.ts --reporter=default --reporter=json --outputFile.json=keychain.json
+      # A run in which the tests were skipped would be green too.
+      - name: Both tests ran
+        run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('keychain.json', 'utf8')); if (numPassedTests !== 2) { console.error(numPassedTests + ' tests passed, and 2 were to'); process.exit(1); }"
+
+  browser:
+    name: The client and the Explorer in a browser (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # The tests in a browser are skipped without this. `installed`: the one Playwright installs.
+      OIP_CHROMIUM: installed
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install with a frozen lockfile
+        run: pnpm install --frozen-lockfile
+      # The browser of the version of Playwright the lockfile pins, and what it needs of the system (ADR-0022).
+      - name: A Chromium to test in
+        run: pnpm --filter @oip/client exec playwright-core install --with-deps --only-shell chromium
+      - name: The scenario of the papers runs in a page
+        run: pnpm exec vitest run --project @oip/client test/browser.real.test.ts --reporter=default --reporter=json --outputFile.json=browser.json
+      # A run in which the tests were skipped would be green too.
+      - name: All four tests ran
+        run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('browser.json', 'utf8')); if (numPassedTests !== 4) { console.error(numPassedTests + ' tests passed, and 4 were to'); process.exit(1); }"
+      # BUILD.md, M11: the Explorer against the demo network, in a page.
+      - name: The Explorer shows the demo network
+        run: pnpm exec vitest run --project @oip/explorer test/browser.test.ts --reporter=default --reporter=json --outputFile.json=explorer.json
+      - name: All eight tests ran
+        run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('explorer.json', 'utf8')); if (numPassedTests !== 8) { console.error(numPassedTests + ' tests passed, and 8 were to'); process.exit(1); }"
+      # `pnpm explorer:demo`, with a browser that has no window.
+      - name: The Explorer opens on the demo network, as a program
+        run: pnpm exec vitest run --project @oip/explorer test/demo.test.ts --reporter=default --reporter=json --outputFile.json=explorer-demo.json
+      - name: All six tests ran
+        run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('explorer-demo.json', 'utf8')); if (numPassedTests !== 6) { console.error(numPassedTests + ' tests passed, and 6 were to'); process.exit(1); }"
+      # BUILD.md, M11: accessibility, performance and best practices, each at 95 or more.
+      - name: The Explorer under Lighthouse
+        run: pnpm exec vitest run --project @oip/explorer test/lighthouse.test.ts --reporter=default --reporter=json --outputFile.json=lighthouse.json
+      - name: Both pages were scored
+        run: node -e "const { numPassedTests } = JSON.parse(require('node:fs').readFileSync('lighthouse.json', 'utf8')); if (numPassedTests !== 2) { console.error(numPassedTests + ' tests passed, and 2 were to'); process.exit(1); }"
+
+  newcomer:
+    name: The five-minute promise (a newcomer follows the README)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      # No cache of dependencies: a newcomer has none.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      # Installs, builds, starts `oip demo`, and runs the lines of packages/cli/README.md as they
+      # stand, in a home directory that holds nothing. It fails at five minutes (BUILD.md, M7).
+      - name: From nothing to an accepted Commitment between two minds
+        run: node scripts/newcomer.ts
+
+  mcp-inspector:
+    name: The MCP server under the MCP Inspector
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      # Builds, starts `oip demo`, makes two minds, and has the Inspector's command line list
+      # the tools of `oip-mcp` (with its strict check of their schemas), call three of them,
+      # and get no signature for a Commitment it cannot ask the person about (BUILD.md, M8).
+      # The Inspector is fetched by npx at the version the script pins. This job holds no secret.
+      - name: The Inspector lists the tools, calls them, and gets no signature unasked
+        run: node scripts/mcp-inspector.ts
+
+  a2a-tck:
+    name: A mind as an A2A agent, under the A2A TCK
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      # The TCK asks for Python 3.15. uv finds this one, and fetches none.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15"
+      - name: Install uv, by hash
+        run: python -m pip install --require-hashes -r .github/requirements/a2a-tck.txt
+      - name: Install with a frozen lockfile
+        run: pnpm install --frozen-lockfile
+      # Starts a network on the runner, a gateway, and an OIP mind the gateway serves as an A2A
+      # agent, and runs the A2A project's TCK against that mind over JSON-RPC (BUILD.md, M9).
+      # The TCK is cloned at the commit the script pins, and its own lock file pins what it
+      # needs. This job holds no secret.
+      - name: The TCK finds no requirement of level MUST that is not met
+        run: node scripts/a2a-tck.ts
+
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    # About ten minutes, with coverage, on a shared runner.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["24", "latest"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Install the Python checker's dependency, by hash
+        run: python -m pip install --require-hashes -r .github/requirements/vector-checker.txt
+      - name: Install with a frozen lockfile
+        run: pnpm install --frozen-lockfile
+      - name: Tests, with coverage thresholds
+        run: pnpm test:coverage
+      - name: Golden vectors, by case kind
+        run: pnpm test:vectors

@@ -1,0 +1,24 @@
+{
+  "name": "@oip/testkit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Test helpers for the OIP reference implementation: clause citations, the specification's clause list, the vectors, and minds whose logs are signed with keys derived from names.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./minds": "./src/minds.ts",
+    "./http-fuzz": "./src/http-fuzz.ts",
+    "./load": "./src/load.ts",
+    "./ratio": "./src/ratio.ts"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@oip/core": "workspace:*",
+    "@oip/identity": "workspace:*",
+    "@oip/schema": "workspace:*",
+    "fast-check": "^4.10.2"
+  }
+}

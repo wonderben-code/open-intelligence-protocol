@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+# SPDX-License-Identifier: Apache-2.0
+
+# What a build of the service images does not need. Less sent to the builder, and
+# nothing of a developer's machine in an image.
+.git
+.github
+**/node_modules
+**/dist
+**/temp
+**/coverage
+**/*.tsbuildinfo
+.stryker-tmp
+reports
+docs/api
+papers
+research
+reviews
+timestamps
+site
+**/.env
+**/.env.*
+**/*.log
+**/*.db
+**/*.db-*
+compose.yaml
+Dockerfile
+.dockerignore

@@ -202,6 +202,7 @@ OIP records are UTF-8 JSON objects with a restricted value space:
 - **Values** are objects, arrays, strings, booleans, `null` and integers between −(2⁵³−1) and 2⁵³−1. **Floating-point numbers are not allowed.** Decimal quantities such as prices are written as strings (`"120.50"`) and compared with exact decimal arithmetic. Only strings that match the decimal pattern count as numbers: `"1,000"`, `"1e2"` and `"-Infinity"` do not, so they can never slip past a numeric limit. Amounts of money are never negative.
 - **Timestamps** are RFC 3339 strings in UTC with a `Z` suffix, such as `"2026-10-30T10:00:00Z"`, compared as instants, never as strings. Durations use ISO 8601 (`"P30D"`).
 - **Field names** use camelCase. Unknown fields are preserved, never stripped, because they are part of what was signed.
+- **Limits.** A record's canonical form is at most 1 MiB, and its arrays and objects nest at most 64 deep, so no record can exhaust the program that reads it. A page that carries other records is limited record by record, and in its own members, never as a whole, so one oversized or deeply nested entry cannot stop a log from being served. A number is judged by its value, not its spelling: `1.0` is the integer 1. Strings are valid Unicode with no noncharacters, as I-JSON requires.
 
 **Canonical form** is the JSON Canonicalization Scheme, RFC 8785 (JCS): keys sorted by UTF-16 code units, no insignificant whitespace, deterministic string escaping. The restriction to integers removes the one part of JCS that is hard to implement consistently across languages, its number formatting.
 
@@ -265,7 +266,7 @@ A record reference has two parts with two jobs: the content ID makes the link im
 | Field | Meaning |
 |---|---|
 | `oip` | Major protocol version. Always `"1"` in this revision. |
-| `type` | The record type, such as `Genesis`, `Location`, `Packet` or `Commitment` (Appendix B lists them all). |
+| `type` | The record type, such as `Genesis`, `Location`, `Packet` or `Commitment` (Appendix B lists them all). A record of a type that an extension defines lists that extension in `critical`. |
 | `author` | The mind making the statement. Packets use `from`; identity events use `mind`. |
 | `created` | When the author says the record was made. This is a claim, never evidence: every rule about time uses evidence of when a signature existed (Section 5.3). |
 | `expires` | Optional. After this time the record is closed. |
@@ -303,7 +304,7 @@ The address is the content ID of the mind's first identity event, which commits 
 
 **Why a new DID method.** OIP surveyed the existing methods before defining one. `did:key` cannot rotate keys. `did:web` is controlled by whoever controls the domain. `did:plc` has the right shape but depends on a single directory to order updates. `did:webvh` (DIF, v1.0 in 2025) has almost exactly the right machinery, a self-certifying identifier plus a hash-chained, pre-rotated log in JSON, but its identifiers include a web domain. KERI (Trust over IP) has the most complete semantics for rotation and duplicity, encoded in a specialised format, and its `did:keri` method, like `did:peer:4`, is already self-certifying and location-independent. `did:oip` takes the log approach of `did:webvh`, the semantics of KERI and the encoding of W3C Data Integrity, and adds what the others lack for minds: lineage, member-controlled collectives and a common record format with Layer 2. OIP will register the method in the W3C DID Extensions registry and would welcome convergence with the `did:webvh` and KERI communities.
 
-**Resolution to a DID document.** Resolving `did:oip:<mindId>` replays the identity log (Section 5.2) and, where available, the latest location record (Section 5.7), and produces a standard DID Core document: operational keys become verification methods for authentication, assertion and delegation; invocation keys for capability invocation; X25519 keys become `keyAgreement` methods; homes and current endpoints become services; `alsoKnownAs` lists verified aliases; the committed next-key hashes and lineage appear in DID document metadata. DID resolution supports the `versionId` parameter, so a resolver can return the document as it stood at any point in the log; such a document gives its verification methods versioned ids, so that the key reference in a proof matches a verification method exactly, as generic Data Integrity verifiers require. The test vectors include DID documents for a person and a collective.
+**Resolution to a DID document.** Resolving `did:oip:<mindId>` replays the identity log (Section 5.2) and, where available, the latest location record (Section 5.7), and produces a standard DID Core document: operational keys become verification methods for authentication, assertion and delegation; invocation keys for capability invocation; X25519 keys become `keyAgreement` methods; homes and current endpoints become services; `alsoKnownAs` lists verified aliases; the committed next-key hashes and lineage appear in DID document metadata. DID resolution supports the `versionId` parameter, so a resolver can return the document as it stood at any point in the log; such a document gives its verification methods versioned ids, so that the key reference in a proof matches a verification method exactly, as generic Data Integrity verifiers require. Whether the mind is `deactivated` is said of the mind as its log stands now, whichever version is asked for: a verifier that follows the key reference of an old proof learns that the mind has since retired. The test vectors include DID documents for a person and a collective.
 
 ### 5.2 The identity log
 
@@ -370,11 +371,14 @@ Its content ID, and therefore Amina's address, is `did:oip:bciqmwrzo6zt2xnoga2rk
 2. Each later event names the same `mind`, has `seq` one greater than its predecessor, `prev` equal to its predecessor's content ID, and a `created` no earlier than its predecessor's.
 3. Each later event reveals at least `nextThreshold` *distinct* control keys; every revealed key hashes to an entry in its predecessor's `next`; and every revealed key has signed the event with the purpose `capabilityInvocation`.
 4. Fields present in an event (`keys`, `invocation`, `agreement`, `homes`, `alsoKnownAs`) replace the previous values. Revoked keys are removed and can never return.
-5. Only `Update`, `Fork` and `Retire` may follow the genesis, and nothing follows a `Retire`. A log containing a `Merge`, or an event containing the reserved member `recovery`, is rejected.
+5. Only `Update`, `Fork` and `Retire` may follow the genesis, and nothing follows a `Retire`. A log containing a `Merge`, or an event with the reserved member `recovery`, is rejected.
+6. Every event is a well-formed record of its type, whoever signed it. An address is the hash of a genesis, so verifiers that disagreed about which events are well formed would disagree about which minds exist.
 
 The reference checker performs exactly these steps. Its negative test vectors include a rotation signed correctly by a key whose hash was never committed, which pre-rotation alone rejects, and a 2-of-3 rotation that lists one key twice, which the distinct-keys rule rejects.
 
-**Duplicity.** Two valid events with different content IDs at the same position of a log are **duplicity**. Because thresholds are majorities, every such pair has a signer who signed both, so the pair is self-proving evidence of misuse. Resolvers keep the first valid event they saw at each position, record when they saw it, and publish any conflicting event as evidence. A verifier never chooses between branches by length or by recency, since an attacker can always make a branch longer: the branch whose event at the point of divergence has the earlier evidence (first seen by the verifier or by a witness it trusts, or anchored) wins. If the evidence cannot separate them, the mind is duplicitous for that verifier, which accepts nothing pinned to a version after the divergence; records pinned to earlier versions stay valid, and every branch's key removals apply to them, so duplicity never revives a key. Minds publish identity events to at least two independent witnesses so that first-seen evidence exists. This is KERI's first-seen rule, and it makes showing different histories to different people detectable rather than silent. The test vectors include a duplicity resolved by first-seen evidence and one that evidence cannot resolve.
+**An event that fails.** A log with an event that fails any of these steps is rejected. What a verifier may do with the events before it depends on why it failed. An event that the verifier can read is **invalid** if what is wrong with it can be seen in the log alone: it is malformed, out of place, or carries proofs that no evidence and no other log could make good. It is no event: a copy ends before it, and takes nothing away from what other copies show. Every other event that fails is **undecided**, because the verifier cannot judge it: it has no evidence for it yet, or its copy of a member's log does not bear the event out, or the event names a critical extension the verifier does not implement or a later revision's type, either of which may bring rules of its own. Such an event may be the one that removes a key. The verifier does not take the events before it as the log, and waits until it can judge the event. It keeps what it has been shown: every event of every copy of the log, with every proof of each well-formed copy of it, judged when it is asked and never when a copy arrives, so that no later copy can undo an earlier one. A copy of an event whose `proof` is not well formed adds no proof and takes none away: a content ID does not cover the proofs, so anyone can make such a copy. Anyone can write an event that a verifier cannot read, so this protects against damage and not against a source the verifier trusts that serves such an event on purpose.
+
+**Duplicity.** Two valid events with different content IDs at the same position of a log are **duplicity**. Because thresholds are majorities, every such pair has a signer who signed both, so the pair is self-proving evidence of misuse. Resolvers keep the first valid event they saw at each position, record when they saw it, and publish any conflicting event as evidence. A verifier never chooses between branches by length or by recency, since an attacker can always make a branch longer: the branch whose event at the point of divergence has the earlier evidence (first seen by the verifier or by a witness it trusts, or anchored) wins. If the evidence cannot separate them, the mind is duplicitous for that verifier, which accepts nothing pinned to a version after the divergence; records pinned to earlier versions stay valid, and every branch's key removals apply to them, so duplicity never revives a key. A collective's records pin no version of the collective, so for a duplicitous collective the rule is one of time: nothing is signed under its threshold from its first conflicting event on. A verifier judges every event it holds at each position. An invalid event is no event, so one after the honest event does not hand the position to the other branch. An event the verifier cannot judge stops the log, whatever else is held at that position, since it may be the mind's own. What follows an event that lost its position is not judged. Minds publish identity events to at least two independent witnesses so that first-seen evidence exists. This is KERI's first-seen rule, and it makes showing different histories to different people detectable rather than silent. The test vectors include a duplicity resolved by first-seen evidence and one that evidence cannot resolve.
 
 ### 5.3 Time, key changes and compromise
 
@@ -386,7 +390,7 @@ t(p) = max( p.created, τ(p) )
 
 where `τ(p)` is the earliest time for which the verifier holds *evidence* that the signature existed: its own record of receiving it, the first-seen record of a witness it trusts (its resolver or indexer), an anchored checkpoint whose feed entry commits to that exact signature, or a recipient's signed acknowledgement. For anything received live, the evaluation time is simply the time of receipt, so writing an earlier date achieves nothing. Evidence belongs to one signature: adding a co-signature does not change a record's ID, so evidence that a record existed says nothing about a signature added to it later, and one signature is never evidence for another. Implementations therefore key evidence by the digest of the signature itself.
 
-**Removing a key.** An `Update` that leaves an operational key out of the mind's keys stops it signing anything new. The removal itself takes effect at the update's own evaluation time, so a mind cannot backdate a removal to withdraw records it has already made. After a `Retire`, none of the mind's keys can sign anything.
+**Removing a key.** An `Update` that leaves an operational key out of the mind's keys stops it signing anything new. The removal itself takes effect at the update's own evaluation time, so a mind cannot backdate a removal to withdraw records it has already made. After a `Retire`, none of the mind's keys can sign anything: a signature that pins the `Retire` itself counts for nothing, although the event leaves the keys in their sets.
 
 **Both times need evidence.** Deciding whether a signature came before or after a key's removal compares two times, and the comparison means something only if both come from evidence. A verifier that receives a signature before it has fetched the signer's latest log would otherwise compare "when I saw the signature" with "when I later saw the removal", and the former holder of a removed key, a departed employee or an abandoned host, would win the race. So before counting a signature a verifier must hold the signer's log as a witness it trusts served it after the signature first appeared, and must date the log's events by that witness's first-seen times or by anchors, never by its own later sight of them.
 
@@ -436,7 +440,7 @@ A collective needs its own address, so that it can receive packets, make commitm
 - **The address is derived the same way** as any other mind's, so a collective is a mind in every respect. In the test vectors, a 2-of-3 collective of Amina, the Lexis agent and a research agent has the address `did:oip:bciqbo5c2xn4zzmmlz5ltmmcjhuvzbam2ov5zyewxuzpw3ph2ob3v76i`.
 - **Changes need a majority.** Later identity events need signatures from at least the threshold number of current members, which must be more than half, and anyone being added must also sign.
 - **Members' signatures are judged at the event's time.** A member's signature on a collective's identity event counts only if it is by an invocation key the member held at the version the signature names, and the member had not removed that key, or retired, by the event's evaluation time. A removed invocation key can therefore append nothing, even pinned to an old version. A member's claim that its key was compromised long ago does not reach back into the collective's log, so no member can unmake a collective by disowning its old keys; that claim withdraws only the member's own records.
-- **Acting as one.** A record counts for a collective at the earliest time when members of the collective's membership at that time, signing with their own operational keys, reach its threshold. A record that describes the collective's present, such as its location record, needs a majority of its latest membership, so members who leave can no longer keep a record of theirs current. A member holding a role in the charter in force at the time also signs for the collective within the role's powers, with a signature that names the charter in its `authority`, so acting for the collective is always a stated choice. Roles and their powers are defined in the collective's charter, the Layer 2 `Collective` object (Section 6.2), and work like standing delegations.
+- **Acting as one.** A record counts for a collective at the earliest time when members of the collective's membership at that time, signing with their own operational keys, reach its threshold. That time is when a signature is made or when the collective's membership changes, whichever completes the threshold. A record that describes the collective's present, such as its location record, needs a majority of its latest membership, so members who leave can no longer keep a record of theirs current. A member holding a role in the charter in force at the time also signs for the collective within the role's powers, with a signature that names the charter in its `authority`, so acting for the collective is always a stated choice. A role needs what a threshold needs: the collective's log known up to the evidence for the signature, and a collective that is not duplicitous at that time. Roles and their powers are defined in the collective's charter, the Layer 2 `Collective` object (Section 6.2), and work like standing delegations.
 - **Collectives of collectives.** A member can itself be a collective, signing with invocation and operational keys it authorises through its own threshold. A collective's height (how deeply it nests) is fixed by its genesis, at most four, and every member must be lower, so a member collective can never grow in a way that invalidates the collectives it belongs to, and no collective can contain itself. A collective that expects to admit other collectives later declares a larger height at genesis. Having a member collective's own members sign directly inside another collective is reserved.
 
 **Keeping a collective verifiable.** A control key signs once and is destroyed, so a stolen control key is useless after its event. A member's invocation key signs many events and cannot be destroyed that way, and the order of an event in the member's log and an event in the collective's log can only be known from evidence. Collectives therefore depend on witnesses and anchors in a way key-controlled minds do not: once a member has removed an invocation key, a verifier counts the events it signed only with evidence that they came first, and a verifier without that evidence rejects them, because it cannot tell them from forgeries made later with the removed key. Resolvers serve first-seen times for exactly this purpose, and collectives should anchor their identity events in their feeds, so that any verifier, including a resolver that meets the collective for the first time, can check its whole history. The test vectors include a takeover attempt with removed invocation keys, rejected when first seen after the removals and accepted, as a control, when evidence shows it came before them.
@@ -482,9 +486,9 @@ OIP adopts the semantics of **UCAN 1.0**, a community specification for chained,
 As in UCAN 1.0, a delegation does not name its parents. The signature that relies on a chain lists every delegation in it, as a UCAN invocation lists its proofs in `prf`.
 
 - **What can be delegated.** Only four record types can be signed on someone else's behalf: Intents, Offers, Commitments and Receipts (commands `/oip/sign/Intent` and so on), plus `/oip/send` for packets sent on someone's behalf. Delegations, revocations, charters, lineage records, identity events and current-state records always need the author's own authority, so a delegate can never create, widen or revoke authority in its principal's name. There are no blanket grants: `/oip` and `/oip/sign` are reserved. Extensions add commands under their own namespace, such as `/x402/pay`.
-- **Policies** are lists of conditions on the record being signed, all of which must hold. They follow UCAN's policy language: comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`) on selected fields, where only genuine decimals are compared as numbers; the connectives `not`, `and` and `or`; and the quantifiers `all` and `any` over arrays, so that a policy can bound who a deal is with as well as what it costs. A comparison on a missing field, or an ordering of something that is not a decimal, is an error that fails the whole policy, so wrapping a condition in `not` or `or` can never turn a missing value into a pass. A policy constrains only what it selects, which is why the example pins the currency, the amount and who is paid, and excludes the agent itself as a party, so that the agent cannot commit the firm to pay, or to deal with the agent. Each limit applies to one commitment at a time; a cumulative budget needs an extension. Where a commitment's plain-language promise says more than its structured terms, a party bound through a delegate is bound only by the terms, because those are what the policy could check.
-- **Using a delegation.** A signature made under delegation lists, in its own `authority` member, exactly the delegations of its chain, root first; the signature covers that list. A verifier checks the chain as listed, without searching for another order, and checks that each step only narrows the previous one, that the command covers the record's type, that every policy holds for the record, and that everything was valid at the signature's evaluation time (Section 5.3). One signature therefore acts for at most one principal besides its signer. Because each delegated signature carries its own chain, two agents acting for different principals can sign the same commitment, in either order, without changing its ID.
-- **Revocation.** The issuer publishes a `Revocation` record in its feed. It takes effect from its own evaluation time, so a backdated revocation cannot void what evidence shows came before it. Expiry bounds how long a missed revocation matters, so delegations should last no longer than their purpose needs; the one in the test vectors lasts a month.
+- **Policies** are lists of conditions on the record being signed, all of which must hold. They follow UCAN's policy language: comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`) on selected fields, where only genuine decimals are compared as numbers; the connectives `not`, `and` and `or`; and the quantifiers `all` and `any` over arrays, so that a policy can bound who a deal is with as well as what it costs. A comparison on a missing field, or an ordering of something that is not a decimal, is an error that fails the whole policy, so wrapping a condition in `not` or `or` can never turn a missing value into a pass. A policy constrains only what it selects, which is why the example pins the currency, the amount and who is paid, and excludes the agent itself as a party, so that the agent cannot commit the firm to pay, or to deal with the agent. Each limit applies to one commitment at a time; a cumulative budget needs an extension. The work a policy may ask for one record is bounded, and counted the same way by every verifier (one for each value a statement is tried on, and the bytes compared where two values are compared whole), so that no record costs a verifier more than a set amount to judge and no two verifiers disagree about one built to be costly. Where a commitment's plain-language promise says more than its structured terms, a party bound through a delegate is bound only by the terms, because those are what the policy could check.
+- **Using a delegation.** A signature made under delegation lists, in its own `authority` member, exactly the delegations of its chain, root first; the signature covers that list. A verifier checks the chain as listed, without searching for another order, and checks that each step only narrows the previous one, that the command covers the record's type, that every policy holds for the record, and that everything was valid at the signature's evaluation time (Section 5.3). It also checks that each delegation's author can still stand behind it at that time: the author is not retired or duplicitous, and the verifier knows the author's log up to the evidence for the signature, since an older copy may lack the event that ended the delegation. One signature therefore acts for at most one principal besides its signer. Because each delegated signature carries its own chain, two agents acting for different principals can sign the same commitment, in either order, without changing its ID.
+- **Revocation.** The issuer publishes a `Revocation` record in its feed. It takes effect from its own evaluation time, so a backdated revocation cannot void what evidence shows came before it. A revocation only takes authority away, so it stands even if the key that signed it is later declared compromised. Expiry bounds how long a missed revocation matters, so delegations should last no longer than their purpose needs; the one in the test vectors lasts a month.
 
 In the test vectors, Lexis Ltd's delegation lets its agent sign the 120 USD commitment on the firm's behalf, and 500 USD would also be within it. The same agent signing an otherwise identical commitment for 500.01 USD, 900 USD or 400 BTC, or one in which the firm pays instead of being paid, or one between the firm and the agent itself, produces a valid signature from the agent that counts for nothing on the firm's behalf. The vectors also include a two-step chain, in which the agent re-delegates to its fork with a lower limit (listing the same two delegations in the wrong order counts for nothing), Amina's assistant agent, whose delegation lets it commit her to pay only Lexis Ltd, at most 150 USD, and a second delegation that lets the assistant send packets on her behalf (`/oip/send`).
 
@@ -523,7 +527,7 @@ The identity log says *who* a mind is. A **location record** says where it can b
 **Resolution** turns an address into its identity log, location record and profile. It works in layers, every one of them optional except the first, and none of them trusted for integrity:
 
 1. **Homes.** `GET https://<home>/.well-known/oip/mind/<mindId>` returns the mind's bundle. Any host that has ever served a mind can keep serving the latest signed copy.
-2. **Resolvers.** Anyone can run a resolver with a small HTTP API modelled on the IPFS delegated-routing API: `GET /oip/v1/resolve/<mindId>` to fetch a bundle, `PUT` to publish one, and `GET /oip/v1/stream` so resolvers can mirror each other. Resolvers keep the first event they see at each position of every identity log, and when they saw it, so they act as witnesses against duplicity, the role that AT Protocol read replicas play for `did:plc`; their first-seen times are evidence for the clients that trust them (Section 5.3). Clients ask two or more. For location records the valid one with the highest `seq` wins; for identity logs, the first-seen event at each position.
+2. **Resolvers.** Anyone can run a resolver with a small HTTP API modelled on the IPFS delegated-routing API: `GET /oip/v1/resolve/<mindId>` to fetch a bundle, `PUT` to publish one, and `GET /oip/v1/stream` so resolvers can mirror each other. Resolvers keep the first event they see at each position of every identity log, and when they saw it, so they act as witnesses against duplicity, the role that AT Protocol read replicas play for `did:plc`; their first-seen times are evidence for the clients that trust them (Section 5.3). A resolver keeps only what verifies: of a published log, the events up to the first that does not; and of an event's proofs, those that can count for it, so that nobody can bury an event under proofs that sign nothing. Clients ask two or more. For location records the valid one with the highest `seq` wins; for identity logs, the first-seen event at each position.
 3. **Hints.** Whenever a record mentions another mind, it may include `hints`, URLs where that mind's records can be fetched, so most lookups need no resolver at all.
 4. **Later layers.** Revision 1.x adds pointers in public DHTs (Pkarr on the BitTorrent Mainline DHT, and the libp2p Kademlia DHT). Verified DNS and web aliases (Section 7.6) are already part of v1.
 
@@ -580,7 +584,7 @@ Ranking is the indexer's own policy, and its signature makes it accountable for 
 **Sending to "whoever can do this".** A packet can be addressed to a capability query instead of a mind, with `to: { "query": { … } }`. There are two ways to deliver it:
 
 - **Client-resolved.** The sender queries one or more indexers, chooses candidates and sends to them directly.
-- **Broker-resolved.** The sender hands the packet to a broker, usually an indexer, which forwards the unchanged signed packet to matching minds as a call for offers, each wrapped in a signed `Forwarded` record naming the broker and the recipient. The packet itself names the brokers allowed to forward it and the maximum fan-out, inside its signature, so a broker cannot widen either, and such packets expire within an hour. Recipients discard repeat deliveries, reply directly to the sender, and can see which broker routed the packet to them, so they can filter brokers that send noise.
+- **Broker-resolved.** The sender hands the packet to a broker, usually an indexer, which forwards the unchanged signed packet to matching minds as a call for offers, each wrapped in a signed `Forwarded` record naming the broker and the recipient. The packet itself names the brokers allowed to forward it and the maximum fan-out, inside its signature, so a broker cannot widen either, and such packets expire within an hour. A broker forwards a packet once, to each mind's inbox or, where no inbox takes it, its mailbox. Recipients discard repeat deliveries, reply directly to the sender, and can see which broker routed the packet to them, so they can filter brokers that send noise.
 
 Revision 2 adds topic routing over publish/subscribe networks: `to: { "subject": "cap.nlp.translation.*" }`.
 
@@ -614,7 +618,7 @@ A packet sent on someone else's behalf names them in `provenance.onBehalfOf`, an
 
 **Provenance travels with content.** A packet can say which model produced its content, which sources it was derived from and whom it was produced for, so provenance survives being passed between minds instead of being lost at every hop.
 
-**Sealing.** For private communication, the signed packet is encrypted to the recipient's X25519 key using HPKE (RFC 9180, X25519 with HKDF-SHA256 and ChaCha20-Poly1305) and wrapped in a `Sealed` record that shows only the recipient. Packets are signed first and encrypted second, as DIDComm recommends, so mailboxes and relays can store and forward sealed packets without being able to read them. Version 1 sealing gives neither forward secrecy nor post-quantum confidentiality: anyone who later obtains a recipient's agreement key can read what was sealed to it, so minds rotate agreement keys, and ratcheted sessions follow (Section 5.10). Revision 1.x adds routing of sealed packets through mediators.
+**Sealing.** For private communication, the signed packet is encrypted to the recipient's X25519 key using HPKE (RFC 9180, X25519 with HKDF-SHA256 and ChaCha20-Poly1305) and wrapped in a `Sealed` record that shows only the recipient. Packets are signed first and encrypted second, as DIDComm recommends, so mailboxes and relays can store and forward sealed packets without being able to read them. The recipient opens a record only to the canonical form of a packet, and then judges that packet as any other; a sender never seals to a key of small order. Version 1 sealing gives neither forward secrecy nor post-quantum confidentiality: anyone who later obtains a recipient's agreement key can read what was sealed to it, so minds rotate agreement keys, and ratcheted sessions follow (Section 5.10). Revision 1.x adds routing of sealed packets through mediators.
 
 ### 5.10 Sessions and continuity
 
@@ -624,9 +628,9 @@ Today's protocols tie a conversation to a connection or to a server. OIP separat
 2. **Relationship**, a session between two or more minds, which can last for years.
 3. **Connection**, an HTTP request or a socket, which is ephemeral and never carries continuity.
 
-**Sessions.** A session's identifier is the content ID of a `Session` record listing the participants (sorted), a nonce and a creation time. Each participant's first packet carries the record, whatever its verb, so every participant can check the identifier.
+**Sessions.** A session's identifier is the content ID of a `Session` record listing the participants (sorted), a nonce and a creation time. The first packet of each sending chain carries the record, whatever its verb, so every participant can check the identifier.
 
-**A verifiable thread.** Within a session, each sending chain (a mind, or one named instance of a mind that runs several) numbers its packets with `seq` and links each to its previous packet with `prev`. Every packet in a session goes to every other participant, so each participant holds a complete hash-chained transcript of every other side, which cannot be silently edited or reordered; two packets at the same position in one chain are evidence of equivocation.
+**A verifiable thread.** Within a session, each sending chain (a mind, or one named instance of a mind that runs several) numbers its packets with `seq` and links each to its previous packet with `prev`. Every packet in a session goes to every other participant, so each participant holds a complete hash-chained transcript of every other side, which cannot be silently edited or reordered. A packet has a place in its chain only as a link: the first, or one whose `prev` is the link before it. So the order in which packets arrive decides nothing, and two links at the same position in one chain are evidence of equivocation.
 
 **Resuming.** After a move, a pause of a week, or an upgrade, the returning mind sends a `Resume` record stating the last packet it sent and the last packet it received from each participant. The others check both chains and resend whatever is missing from their outboxes or from the mailbox. Because the new host's signing key must be authorised in the mind's identity log, a move is verifiable rather than merely asserted: each side can confirm it is continuing the same relationship with the same counterpart.
 
@@ -656,7 +660,7 @@ Every binding carries the same bytes; a binding only defines how they move.
 
 | Binding | Version | Shape |
 |---|---|---|
-| **HTTPS inbox** | v1, required | `POST {endpoint}/inbox` with media type `application/oip+json`; the reply is `202` with a signed `Ack`, which the sender keeps as evidence of delivery; errors use RFC 9457 problem details |
+| **HTTPS inbox** | v1, required | `POST {endpoint}/inbox` with media type `application/oip+json`; the reply is `202` with a signed `Ack`, which the sender keeps as evidence of delivery. It names the packet by content ID, which covers the proofs of the records the packet carries, and lists the digests of the packet's own proofs, so that it is evidence of time for each of them; errors use RFC 9457 problem details |
 | **WebSocket** | v1 | The server sends a challenge; the client answers with a Data Integrity authentication proof over it, naming the origin it connected to so the proof cannot be relayed elsewhere; packets then flow as frames. Minds without public endpoints can receive by holding a socket open. |
 | **Server-sent events** | v1 | Streaming partial results, compatible with A2A streaming |
 | **Mailbox** | v1 | `POST` stores sealed packets; authenticated `GET` drains them |
@@ -726,14 +730,14 @@ A signature thus counts for its signer and, through its `authority`, for at most
 | Offer | `open` → `withdrawn`, `superseded`, `expired` or `exhausted` | A superseding Offer by its author, `expires`, or a quantity limit reached by Commitments signed for the Offer's author |
 | Commitment | `proposed` → `accepted` → `fulfilled`, `claimed-fulfilled`, `overdue`, `broken`, `disputed` or `cancelled` | Signatures, then Receipts and the passage of time |
 | Receipt | final, unless `revoked` | A superseding Receipt by the same author |
-| Collective | `active` → `dissolved` | Superseding charters; identity events |
+| Collective | `active` → `dissolved` | The collective's identity events: its charter is dissolved when its log is retired |
 
 The rules for Commitments follow from Singh's public-commitment semantics:
 
 - **Fulfilled** requires a `fulfilled` Receipt signed by the creditor, or by any party if `terms.selfReport` is true. A fulfilment Receipt signed only by the debtor makes the Commitment **claimed-fulfilled** until the creditor confirms or disputes it.
 - **Cancelled** requires a `cancelled` Receipt signed by every required party: a mutual release.
 - **Broken** can be asserted by any party. It is recorded as a claim attributed to whoever made it.
-- **Disputed** results when parties' Receipts conflict, or when a party withdraws its signature by declaring the signing key compromised (Section 5.3), which leaves the Commitment no longer accepted and shows who disowned what. Resolving disputes is outside the core; arbitration services, collectives and courts can be brought in through extensions.
+- **Disputed** results when parties' Receipts conflict, or when a signature the Commitment rests on is withdrawn by a declaration that its key was compromised (Section 5.3), whether the key is a party's or a delegate's, which leaves the Commitment no longer accepted and shows who disowned what. Resolving disputes is outside the core; arbitration services, collectives and courts can be brought in through extensions.
 - **Overdue** is computed when a deadline passes without fulfilment, so status depends on when it is computed.
 
 Only a Commitment signed for an Intent's author can satisfy that Intent, and only Commitments signed for an Offer's author count towards its quantity, so other minds cannot close someone else's Intent or exhaust someone else's Offer by committing among themselves.
@@ -832,15 +836,15 @@ Billions of websites and APIs, every email address, every payment rail and a fas
 | **bridged** | A gateway attests on the external system's behalf, and the entry in its own feed proves it; Receipts record what the gateway observed |
 | **claimed** | An assertion nobody has verified, such as unacknowledged lineage, or a bridge label without the gateway's attestation |
 
-Because only the gateway can sign entries in its own feed, nobody can borrow a reputable gateway's name for a mind it never bridged. The attestation is a feed entry rather than a signature on the genesis because identity events are signed only with control and invocation keys. The test vectors include a bridged mind and one that attests itself, which stays `claimed`. The reverse cannot be detected from records alone: a gateway that bridges a system without declaring it makes the mind look native. `native` therefore means only that no gateway has declared otherwise, and a gateway that hides its role misrepresents its minds and is accountable for doing so.
+Because only the gateway can sign entries in its own feed, nobody can borrow a reputable gateway's name for a mind it never bridged. The attestation is a feed entry rather than a signature on the genesis because identity events are signed only with control and invocation keys. The profile names that entry by reference, so a verifier looks it up among the records it holds. The test vectors include a bridged mind, one that attests itself, one whose profile carries the entry in place of the reference, and one whose profile leaves the gateway out though its genesis names it: the last three are `claimed`. The reverse cannot be detected from records alone: a gateway that bridges a system without declaring it makes the mind look native. `native` therefore means only that no gateway has declared otherwise, and a gateway that hides its role misrepresents its minds and is accountable for doing so.
 
 Several gateways may bridge the same service, and a service can later adopt a native identity and link it to its bridged ones with verified aliases.
 
 ### 7.2 MCP
 
-**Into OIP.** A gateway turns an MCP server into a Participant. Each tool becomes a capability, with the tool's name as its ID, its description as its summary and its input schema in an extension. Resources and prompts are described the same way. A request packet becomes an MCP `tools/call`; the result returns in a packet; and the gateway can sign a Receipt recording the call. The gateway holds whatever OAuth credentials the MCP server requires and acts under delegation from the requesting mind where the action warrants it.
+**Into OIP.** A gateway turns an MCP server into a Participant. Each tool becomes a capability, with the tool's name as its ID, its description as its summary and its input schema in an extension block of that capability. Resources and prompts are described the same way. A request packet becomes an MCP `tools/call`; the result returns in a packet, which says that it is an error where the server said so; and where the request is made under a Commitment of the bridged mind's, the gateway signs a Receipt recording what it saw, with the digest of the result as evidence. That Receipt reports progress: the gateway saw a result, and leaves it to the parties to say that the promise is kept. MCP's JSON can hold what a record cannot, a number with a fraction for one: a schema, a call's arguments or a result of that kind is carried as its JSON text. The gateway holds whatever OAuth credentials the MCP server requires, and calls a tool only for a requester that its operator's checks cover, by the requester's own identity or by a delegation. A delegation counts only while it stands, so the gateway looks in its author's feed for a revocation before it acts, and it declines a requester the checks do not cover.
 
-**Out of OIP: the fastest route to adoption.** An **OIP MCP server** gives any MCP-capable assistant a mind of its own. It exposes tools such as `oip_whoami`, `oip_find` (capability queries), `oip_send`, `oip_inbox`, `oip_publish_intent`, `oip_make_offer`, `oip_commit`, `oip_receipt` and `oip_status`. The keys stay with the user, either in a local server or as a delegated operational key, and always outside the model's context. The server presents packet content to the model as untrusted data and asks the user to confirm before it signs a Commitment or a Delegation, unless the user has set a policy that allows it (Section 8.2). MCP's stateless design since its 2026-07-28 revision suits this well, because all of the state lives in the mind, not in the MCP session. Every assistant that speaks MCP can join the network on the day the server ships.
+**Out of OIP: the fastest route to adoption.** An **OIP MCP server** gives any MCP-capable assistant a mind of its own. It exposes tools such as `oip_whoami`, `oip_find` (capability queries), `oip_send`, `oip_inbox`, `oip_publish_intent`, `oip_make_offer`, `oip_commit`, `oip_receipt` and `oip_status`. The keys stay with the user, either in a local server or as a delegated operational key, and always outside the model's context. The server presents packet content to the model as untrusted data and asks the user to confirm before it signs a Commitment, a Receipt or a Delegation, unless the user has set a policy that allows it (Section 8.2). MCP's stateless design since its 2026-07-28 revision suits this well, because all of the state lives in the mind, not in the MCP session. Every assistant that speaks MCP can join the network on the day the server ships.
 
 ### 7.3 A2A
 
@@ -857,6 +861,8 @@ Several gateways may bridge the same service, and a service can later adopt a na
 | `input-required`, `auth-required` | A `request` packet back to the requester |
 | Artifacts | Delivered content, referenced as Receipt evidence |
 | `contextId` | Session |
+
+The gateway brings each Receipt to the mind that asked. It publishes a Receipt about a Commitment, as any party does, and need not publish one about a bare request: in a public feed, such a Receipt would tell everyone who asked what of whom.
 
 **Out of OIP.** A host can publish an A2A Agent Card for every mind it serves, each at its own URL and with an A2A endpoint, so existing A2A clients can call OIP minds without changes.
 
@@ -1141,10 +1147,19 @@ t(r, p):                                   # when proof p on record r counts as 
 eventTime(e):                              # identity events take effect at their evaluation time
     τ = earliest evidence that e existed, valid   # a trusted witness's first-seen time or an anchor
     require e.created ≤ τ + 300 s
-    return max(e.created, τ, eventTime(previous event))
+    t = max(e.created, τ, eventTime(previous event))
+    require t ≤ e.expires + 300 s when e has expires   # past it, no proof on e counts
+    return t
+    # a proof on e counts only if its own created ≤ τ + 300 s
+    # first sight of e is recorded only once e has verified: its content ID does not
+    # cover its proofs, so sight of the content is not evidence of a signed event
+    # and as soon as it has, with every proof held for e and the logs they are judged by:
+    # recorded later, a removed key's proof first seen in between would count
 
 # Before counting a proof by a key of X, hold X's log as a trusted witness served it
 # after τ(p), and date X's events by the earliest evidence, never by a later own sight.
+# The same for the log of a collective under whose threshold the proof is counted, and,
+# for a member's proof on an event e, the member's log as far as the latest τ up to e.
 ```
 
 **A.4 Verifying an identity log**
@@ -1152,7 +1167,9 @@ eventTime(e):                              # identity events take effect at thei
 ```
 verifyLog(events):
     g = events[0]
-    require g.type == "Genesis" and g has no mind, seq or prev, and no event contains "recovery"
+    require every event is a well-formed record of its type
+    require no event lists in critical an extension this verifier does not implement
+    require g.type == "Genesis" and g has no mind, seq or prev, and no event has a member "recovery"
     if g.controller has keys:                                    # key-controlled
         require keys distinct (1–16); next distinct (0–16); 1 ≤ nextThreshold ≤ |next|
                 and 2·nextThreshold > |next| (or nextThreshold absent when next is empty)
@@ -1183,7 +1200,17 @@ verifyLog(events):
         record compromisedSince; record Fork children; Retire ends the log
     return the state after each event, with each event's eventTime
     # two valid branches: the earlier-evidenced event at the divergence wins; if evidence
-    # cannot separate them, keep only the common prefix, with every branch's removals
+    # cannot separate them, keep only the common prefix, with every branch's removals.
+    # Every event held at a position is judged, with the proofs of every copy of it.
+    # An invalid event is no event. An undecided one stops the log, whatever else is
+    # held there. What follows an event that lost is not judged; at a tie, every event
+    # held after the tied ones is.
+    # An event that fails is invalid if the verifier can read it and it is malformed,
+    # out of place, or carries proofs that no evidence and no member's log could make
+    # good (for a collective: too few members have a proof on it at all). Otherwise it is
+    # undecided: a critical extension or a later revision, evidence, a member's log.
+    # A copy ends before an invalid event. The events before an undecided one are not
+    # the log, since that event may be a removal.
 ```
 
 **A.5 Valid keys**
@@ -1192,7 +1219,7 @@ verifyLog(events):
 validKey(r, p, X):                           # p is by an operational key of mind X
     (X', V, K) = parse(p.verificationMethod); require X' == X and V present
     require p.proofPurpose == purposeFor(r.type)
-    S = state of X at version V;  require K ∈ S.keys
+    S = state of X at version V;  require K ∈ S.keys and V is not a Retire
     t = t(r, p);  require t is not none
     if a later event E removes K or retires X: require t < eventTime(E)
     if K was revoked with compromisedSince c: require t < c
@@ -1202,7 +1229,8 @@ validKey(r, p, X):                           # p is by an operational key of min
 
 memberSigns(e, p, M):                        # member proofs on another mind's identity event
     (M', V, K) = parse(p.verificationMethod); require M' == M
-    require K ∈ (state of M at version V).invocation and p.proofPurpose == capabilityInvocation
+    require K ∈ (state of M at version V).invocation and V is not a Retire
+    require p.proofPurpose == capabilityInvocation and p has no authority
     if a later event E of M removes K from its invocation keys or retires M:
         require eventTime(e) < eventTime(E)  # a removed key can append nothing
     return verifyProof(e, p, K)              # compromise claims do not reach other minds' logs
@@ -1212,11 +1240,14 @@ memberSigns(e, p, M):                        # member proofs on another mind's i
 
 ```
 signedTime(r, P):                            # earliest time r counts for P, or none
+    if r lists in critical an extension this verifier does not implement: return none
     T = {}
     for p in r.proof: if validKey(r, p, P): add t(r, p) to T                  # own key
     if P is a collective:                                                      # threshold
-        use only proofs without authority, by valid own keys of members
-        for each proof time u in ascending order:
+        use only proofs without authority, by valid own keys of members; never for a Hello
+        for each time u in ascending order,          # when a proof was made, or when an
+                among the proof times and the eventTimes of P's own events:   # event changed P
+            if P is duplicitous and u ≥ the eventTime of its earliest conflicting event: stop
             S = latest state of P if r describes P's present (Location, Participant),
                 else the state of P at u (after the last event with eventTime ≤ u)
             if |{members of S with such a proof made by u}| ≥ S.threshold
@@ -1231,15 +1262,22 @@ signedTime(r, P):                            # earliest time r counts for P, or 
                    each step narrows its parent (command, policy, expiry),
                    every command is valid and dn's covers "/oip/sign/" + r.type,
                    every policy holds for r without its proofs (an error fails it),
-                   t(r, p) is within every [notBefore, expires] (± 300 s), and
-                   no di was revoked at or before t(r, p):
+                   t(r, p) is within every [notBefore, expires] (± 300 s),
+                   no di was revoked at or before t(r, p)
+                       (a revocation is judged with compromise declarations disregarded),
+                   no di.author is retired at t(r, p), or duplicitous by then, and
+                   each di.author's log is held as served no earlier than the evidence for p:
                 add t(r, p) to T
         if P is a collective:                                                  # roles
             for p in r.proof by a valid own key of a member M of P's state at t(r, p),
                     whose authority is exactly one charter C of P:
-                if C is the charter in force at t(r, p) (latest completed; tie: lower ID)
+                if C is the charter in force at t(r, p) (latest completed, by the proofs of every
+                        copy held; tie: lower ID; never one that a completed charter supersedes)
                    and gives M a role whose power covers "/oip/sign/" + r.type
-                   and whose policy holds for r: add t(r, p) to T
+                   and whose policy holds for r,
+                   and P's log is held as served no earlier than the evidence for p,
+                   and, if P is duplicitous, t(r, p) is before its first conflicting event:
+                    add t(r, p) to T
     drop from T every time later than r.expires + 300 s
     return min(T) or none
 
@@ -1257,7 +1295,8 @@ status(c, records, now):
     if not accepted(c):
         return "disputed" if c would be accepted ignoring compromise claims else "proposed"
     R = receipts about c whose authors are parties and count for their authors,
-        excluding receipts superseded by a later receipt of the same author, and "revoked" ones
+        excluding "revoked" ones and those that another receipt of the same author,
+        itself a party's and counting for its author, names in `supersedes`
     if the "cancelled" receipts in R together count for every required party: return "cancelled"
     F = receipts in R with outcome "fulfilled"
     if some receipt in F counts for a creditor, or (c.terms.selfReport and F non-empty):

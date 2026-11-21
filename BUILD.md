@@ -74,6 +74,7 @@ This table makes "production-grade" concrete. Each row is enforced in CI from th
  services         host · resolver · indexer          (Hono, SQLite)
                                    │
  client           client  ─────────── keystore
+                  local       a mind's directory on one machine, for the tools (ADR-0027)
                                    │
  protocol         net         Layer 1 records, packets, sessions, sealing, bindings
                   web         Layer 2 records, countsFor, status
@@ -118,7 +119,7 @@ The rules:
 
 OIP judges every time rule on **evidence** of when a signature existed (core 9), never on the signer's own `created`. This is the part of OIP that is easiest to get subtly wrong, so it gets one clear design:
 
-- Verification functions take an `EvidenceView` and a `now`. The view answers "what is the earliest time this verifier can show this proof (by proof digest) or this identity event (by content ID) existed?" Its answers come from the verifier's own first-seen store, the witnesses it trusts, anchored checkpoints and acknowledgements (core 9.4).
+- Verification functions take an `EvidenceView` and, for each log, the time it is known up to (ADR-0008). None reads the clock. The view answers "what is the earliest time this verifier can show this proof (by proof digest) or this identity event (by content ID) existed?" Its answers come from the verifier's own first-seen store, the witnesses it trusts, anchored checkpoints and acknowledgements (core 9.4).
 - `t(p) = max(p.created, τ(p))` and `eventTime(e) = max(e.created, τ(e), eventTime(prev))` are implemented once, in `@oip/identity`, and used everywhere else.
 - Before counting a proof, a verifier holds the signer's log as a trusted witness served it, with that witness's first-seen times (core 9.4). The client does this automatically when it resolves.
 - Services persist first-seen times in append-only tables and serve them as `firstSeen`. They never lose or rewrite them.
@@ -143,7 +144,7 @@ Services use a storage interface with a SQLite implementation (`better-sqlite3`,
 - **Inputs.** Each input is checked against the limits of L1 19 and core 1.6 before it is parsed, then against its schema and the core rules, then verified.
 - **Outbound requests** (resolvers fetching homes, gateways fetching Agent Cards) go through one guarded fetcher. It allows HTTPS only, resolves DNS and blocks private, loopback, link-local and metadata addresses, sets size and time limits, and follows no cross-host redirects.
 - **Abuse.** Rate limits and quotas apply per IP address and per mind. The replay rules of L1 12.4 are enforced, with nonce stores that expire. WebSocket and stream limits are enforced too.
-- **Untrusted content.** Packet content is data, never authority (L1 12.5). The MCP server labels it as untrusted and asks for confirmation before signing a Commitment or a Delegation (L0 2.2).
+- **Untrusted content.** Packet content is data, never authority (L1 12.5). The MCP server labels it as untrusted and asks for confirmation before signing a Commitment, a Receipt or a Delegation (L0 2.2).
 - **Threat models.** Each service and each tool gets a STRIDE threat model in `docs/threat-models/`, which is kept up to date.
 
 ### 3.8 Performance budgets
@@ -159,6 +160,10 @@ These are the starting budgets. M1 and M5 measure them on a reference machine, r
 | Indexer: capability query over 100,000 profiles | p99 of 100 ms |
 | Packet delivery over WebSocket, same machine | p99 of 20 ms |
 | Cold start of a server container | 2 s |
+
+Measured in M1 ([ADR-0006](docs/adr/0006-performance-budgets.md)): the portable implementation verifies a record with two proofs in about 4 ms and the signatures of a 1,000-event log in about 2 s, almost all of it Ed25519 in JavaScript. It has its own budgets (6 ms and 3 s), which `pnpm bench` asserts. The first two rows above stay as the targets for the servers, which M5 meets with a native Ed25519 that applies core 4.4 exactly.
+
+Measured in M5 ([ADR-0015](docs/adr/0015-server-budgets.md), [ADR-0016](docs/adr/0016-native-ed25519.md)): a signature that verified is remembered, and the services have OpenSSL do the arithmetic of the ones that are new. Each of the seven rows is met in the services. `pnpm bench` holds them to the first six, and the `containers` job of CI to the seventh.
 
 ## 4. Technology
 
@@ -379,7 +384,7 @@ Sizes are rough: **S** is about one focused session, **M** two or three, **L** f
 - Tool descriptions written for models.
 - Keys stay in the server.
 - Packet content is marked as untrusted data.
-- Confirmation through MCP elicitation before signing a Commitment or a Delegation, unless the user has configured a policy that permits it.
+- Confirmation through MCP elicitation before signing a Commitment, a Receipt or a Delegation, unless the user has configured a policy that permits it.
 - Configuration snippets for Claude Desktop, Claude Code and other MCP hosts.
 
 **Accept.**
@@ -405,7 +410,7 @@ Sizes are rough: **S** is about one focused session, **M** two or three, **L** f
 
 **Build.**
 - `examples/translation-demo` runs the papers' scenario: Amina, her assistant, Lexis Ltd, the Lexis agent, a research agent and a 2-of-3 collective, on a local host, resolver and indexer. It prints every step and every verification as a readable narrative.
-- `docker compose up` starts the whole network, and `oip demo` runs the demo without Docker.
+- `docker compose up` starts the whole network. Without Docker, `oip demo` starts it, and `pnpm demo` plays the scenario: on a network of its own, or on that one.
 - A recorded terminal session and a short animation for the website.
 
 **Accept.** One command runs the demo from a clean checkout, and the output matches the narrative in the papers.

@@ -5,10 +5,11 @@
  * The packets that reached a mind and wait to be dealt with, for a program
  * that answers them: a gateway, say.
  *
- * A mailbox gives a packet once. So a packet is written down as soon as it
- * is read, before anything is done with it, and stays written down until
- * the caller says it is done with it: a process that stops in between
- * finds the packet again when it next looks.
+ * A mailbox gives a packet once. So a packet is written down as it is
+ * read, before the client notes that it has it and before it is removed
+ * from the mailbox, and stays written down until the caller says it is done
+ * with it: a process that stops at any moment finds the packet again when
+ * it next looks.
  */
 
 import { join } from "node:path";
@@ -39,15 +40,19 @@ export class Arrivals {
    * Oldest first.
    */
   async waiting(): Promise<KeptPacket[]> {
-    const read = await this.#opened.mind.receive();
-    for (const received of read.received) {
-      const kept = keptOf(received);
-      // A packet is dealt with once, however often it arrives.
-      if (this.#opened.inbox.get(kept.id) !== undefined) continue;
-      // Written down before anything is done with it.
-      this.#pending.put(kept.id, kept as unknown as JsonObject);
-      this.#opened.inbox.put(kept.id, kept);
-    }
+    // Written down before the client notes that it has them, and before they are gone from the
+    // mailbox: a process that stops at any moment finds each packet there, or here.
+    await this.#opened.mind.receive({
+      keep: (accepted) => {
+        for (const received of accepted) {
+          const kept = keptOf(received);
+          // A packet is dealt with once, however often it arrives or is given.
+          if (this.#opened.inbox.get(kept.id) !== undefined) continue;
+          this.#pending.put(kept.id, kept as unknown as JsonObject);
+          this.#opened.inbox.put(kept.id, kept);
+        }
+      },
+    });
     const waiting = this.#pending.all().flatMap(({ key, value }) => {
       const kept = keptFrom(value);
       // What is written there is no packet: nothing can be done with it, now or later.

@@ -789,12 +789,17 @@ export class Messaging {
     return next;
   }
 
-  /** Reads the mind's mailboxes: see `Mind.receive`. */
-  receive(): Promise<Inbox> {
-    return this.#inTurn(() => this.#receive());
+  /**
+   * Reads the mind's mailboxes: see `Mind.receive`.
+   *
+   * @param keep - Given what each mailbox served and was accepted, before
+   *   the client notes that it has it.
+   */
+  receive(keep?: (accepted: readonly Received[]) => Promise<void>): Promise<Inbox> {
+    return this.#inTurn(() => this.#receive(keep));
   }
 
-  async #receive(): Promise<Inbox> {
+  async #receive(keep?: (accepted: readonly Received[]) => Promise<void>): Promise<Inbox> {
     const own = this.#own;
     const resolved = await own.refresh();
     const endpoints =
@@ -821,6 +826,14 @@ export class Messaging {
       inbox.sources.push({ mailbox, items: items.length });
       const fresh = new Set<string>();
       const judged = await this.#judge(items, known, following, inbox.sessions, fresh);
+      if (keep !== undefined) {
+        // A caller that must lose nothing has what was accepted before anything says that it
+        // was: a process that stops from here on finds it in the mailbox still, or has it.
+        const accepted = judged.flatMap(({ outcome }) =>
+          outcome.kind === "received" ? outcome.received : [],
+        );
+        if (accepted.length > 0) await keep(accepted);
+      }
       // What was accepted is remembered before it is removed from the mailbox: a process
       // that stops between the two finds a duplicate, and not a packet it never saw.
       const elsewhere = await this.#keep(known, fresh);

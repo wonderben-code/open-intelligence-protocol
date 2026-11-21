@@ -7,7 +7,8 @@
  * what was already read and says what it maps to.
  */
 
-import type { Capability, Participant } from "@oip/schema";
+import { recordText } from "@oip/local";
+import { type Capability, type Participant, patterns } from "@oip/schema";
 
 import { A2A_VERSION, type AgentCard } from "./card.ts";
 
@@ -29,8 +30,10 @@ const MAX_TAGS = 64;
 /** The longest summary this gateway writes for a capability. */
 const MAX_SUMMARY = 1024;
 
-const cut = (text: string, most: number): string =>
-  text.length > most ? `${text.slice(0, most - 1)}…` : text;
+/** The longest tag of a skill that becomes a tag of a capability. */
+const MAX_TAG = 128;
+/** What a tag of a capability is: a name in a namespace (Layer 1, 16.2). */
+const NAMESPACED = new RegExp(patterns.namespaced, "u");
 
 /**
  * Layer 0, 3.1: the capabilities of a bridged mind, one for each skill of
@@ -41,23 +44,35 @@ const cut = (text: string, most: number): string =>
  * free words, and a capability's are namespaced: each becomes `a2a:<tag>`.
  * A skill whose `id` a capability cannot carry, or that repeats one, is
  * left out: a profile has no two capabilities of one `id` (Layer 1, 16.2).
+ * So is a tag that is no name: an empty one, or one of several lines.
+ *
+ * A card's texts are a stranger's. Whatever is in them, what is made here
+ * is text a record holds (core 1.1), cut between characters where it is
+ * too long: no card keeps a profile from being signed.
  */
 export function capabilitiesOf(card: AgentCard): Capability[] {
   const taken = new Set<string>();
   const capabilities: Capability[] = [];
   for (const skill of card.skills) {
     if (capabilities.length >= MAX_CAPABILITIES) break;
-    if (skill.id.length > MAX_ID || taken.has(skill.id)) continue;
+    // An `id` is a name that is asked for: one that had to be mended would be another.
+    if (skill.id.length > MAX_ID || recordText(skill.id) !== skill.id || taken.has(skill.id)) {
+      continue;
+    }
     taken.add(skill.id);
-    const tags = [...new Set(skill.tags.map((tag) => `${TAG_NAMESPACE}:${tag}`))].slice(
-      0,
-      MAX_TAGS,
-    );
+    const tags = [
+      ...new Set(
+        skill.tags
+          .filter((tag) => tag.length <= MAX_TAG && recordText(tag) === tag)
+          .map((tag) => `${TAG_NAMESPACE}:${tag}`)
+          .filter((tag) => NAMESPACED.test(tag)),
+      ),
+    ].slice(0, MAX_TAGS);
     const summary =
       skill.name === skill.description ? skill.name : `${skill.name}: ${skill.description}`;
     capabilities.push({
       id: skill.id,
-      summary: cut(summary, MAX_SUMMARY),
+      summary: recordText(summary, MAX_SUMMARY),
       ...(tags.length === 0 ? {} : { tags }),
     });
   }

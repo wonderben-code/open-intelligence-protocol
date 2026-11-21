@@ -84,6 +84,7 @@ import {
   type Inbox,
   type Message,
   Messaging,
+  type Received,
   type Retried,
   type Sent,
 } from "./messages.ts";
@@ -234,6 +235,24 @@ export interface CollectiveChanges {
 export interface MemberOptions {
   /** What opens this mind's invocation keys. They are unlocked for the one signature and locked again. */
   readonly invocation: Lock;
+}
+
+/** How the mailboxes are read. */
+export interface ReceiveOptions {
+  /**
+   * Called with the packets a mailbox served and the client accepted,
+   * before the client notes that it has them and before they are removed
+   * from the mailbox. A caller that must lose no packet writes them down
+   * here. If the process stops after that and before `receive` returns, the
+   * next reading finds them in the mailbox still.
+   *
+   * So a packet may be given here in more than one reading, and one that
+   * another process of the mind accepted meanwhile may be given too: a
+   * caller tells them by their IDs. `receive` returns each once.
+   *
+   * What it throws ends the reading. Nothing of that mailbox is removed.
+   */
+  readonly keep?: (accepted: readonly Received[]) => void | Promise<void>;
 }
 
 /** The keys of everyday work, unlocked. */
@@ -701,17 +720,39 @@ export class Mind {
    * A participant's `Resume` is answered: what it lacks of this mind's
    * packets is sent to it again. `sessions` says what was found and done.
    *
+   * A caller that reads the packets after `receive` has returned can lose
+   * some: the client has noted them and removed them from the mailbox by
+   * then, and a process that stops before they are dealt with does not find
+   * them again. A program that must lose none gives `keep`, and writes down
+   * what it is given.
+   *
    * @returns The packets accepted, what was refused, and what waits.
    */
-  async receive(): Promise<Inbox> {
-    const inbox = await this.#messaging.receive();
-    const received = [];
-    for (const arrived of inbox.received) {
+  async receive(options: ReceiveOptions = {}): Promise<Inbox> {
+    /** Each packet as it is returned, made once: by its ID. */
+    const whole = new Map<string, Received>();
+    const finished = async (arrived: Received): Promise<Received> => {
+      const made = whole.get(arrived.id);
+      if (made !== undefined) return made;
       // The records the packets carry are held, to be judged when they are asked about.
       this.#dealings.holdCarried(arrived.packet.content);
       const sentFor = await this.#dealings.sentFor(arrived.packet);
-      received.push(sentFor === undefined ? arrived : { ...arrived, sentFor });
-    }
+      const one = sentFor === undefined ? arrived : { ...arrived, sentFor };
+      whole.set(arrived.id, one);
+      return one;
+    };
+    const { keep } = options;
+    const inbox = await this.#messaging.receive(
+      keep === undefined
+        ? undefined
+        : async (accepted) => {
+            const kept = [];
+            for (const arrived of accepted) kept.push(await finished(arrived));
+            await keep(kept);
+          },
+    );
+    const received = [];
+    for (const arrived of inbox.received) received.push(await finished(arrived));
     return { ...inbox, received };
   }
 

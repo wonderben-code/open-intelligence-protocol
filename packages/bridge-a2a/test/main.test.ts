@@ -3,8 +3,9 @@
 
 /** `oip-bridge-a2a`, run as a program is, on a real resolver, host and indexer. */
 
-import { writeFileSync } from "node:fs";
-import { request as httpRequest } from "node:http";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer, request as httpRequest } from "node:http";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 
 import { canonicalBytes } from "@oip/core";
@@ -12,7 +13,7 @@ import { clause } from "@oip/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { type Host, main, type Reach, type Serving } from "../src/index.ts";
-import { guarded } from "../src/main.ts";
+import { ALLOW_VARIABLE, guarded, HOLD_FILE, machineOf } from "../src/main.ts";
 import { cardOf, Place, served } from "./harness.ts";
 
 const LEXIS = "https://lexis.example";
@@ -493,18 +494,113 @@ describe("oip-bridge-a2a serve", () => {
   });
 
   it("does not start to serve on a port that is taken, and says so", async () => {
-    const first = await serving("--base", "https://gateway.example/a2a", "--port", "0");
+    const taken = createServer();
+    await new Promise<void>((resolve) => taken.listen(0, "127.0.0.1", resolve));
     try {
-      const [, port = ""] = /on port (\d+)\n/u.exec(first.err()) ?? [];
-      const second = await run("serve", "--base", "https://gateway.example/a2a", "--port", port);
-      expect(second).toMatchObject({
+      const port = String((taken.address() as AddressInfo).port);
+      const refused = await run(
+        "serve",
+        ...["--base", "https://gateway.example/a2a", "--host", "127.0.0.1", "--port", port],
+      );
+      expect(refused).toMatchObject({
         code: 2,
         out: "",
         err: `oip-bridge-a2a: the port ${port} cannot be listened on: EADDRINUSE\n`,
       });
+      // It let go of the directory: the next may serve from it.
+      expect(existsSync(join(place.root, "gateway", HOLD_FILE))).toBe(false);
+    } finally {
+      await new Promise((resolve) => taken.close(resolve));
+    }
+  });
+
+  it("serves from a directory one process at a time: a second is refused, and told why", async () => {
+    const file = join(place.root, "gateway", HOLD_FILE);
+    const first = await serving("--every", "1");
+    try {
+      expect(existsSync(file)).toBe(true);
+      const second = await run("serve", "--every", "1");
+      expect(second.code).toBe(2);
+      expect(second.out).toBe("");
+      expect(second.err).toMatch(
+        /^oip-bridge-a2a: another process serves from this gateway's directory, in .*\. One at a time: stop it first\./u,
+      );
+      // The commands that end are no part of it: an agent is bridged while the gateway serves.
+      expect((await run("agents")).code).toBe(0);
     } finally {
       first.stop();
       await first.ended;
     }
+    expect(existsSync(file)).toBe(false);
+    const next = await serving("--every", "1");
+    next.stop();
+    await next.ended;
+  });
+
+  it("ends where another process has taken its directory over", async () => {
+    const file = join(place.root, "gateway", HOLD_FILE);
+    const program = await serving("--every", "1");
+    // Another process took this one for ended, and serves in its place.
+    writeFileSync(file, "1 another process\n");
+    await program.ended;
+    expect(program.err()).toContain(
+      "oip-bridge-a2a: another process has taken over this gateway's directory. This one ends\n",
+    );
+    // What is the other's is left to it.
+    expect(readFileSync(file, "utf8")).toBe("1 another process\n");
+    rmSync(file);
+  }, 30_000);
+});
+
+describe("what the program asks of the network by itself", () => {
+  it("asks for its minds under the guard: nothing on this machine or the network behind it, but what a route carried", async () => {
+    const { fetch: asks } = machineOf({ env: {} });
+    const refusal = async (url: string, method = "POST"): Promise<unknown> => {
+      try {
+        await asks?.(new Request(url, { method }));
+      } catch (error) {
+        return (error as { reason?: unknown }).reason;
+      }
+      return "asked";
+    };
+    // Where a requester's own record says it is reached, or a stranger's feed is served.
+    expect(await refusal("https://10.1.2.3:8443/internal/admin/inbox")).toBe("address");
+    expect(await refusal("https://192.168.0.7/metadata/inbox")).toBe("address");
+    expect(await refusal("https://127.0.0.1:8443/inbox")).toBe("address");
+    expect(await refusal("https://[::1]/feed", "GET")).toBe("address");
+    expect(await refusal("https://169.254.169.254/latest/meta-data", "GET")).toBe("address");
+    // A network of this machine, by a route the operator set: a port of this machine, over plain HTTP.
+    const local = createServer((_, response) => {
+      response.writeHead(200).end("routed");
+    });
+    await new Promise<void>((resolve) => local.listen(0, "127.0.0.1", resolve));
+    try {
+      const { port } = local.address() as AddressInfo;
+      const answer = await asks?.(new Request(`http://127.0.0.1:${String(port)}/oip/v1/x`));
+      expect(await answer?.text()).toBe("routed");
+    } finally {
+      await new Promise((resolve) => local.close(resolve));
+    }
+  });
+
+  it("allows what its operator allows beside the public addresses, and takes no list that is none", async () => {
+    const allowed = machineOf({ env: { [ALLOW_VARIABLE]: " 10.0.0.0/8 , 192.168.0.0/16," } });
+    // The range is allowed: what stops the request now is that nothing answers there.
+    const reason = await allowed
+      .fetch?.(new Request("https://10.1.2.3:8443/inbox", { signal: AbortSignal.timeout(200) }))
+      .then(
+        () => "asked",
+        (error: unknown) => (error as { reason?: unknown }).reason,
+      );
+    expect(reason).not.toBe("address");
+    expect(() => machineOf({ env: { [ALLOW_VARIABLE]: "the office" } })).toThrow(
+      "OIP_BRIDGE_FETCH_ALLOW is a list of address ranges with commas between, as 10.0.0.0/8,fd00::/8",
+    );
+    const ran = host();
+    const code = await main(["agents"], { ...ran.process, env: { [ALLOW_VARIABLE]: "10/8/8" } });
+    expect([code, ran.err()]).toStrictEqual([
+      2,
+      "oip-bridge-a2a: OIP_BRIDGE_FETCH_ALLOW is a list of address ranges with commas between, as 10.0.0.0/8,fd00::/8\n",
+    ]);
   });
 });

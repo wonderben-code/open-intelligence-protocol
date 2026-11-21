@@ -14,6 +14,7 @@
  */
 
 import { type JsonObject, sha256Digest } from "@oip/core";
+import { jsonText, recordText } from "@oip/local";
 import type { InlineContent, Packet, ReferencedContent } from "@oip/schema";
 
 import type { Get, Part } from "./a2a.ts";
@@ -26,7 +27,10 @@ export type Content = InlineContent | ReferencedContent;
 const MAX_CONTENT_PARTS = 32;
 /** The most evidence items of a Receipt (Layer 2, 6.1). */
 const MAX_EVIDENCE = 64;
-/** The most of another's content one packet carries, in bytes: a packet is a record, of a megabyte at most. */
+/**
+ * The most of another's content one packet carries, in bytes of the
+ * packet's canonical form: a packet is a record, of a megabyte at most.
+ */
 export const MAX_CARRIED_BYTES = 262_144;
 /** The most files of one answer the gateway fetches to say which bytes were there. */
 export const MAX_FETCHED = 8;
@@ -34,10 +38,10 @@ export const MAX_FETCHED = 8;
 export const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text);
 
 /**
- * A text as Unicode. Half of a pair of surrogates on its own becomes U+FFFD,
- * as an encoder makes it: a record holds no text that is none (core 1.1).
+ * How much of a record a text takes, in bytes of the canonical form: there
+ * a control character is six bytes, and a quotation mark two (core 1.4).
  */
-export const wellFormed = (text: string): string => new TextDecoder().decode(utf8(text));
+const carriedSize = (text: string): number => utf8(JSON.stringify(text)).length;
 
 /** A media type as a stranger gives it, without parameters, or another where it gives none that can be told. */
 export function mediaTypeOf(part: Part, otherwise: string): string {
@@ -47,11 +51,15 @@ export function mediaTypeOf(part: Part, otherwise: string): string {
   return told && given !== OIP_MEDIA_TYPE ? given : otherwise;
 }
 
-/** A URL of the web as a stranger gives it, or `undefined` for what is none. */
+/**
+ * A URL of the web as a stranger gives it, or `undefined` for what is none.
+ * It is given as a parser of URLs writes it, which is ASCII: the text a
+ * stranger wrote may be nothing a record holds.
+ */
 function webUrl(text: string): string | undefined {
   if (text.length > 2048 || !URL.canParse(text)) return undefined;
-  const { protocol } = new URL(text);
-  return protocol === "https:" || protocol === "http:" ? text : undefined;
+  const { protocol, href } = new URL(text);
+  return (protocol === "https:" || protocol === "http:") && href.length <= 2048 ? href : undefined;
 }
 
 /** The name of the file a URL of the web ends in, if it ends in one. */
@@ -146,12 +154,24 @@ export async function gather(
   };
   for (const { part, ref } of parts) {
     if ("text" in part || "data" in part) {
-      // Data may hold what a record cannot, a fraction for one: it is carried as its JSON text.
-      const text = "text" in part ? wellFormed(part.text) : JSON.stringify(part.data);
+      let text: string;
+      if ("text" in part) {
+        // A stranger's text, as text a record holds (core 1.1).
+        text = recordText(part.text);
+      } else {
+        try {
+          // Data may hold what a record cannot, a fraction for one: it is carried as its JSON text.
+          text = jsonText(part.data);
+        } catch {
+          // Data that has no JSON text, nested too deep to walk, say.
+          left += 1;
+          continue;
+        }
+      }
       const mediaType = mediaTypeOf(part, "text" in part ? "text/plain" : "application/json");
-      const bytes = utf8(text);
-      carry({ mediaType, body: text }, bytes.length);
-      attested({ kind: "hash", ref, digest: sha256Digest(bytes), mediaType });
+      carry({ mediaType, body: text }, carriedSize(text));
+      // The digest is of the text as it is carried, in UTF-8: of what the requester holds.
+      attested({ kind: "hash", ref, digest: sha256Digest(utf8(text)), mediaType });
     } else if ("raw" in part) {
       // Bytes are attested by their digest, and not carried: a packet has no place for them.
       const bytes = new Uint8Array(Buffer.from(part.raw, "base64"));
@@ -171,10 +191,10 @@ export async function gather(
         digest = await digestAt(url, attest);
       }
       if (digest === undefined) {
-        carry({ mediaType: "text/uri-list", body: url }, url.length);
+        carry({ mediaType: "text/uri-list", body: url }, carriedSize(url));
       } else {
         const mediaType = mediaTypeOf(part, "application/octet-stream");
-        carry({ mediaType, ref: url, digest }, url.length);
+        carry({ mediaType, ref: url, digest }, carriedSize(url));
         attested({ kind: "uri", ref: url, digest, mediaType });
       }
     }

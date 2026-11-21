@@ -74,6 +74,7 @@ export {
   type MindOptions,
   type NewCollective,
   type NewMind,
+  type ReceiveOptions,
 } from "./mind.ts";
 export { type ChainView, type SessionView } from "./sessions.ts";
 export {

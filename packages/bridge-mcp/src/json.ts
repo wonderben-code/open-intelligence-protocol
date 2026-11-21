@@ -13,6 +13,10 @@
  */
 
 import { canonicalBytes, type JsonValue, parseJson, sha256Digest, utf8 } from "@oip/core";
+import { jsonText } from "@oip/local";
+
+// The JSON text of a value, as a string that a record can hold: with the gateway for A2A agents, which needs it too.
+export { jsonText };
 
 /**
  * How deep in its record a carried value may sit. A body is the fifth
@@ -40,28 +44,6 @@ export function holds(value: unknown): boolean {
   }
   if (typeof text !== "string") return false;
   return parseJson("[".repeat(LEVELS_ABOVE) + text + "]".repeat(LEVELS_ABOVE)).ok;
-}
-
-/** A code point that no string of a record may hold (core 1.1). */
-const NONCHARACTER = /\p{Noncharacter_Code_Point}/gu;
-
-const escaped = (unit: number): string => `\\u${unit.toString(16).padStart(4, "0")}`;
-
-/**
- * The JSON text of a value, as a string that a record can hold.
- *
- * `JSON.stringify` escapes a lone surrogate. A noncharacter it writes as
- * it is, and a record's strings have none: here each is written as its
- * escape, which says the same to whoever parses the text.
- *
- * @throws TypeError for what has no JSON text: `undefined`, or a value that cannot be walked.
- */
-export function jsonText(value: unknown): string {
-  const text: unknown = JSON.stringify(value);
-  if (typeof text !== "string") throw new TypeError("the value has no JSON text");
-  return text.replace(NONCHARACTER, (found) =>
-    Array.from({ length: found.length }, (_, at) => escaped(found.charCodeAt(at))).join(""),
-  );
 }
 
 /** A value as a record carries it: as it is, or as its JSON text. */

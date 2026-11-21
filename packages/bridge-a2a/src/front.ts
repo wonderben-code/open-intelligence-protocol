@@ -32,14 +32,14 @@ import { join } from "node:path";
 
 import { carried, type Clock, type Message } from "@oip/client";
 import { formatRecordRef, isMindAddress, OipError } from "@oip/core";
-import { Arrivals, type KeptPacket, type Opened, printableJson } from "@oip/local";
+import { Arrivals, asciiJson, type KeptPacket, type Opened, recordText } from "@oip/local";
 import { receivePacket } from "@oip/net";
 import { type Participant, validateRecordOfType } from "@oip/schema";
 
 import type { A2aMessage, Part } from "./a2a.ts";
 import { type Asked, Book, type Held, type Page } from "./book.ts";
 import { CARD_PATH } from "./card.ts";
-import { type Content, gather, mediaTypeOf, partsOf, wellFormed } from "./content.ts";
+import { type Content, gather, mediaTypeOf, partsOf } from "./content.ts";
 import {
   contentTypeNotSupported,
   internal,
@@ -257,7 +257,7 @@ export class Front {
       thread: id,
       // What the mind asked is what this answers.
       ...(before?.question === undefined ? {} : { replyTo: before.question }),
-      context: { refs: [`a2a:message/${encodeURIComponent(wellFormed(message.messageId))}`] },
+      context: { refs: [`a2a:message/${encodeURIComponent(recordText(message.messageId))}`] },
     });
     const [delivery] = sent.deliveries;
     // What did not arrive and is kept to be tried again will arrive, or its task will say not.
@@ -403,7 +403,7 @@ export class Front {
     const receipt = await own.receipt({
       about: formatRecordRef(own.address, task.request),
       outcome: "cancelled",
-      statement: `The gateway observed an A2A client cancel task ${printableJson(task.id)}.`,
+      statement: `The gateway observed an A2A client cancel task ${asciiJson(task.id)}.`,
     });
     await this.#say(task, { verb: "inform", content: carried(receipt) });
     const cancelled: Held = {

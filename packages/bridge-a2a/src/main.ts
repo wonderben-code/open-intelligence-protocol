@@ -17,13 +17,15 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { parseArgs } from "node:util";
 
-import { systemClock, TransportError } from "@oip/client";
+import { DEFAULT_MAX_BYTES, type Fetch, systemClock, TransportError } from "@oip/client";
 import { OipError } from "@oip/core";
 import { KeystoreError } from "@oip/keystore";
 import { systemKeychain } from "@oip/keystore/node";
 import {
   counted,
   directoryOf,
+  guardedReach,
+  hold,
   type Machine,
   openMind,
   printable,
@@ -115,9 +117,66 @@ function keysIn(text: string): PublicJwk[] {
   );
 }
 
+/** The variable that names what the guard allows beside the public addresses. */
+export const ALLOW_VARIABLE = "OIP_BRIDGE_FETCH_ALLOW";
+/** The file that says a process serves from a gateway's directory (`hold` of `@oip/local`). */
+export const HOLD_FILE = "serve.hold";
+/** The most time one pass for one agent takes, in milliseconds: what is left then waits for the next. */
+const PASS_MS = 30_000;
+/** How many agents are relayed for at a time. */
+const SIDE_BY_SIDE = 8;
+
+/**
+ * A guarded fetcher of this program's.
+ *
+ * @throws UsageError if the environment allows ranges that are none.
+ */
+function fetcherOf(
+  env: Host["env"],
+  limits: { readonly maxBytes?: number; readonly maxRedirects?: number } = {},
+): GuardedFetcher {
+  // The operator's own test network, and nothing in production: `10.0.0.0/8,fd00::/8`.
+  const allow = (env[ALLOW_VARIABLE] ?? "")
+    .split(",")
+    .map((range) => range.trim())
+    .filter((range) => range !== "");
+  try {
+    return new GuardedFetcher({ userAgent: `oip-bridge-a2a/${VERSION}`, allow, limits });
+  } catch {
+    throw new UsageError(
+      `${ALLOW_VARIABLE} is a list of address ranges with commas between, as 10.0.0.0/8,fd00::/8`,
+    );
+  }
+}
+
+/**
+ * How the gateway's minds ask where nobody says otherwise: under the guard
+ * of `@oip/server`, like everything else the program fetches.
+ *
+ * A mind sends its answers where the requester's own records say it is
+ * reached, and reads feeds where their authors' records say they are
+ * served. Those are URLs that strangers chose. A network on this machine is
+ * reached by its routes, which are the operator's own (`guardedReach`).
+ */
+export function mindsFetch(env: Host["env"] = {}): Fetch {
+  // As much as a client reads of one answer, and no redirect: a client follows none.
+  return guardedReach(fetcherOf(env, { maxBytes: DEFAULT_MAX_BYTES, maxRedirects: 0 }).fetch);
+}
+
+/** The machine the program runs on, where nobody gives it another. */
+export function machineOf(host: Pick<Host, "env">): Machine {
+  return {
+    env: host.env,
+    home: homedir(),
+    keychain: systemKeychain,
+    // What a mind of the gateway asks, it asks for whoever sent it a packet.
+    fetch: mindsFetch(host.env),
+  };
+}
+
 /** How the program reaches agents where nobody says otherwise: under the guard of `@oip/server`. */
-export function guarded(): Pick<Reach, "get" | "ask"> {
-  const fetcher = new GuardedFetcher({ userAgent: `oip-bridge-a2a/${VERSION}` });
+export function guarded(env: Host["env"] = {}): Pick<Reach, "get" | "ask"> {
+  const fetcher = fetcherOf(env);
   return {
     get: async (url) => {
       const { status, body } = await fetcher.get(url, "application/json, */*;q=0.5");
@@ -212,13 +271,9 @@ export async function main(
       return 0;
     }
     const [command, ...rest] = positionals;
-    const machine: Machine = reach.machine ?? {
-      env: host.env,
-      home: homedir(),
-      keychain: systemKeychain,
-    };
+    const machine: Machine = reach.machine ?? machineOf(host);
     const where: Where = { edges: machine, dir: directoryOf(values.dir, machine) };
-    const { get, ask } = { ...guarded(), ...reach };
+    const { get, ask } = { ...guarded(host.env), ...reach };
     let own: PublicJwk[] = [];
     if (values.keys !== undefined) {
       try {
@@ -267,11 +322,15 @@ export async function main(
     const failed = (error: unknown): void => {
       log(`oip-bridge-a2a: ${error instanceof Error ? error.message : String(error)}`);
     };
+    // One process serves from a directory. Two would each read the mailboxes, and each answer
+    // what it read: an agent would be asked twice, and two Receipts signed for one request.
+    const held = hold(where.dir, HOLD_FILE, "serves from this gateway's directory");
     let served: Served | undefined;
     let closeOwn: (() => void) | undefined;
     if (values.base !== undefined) {
       const base = values.base.replace(/\/+$/u, "");
       if (!URL.canParse(base) || !/^https?:$/u.test(new URL(base).protocol)) {
+        held.release();
         throw new UsageError(
           "--base is the URL the interface is reached under: https://gateway.example/a2a",
         );
@@ -295,6 +354,7 @@ export async function main(
         });
       } catch (error) {
         closeOwn();
+        held.release();
         // A port that is taken, or an address that is none of this machine's, is the operator's
         // to choose again.
         const { code, message } = error as NodeJS.ErrnoException;
@@ -305,33 +365,56 @@ export async function main(
       );
     }
 
-    // The relay: each bridged mind's mailbox is read, one agent after another, again and again.
+    // The relay: each bridged mind's mailbox is read, again and again.
     const run = { stopped: false };
     // Asked each time round: a signal changes the answer while the loop waits.
     const stopping = (): boolean => run.stopped;
     let wake: (() => void) | undefined;
+    /** Ends the serving, as a signal does. */
+    let stop = (): void => {
+      run.stopped = true;
+    };
+    const relayFor = async (origin: string): Promise<void> => {
+      try {
+        // A pass has so long. What an agent that is slow, or many requests, leave undone waits
+        // for the next pass, and the other agents are not kept waiting for it.
+        const until = Date.now() + PASS_MS;
+        const did = await gateway.relay(origin, () => stopping() || Date.now() > until);
+        if (did.passed.length + did.sent.length + did.receipts.length + did.failed.length > 0) {
+          log(
+            `oip-bridge-a2a: ${origin}: ${counted(did.passed.length, "request")} passed on, ` +
+              `${counted(did.sent.length, "packet")} sent, ${counted(did.receipts.length, "Receipt")} signed, ` +
+              `${counted(did.open, "task")} open`,
+          );
+        }
+        for (const { packet, task, message } of did.failed) {
+          log(`oip-bridge-a2a: ${origin}: ${packet ?? `task ${JSON.stringify(task)}`}: ${message}`);
+        }
+      } catch (error) {
+        failed(error);
+      }
+    };
     const relaying = (async (): Promise<void> => {
       while (!stopping()) {
-        for (const { origin } of gateway.agents()) {
-          if (stopping()) break;
-          try {
-            const did = await gateway.relay(origin);
-            if (did.passed.length + did.sent.length + did.receipts.length + did.failed.length > 0) {
-              log(
-                `oip-bridge-a2a: ${origin}: ${counted(did.passed.length, "request")} passed on, ` +
-                  `${counted(did.sent.length, "packet")} sent, ${counted(did.receipts.length, "Receipt")} signed, ` +
-                  `${counted(did.open, "task")} open`,
-              );
-            }
-            for (const { packet, task, message } of did.failed) {
-              log(
-                `oip-bridge-a2a: ${origin}: ${packet ?? `task ${JSON.stringify(task)}`}: ${message}`,
-              );
-            }
-          } catch (error) {
-            failed(error);
-          }
+        if (!held.held) {
+          // Another process took this one for ended, and serves in its place.
+          log(
+            "oip-bridge-a2a: another process has taken over this gateway's directory. This one ends",
+          );
+          setImmediate(() => {
+            stop();
+          });
+          break;
         }
+        // Side by side, a few at a time: an agent that does not answer holds up nobody else.
+        const origins = gateway.agents().map(({ origin }) => origin);
+        const beside = Array.from({ length: Math.min(SIDE_BY_SIDE, origins.length) }, async () => {
+          for (let origin = origins.shift(); origin !== undefined; origin = origins.shift()) {
+            if (stopping()) return;
+            await relayFor(origin);
+          }
+        });
+        await Promise.all(beside);
         if (stopping()) break;
         await new Promise<void>((resolve) => {
           const timer = setTimeout(resolve, every);
@@ -346,8 +429,10 @@ export async function main(
       `oip-bridge-a2a ${VERSION}: relaying for ${counted(gateway.agents().length, "bridged agent")}, every ${String(every / 1000)} s`,
     );
     const ended = new Promise<void>((resolve) => {
-      const stop = (): void => {
-        if (run.stopped) return;
+      let ending = false;
+      stop = (): void => {
+        if (ending) return;
+        ending = true;
         run.stopped = true;
         wake?.();
         void (async (): Promise<void> => {
@@ -356,7 +441,10 @@ export async function main(
           closeOwn?.();
         })()
           .catch(failed)
-          .then(resolve);
+          .then(() => {
+            held.release();
+            resolve();
+          });
       };
       host.once("SIGINT", stop);
       host.once("SIGTERM", stop);

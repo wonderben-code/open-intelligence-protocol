@@ -89,6 +89,18 @@ Three decisions run through the fixes. [ADR-0034](../../docs/adr/0034-what-the-g
 
 **Survivors of the planted faults (14 of 68).** Eight changed an answer. Each has a test now: `F10` (the note is on the disk when the server is asked), `F12` (a packet that only names a mind), `F16` (a Receipt published once), `F48` (the log names what failed), `F49` (a tool that asks for input), `L08` (the order of a pass), `L10` (a request that could not be written down), `L15` (a file left half written). `L12` is held by the tests of B7. Five change no answer, or one only for whoever can write the gateway's directory (`L04`, `L05`, `L06`, `F38`, `F46`).
 
+## Found while the fixes were tested
+
+The first full run of the checks on the fixes failed on the coverage of two files: `hold.ts` of `@oip/local` and `dealings.ts` of `@oip/client`. The tests that closed the gaps found three things, and each is fixed.
+
+| Finding | Severity | What it was | What was done |
+| --- | --- | --- | --- |
+| T1 | High | The fix for B2 could be got round. `holdRevocations` left a Revocation unfetched if a record of its content ID was held. A delegate that read its Revocation on the author's feed could send the gateway the same record under a signature that is nobody's. The copy was held, counted for nobody, and kept the author's own from being fetched: the delegation stood for good | **Fixed.** A Revocation on a feed is left unfetched only if the copy held counts for its author. A test sends the forged copy first, and the delegation stands no more once the feed is read |
+| T2 | Low | `delegationsStand` took a string in `authority` that is no reference as it takes a charter: as nothing a Revocation takes back. No record that verifies has one | **Fixed.** A reference that is none names nothing that is held, and the delegations do not stand |
+| T3 | Low | `delegationsStand` took a delegation with no `expires` that can be read as one that never ends. No record that verifies has one | **Fixed.** It does not stand (Layer 1, 11.1) |
+
+The races of a hold have tests now, with another process's acts planted between two steps (`hold.faults.test.ts`): a holder that lets go between two looks, a take-over that another process finished first, a process that has just started and made the file first, and a file system that fails.
+
 ## What the fixes changed in the specification
 
 [OEP-0006](../../oeps/oep-0006-bridge-clarifications.md) gained four items, with the changelog, the Python checker, the vectors and the technical paper in the same changes:

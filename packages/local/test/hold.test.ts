@@ -101,6 +101,25 @@ describe("a hold on a directory", () => {
     taken.release();
   });
 
+  it("removes nothing of another process's when it is let go", () => {
+    const dir = fresh();
+    const file = join(dir, "serve.hold");
+    const mine = hold(dir, "serve.hold", "relays");
+    // Another process took the hold over, and this one has not looked since.
+    writeFileSync(file, "1 0123456789abcdef01234567\n");
+    expect(mine.held).toBe(true);
+    mine.release();
+    expect(mine.held).toBe(false);
+    expect(readFileSync(file, "utf8")).toBe("1 0123456789abcdef01234567\n");
+    // Or the file is gone already.
+    rmSync(file);
+    const next = hold(dir, "serve.hold", "relays");
+    rmSync(file);
+    next.release();
+    expect(next.held).toBe(false);
+    expect(existsSync(file)).toBe(false);
+  });
+
   it("is lost where its file is removed, and says so", () => {
     const dir = fresh();
     const mine = hold(dir, "serve.hold", "relays");

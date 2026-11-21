@@ -237,7 +237,7 @@ Cases the implementation cannot answer yet are pending, never passed.
 | L1 11.2 | MUST | M3 | 30 | tested | Commands match `^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`. A command `g` covers a command `c` when… |
 | L1 11.3 | SHOULD | M3 | 54 | tested | Policies. A policy is an array of at most 64 statements, all of which must hold for the record… |
 | L1 11.4 |  | M3 | 30 | tested | Validity of a delegation chain for a record `r` carrying a proof `p` by a valid operational key… |
-| L1 11.5 | SHOULD | M3 | 21 | tested | A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco… |
+| L1 11.5 | SHOULD | M3 | 25 | tested | A `Revocation` record has `author` (the author of the revoked delegation), `revokes` (its `reco… |
 | L1 11.6 | MUST | M3 | 18 | tested | Use. A proof that relies on delegation lists, in its own `authority` member (core 5.2), exactly… |
 | L1 12.1 | MUST | M4 | 41 | tested | A `Packet`: \| Member \| Required \| Value \| \|---\|---\|---\| \| `from` \| yes \| Sender's address; the… |
 | L1 12.2 | MUST | M4 | 16 | tested | Content. Exactly one of: - `{ "mediaType": <media type>, "body": <JSON value> }`. With `applica… |

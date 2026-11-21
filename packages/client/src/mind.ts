@@ -1247,10 +1247,13 @@ export class Mind {
    *
    * The delegations are those the record's proofs carry or name in
    * `authority`. The feed of each of their authors is read, and every
-   * `Revocation` it lists that this mind does not hold yet is fetched and
-   * held. A mind with no home has no feed.
+   * `Revocation` it lists is fetched and held, unless this mind holds a
+   * copy that counts for its author. A copy that does not count is no
+   * reason to leave the author's own unread: anyone can give out a record
+   * they have read under a signature that is nobody's. A mind with no home
+   * has no feed.
    *
-   * @returns How many Revocations were newly held.
+   * @returns How many Revocations were fetched and held.
    * @throws What `Lookup.feed` and `Lookup.record` throw, where a feed or
    *   a record it lists cannot be had: nothing was shown either way.
    */

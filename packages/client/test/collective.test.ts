@@ -285,6 +285,12 @@ describe(`${clause("L1 9.5", "L2 7.1")} what a collective signs`, () => {
     expect(named.proof[0]?.["authority"]).toStrictEqual([`${address}/${contentId(charter)}`]);
     expect(await c.mind.countsFor(named, address)).toBe(true);
     expect(await d.mind.countsFor(named, address)).toBe(false);
+    // A charter is no delegation that a Revocation takes back: whether it is in force is
+    // judged where the proof is. Held or carried, it does not stand in the way of acting. Not
+    // held, it shows nothing.
+    expect(await c.mind.delegationsStand(within)).toBe(true);
+    expect(await c.mind.delegationsStand(named)).toBe(true);
+    expect(await d.mind.delegationsStand(named)).toBe(false);
     // A proof acts for another by a chain, or by a charter, and not by both or by neither.
     expect(
       await refusal(() => c.mind.intent({ author: address, want: "x" }, { charter, chain: [] })),

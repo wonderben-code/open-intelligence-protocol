@@ -185,6 +185,8 @@ export class Dealings {
   readonly #records = new WebRecordSet();
   /** The records held, by content ID, each as the copy with every proof seen of it. */
   readonly #held = new Map<string, OipRecord>();
+  /** The Revocations held that have counted for their authors, by content ID. */
+  readonly #revoked = new Set<string>();
 
   constructor(own: Own) {
     this.#own = own;
@@ -414,19 +416,22 @@ export class Dealings {
   async delegationsStand(record: unknown): Promise<boolean> {
     const now = this.#own.clock.now();
     for (const item of this.#authorityOf(record)) {
-      // Carried whole, or named and held. One that is named and not held shows nothing.
-      const named = typeof item === "string" ? parseRecordRef(item) : undefined;
-      const delegation = (named === undefined ? item : this.#held.get(named.contentId)) as
+      // Carried whole, or named and held.
+      let delegation = item as
         { type?: unknown; author?: unknown; expires?: unknown } | null | undefined;
-      // A charter is authority too, and is not taken back by a Revocation.
-      if (delegation?.type !== "Delegation") {
-        if (typeof item === "string" && delegation === undefined) return false;
-        continue;
+      if (typeof item === "string") {
+        const named = parseRecordRef(item);
+        delegation = named === undefined ? undefined : this.#held.get(named.contentId);
+        // One that is named and not held shows nothing.
+        if (delegation === undefined) return false;
       }
+      // A charter is authority too, and is not taken back by a Revocation.
+      if (delegation?.type !== "Delegation") continue;
       const { author, expires } = delegation;
       if (!isMindAddress(author)) return false;
-      const until = typeof expires === "string" ? parseTimestamp(expires) : undefined;
-      if (until !== undefined && until <= now) return false;
+      // One with no end that can be read is no delegation (Layer 1, 11.1).
+      const until = parseTimestamp(expires);
+      if (until === undefined || until <= now) return false;
       const revoked = formatRecordRef(author, contentId(delegation));
       for (const held of this.#held.values()) {
         const { type, revokes } = held as { type: string; revokes?: unknown };
@@ -466,10 +471,19 @@ export class Dealings {
         throw error;
       }
       for (const { entry } of entries) {
-        if (entry.objectType !== "Revocation" || this.#held.has(entry.object)) continue;
-        const fetched = await lookup.record(author, entry.object);
-        this.hold(fetched.record);
-        held += 1;
+        if (entry.objectType !== "Revocation" || this.#revoked.has(entry.object)) continue;
+        // A copy that is held shows nothing unless it counts for its author. Anyone who has
+        // read a Revocation can give out the same record, by its content ID, under a
+        // signature that is nobody's: with that copy held, the author's own is fetched still.
+        const before = this.#held.get(entry.object);
+        if (before === undefined || !(await this.countsFor(before, author))) {
+          const fetched = await lookup.record(author, entry.object);
+          this.hold(fetched.record);
+          held += 1;
+          continue;
+        }
+        // Its proofs are kept with every copy that comes later: it need not be asked of again.
+        this.#revoked.add(entry.object);
       }
     }
     return held;

@@ -11,13 +11,13 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { LOCAL, type Network, startNetwork } from "@oip/cli";
 import { Lookup, Mind, type ProfileFields } from "@oip/client";
-import { type Keychain, Keystore, type Lock, SCRYPT_MIN_N } from "@oip/keystore";
+import { Keystore, type Lock, SCRYPT_MIN_N } from "@oip/keystore";
 import { fileStorage } from "@oip/keystore/node";
 import {
   type Config,
@@ -27,7 +27,7 @@ import {
   type Machine,
   NETWORK_FILE,
   optionsOf,
-  UsageError,
+  readNetwork,
   type Where,
 } from "@oip/local";
 
@@ -40,13 +40,6 @@ export interface Player {
   readonly mind: Mind;
   readonly lock: Lock;
 }
-
-/** A keychain that keeps nothing: the keys of the cast are opened by the passphrase. */
-const NO_KEYCHAIN: Keychain = {
-  get: () => Promise.resolve(undefined),
-  set: () => Promise.resolve(),
-  delete: () => Promise.resolve(),
-};
 
 /** The place of one telling. */
 export class Stage {
@@ -64,7 +57,8 @@ export class Stage {
       // For this telling alone. It is never written anywhere, and never said.
       env: { OIP_PASSPHRASE: randomBytes(24).toString("base64url") },
       home: root,
-      keychain: () => Promise.resolve(NO_KEYCHAIN),
+      // The keys of the cast are opened by the passphrase: no keychain is asked.
+      keychain: () => Promise.reject(new Error("the telling keeps no key under a keychain")),
       // The keys last as long as the telling does: the least work that seals them will do.
       scryptN: SCRYPT_MIN_N,
     };
@@ -88,22 +82,27 @@ export class Stage {
       lock: "passphrase",
       network: directory,
     });
-    if (network !== undefined) {
-      if (!existsSync(join(network, NETWORK_FILE))) {
-        rmSync(root, { recursive: true, force: true });
-        throw new UsageError(
-          `no network says where it is in ${network}: \`oip demo\` runs one, and writes ${NETWORK_FILE} in its directory`,
-        );
+    try {
+      if (network !== undefined) {
+        // Read now, and not at the first request: a directory that holds no network, or a file
+        // that no network wrote, is said before anything is told.
+        readNetwork(network);
+        return new Stage(root, undefined, config(network));
       }
-      return new Stage(root, undefined, config(network));
+      const directory = join(root, "network");
+      const started = await startNetwork({ directory });
+      // For its owner alone, as `oip demo` writes it.
+      writeFileSync(
+        join(directory, NETWORK_FILE),
+        JSON.stringify({ ...LOCAL, routes: started.routes }),
+        { mode: 0o600 },
+      );
+      return new Stage(root, started, config(directory));
+    } catch (error) {
+      // Nothing of a telling that could not begin is left behind.
+      rmSync(root, { recursive: true, force: true });
+      throw error;
     }
-    const directory = join(root, "network");
-    const started = await startNetwork({ directory });
-    writeFileSync(
-      join(directory, NETWORK_FILE),
-      JSON.stringify({ ...LOCAL, routes: started.routes }),
-    );
-    return new Stage(root, started, config(directory));
   }
 
   #where(name: string): Where {
@@ -138,11 +137,18 @@ export class Stage {
     return new Lookup(lookupOptions(this.#where("a-stranger"), this.#config));
   }
 
-  /** Ends the telling: the minds are closed, the telling's own network stopped, and the keys removed. */
+  /**
+   * Ends the telling: the minds are closed, the telling's own network
+   * stopped, and the keys removed. Done twice, it is done once.
+   */
   async close(): Promise<void> {
-    for (const { mind } of this.#players) mind.close();
-    // A network that was running before the telling runs on after it.
-    await this.#network?.stop();
-    rmSync(this.root, { recursive: true, force: true });
+    try {
+      for (const { mind } of this.#players.splice(0)) mind.close();
+      // A network that was running before the telling runs on after it.
+      await this.#network?.stop();
+    } finally {
+      // Whatever became of the closing, the keys do not stay.
+      rmSync(this.root, { recursive: true, force: true });
+    }
   }
 }

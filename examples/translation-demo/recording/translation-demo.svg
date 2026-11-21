@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1023 1400" role="img" aria-labelledby="title">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1163 1454" role="img" aria-labelledby="title">
 <title id="title">The Open Intelligence Protocol: a translation, from want to Receipt</title>
 <style>
 svg { background: #101418; font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
@@ -13,31 +13,31 @@ text.verified { fill: #7fd69b; }
 <text class="said" x="16" y="68" style="animation-delay:1.50s" xml:space="preserve">A resolver, a host and an indexer run on this machine. Nothing else is trusted.</text>
 <text class="said" x="16" y="86" style="animation-delay:2.20s" xml:space="preserve"></text>
 <text class="step" x="16" y="104" style="animation-delay:2.50s" xml:space="preserve">1. Identity</text>
-<text class="said" x="16" y="122" style="animation-delay:3.70s" xml:space="preserve">   Amina is did:oip:bciql57qk2jyngbeuyt6omecifx4fn74vdfm3nnuxeuuriih3wpynuyy, a mind of kind human.</text>
+<text class="said" x="16" y="122" style="animation-delay:3.70s" xml:space="preserve">   Amina is did:oip:bciqkzbhfq3fyifpj5tmtn7us2dbnfvcdmtygoqzt7hp5lcnzaxo6feq, a mind of kind human.</text>
 <text class="verified" x="16" y="140" style="animation-delay:4.40s" xml:space="preserve">   verified: a stranger resolves that address to a log whose first event has that hash, and to a profile it signed.</text>
-<text class="said" x="16" y="158" style="animation-delay:4.75s" xml:space="preserve">   Lexis Ltd is did:oip:bciqb2ofukqrq4vxmusb267bp22sc4r55txygcx3r7f2ym72pvrmmgdi, a mind of kind institution.</text>
+<text class="said" x="16" y="158" style="animation-delay:4.75s" xml:space="preserve">   Lexis Ltd is did:oip:bciqo3s6ilrveek3yfphskbg2ydqphvqq6hgwyn35mgw3ifwqvteic5a, a mind of kind institution.</text>
 <text class="verified" x="16" y="176" style="animation-delay:5.45s" xml:space="preserve">   verified: a stranger resolves that address to a log whose first event has that hash, and to a profile it signed.</text>
-<text class="said" x="16" y="194" style="animation-delay:5.80s" xml:space="preserve">   Lexis translation agent is did:oip:bciqn33fcgc4w4balgzxzh3e3sjydtgfw2wmqzmxk5ko2wfy2cl4zvza, a mind of kind agent.</text>
+<text class="said" x="16" y="194" style="animation-delay:5.80s" xml:space="preserve">   Lexis translation agent is did:oip:bciqciaxfbntrpbvihnq667xnko4udez42zvyryscs5bgk3uykdfqwfi, a mind of kind agent.</text>
 <text class="verified" x="16" y="212" style="animation-delay:6.50s" xml:space="preserve">   verified: a stranger resolves that address to a log whose first event has that hash, and to a profile it signed.</text>
 <text class="said" x="16" y="230" style="animation-delay:6.85s" xml:space="preserve"></text>
 <text class="step" x="16" y="248" style="animation-delay:7.15s" xml:space="preserve">2. Delegation</text>
 <text class="said" x="16" y="266" style="animation-delay:8.35s" xml:space="preserve">   Lexis Ltd lets its agent sign Commitments for it: only where the firm is paid, in US</text>
 <text class="said" x="16" y="284" style="animation-delay:9.05s" xml:space="preserve">   dollars, 500 at most, never with the agent itself as a party, and for thirty days.</text>
-<text class="verified" x="16" y="302" style="animation-delay:9.75s" xml:space="preserve">   verified: the delegation is signed by Lexis Ltd's own authority.</text>
+<text class="verified" x="16" y="302" style="animation-delay:9.75s" xml:space="preserve">   verified: the delegation reached the agent, and is signed by Lexis Ltd's own authority.</text>
 <text class="said" x="16" y="320" style="animation-delay:10.10s" xml:space="preserve"></text>
 <text class="step" x="16" y="338" style="animation-delay:10.40s" xml:space="preserve">3. Capability publication</text>
 <text class="said" x="16" y="356" style="animation-delay:11.60s" xml:space="preserve">   The agent's profile says what it can do, with tags an indexer can match.</text>
-<text class="verified" x="16" y="374" style="animation-delay:12.30s" xml:space="preserve">   verified: an indexer lists the agent for Swahili, English and commercial law, and the listing is a profile the agent signed.</text>
+<text class="verified" x="16" y="374" style="animation-delay:12.30s" xml:space="preserve">   verified: an indexer lists the agent for Swahili, English and commercial law, and the listing is the agent's current profile, which it signed.</text>
 <text class="said" x="16" y="392" style="animation-delay:12.65s" xml:space="preserve"></text>
 <text class="step" x="16" y="410" style="animation-delay:12.95s" xml:space="preserve">4. Intent</text>
 <text class="said" x="16" y="428" style="animation-delay:14.15s" xml:space="preserve">   Amina publishes an Intent: "A Swahili commercial lease translated into English",</text>
 <text class="said" x="16" y="446" style="animation-delay:14.85s" xml:space="preserve">   for 150 US dollars at most, addressed to whoever has that capability.</text>
-<text class="verified" x="16" y="464" style="animation-delay:15.55s" xml:space="preserve">   verified: the indexer forwarded her packet to the agent, which found her signature on it and the broker's on its wrapper.</text>
+<text class="verified" x="16" y="464" style="animation-delay:15.55s" xml:space="preserve">   verified: her packet reached the agent forwarded: it found her signature on the packet, and a broker's on its wrapper.</text>
 <text class="verified" x="16" y="482" style="animation-delay:15.90s" xml:space="preserve">   verified: the Intent is open.</text>
 <text class="said" x="16" y="500" style="animation-delay:16.25s" xml:space="preserve"></text>
 <text class="step" x="16" y="518" style="animation-delay:16.55s" xml:space="preserve">5. Offer</text>
-<text class="said" x="16" y="536" style="animation-delay:17.75s" xml:space="preserve">   The agent sends Amina an Offer, signed for Lexis Ltd: 120 US dollars, within two days.</text>
-<text class="verified" x="16" y="554" style="animation-delay:18.45s" xml:space="preserve">   verified: the Offer counts for Lexis Ltd, by the delegation its proof carries.</text>
+<text class="said" x="16" y="536" style="animation-delay:17.75s" xml:space="preserve">   The agent sends Amina an Offer of its own: 120 US dollars, delivered within two days.</text>
+<text class="verified" x="16" y="554" style="animation-delay:18.45s" xml:space="preserve">   verified: the Offer reached her, is signed by the agent, and stands open.</text>
 <text class="said" x="16" y="572" style="animation-delay:18.80s" xml:space="preserve"></text>
 <text class="step" x="16" y="590" style="animation-delay:19.10s" xml:space="preserve">6. Commitment</text>
 <text class="said" x="16" y="608" style="animation-delay:20.30s" xml:space="preserve">   The agent drafts a Commitment: Lexis Ltd owes the translation, Amina owes 120 US dollars.</text>
@@ -51,37 +51,40 @@ text.verified { fill: #7fd69b; }
 <text class="said" x="16" y="752" style="animation-delay:24.15s" xml:space="preserve"></text>
 <text class="step" x="16" y="770" style="animation-delay:24.45s" xml:space="preserve">7. Delivery</text>
 <text class="said" x="16" y="788" style="animation-delay:25.65s" xml:space="preserve">   The agent delivers the translation to Amina, sealed to her, in a session.</text>
-<text class="verified" x="16" y="806" style="animation-delay:26.35s" xml:space="preserve">   verified: the packet opened with Amina's key alone, and is signed by the agent.</text>
+<text class="verified" x="16" y="806" style="animation-delay:26.35s" xml:space="preserve">   verified: the packet came sealed to Amina, in that session, and is signed by the agent.</text>
 <text class="said" x="16" y="824" style="animation-delay:26.70s" xml:space="preserve"></text>
 <text class="step" x="16" y="842" style="animation-delay:27.00s" xml:space="preserve">8. Receipt</text>
 <text class="said" x="16" y="860" style="animation-delay:28.20s" xml:space="preserve">   Amina publishes a Receipt: fulfilled, with the digest of what she was sent as evidence.</text>
-<text class="verified" x="16" y="878" style="animation-delay:28.90s" xml:space="preserve">   verified: the Commitment is fulfilled: the party that was owed says so.</text>
-<text class="said" x="16" y="896" style="animation-delay:29.25s" xml:space="preserve"></text>
-<text class="step" x="16" y="914" style="animation-delay:29.55s" xml:space="preserve">9. Afterwards</text>
-<text class="said" x="16" y="932" style="animation-delay:30.75s" xml:space="preserve">   A stranger with no key at all reads the feeds of Amina and of the agent, and nothing else.</text>
-<text class="verified" x="16" y="950" style="animation-delay:31.45s" xml:space="preserve">   verified: it found 4 records there, each signed and each under its content ID.</text>
-<text class="verified" x="16" y="968" style="animation-delay:31.80s" xml:space="preserve">   verified: among them is the Commitment, under the content ID both parties gave.</text>
-<text class="verified" x="16" y="986" style="animation-delay:32.15s" xml:space="preserve">   verified: it works out for itself that the agent's signature binds Lexis Ltd.</text>
-<text class="verified" x="16" y="1004" style="animation-delay:32.50s" xml:space="preserve">   verified: and that the Commitment is fulfilled, by Amina's own Receipt.</text>
-<text class="said" x="16" y="1022" style="animation-delay:32.85s" xml:space="preserve"></text>
-<text class="step" x="16" y="1040" style="animation-delay:33.15s" xml:space="preserve">10. The limits of the delegation</text>
-<text class="said" x="16" y="1058" style="animation-delay:34.35s" xml:space="preserve">   The agent signs two more Commitments for the firm, with the same delegation.</text>
-<text class="verified" x="16" y="1076" style="animation-delay:35.05s" xml:space="preserve">   verified: one for 600 US dollars does not bind Lexis Ltd: the delegation says 500 at most.</text>
-<text class="verified" x="16" y="1094" style="animation-delay:35.40s" xml:space="preserve">   verified: one for 120 euros does not bind it either: the delegation says US dollars.</text>
-<text class="verified" x="16" y="1112" style="animation-delay:35.75s" xml:space="preserve">   verified: each stays proposed, whoever else signs it: the firm has not.</text>
-<text class="said" x="16" y="1130" style="animation-delay:36.10s" xml:space="preserve"></text>
-<text class="step" x="16" y="1148" style="animation-delay:36.40s" xml:space="preserve">11. Acting for a person</text>
-<text class="said" x="16" y="1166" style="animation-delay:37.60s" xml:space="preserve">   Amina lets her assistant send packets for her, for a week.</text>
-<text class="verified" x="16" y="1184" style="animation-delay:38.30s" xml:space="preserve">   verified: the agent takes the assistant's packet as sent for Amina: its proof carries her delegation to send.</text>
-<text class="verified" x="16" y="1202" style="animation-delay:38.65s" xml:space="preserve">   verified: a packet that only says it is sent for her, with a delegation for something else, is the assistant's own.</text>
-<text class="said" x="16" y="1220" style="animation-delay:39.00s" xml:space="preserve"></text>
-<text class="step" x="16" y="1238" style="animation-delay:39.30s" xml:space="preserve">12. A collective</text>
-<text class="said" x="16" y="1256" style="animation-delay:40.50s" xml:space="preserve">   Amina, the agent and a research agent found a collective, to keep a glossary of Swahili</text>
-<text class="said" x="16" y="1274" style="animation-delay:41.20s" xml:space="preserve">   legal terms. It is a mind of its own: did:oip:bciqao7hejzc445wtn625bzaf3uyeqycxhtllg4rd5fr45yo5yhq5psa.</text>
-<text class="verified" x="16" y="1292" style="animation-delay:41.90s" xml:space="preserve">   verified: its address is the content ID of a genesis event that all three signed, and it is controlled by its members.</text>
-<text class="verified" x="16" y="1310" style="animation-delay:42.25s" xml:space="preserve">   verified: an Intent that one member signs for it is not the collective's: any two of the three speak for it.</text>
-<text class="verified" x="16" y="1328" style="animation-delay:42.60s" xml:space="preserve">   verified: with a second member's signature, it is.</text>
-<text class="said" x="16" y="1346" style="animation-delay:42.95s" xml:space="preserve"></text>
-<text class="said" x="16" y="1364" style="animation-delay:43.25s" xml:space="preserve">No platform holds this record. The parties do, and anyone can check it.</text>
-<text class="said" x="16" y="1382" style="animation-delay:43.95s" xml:space="preserve">27 things were verified in this telling.</text>
+<text class="verified" x="16" y="878" style="animation-delay:28.90s" xml:space="preserve">   verified: the digest in the Receipt is the digest of the text the agent sent.</text>
+<text class="verified" x="16" y="896" style="animation-delay:29.25s" xml:space="preserve">   verified: the Commitment is fulfilled: the party that was owed says so.</text>
+<text class="said" x="16" y="914" style="animation-delay:29.60s" xml:space="preserve"></text>
+<text class="step" x="16" y="932" style="animation-delay:29.90s" xml:space="preserve">9. Afterwards</text>
+<text class="said" x="16" y="950" style="animation-delay:31.10s" xml:space="preserve">   A stranger with no key at all reads the feeds of Amina, of the agent and of Lexis Ltd,</text>
+<text class="said" x="16" y="968" style="animation-delay:31.80s" xml:space="preserve">   and nothing else.</text>
+<text class="verified" x="16" y="986" style="animation-delay:32.50s" xml:space="preserve">   verified: it found three records in four entries, the Commitment in two feeds, each under its content ID and signed by its author.</text>
+<text class="verified" x="16" y="1004" style="animation-delay:32.85s" xml:space="preserve">   verified: among them is the Commitment, under the content ID both parties gave.</text>
+<text class="verified" x="16" y="1022" style="animation-delay:33.20s" xml:space="preserve">   verified: it works out for itself that the agent's signature binds Lexis Ltd.</text>
+<text class="verified" x="16" y="1040" style="animation-delay:33.55s" xml:space="preserve">   verified: and that the Commitment is fulfilled, by Amina's own Receipt.</text>
+<text class="said" x="16" y="1058" style="animation-delay:33.90s" xml:space="preserve"></text>
+<text class="step" x="16" y="1076" style="animation-delay:34.20s" xml:space="preserve">10. The limits of the delegation</text>
+<text class="said" x="16" y="1094" style="animation-delay:35.40s" xml:space="preserve">   The agent signs three more Commitments for the firm, with the same delegation.</text>
+<text class="verified" x="16" y="1112" style="animation-delay:36.10s" xml:space="preserve">   verified: one for 500 US dollars binds Lexis Ltd: it is within the delegation.</text>
+<text class="verified" x="16" y="1130" style="animation-delay:36.45s" xml:space="preserve">   verified: one for 600 US dollars is the agent's signature, and does not bind Lexis Ltd: the delegation says 500 at most.</text>
+<text class="verified" x="16" y="1148" style="animation-delay:36.80s" xml:space="preserve">   verified: one for 120 euros does not bind it either: the delegation says US dollars.</text>
+<text class="verified" x="16" y="1166" style="animation-delay:37.15s" xml:space="preserve">   verified: each of the two stays proposed though Amina signs it: the firm has not.</text>
+<text class="said" x="16" y="1184" style="animation-delay:37.50s" xml:space="preserve"></text>
+<text class="step" x="16" y="1202" style="animation-delay:37.80s" xml:space="preserve">11. Acting for a person</text>
+<text class="said" x="16" y="1220" style="animation-delay:39.00s" xml:space="preserve">   Amina lets her assistant send packets for her, for a week.</text>
+<text class="verified" x="16" y="1238" style="animation-delay:39.70s" xml:space="preserve">   verified: the agent takes the assistant's packet as sent for Amina: its proof carries her delegation to send.</text>
+<text class="verified" x="16" y="1256" style="animation-delay:40.05s" xml:space="preserve">   verified: a packet that only says it is sent for her, with a delegation for something else, is the assistant's own.</text>
+<text class="said" x="16" y="1274" style="animation-delay:40.40s" xml:space="preserve"></text>
+<text class="step" x="16" y="1292" style="animation-delay:40.70s" xml:space="preserve">12. A collective</text>
+<text class="said" x="16" y="1310" style="animation-delay:41.90s" xml:space="preserve">   Amina, the agent and a research agent found a collective, to keep a glossary of Swahili</text>
+<text class="said" x="16" y="1328" style="animation-delay:42.60s" xml:space="preserve">   legal terms. It is a mind of its own: did:oip:bciqic7dbv6nt2s3zqpdgohzagpui5spndk7itgjs6fxojlov2bs5tdy.</text>
+<text class="verified" x="16" y="1346" style="animation-delay:43.30s" xml:space="preserve">   verified: its address is the content ID of a genesis event that all three signed, and it is controlled by its members.</text>
+<text class="verified" x="16" y="1364" style="animation-delay:43.65s" xml:space="preserve">   verified: an Intent that one member signs for it is not the collective's: any two of the three speak for it.</text>
+<text class="verified" x="16" y="1382" style="animation-delay:44.00s" xml:space="preserve">   verified: with a second member's signature, it is.</text>
+<text class="said" x="16" y="1400" style="animation-delay:44.35s" xml:space="preserve"></text>
+<text class="said" x="16" y="1418" style="animation-delay:44.65s" xml:space="preserve">No platform holds this record. The parties do, and anyone can check it.</text>
+<text class="said" x="16" y="1436" style="animation-delay:45.35s" xml:space="preserve">29 things were verified in this telling.</text>
 </svg>

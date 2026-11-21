@@ -47,12 +47,12 @@ The gateway is a custodian and a translator. It holds the keys of every mind it 
 
 ### Tampering
 
-| Threat                                                     | What stops it                                                                                                                                         |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| An agent changes a file after the gateway attested it      | The evidence item holds the digest of the bytes the gateway fetched. A verifier that fetches the file checks it (Layer 2, Section 9)                  |
-| A card changes after the mind was bridged                  | The profile records the digest of the card that was read. `bridge` done again brings the profile up to the new card, with its digest                  |
-| A task's name is used as a file name                       | What the gateway keeps is in files named by a digest of the key, never by the key (`store.test.ts`: a key is any text an agent chooses)               |
-| A header of a request to an agent is made to carry another | The fetcher refuses a header value with a line end, and any header that frames the request or says where it goes (`fetcher.test.ts` in `@oip/server`) |
+| Threat                                                     | What stops it                                                                                                                                             |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An agent changes a file after the gateway attested it      | The evidence item holds the digest of the bytes the gateway fetched. A verifier that fetches the file checks it (Layer 2, Section 9)                      |
+| A card changes after the mind was bridged                  | The profile records the digest of the card that was read. `bridge` done again brings the profile up to the new card, with its digest                      |
+| A task's name is used as a file name                       | What the gateway keeps is in files named by a digest of the key, never by the key (`store.test.ts` in `@oip/local`: a key is any text a stranger chooses) |
+| A header of a request to an agent is made to carry another | The fetcher refuses a header value with a line end, and any header that frames the request or says where it goes (`fetcher.test.ts` in `@oip/server`)     |
 
 ### Repudiation
 

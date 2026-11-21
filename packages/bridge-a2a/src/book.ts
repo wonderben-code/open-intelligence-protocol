@@ -13,9 +13,10 @@
 
 import { join } from "node:path";
 
+import { Store } from "@oip/local";
+
 import type { A2aMessage, Artifact } from "./a2a.ts";
 import { isTerminal, type TaskState } from "./mapping.ts";
-import { Store } from "./store.ts";
 
 /** A task, as the gateway holds it. */
 export interface Held {

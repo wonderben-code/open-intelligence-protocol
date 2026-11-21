@@ -7,34 +7,17 @@
  *
  * The gateway is a mind of its own, in a directory as the `oip` command
  * makes one. For each agent it bridges it makes a **bridged mind** in a
- * directory under its own, with keys the gateway holds:
- *
- * - the mind's `Genesis` names the gateway, in an `oip.bridge` block;
- * - an entry of the gateway's own feed names that `Genesis`: the
- *   attestation, which nobody but the gateway can sign;
- * - the mind's profile carries the block again with the reference to that
- *   entry, the capabilities made of the card's skills, and the digest of
- *   the card the gateway read.
- *
- * Each step is done once. A run that stops is gone on with by the next,
- * with the same keys: no second mind is made for an agent.
+ * directory under its own, with keys the gateway holds, as `withBridged`
+ * of `@oip/local` makes one for any gateway. The mind's profile carries
+ * the capabilities made of the card's skills, and the digest of the card
+ * the gateway read.
  */
 
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
+import { readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { httpsOrigin, Mind, systemClock } from "@oip/client";
-import { contentId, formatRecordRef, sha256 } from "@oip/core";
-import { Keystore } from "@oip/keystore";
-import { fileStorage } from "@oip/keystore/node";
-import { Home, keepRecords, lockOf, openMind, optionsOf, UsageError, type Where } from "@oip/local";
+import { httpsOrigin, systemClock } from "@oip/client";
+import { fileNameOf, keepRecords, openMind, UsageError, type Where, withBridged } from "@oip/local";
 
 import type { Ask, Get } from "./a2a.ts";
 import { type AgentInterface, CARD_PATH, interfaceOf, readCard, supports } from "./card.ts";
@@ -98,9 +81,6 @@ const MAX_SUMMARY = 1024;
 const cut = (text: string, most: number): string =>
   text.length > most ? `${text.slice(0, most - 1)}…` : text;
 
-const hex = (bytes: Uint8Array): string =>
-  Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-
 /** A gateway, in the directory of its own mind. */
 export class Gateway {
   readonly #where: Where;
@@ -118,11 +98,7 @@ export class Gateway {
   /** The directory of the bridged mind of an agent, by the agent's origin. */
   #directory(origin: string): string {
     // An origin is not a name a file system takes: its digest is.
-    return join(
-      this.#where.dir,
-      "agents",
-      hex(sha256(new TextEncoder().encode(origin))).slice(0, 40),
-    );
+    return join(this.#where.dir, "agents", fileNameOf(origin));
   }
 
   /** What the gateway's directory records of an agent, if it bridges it. */
@@ -217,86 +193,40 @@ export class Gateway {
       );
     }
 
-    const gateway = await openMind(this.#where);
-    try {
-      const homes = gateway.mind.state.homes;
-      if (homes.length === 0) {
-        throw new UsageError(
-          "the gateway's mind names no home: it attests the minds it bridges in its feed, which a home serves",
-        );
+    const before = this.bridged(origin);
+    const dir = this.#directory(origin);
+    const system = { protocol: PROTOCOL, endpoint: origin, attestation: before?.attestation };
+    return withBridged(this.#where, dir, system, async ({ mind, block }) => {
+      // The profile: what the card says the agent can do, and which card that was.
+      if (before?.cardDigest !== digest || mind.resolved.participant === undefined) {
+        const capabilities = capabilitiesOf(card);
+        await mind.publishProfile({
+          name: cut(card.name, MAX_NAME),
+          summary: cut(card.description, MAX_SUMMARY),
+          ...(capabilities.length === 0 ? {} : { capabilities }),
+          // Layer 0, 3.2: what a profile lists for A2A is the URL of a card.
+          interfaces: { a2a: origin + CARD_PATH },
+          ext: {
+            "oip.bridge": { ...block },
+            "oip.a2a": { cardDigest: digest },
+          },
+        });
       }
-      const before = this.bridged(origin);
-      const block = {
-        protocol: PROTOCOL,
-        endpoint: origin,
-        gateway: gateway.mind.address,
-        assurance: "bridged",
+      const bridged: Bridged = {
+        origin,
+        mind: mind.address,
+        attestation: block.attestation,
+        cardDigest: digest,
+        signed: signatures.value.signed,
+        interface: spoken,
+        extension: supports(card, OIP_EXTENSION),
       };
-
-      // The bridged mind: made once, with the gateway's lock, and gone on with if a run stopped.
-      const at = { edges: this.#where.edges, dir: this.#directory(origin) };
-      const home = new Home(at.dir);
-      mkdirSync(at.dir, { recursive: true, mode: 0o700 });
-      const fresh = !existsSync(home.keys);
-      const lock = await lockOf(at, gateway.config.lock, false);
-      const storage = fileStorage(home.keys);
-      const keystore = fresh
-        ? await Keystore.create({ storage, locks: lock })
-        : await Keystore.open({ storage });
-      home.write(gateway.config);
-      const options = optionsOf(at, home, gateway.config, keystore, lock);
-      const mind =
-        keystore.mind === undefined
-          ? await Mind.create(options, { kind: "service", homes, ext: { "oip.bridge": block } })
-          : await Mind.open(options);
-      try {
-        if (mind.resolved.location === undefined) await mind.publishLocation();
-        // The gateway's own word: an entry of its feed that names the genesis. Signed once.
-        const genesis = mind.resolved.log.entries[0].event;
-        let attestation = before?.attestation;
-        if (attestation === undefined) {
-          const { feed } = await gateway.mind.lookup.feed(gateway.mind.address).catch(() => ({
-            feed: { entries: [] as { id: string; entry: { object: string } }[] },
-          }));
-          const attested = feed.entries.find(({ entry }) => entry.object === contentId(genesis));
-          const entry = attested?.id ?? contentId(await gateway.mind.publishRecord(genesis));
-          attestation = formatRecordRef(gateway.mind.address, entry);
-        }
-        // The profile: what the card says the agent can do, and which card that was.
-        if (before?.cardDigest !== digest || mind.resolved.participant === undefined) {
-          const capabilities = capabilitiesOf(card);
-          await mind.publishProfile({
-            name: cut(card.name, MAX_NAME),
-            summary: cut(card.description, MAX_SUMMARY),
-            ...(capabilities.length === 0 ? {} : { capabilities }),
-            // Layer 0, 3.2: what a profile lists for A2A is the URL of a card.
-            interfaces: { a2a: origin + CARD_PATH },
-            ext: {
-              "oip.bridge": { ...block, attestation },
-              "oip.a2a": { cardDigest: digest },
-            },
-          });
-        }
-        const bridged: Bridged = {
-          origin,
-          mind: mind.address,
-          attestation,
-          cardDigest: digest,
-          signed: signatures.value.signed,
-          interface: spoken,
-          extension: supports(card, OIP_EXTENSION),
-        };
-        // Written whole or not at all: a reader never finds half of it.
-        const file = join(at.dir, AGENT_FILE);
-        writeFileSync(`${file}.partial`, JSON.stringify(bridged, undefined, 2), { mode: 0o600 });
-        renameSync(`${file}.partial`, file);
-        return bridged;
-      } finally {
-        mind.close();
-      }
-    } finally {
-      gateway.mind.close();
-    }
+      // Written whole or not at all: a reader never finds half of it.
+      const file = join(dir, AGENT_FILE);
+      writeFileSync(`${file}.partial`, JSON.stringify(bridged, undefined, 2), { mode: 0o600 });
+      renameSync(`${file}.partial`, file);
+      return bridged;
+    });
   }
 
   /**

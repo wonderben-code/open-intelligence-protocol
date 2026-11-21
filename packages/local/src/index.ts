@@ -15,6 +15,8 @@
  * @packageDocumentation
  */
 
+export { Arrivals } from "./arrivals.ts";
+export { type BridgeBlock, type BridgedSystem, type Custody, withBridged } from "./bridged.ts";
 export { UsageError } from "./errors.ts";
 export { MAX_FILE_BYTES, readJson, readObject } from "./files.ts";
 export { recordOf, refOf, statusOf } from "./held.ts";
@@ -44,4 +46,5 @@ export {
 export { keptFrom, keptOf, type KeptPacket } from "./packets.ts";
 export { Kept, type KeptRecord, KeptRecords } from "./records.ts";
 export { routed, routedSocket } from "./routes.ts";
+export { fileNameOf, Store } from "./store.ts";
 export { counted, printable, printableJson, quoted } from "./text.ts";

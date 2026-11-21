@@ -12,14 +12,14 @@ import { Store } from "../src/store.ts";
 let root: string;
 let dir: string;
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "oip-bridge-store-"));
+  root = mkdtempSync(join(tmpdir(), "oip-local-store-"));
   dir = join(root, "tasks");
 });
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe("what a gateway remembers of its work for an agent", () => {
+describe("what a program remembers of its work between its runs", () => {
   it("is kept by key, replaced by what is kept next under the key, and gone once removed", () => {
     const store = new Store<{ state: string }>(dir);
     expect(store.get("task-1")).toBeUndefined();
@@ -41,7 +41,7 @@ describe("what a gateway remembers of its work for an agent", () => {
     expect(new Store(dir).get("task-2")).toStrictEqual({ state: "working" });
   });
 
-  it("is in files that no key names: a key is any text an agent chooses", () => {
+  it("is in files that no key names: a key is any text a stranger chooses", () => {
     const store = new Store<number>(dir);
     const keys = ["../../escape", "/etc/passwd", "a\u0000b", "", "x".repeat(4096), "task/1"];
     for (const [index, key] of keys.entries()) store.put(key, index);

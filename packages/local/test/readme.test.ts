@@ -26,7 +26,18 @@ describe("the README", () => {
     for (const value of values) expect(named, value).toContain(value);
     // What is named besides is a type, which leaves nothing in the module to see.
     expect(named.filter((name) => !values.includes(name)).sort()).toStrictEqual(
-      ["Config", "KeptPacket", "KeptRecord", "Machine", "NetworkFile", "Opened", "Where"].sort(),
+      [
+        "BridgeBlock",
+        "BridgedSystem",
+        "Config",
+        "Custody",
+        "KeptPacket",
+        "KeptRecord",
+        "Machine",
+        "NetworkFile",
+        "Opened",
+        "Where",
+      ].sort(),
     );
     expect(new Set(named).size).toBe(named.length);
   });

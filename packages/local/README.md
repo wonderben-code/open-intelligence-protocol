@@ -42,6 +42,9 @@ export async function want(machine: Machine, what: string): Promise<string> {
 | `readNetwork`, `NetworkFile`, `NETWORK_FILE`, `isLocal`, `routed`, `routedSocket`                      | The network `oip demo` runs on this machine: what it says of itself, and how a client reaches it                                              |
 | `printable`, `printableJson`, `quoted`, `counted`                                                      | Text made safe to show: every character a terminal would act on is printed as its escape                                                      |
 | `UsageError`                                                                                           | What was asked cannot be done as it was asked. The message says what to do                                                                    |
+| `Store`, `fileNameOf`                                                                                  | What a program remembers between its runs: small JSON files by key, each named by a digest of its key, since a key may be any text            |
+| `Arrivals`                                                                                             | The packets that wait for a mind: each is written down as it is read from the mailbox, and waits until the program is done with it            |
+| `withBridged`, `Custody`, `BridgeBlock`, `BridgedSystem`                                               | The mind a gateway makes for a system outside the network (Layer 0, 1.2): made once, named by an entry of the gateway's feed                  |
 
 ## Notes
 

@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * What a gateway remembers of its work for one agent: small JSON files in
- * a directory, each under a name the gateway makes.
+ * What a program remembers of its work between its runs: small JSON files
+ * in a directory, each under a name the program makes.
  *
- * The names an agent gives its tasks are the agent's: any text at all. No
- * file is named by one. A file is named by the digest of its key, written
- * whole or not at all, and readable by its owner alone.
+ * A key may be a stranger's choice: the name a system outside the network
+ * gives a task, say, which is any text at all. No file is named by one. A
+ * file is named by the digest of its key, written whole or not at all, and
+ * readable by its owner alone.
  */
 
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -16,6 +17,17 @@ import { join } from "node:path";
 import { sha256 } from "@oip/core";
 
 const SUFFIX = ".json";
+
+/**
+ * A name that any file system takes, for any text: forty hexadecimal
+ * digits of the text's SHA-256 digest. Two texts have one name only if
+ * their digests agree in 160 bits.
+ */
+export function fileNameOf(text: string): string {
+  const digest = sha256(new TextEncoder().encode(text));
+  const name = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return name.slice(0, 40);
+}
 
 /** A directory of JSON values, by key. */
 export class Store<T> {
@@ -26,9 +38,7 @@ export class Store<T> {
   }
 
   #file(key: string): string {
-    const digest = sha256(new TextEncoder().encode(key));
-    const name = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
-    return join(this.#dir, `${name.slice(0, 40)}${SUFFIX}`);
+    return join(this.#dir, `${fileNameOf(key)}${SUFFIX}`);
   }
 
   /** What is kept under a key, or `undefined` if nothing is, or what is there is not JSON. */

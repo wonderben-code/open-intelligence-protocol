@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * The packets that reached a mind of the gateway's and wait to be dealt
- * with.
+ * The packets that reached a mind and wait to be dealt with, for a program
+ * that answers them: a gateway, say.
  *
  * A mailbox gives a packet once. So a packet is written down as soon as it
  * is read, before anything is done with it, and stays written down until
@@ -14,8 +14,9 @@
 import { join } from "node:path";
 
 import type { JsonObject } from "@oip/core";
-import { keptFrom, keptOf, type KeptPacket, type Opened } from "@oip/local";
 
+import type { Opened } from "./mind.ts";
+import { keptFrom, keptOf, type KeptPacket } from "./packets.ts";
 import { Store } from "./store.ts";
 
 /** What waits for one mind. */

@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 import { contentId, type JsonObject, sha256, sha256Digest } from "@oip/core";
 import { judgeRecord } from "@oip/identity";
-import { Home, Kept, type Machine, openMind } from "@oip/local";
+import { Home, Kept, type Machine, openMind, Store } from "@oip/local";
 import type { Packet } from "@oip/schema";
 import { clause } from "@oip/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -25,7 +25,6 @@ import {
   OIP_EXTENSION,
   type Relayed,
 } from "../src/index.ts";
-import { Store } from "../src/store.ts";
 import { cardOf, Place, served } from "./harness.ts";
 
 const LEXIS = "https://lexis.example";

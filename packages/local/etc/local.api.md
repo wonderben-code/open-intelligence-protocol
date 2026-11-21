@@ -20,7 +20,28 @@ import { Packet } from '@oip/schema';
 import type { Received } from '@oip/client';
 
 // @public
+export class Arrivals {
+    constructor(opened: Opened, dir: string);
+    done(id: string): void;
+    waiting(): Promise<KeptPacket[]>;
+}
+
+// @public
 export function backupLockOf(context: Where, fresh: boolean): Promise<Lock>;
+
+// @public
+export interface BridgeBlock extends BridgedSystem {
+    // (undocumented)
+    readonly assurance: "bridged";
+    readonly attestation: string;
+    readonly gateway: string;
+}
+
+// @public
+export interface BridgedSystem {
+    readonly endpoint: string;
+    readonly protocol: string;
+}
 
 // @public
 export interface Config {
@@ -34,10 +55,19 @@ export interface Config {
 export function counted(count: number, noun: string, plural?: string): string;
 
 // @public
+export interface Custody {
+    readonly block: BridgeBlock;
+    readonly mind: Mind;
+}
+
+// @public
 export function directoryOf(named: string | undefined, edges: Pick<Machine, "env" | "home">): string;
 
 // @public
 export function fetchOf(context: Where, config: Config): Fetch;
+
+// @public
+export function fileNameOf(text: string): string;
 
 // @public
 export class Home {
@@ -197,6 +227,18 @@ export function servicesOf(context: Where, local: string | undefined): Config;
 export function statusOf(mind: Mind, record: object): Promise<string | undefined>;
 
 // @public
+export class Store<T> {
+    constructor(dir: string);
+    all(): {
+        key: string;
+        value: T;
+    }[];
+    delete(key: string): void;
+    get(key: string): T | undefined;
+    put(key: string, value: T): void;
+}
+
+// @public
 export class UsageError extends Error {
     readonly name = "UsageError";
 }
@@ -206,6 +248,11 @@ export interface Where {
     readonly dir: string;
     readonly edges: Machine;
 }
+
+// @public
+export function withBridged<T>(where: Where, dir: string, system: BridgedSystem & {
+    readonly attestation?: string | undefined;
+}, work: (held: Custody) => Promise<T>): Promise<T>;
 
 // @public
 export function withMind<T>(context: Where, work: (opened: Opened) => Promise<T>): Promise<T>;

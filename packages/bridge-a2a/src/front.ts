@@ -32,12 +32,11 @@ import { join } from "node:path";
 
 import { carried, type Clock, type Message } from "@oip/client";
 import { formatRecordRef, isMindAddress, OipError } from "@oip/core";
-import { type KeptPacket, type Opened, printableJson } from "@oip/local";
+import { Arrivals, type KeptPacket, type Opened, printableJson } from "@oip/local";
 import { receivePacket } from "@oip/net";
 import { type Participant, validateRecordOfType } from "@oip/schema";
 
 import type { A2aMessage, Part } from "./a2a.ts";
-import { Arrivals } from "./arrivals.ts";
 import { type Asked, Book, type Held, type Page } from "./book.ts";
 import { CARD_PATH } from "./card.ts";
 import { type Content, gather, mediaTypeOf, partsOf, wellFormed } from "./content.ts";

@@ -37,7 +37,7 @@ import {
   type JsonObject,
   parseTimestamp,
 } from "@oip/core";
-import { type KeptPacket, type Opened, printableJson } from "@oip/local";
+import { Arrivals, type KeptPacket, type Opened, printableJson, Store } from "@oip/local";
 
 import {
   A2aError,
@@ -50,11 +50,9 @@ import {
   sendMessage,
   type Task,
 } from "./a2a.ts";
-import { Arrivals } from "./arrivals.ts";
 import { type Content, gather, leftOut, partsOf, wellFormed } from "./content.ts";
 import type { Bridged } from "./gateway.ts";
 import { OIP_EXTENSION, OIP_MEDIA_TYPE, saidOf } from "./mapping.ts";
-import { Store } from "./store.ts";
 
 /** What a relay reaches outside itself with, and its clock. */
 export interface RelayEdges {

@@ -56,6 +56,7 @@ export {
   type Grant,
   Reader,
   type ReadingContext,
+  type Sight,
   type Sightings,
 } from "./dealings.ts";
 export {

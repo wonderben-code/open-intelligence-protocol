@@ -1212,10 +1212,14 @@ export class Mind {
   /**
    * Whether a record counts for a mind (Layer 2, Section 7): by the mind's
    * own key, or by a delegate's proof whose chain of delegations covers
-   * the record. The logs of the minds the record names are fetched afresh
-   * first.
+   * the record. The logs that decide are fetched afresh first: those of the
+   * record's author, its parties, its signers and the authors of the
+   * delegations they rest on.
+   *
+   * The record is held, as by `hold`: what is asked next is judged with it.
    *
    * @param mind - Default: this mind.
+   * @throws OipError `too-large` if the record rests on more than 64 logs.
    */
   countsFor(record: unknown, mind: string = this.address): Promise<boolean> {
     return this.#dealings.countsFor(record, mind);

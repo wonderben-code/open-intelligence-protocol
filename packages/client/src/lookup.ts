@@ -43,6 +43,7 @@ import {
   type VerifiedLog,
   verifyLog,
   witnessRecord,
+  type EvidenceView,
 } from "@oip/identity";
 import {
   currentLocation,
@@ -250,6 +251,20 @@ export class Lookup {
    */
   get seen(): FirstSeen {
     return this.#seen;
+  }
+
+  /**
+   * What the resolvers this client trusts say they first saw, and when (core
+   * 9.4, item 2): the evidence of witnesses alone, without the client's own
+   * first sights.
+   */
+  get witnessed(): EvidenceView {
+    return this.#witnessed;
+  }
+
+  /** The clock this client reads. What judges by this client's evidence reads the same one. */
+  get clock(): Clock {
+    return this.#clock;
   }
 
   /**

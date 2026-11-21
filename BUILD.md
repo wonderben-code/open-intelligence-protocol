@@ -410,7 +410,7 @@ Sizes are rough: **S** is about one focused session, **M** two or three, **L** f
 
 **Build.**
 - `examples/translation-demo` runs the papers' scenario: Amina, her assistant, Lexis Ltd, the Lexis agent, a research agent and a 2-of-3 collective, on a local host, resolver and indexer. It prints every step and every verification as a readable narrative.
-- `docker compose up` starts the whole network, and `oip demo` runs the demo without Docker.
+- `docker compose up` starts the whole network. Without Docker, `oip demo` starts it, and `pnpm demo` plays the scenario: on a network of its own, or on that one.
 - A recorded terminal session and a short animation for the website.
 
 **Accept.** One command runs the demo from a clean checkout, and the output matches the narrative in the papers.

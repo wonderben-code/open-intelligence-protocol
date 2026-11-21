@@ -16,6 +16,7 @@ import type { Commitment } from '@oip/schema';
 import { Delegation } from '@oip/schema';
 import { DidResolution } from '@oip/identity';
 import type { Entry } from '@oip/schema';
+import { EvidenceView } from '@oip/identity';
 import { FirstSeen } from '@oip/identity';
 import { HeldLocation } from '@oip/net';
 import { HeldParticipant } from '@oip/net';
@@ -294,12 +295,14 @@ export class Lookup {
         did: DidResolution;
     }>;
     assurance(mind: string): Promise<Assured>;
+    get clock(): Clock;
     feed(mind: string): Promise<ReadFeed>;
     find(query: CapabilityQuery): Promise<Finding>;
     record(mind: string, id: string): Promise<JudgedRecord>;
     resolve(mind: string): Promise<Resolved>;
     get seen(): FirstSeen;
     get view(): IdentityView;
+    get witnessed(): EvidenceView;
 }
 
 // @public
@@ -522,11 +525,13 @@ export interface Ranking {
 
 // @public
 export class Reader {
-    constructor(at: ReadingContext);
+    constructor(at: ReadingContext, sight?: Sight);
     countsFor(record: unknown, mind: string): Promise<boolean>;
+    delegationsStand(record: unknown): Promise<boolean>;
     held(): OipRecord[];
     hold(record: unknown, seen?: Sightings): string;
     holdCarried(content: unknown): void;
+    holdRevocations(record: unknown): Promise<number>;
     sentFor(packet: unknown): Promise<string | undefined>;
     sightings(id: string): Sightings;
     status(record: unknown): Promise<Status>;
@@ -540,9 +545,6 @@ export interface ReadFeed {
 
 // @public
 export interface ReadingContext {
-    // (undocumented)
-    readonly clock: Clock;
-    // (undocumented)
     readonly lookup: Lookup;
 }
 
@@ -646,6 +648,9 @@ export interface SessionView {
     readonly sent: number;
     readonly session: Session;
 }
+
+// @public
+export type Sight = "live" | "history";
 
 // @public
 export type Sightings = Readonly<Record<string, Instant>>;

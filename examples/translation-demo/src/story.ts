@@ -20,7 +20,7 @@
  */
 
 import { LOCAL } from "@oip/cli";
-import { carried, type Grant, type Mind, Reader, type Received, systemClock } from "@oip/client";
+import { carried, type Grant, type Mind, Reader, type Received } from "@oip/client";
 import {
   contentId,
   formatRecordRef,
@@ -285,9 +285,10 @@ export async function tell(stage: Stage, say: (line: string) => void): Promise<T
     "the Offer reached Amina.",
   );
   verify(
-    (await amina.mind.countsFor(terms, agent.mind.address)) &&
+    (terms as { answers?: unknown }).answers === ref(amina.mind, intent) &&
+      (await amina.mind.countsFor(terms, agent.mind.address)) &&
       (await amina.mind.statusOf(terms)) === "open",
-    "the Offer reached her, is signed by the agent, and stands open.",
+    "the Offer reached her, answers her Intent, is signed by the agent, and stands open.",
   );
 
   // 6. Commitment.
@@ -410,16 +411,20 @@ export async function tell(stage: Stage, say: (line: string) => void): Promise<T
   // 9. Afterwards.
   step(9, "Afterwards");
   // A stranger: a way to ask for logs and for what a mind published, and no key at all.
-  const reader = new Reader({ lookup: stranger, clock: systemClock });
+  const reader = new Reader({ lookup: stranger });
   tellOf("A stranger with no key at all reads the feeds of Amina, of the agent and of Lexis Ltd,");
   tellOf("and nothing else.");
   // The firm's feed too: a delegation's author publishes there what it has taken back (Layer
   // 1, 11.5), and a reader that did not look could not know.
   let listed = 0;
+  let vouched = 0;
   for (const author of [firm.mind, amina.mind, agent.mind]) {
     const { feed } = await stranger.feed(author.address);
     for (const { entry } of feed.entries) {
-      reader.hold((await stranger.record(author.address, entry.object)).record);
+      const { record } = await stranger.record(author.address, entry.object);
+      // The copy this feed serves, judged by itself: it has the signature of the mind that lists it.
+      if (await new Reader({ lookup: stranger }).countsFor(record, author.address)) vouched += 1;
+      reader.hold(record);
       listed += 1;
     }
   }
@@ -429,8 +434,8 @@ export async function tell(stage: Stage, say: (line: string) => void): Promise<T
     if (await reader.countsFor(record, (record as { author: string }).author)) signed += 1;
   }
   verify(
-    found.length === 3 && listed === 4 && signed === found.length,
-    "it found three records in four entries, the Commitment in two feeds, each under its content ID and signed by its author.",
+    found.length === 3 && listed === 4 && signed === found.length && vouched === listed,
+    "it found three records in four entries, the Commitment in two feeds, each signed by its author and by the mind whose feed lists it.",
   );
   const held = found.find((record) => contentId(record) === commitment);
   verify(

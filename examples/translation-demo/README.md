@@ -68,7 +68,7 @@ A resolver, a host and an indexer run on this machine. Nothing else is trusted.
 
 5. Offer
    The agent sends Amina an Offer of its own: 120 US dollars, delivered within two days.
-   verified: the Offer reached her, is signed by the agent, and stands open.
+   verified: the Offer reached her, answers her Intent, is signed by the agent, and stands open.
 
 6. Commitment
    The agent drafts a Commitment: Lexis Ltd owes the translation, Amina owes 120 US dollars.
@@ -92,7 +92,7 @@ A resolver, a host and an indexer run on this machine. Nothing else is trusted.
 9. Afterwards
    A stranger with no key at all reads the feeds of Amina, of the agent and of Lexis Ltd,
    and nothing else.
-   verified: it found three records in four entries, the Commitment in two feeds, each under its content ID and signed by its author.
+   verified: it found three records in four entries, the Commitment in two feeds, each signed by its author and by the mind whose feed lists it.
    verified: among them is the Commitment, under the content ID both parties gave.
    verified: it works out for itself that the agent's signature binds Lexis Ltd.
    verified: and that the Commitment is fulfilled, by Amina's own Receipt.
@@ -177,5 +177,5 @@ try {
 ## Notes
 
 - The keys are sealed with a passphrase that is made for the telling, kept in the process, and never shown. The directory they are in is removed at the end.
-- The network is the one [`oip demo`](../../packages/cli/README.md) runs. [`compose.yaml`](../../compose.yaml) runs the same three services in containers ([the guide](../../docs/guides/containers.md)).
+- The network is the one [`oip demo`](../../packages/cli/README.md) runs. [`compose.yaml`](../../compose.yaml) runs the same three services in containers ([the guide](../../docs/guides/containers.md)), at other origins: the telling does not play on those.
 - The same scenario, with fixed keys and fixed dates, is what the [test vectors](../../spec/test-vectors/README.md) hold. There every value is reproduced byte for byte. Here the minds are made anew, and what is checked is that the protocol's rules give the outcome the papers describe.

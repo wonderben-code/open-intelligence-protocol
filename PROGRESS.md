@@ -18,7 +18,7 @@ This branch is `m10-demo`. It is stacked on `m9-bridge`, `m8-mcp-server`, `m7-cl
 | M7. The `oip` command | `m7-cli`, pushed | Yes, see below | Green | Reviews, the mutation score, the review record |
 | M8. The MCP server | `m8-mcp-server`, pushed | Yes, see below | Green | Reviews, the mutation score, the review record. A look at it in Claude Desktop needs Eks |
 | M9. The A2A bridge | `m9-bridge` | The A2A gateway, the gateway for MCP servers and the DID resolver, see below | To run | The A2A TCK and the two new images, which run on GitHub and not here. A review of the fixes to what the first two reviews found ([the record](reviews/build/M9-bridge.md)), and the mutation score |
-| M10. The demo network | `m10-demo` | The demo, its recording and its option to play on a running network, see below | To run | The review, the review record. Nothing for the mutation score: the demo is an example, and has no package of the stack |
+| M10. The demo network | `m10-demo` | The demo, its recording and its option to play on a running network, see below | To run | A review of the fixes to what the first review found ([the record](reviews/build/M10-demo.md)). Nothing for the mutation score: the demo is an example, and has no package of the stack |
 
 Reviews are made by fresh agents, which were not to be had between 19 and 21 November (a usage limit). The build went on with what does not need them.
 
@@ -68,6 +68,7 @@ Reviews are made by fresh agents, which were not to be had between 19 and 21 Nov
 **What M10 found:**
 
 - **A record read from a feed, signed by an agent for its firm, bound nobody.** The demo's last step has a mind that took no part read the feeds and work out that the firm is bound. It could not: `Lookup.record` noted when it first saw the record's proofs, and not the delegation they carry, which then looked signed after the proof that used it. It is the fault the gateway for MCP servers found in the packets, in the other way a record reaches a client. Both were invisible to tests on a clock that stands still. The fix is on `m9-bridge`, with a test on a clock that moves.
+- **A reader of history judged by the order it read in.** The review of M10 found that a `Reader` told a stranger a firm was bound by a Commitment its agent signed after the firm had revoked the delegation, if the agent's feed was read before the firm's. A reader took each proof as first seen at the moment it fetched it, and so its own loop decided what came "before". A reader of history now holds everything as of its latest look. Its verdict does not depend on the order, and fails towards "not bound" (core 9.7). A mind, which takes records in as they are made, has its first sights as evidence, as before. [The record](reviews/build/M10-demo.md) has all nineteen findings: the telling said more than it checked in six places, `pnpm demo` failed on its first run against a fresh `oip demo` network, and a lesser copy of a record replaced the full one in what a client keeps.
 
 **What M9 has so far:**
 

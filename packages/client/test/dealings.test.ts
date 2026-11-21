@@ -200,7 +200,7 @@ describe("the scenario of the papers, through the client", () => {
 
     // A stranger: a way to ask for logs and for what a mind published, and nothing else.
     const lookup = new Lookup({ resolvers: [A], fetch: world.fetch, clock: world.clock });
-    const reader = new Reader({ lookup, clock: world.clock });
+    const reader = new Reader({ lookup });
     expect(reader.held()).toStrictEqual([]);
     const { feed } = await lookup.feed(amina.address);
     for (const { entry } of feed.entries) {
@@ -222,7 +222,7 @@ describe("the scenario of the papers, through the client", () => {
     expect(await reader.countsFor(held, assistant.address)).toBe(false);
     expect(await reader.status(held)).toBe("fulfilled");
     // Without the Receipt it would know of a promise, and not that it was kept.
-    const other = new Reader({ lookup, clock: world.clock });
+    const other = new Reader({ lookup });
     other.hold(held);
     expect(await other.status(held)).toBe("accepted");
     // What is no record is held by nobody.

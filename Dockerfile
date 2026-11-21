@@ -4,9 +4,11 @@
 
 # The services of the reference implementation, one image for each:
 #
-#   docker build --target resolver -t oip-resolver .
-#   docker build --target host     -t oip-host .
-#   docker build --target indexer  -t oip-indexer .
+#   docker build --target resolver     -t oip-resolver .
+#   docker build --target host         -t oip-host .
+#   docker build --target indexer      -t oip-indexer .
+#   docker build --target did-resolver -t oip-did-resolver .
+#   docker build --target bridge-a2a   -t oip-bridge-a2a .
 #
 # Each image holds Node.js and the service with the packages it runs on, and nothing
 # else: no shell, no package manager. It runs as a user that is not root, writes only
@@ -36,7 +38,7 @@ COPY . .
 RUN pnpm install --offline --frozen-lockfile && pnpm build
 
 # Each service as a directory that stands alone: its build, and the packages it runs on.
-RUN for service in resolver host indexer; do \
+RUN for service in resolver host indexer did-resolver bridge-a2a; do \
       pnpm --filter "@oip/$service" deploy --prod "/out/$service" || exit 1; \
     done \
     # A directory for each service's database, owned by the user the service runs as.
@@ -95,3 +97,34 @@ ENV OIP_INDEXER_HOST=0.0.0.0 \
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD ["/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:8080/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
 CMD ["dist/bin.js"]
+
+# Resolves did:oip over HTTP, as a driver of the DIF Universal Resolver does (ADR-0030). It
+# holds no key and keeps nothing: it has no volume to write to.
+FROM runtime AS did-resolver
+LABEL org.opencontainers.image.title="oip-did-resolver" \
+      org.opencontainers.image.description="Resolves did:oip: a driver for the DIF Universal Resolver" \
+      org.opencontainers.image.source="https://github.com/wonderben-code/open-intelligence-protocol" \
+      org.opencontainers.image.licenses="Apache-2.0"
+COPY --from=build /out/did-resolver /app
+# The resolvers to ask are the operator's to name: OIP_DID_RESOLVERS=https://one.example,https://two.example
+ENV OIP_DID_HOST=0.0.0.0 \
+    OIP_DID_PORT=8080
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD ["/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:8080/healthz').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+CMD ["dist/bin.js"]
+
+# The A2A gateway (ADR-0029). Its own mind is made first, with `oip init --kind service`, into
+# the directory that is mounted at /data/mind: the gateway holds keys, and the image holds none.
+#
+#   docker run -v ./gateway:/data/mind -e OIP_PASSPHRASE oip-bridge-a2a \
+#     dist/bin.js serve --base https://gateway.example/a2a --host 0.0.0.0 --port 8080
+FROM runtime AS bridge-a2a
+LABEL org.opencontainers.image.title="oip-bridge-a2a" \
+      org.opencontainers.image.description="A gateway between the Open Intelligence Protocol and A2A (Layer 0, Sections 1 and 3)" \
+      org.opencontainers.image.source="https://github.com/wonderben-code/open-intelligence-protocol" \
+      org.opencontainers.image.licenses="Apache-2.0"
+COPY --from=build /out/bridge-a2a /app
+COPY --from=build --chown=65532:65532 /out/data /data
+ENV OIP_DIR=/data/mind
+# With no URL to serve under, it relays for the agents it bridges, and listens on no port.
+CMD ["dist/bin.js", "serve"]

@@ -434,6 +434,34 @@ importers:
         specifier: workspace:*
         version: link:../testkit
 
+  packages/did-resolver:
+    dependencies:
+      '@oip/client':
+        specifier: workspace:*
+        version: link:../client
+      '@oip/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oip/identity':
+        specifier: workspace:*
+        version: link:../identity
+    devDependencies:
+      '@oip/cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@oip/keystore':
+        specifier: workspace:*
+        version: link:../keystore
+      '@oip/local':
+        specifier: workspace:*
+        version: link:../local
+      '@oip/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+      did-resolver:
+        specifier: 6.0.0
+        version: 6.0.0
+
   packages/host:
     dependencies:
       '@hono/node-server':
@@ -1868,6 +1896,9 @@ packages:
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
+
+  did-resolver@6.0.0:
+    resolution: {integrity: sha512-qYlNpucsgfBE0foIqlnEjLx7ZvMTUOkPeIjOhVKPJKm4h8afFNS78zDLbiJPZ2yvY3Z7C79FW1UHSRyehRCpOg==}
 
   diff-match-patch@1.0.5:
     resolution: {integrity: sha512-IayShXAgj/QMXgB0IWmKx+rOPuGMhqm5w6jvFxmVenXKIzRqTAAsbBPT3kWQeGANj3jGgvcvv4yK6SxqYmikgw==}
@@ -4121,6 +4152,8 @@ snapshots:
       minimalistic-assert: 1.0.1
 
   detect-libc@2.1.2: {}
+
+  did-resolver@6.0.0: {}
 
   diff-match-patch@1.0.5: {}
 

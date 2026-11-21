@@ -15,6 +15,7 @@
     "packages/cli",
     "packages/mcp-server",
     "packages/bridge-a2a",
+    "packages/did-resolver",
     "packages/conformance"
   ],
   "packageOptions": {

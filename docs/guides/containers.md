@@ -58,6 +58,29 @@ docker run --rm -v oip-indexer:/data oip-indexer dist/bin.js init /data/mind
 
 It writes the mind's `Bundle`, the key the indexer signs with, and `next-control.key`: the control key that the mind's next identity event will need. The indexer never reads that file. Move it off the volume to somewhere safer than the machine the indexer runs on.
 
+## The DID resolver and the A2A gateway
+
+Two more images are built from the same file. Neither is a service of the network: each is a client of it.
+
+```
+docker build --target did-resolver -t oip-did-resolver .
+docker run --read-only --cap-drop ALL --security-opt no-new-privileges \
+  -e OIP_DID_RESOLVERS=https://resolver.example,https://other.example \
+  -p 127.0.0.1:8080:8080 oip-did-resolver
+```
+
+The DID resolver answers `GET /1.0/identifiers/<did>` for `did:oip`, as a driver of the DIF Universal Resolver does ([its README](../../packages/did-resolver/README.md)). It holds no key and keeps nothing, so it has no volume.
+
+```
+oip init --kind service --dir ./gateway --resolver https://resolver.example --host https://host.example
+docker build --target bridge-a2a -t oip-bridge-a2a .
+docker run --read-only --cap-drop ALL --security-opt no-new-privileges \
+  -v ./gateway:/data/mind -e OIP_PASSPHRASE -p 127.0.0.1:8780:8080 oip-bridge-a2a \
+  dist/bin.js serve --base https://gateway.example/a2a --host 0.0.0.0 --port 8080
+```
+
+The A2A gateway holds keys: its own, and those of every mind it makes for an agent ([its README](../../packages/bridge-a2a/README.md)). Its mind is made outside the image, with `oip init`, and the directory is mounted at `/data/mind`. The directory must be writable by user 65532. Keep it as you keep a keystore. Started with no arguments, the gateway relays for the agents it bridges and listens on no port.
+
 ## In production
 
 - **TLS.** A service speaks HTTP. Put a proxy in front that ends TLS, and set the service's origin to the HTTPS origin clients reach. Set `TRUSTED_PROXIES` to the number of proxies in front, so that rate limits count the client's address and not the proxy's.

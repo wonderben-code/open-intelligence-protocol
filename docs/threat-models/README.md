@@ -2,16 +2,17 @@
 
 One for each service and each tool (BUILD.md 3.7). Each says what the thing protects, who can reach it and how, what could go wrong, what stops it, and what is left.
 
-| Model                          | What it covers                                                                                   |
-| ------------------------------ | ------------------------------------------------------------------------------------------------ |
-| [resolver.md](resolver.md)     | `@oip/resolver`: publication, resolution, the stream, duplicity evidence                         |
-| [host.md](host.md)             | `@oip/host`: well-known resources, the inbox, the mailbox, sockets, asking resolvers             |
-| [indexer.md](indexer.md)       | `@oip/indexer`: submission, capability queries, signed results, brokered delivery, its key       |
-| [keystore.md](keystore.md)     | `@oip/keystore`: the roles of a mind's keys, their locks, storage, backup and the keychain       |
-| [client.md](client.md)         | `@oip/client`: resolving, publishing, finding, packets, dealing, and the client's memory         |
-| [cli.md](cli.md)               | `@oip/cli`: the mind's directory, the terminal, passphrases, and the network of `oip demo`       |
-| [mcp-server.md](mcp-server.md) | `@oip/mcp-server`: a model that calls tools and reads what strangers wrote; confirmation, policy |
-| [bridge-a2a.md](bridge-a2a.md) | `@oip/bridge-a2a`: custody of bridged minds, what a Receipt may say, A2A clients that are nobody |
+| Model                              | What it covers                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [resolver.md](resolver.md)         | `@oip/resolver`: publication, resolution, the stream, duplicity evidence                         |
+| [host.md](host.md)                 | `@oip/host`: well-known resources, the inbox, the mailbox, sockets, asking resolvers             |
+| [indexer.md](indexer.md)           | `@oip/indexer`: submission, capability queries, signed results, brokered delivery, its key       |
+| [keystore.md](keystore.md)         | `@oip/keystore`: the roles of a mind's keys, their locks, storage, backup and the keychain       |
+| [client.md](client.md)             | `@oip/client`: resolving, publishing, finding, packets, dealing, and the client's memory         |
+| [cli.md](cli.md)                   | `@oip/cli`: the mind's directory, the terminal, passphrases, and the network of `oip demo`       |
+| [mcp-server.md](mcp-server.md)     | `@oip/mcp-server`: a model that calls tools and reads what strangers wrote; confirmation, policy |
+| [bridge-a2a.md](bridge-a2a.md)     | `@oip/bridge-a2a`: custody of bridged minds, what a Receipt may say, A2A clients that are nobody |
+| [did-resolver.md](did-resolver.md) | `@oip/did-resolver`: a resolver that answers strangers, verifies, and keeps nothing              |
 
 ## How they are written
 

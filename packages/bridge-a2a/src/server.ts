@@ -103,6 +103,9 @@ function taskId(params: Readonly<Record<string, unknown>>): string {
   return id;
 }
 
+/** The version of A2A this server speaks, as a client may name it: with a patch number, or without. */
+const SPOKEN = new RegExp(`^${A2A_VERSION.replace(".", "\\.")}(?:\\.\\d+)?$`, "u");
+
 /** A task as A2A writes one (A2A, 4.1.1), with as much of its history as was asked for. */
 function taskJson(
   task: Held,
@@ -169,6 +172,12 @@ export class A2aServer {
       return asked.method === "GET" ? this.#card(mind, asked) : plain(405, "Method not allowed.\n");
     }
     if (asked.method !== "POST") return plain(405, "Method not allowed.\n");
+    // A2A, 9.1: a request is JSON, and says so. A page in a browser cannot send what says so
+    // to another origin without the browser asking first, and this server does not answer that.
+    const [type = ""] = (asked.headers["content-type"] ?? "").split(";");
+    if (type.trim().toLowerCase() !== "application/json") {
+      return plain(415, "A request is JSON, and says so: Content-Type: application/json.\n");
+    }
     if (asked.body.length > MAX_REQUEST_BYTES) return plain(413, "The request is too large.\n");
     const version = asked.headers["a2a-version"] ?? url.searchParams.get("A2A-Version") ?? "";
     return json(200, await this.#rpc(mind, asked.body, version));
@@ -211,7 +220,8 @@ export class A2aServer {
       if (!isObject(params)) throw invalidParams("params is an object.");
       // A2A, 3.6.2: no version given is 0.3, and a patch number decides nothing.
       const asked = version.trim() === "" ? "0.3" : version.trim();
-      if (asked !== A2A_VERSION && !asked.startsWith(`${A2A_VERSION}.`)) {
+      // 1.0, and 1.0 with a patch number. What begins the same is another version: 1.01, 1.0x.
+      if (!SPOKEN.test(asked)) {
         throw versionNotSupported(asked.replace(/[^\x20-\x7e]/gu, " ").slice(0, 32));
       }
       return { jsonrpc: "2.0", id, result: await this.#call(mind, method, params) };

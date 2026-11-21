@@ -138,7 +138,9 @@ function partOf(value: unknown): Part {
     if (typeof raw !== "string" || !/^[A-Za-z0-9+/_-]*={0,2}$/u.test(raw)) {
       throw no("the bytes of a part are not base64");
     }
-    return { raw, ...more };
+    // Bytes are taken in either alphabet of base64, and kept in the one A2A writes them in:
+    // what is given back to a client is what A2A says a part is.
+    return { raw: raw.replaceAll("-", "+").replaceAll("_", "/"), ...more };
   }
   if (url !== undefined) {
     if (typeof url !== "string" || url === "") throw no("the URL of a part is no text");

@@ -20,7 +20,7 @@
  *
  * It runs until it is stopped, and then clears up what it made.
  *
- *     node --conditions=@oip/source packages/bridge-a2a/tck/sut.ts
+ *     node --conditions=@oip/source packages/bridge-a2a/test/tck/sut.ts
  */
 
 import { randomBytes } from "node:crypto";
@@ -45,7 +45,7 @@ import {
   type Where,
 } from "@oip/local";
 
-import { A2aServer, Front, listen } from "../src/index.ts";
+import { A2aServer, Front, listen } from "../../src/index.ts";
 
 /** How long the mind and the gateway rest between two readings of their mailboxes, in milliseconds. */
 const EVERY_MS = 25;

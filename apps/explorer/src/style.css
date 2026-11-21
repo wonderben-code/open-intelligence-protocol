@@ -152,7 +152,8 @@ button {
   cursor: pointer;
 }
 
-button:disabled {
+button:disabled,
+button[aria-disabled="true"] {
   opacity: 0.6;
   cursor: progress;
 }
@@ -181,38 +182,10 @@ dd {
   margin: 0;
 }
 
-.wide {
-  overflow-x: auto;
-}
-
-table {
-  border-collapse: collapse;
-  width: 100%;
-}
-
-caption {
-  text-align: left;
-  color: var(--quiet);
-  padding-bottom: 0.25rem;
-}
-
-th,
-td {
-  text-align: left;
-  vertical-align: top;
-  border-top: 1px solid var(--line);
-  padding: 0.4rem 0.6rem 0.4rem 0;
-  font-weight: 400;
-}
-
-thead th {
-  font-weight: 600;
-  border-top: 0;
-}
-
 ol.timeline,
 ol.entries,
-ul.minds {
+ul.minds,
+ul.keys {
   list-style: none;
   padding: 0;
   margin: 0.5rem 0;
@@ -225,9 +198,22 @@ ol.entries > li {
   margin: 0 0 0.5rem;
 }
 
-ul.minds > li {
+ul.minds > li,
+ul.keys > li {
   padding: 0.5rem 0;
   border-top: 1px solid var(--line);
+}
+
+/* A name and its value on one line where there is room, and one under the other where there is not. */
+@media (max-width: 30rem) {
+  dl {
+    grid-template-columns: 1fr;
+    gap: 0 1rem;
+  }
+
+  dd {
+    margin-bottom: 0.4rem;
+  }
 }
 
 .status {

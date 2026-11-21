@@ -130,13 +130,14 @@ describe.skipIf(CHROMIUM === undefined)("the Explorer in a browser", () => {
   it("shows a mind: its log, its keys and what it says of itself, each verified in the page", async () => {
     const main = (await page.textContent("main")) ?? "";
     expect(main).toContain(told.cast["amina"]);
-    expect(main).toContain(
-      "1 event of the identity log and 1 signature on them were checked here.",
-    );
+    expect(main).toContain("1 event of the identity log was verified here");
     expect(main).toContain("0. Genesis");
+    expect(main).toContain("Signed by each control key it names:");
     expect(main).toContain("its own control keys");
-    expect(await page.locator("table tbody tr").count()).toBeGreaterThanOrEqual(2);
-    expect(main).toContain("still the mind's");
+    expect(await page.locator("ul.keys > li").count()).toBeGreaterThanOrEqual(2);
+    expect(main).toContain("Still the mind's.");
+    // What no signature settles is said to be the resolvers' word.
+    expect(main).toContain("is the word of the resolvers you chose, as witnesses");
     // The profile's name, which is the mind's own word.
     expect(await page.locator("#said-title + p + dl dd").first().textContent()).toBe("Amina");
     expect(await page.title()).toBe("A mind · OIP Explorer");
@@ -189,9 +190,13 @@ describe.skipIf(CHROMIUM === undefined)("the Explorer in a browser", () => {
     await page.getByRole("button", { name: "Look it up" }).click();
     await page.getByRole("heading", { name: "Verified in this browser" }).waitFor();
     const main = (await page.textContent("main")) ?? "";
-    expect(main).toContain("its members: a collective");
-    // Three members signed its genesis.
-    expect(main).toContain("3 signatures");
+    expect(main).toContain("its members, a collective: 2 of 3 members must sign");
+    expect(main).toContain("Signed by each of its founding members:");
+    for (const name of ["amina", "lexis-agent", "researcher"]) {
+      expect(main, name).toContain(told.cast[name]);
+    }
+    // A collective signs by its members: it has no key of its own.
+    expect(main).toContain("A collective signs by its members.");
     // Up to here nothing the page did failed, or was refused by its own policy.
     expect(errors).toStrictEqual([]);
     // A mind nobody knows of is said to be unknown, and nothing else is shown.

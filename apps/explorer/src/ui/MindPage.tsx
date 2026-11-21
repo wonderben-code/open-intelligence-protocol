@@ -5,8 +5,8 @@ import type { Lookup, Reader } from "@oip/client";
 import { useEffect, useState } from "react";
 
 import type { Asked } from "../oip/asked.ts";
-import { type MindView, mindView } from "../oip/mind.ts";
-import { shown, shownJson } from "../oip/text.ts";
+import { type KeyView, type MindView, mindView, type Said as SaidOf } from "../oip/mind.ts";
+import { shown, shownJson, shownName } from "../oip/text.ts";
 import { WHY } from "../oip/why.ts";
 import { Feed } from "./Feed.tsx";
 import { type Failure, failureOf } from "./said.ts";
@@ -53,23 +53,27 @@ export function MindPage({
       <p>
         <code className="address">{address}</code>
       </p>
-      <div aria-live="polite">
-        {found.state === "asking" && <p>Asking the resolvers, and verifying what they serve.</p>}
-        {found.state === "failed" && (
-          <div className="failed">
-            <p>This mind could not be shown: {shown(found.failure.message)}</p>
-            {found.failure.clause !== undefined && (
-              <p>
-                The rule is{" "}
-                <a href={found.failure.clause.href} rel="noreferrer">
-                  {found.failure.clause.id}
-                </a>
-                : {found.failure.clause.section}.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+      {/* One short line for a reader who does not see the page. What was found stands after it. */}
+      <p role="status">
+        {found.state === "asking" && "Asking the resolvers, and verifying what they serve."}
+        {found.state === "found" &&
+          `Found: ${plural(found.view.events.length, "event", "events")} of its identity log verified.`}
+        {found.state === "failed" && "This mind could not be shown."}
+      </p>
+      {found.state === "failed" && (
+        <div className="failed">
+          <p>{shown(found.failure.message)}</p>
+          {found.failure.clause !== undefined && (
+            <p>
+              The rule is{" "}
+              <a href={found.failure.clause.href} rel="noreferrer">
+                {found.failure.clause.id}
+              </a>
+              : {found.failure.clause.section}.
+            </p>
+          )}
+        </div>
+      )}
       {found.state === "found" && (
         <>
           <Summary view={found.view} />
@@ -90,36 +94,72 @@ export function MindPage({
   );
 }
 
+const plural = (count: number, one: string, many: string): string =>
+  `${String(count)} ${count === 1 ? one : many}`;
+
+/** The page's own words, with the keys, addresses or strangers' text they speak of set apart. */
+function Line({ said }: { said: SaidOf }): React.JSX.Element {
+  return (
+    <>
+      {said.says}
+      {(said.code ?? []).map((one) => (
+        <span key={one}>
+          {" "}
+          <code>{shown(one)}</code>
+        </span>
+      ))}
+      {said.more !== undefined && shown(said.more)}
+    </>
+  );
+}
+
 function Summary({ view }: { view: MindView }): React.JSX.Element {
-  const signatures = view.events.reduce((sum, event) => sum + event.proofs, 0);
   return (
     <section aria-labelledby="summary-title">
       <h2 id="summary-title">Verified in this browser</h2>
       <p className="verified">
-        {String(view.events.length)} {view.events.length === 1 ? "event" : "events"} of the identity
-        log and {String(signatures)} {signatures === 1 ? "signature" : "signatures"} on them were
-        checked here. Nothing below is taken on a resolver&apos;s word.
+        {plural(view.events.length, "event", "events")} of the identity log{" "}
+        {view.events.length === 1 ? "was" : "were"} verified here: each is the event that the
+        address or the event before it names, and each is signed as the protocol asks of it.
+      </p>
+      <p>
+        When each event took effect is the word of the resolvers you chose, as witnesses. It is the
+        one thing here that a signature does not settle.
       </p>
       <dl>
-        <dt>Kind</dt>
+        <dt>Kind, by its own word</dt>
         <dd>{shown(view.kind)}</dd>
         <dt>Controlled by</dt>
         <dd>
-          {view.controller === "member" ? "its members: a collective" : "its own control keys"}
+          {view.members !== undefined ? (
+            <>
+              its members, a collective: {String(view.members.threshold)} of{" "}
+              {plural(view.members.minds.length, "member", "members")} must sign an event of its log
+              <ul>
+                {view.members.minds.map((mind) => (
+                  <li key={mind}>
+                    <code>{mind}</code>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <>
+              its own control keys.{" "}
+              {view.next === undefined || view.next.keys === 0
+                ? "None is committed to for a next event: its log can never be extended."
+                : `${plural(view.next.keys, "is", "are")} committed to for the next event, of which ${String(view.next.threshold)} must sign it.`}
+            </>
+          )}
         </dd>
         <dt>Standing</dt>
         <dd>
           {view.retired ? "Retired: it signs nothing more." : "Active."}
           {view.duplicitous && " Two valid events were seen at one place of its log."}
         </dd>
-        {view.alsoKnownAs.length > 0 && (
-          <>
-            <dt>Also known as, by its own word</dt>
-            <dd>{view.alsoKnownAs.map(shown).join(", ")}</dd>
-          </>
-        )}
       </dl>
       <Why reason={WHY.address} about="the address" />
+      {view.retired && <Why reason={WHY.standing} about="its standing" />}
       {view.duplicitous && <Why reason={WHY.duplicity} about="the two events at one place" />}
     </section>
   );
@@ -137,13 +177,17 @@ function Log({ view }: { view: MindView }): React.JSX.Element {
             </h3>
             <p>
               Took effect <time dateTime={event.evaluated}>{event.evaluated}</time>. Its author
-              dates it <time dateTime={event.created}>{event.created}</time>. {String(event.proofs)}{" "}
-              {event.proofs === 1 ? "signature" : "signatures"}.
+              dates it <time dateTime={event.created}>{event.created}</time>.
+            </p>
+            <p>
+              <Line said={event.signed} />
             </p>
             {event.changes.length > 0 && (
               <ul>
                 {event.changes.map((change) => (
-                  <li key={change}>{shown(change)}</li>
+                  <li key={`${change.says} ${(change.code ?? []).join(" ")}`}>
+                    <Line said={change} />
+                  </li>
                 ))}
               </ul>
             )}
@@ -153,47 +197,75 @@ function Log({ view }: { view: MindView }): React.JSX.Element {
           </li>
         ))}
       </ol>
-      <Why reason={WHY.log} about="the identity log" />
+      <Why
+        reason={view.controller === "member" ? WHY.collectiveLog : WHY.log}
+        about="the identity log"
+      />
       <Why reason={WHY.time} about="when each event took effect" />
     </section>
   );
+}
+
+const FOR: Readonly<Record<KeyView["role"], string>> = {
+  operational: "Signing the mind's records",
+  invocation: "Signing the identity events of a collective it is a member of",
+  agreement: "Opening packets that are sealed to it",
+};
+
+/** How the stretch of a key ended, in words. */
+function endOf(key: KeyView): string {
+  const { ended } = key;
+  if (ended === undefined) return "Still the mind's.";
+  if (ended.why === "branch") {
+    return `${ended.time}: an event of another branch of its log removed it, or retired the mind.`;
+  }
+  const event = ended.event === undefined ? "" : `event ${String(ended.event)}, `;
+  return ended.why === "retired"
+    ? `${event}${ended.time}: the mind retired.`
+    : `${event}${ended.time}: removed.`;
 }
 
 function Keys({ view }: { view: MindView }): React.JSX.Element {
   return (
     <section aria-labelledby="keys-title">
       <h2 id="keys-title">Keys</h2>
-      <div className="wide">
-        <table>
-          <caption>Each key, and the stretch of the log in which it is the mind&apos;s</caption>
-          <thead>
-            <tr>
-              <th scope="col">Key</th>
-              <th scope="col">For</th>
-              <th scope="col">From</th>
-              <th scope="col">Until</th>
-            </tr>
-          </thead>
-          <tbody>
+      {view.keys.length === 0 ? (
+        <p>
+          It has no key of its own for signing records or opening packets.
+          {view.controller === "member" && " A collective signs by its members."}
+        </p>
+      ) : (
+        <>
+          <p>Each key, and the stretch of the log in which it is the mind&apos;s.</p>
+          <ul className="keys">
             {view.keys.map((key) => (
-              <tr key={`${key.role} ${key.key} ${String(key.since)}`}>
-                <th scope="row">
-                  <code>{key.key}</code>
-                </th>
-                <td>{key.role}</td>
-                <td>
-                  event {String(key.since)}, {key.sinceTime}
-                </td>
-                <td>
-                  {key.until === undefined
-                    ? "still the mind's"
-                    : `event ${String(key.until)}, ${key.untilTime ?? ""}`}
-                </td>
-              </tr>
+              <li key={`${key.role} ${key.key} ${String(key.since)}`}>
+                <code>{key.key}</code>
+                <dl>
+                  <dt>For</dt>
+                  <dd>{FOR[key.role]}</dd>
+                  <dt>From</dt>
+                  <dd>
+                    event {String(key.since)}, {key.sinceTime}
+                  </dd>
+                  <dt>Until</dt>
+                  <dd>{endOf(key)}</dd>
+                  {key.compromisedSince !== undefined && (
+                    <>
+                      <dt>Compromised</dt>
+                      <dd className="failed">
+                        The mind declares it compromised since {key.compromisedSince}: no signature
+                        by it on a record of the mind&apos;s counts from then on.
+                        {key.never && " That is before it was the mind's: none counts at all."}
+                      </dd>
+                    </>
+                  )}
+                </dl>
+              </li>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </ul>
+        </>
+      )}
       <Why reason={WHY.keys} about="the keys" />
     </section>
   );
@@ -207,7 +279,7 @@ function Said({ view }: { view: MindView }): React.JSX.Element {
     <section aria-labelledby="said-title">
       <h2 id="said-title">What it says of itself</h2>
       {profile === undefined ? (
-        <p>It has no profile that counts now.</p>
+        <p>It has no profile that its location record names.</p>
       ) : (
         <>
           <p>
@@ -215,7 +287,7 @@ function Said({ view }: { view: MindView }): React.JSX.Element {
           </p>
           <dl>
             <dt>Name</dt>
-            <dd>{shown(profile.name ?? "")}</dd>
+            <dd>{shownName(profile.name ?? "")}</dd>
             {profile.summary !== undefined && (
               <>
                 <dt>Summary</dt>
@@ -244,6 +316,23 @@ function Said({ view }: { view: MindView }): React.JSX.Element {
         </>
       )}
       <Why reason={WHY.profile} about="the profile" />
+      {view.alsoKnownAs.length > 0 && (
+        <>
+          <h3>Other names it lists for itself</h3>
+          <p>
+            Its log lists these. They are its own word, and nobody has checked here that any of them
+            is the mind&apos;s:
+          </p>
+          <ul>
+            {view.alsoKnownAs.map((alias) => (
+              <li key={alias}>
+                <code>{shown(alias)}</code>
+              </li>
+            ))}
+          </ul>
+          <Why reason={WHY.aliases} about="the other names" />
+        </>
+      )}
       <h3>Where it is reached</h3>
       {view.location === undefined ? (
         <p>It has no location record that counts now.</p>

@@ -503,6 +503,29 @@ describe(`${clause("L1 11.2")} a packet sent for another mind`, () => {
     ]);
   });
 
+  it(`${clause("L1 11.4")} a record read from a home counts for the mind its signer acts for, on a clock that moves`, async () => {
+    const { amina, lexis, agent } = await cast();
+    const mandate = await mandateOf(lexis, agent);
+    const proposed = await agent.commitment(deal(lexis, amina, "120"), { chain: [mandate] });
+    await agent.publishRecord(proposed);
+    // Every reading of the clock is later than the one before, as on a real one. The record
+    // is fetched, and then held: two readings. The delegation its proof carries is first
+    // seen at the first, with the proof, or it would be signed after the proof that uses it.
+    const { clock } = world;
+    clock.now = () => {
+      clock.at += 1_000_000n;
+      return clock.at;
+    };
+    try {
+      const fetched = await amina.lookup.record(agent.address, contentId(proposed));
+      amina.hold(fetched.record);
+      expect(await amina.countsFor(fetched.record, lexis.address)).toBe(true);
+    } finally {
+      // As the world made it: a clock that stands where a test puts it.
+      clock.now = () => clock.at;
+    }
+  });
+
   it(`${clause("L1 11.4")} is taken as sent for it on a clock that moves: the delegation it carries is first seen when the packet is`, async () => {
     const { amina, assistant, agent } = await cast();
     const sending = await amina.delegate({

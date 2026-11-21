@@ -28,7 +28,7 @@ import {
   parseTimestamp,
   proofDigest,
 } from "@oip/core";
-import { RecordSet } from "@oip/delegation";
+import { RecordSet, witnessProofs } from "@oip/delegation";
 import {
   type DidResolution,
   didDocument,
@@ -477,7 +477,9 @@ export class Lookup {
             clause: "L1 13.1",
           });
         }
-        witnessRecord(judged, this.#clock.now(), this.#seen);
+        // With the delegations its proofs carry whole: each is first seen when the record is,
+        // at one reading of the clock (Layer 1, 11.4, item 1).
+        witnessProofs(judged, this.#clock.now(), this.#seen);
         return judged;
       } catch (error) {
         if (!(error instanceof OipError || error instanceof TransportError)) throw error;

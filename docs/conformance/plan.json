@@ -20,6 +20,7 @@
     "cli": "M7",
     "mcp-server": "M8",
     "bridge-a2a": "M9",
+    "bridge-mcp": "M9",
     "did-resolver": "M9",
     "explorer": "M11",
     "translation-demo": "M10"

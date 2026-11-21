@@ -1,0 +1,126 @@
+// SPDX-FileCopyrightText: 2026 Ekram Alam and the Open Intelligence Protocol contributors
+// SPDX-License-Identifier: Apache-2.0
+
+/**
+ * The tools of an MCP server as the capabilities of a mind (Layer 0, 2.1).
+ *
+ * A tool becomes a capability with the tool's name as its `id`, its
+ * description as its `summary`, and its input schema under
+ * `ext["oip.mcp"].inputSchema` of the capability.
+ *
+ * What a server lists is a stranger's JSON. It is read member by member,
+ * and nothing of it reaches a profile that a profile cannot hold: a name
+ * that is too long or is there twice names no capability, and a schema the
+ * profile has no room for is left out.
+ */
+
+import type { JsonValue } from "@oip/core";
+
+import { carriedJson, holds, sizeOf } from "./json.ts";
+
+/** The namespace of what a capability says of the tool it stands for. */
+export const MCP_NAMESPACE = "oip.mcp";
+/** The most capabilities a profile has (Layer 1, 16.1). */
+export const MAX_CAPABILITIES = 256;
+/** The longest `id` of a capability, in characters (Layer 1, 16.2). */
+export const MAX_NAME = 128;
+/** The longest summary the gateway writes for a tool, in characters. */
+export const MAX_SUMMARY = 1024;
+/** The largest input schema a capability carries, in bytes. */
+export const MAX_SCHEMA_BYTES = 16_384;
+/** The most all the input schemas of one profile take, in bytes: a profile stays a record anyone accepts (core 1.6). */
+export const MAX_SCHEMAS_BYTES = 131_072;
+
+/** A capability the gateway writes for a tool. */
+export interface ToolCapability {
+  readonly id: string;
+  readonly summary: string;
+  readonly inputs: string[];
+  readonly outputs: string[];
+  readonly ext?: { readonly [MCP_NAMESPACE]: { readonly inputSchema: JsonValue } };
+}
+
+/** What a server lists, as far as a profile takes it. */
+export interface Mapped {
+  /** A capability for each tool that can be one, in the server's order. */
+  readonly capabilities: readonly ToolCapability[];
+  /** How many of them carry no input schema: the tool has none that fits. */
+  readonly withoutSchema: number;
+  /** What the server listed that is no capability, each with why. A name is any text, or is missing. */
+  readonly left: readonly { readonly name?: string; readonly why: string }[];
+}
+
+const isObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const REPLACEMENT = String.fromCodePoint(0xfffd);
+
+/** Text that a record's string can hold, cut to a length in characters. */
+function textOf(text: string, most: number): string {
+  // What no string of a record may hold (core 1.1) is replaced, as a decoder replaces what it cannot read.
+  const clean = text.replace(/\p{Surrogate}|\p{Noncharacter_Code_Point}/gu, REPLACEMENT);
+  const characters = Array.from(clean);
+  return characters.length > most ? `${characters.slice(0, most - 1).join("")}…` : clean;
+}
+
+const words = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() !== "" ? value : undefined;
+
+/**
+ * Makes capabilities of the tools a server lists.
+ *
+ * @param listed - The `tools` of the server's answers to `tools/list`, as they came.
+ */
+export function capabilitiesOf(listed: readonly unknown[]): Mapped {
+  const capabilities: ToolCapability[] = [];
+  const left: { name?: string; why: string }[] = [];
+  const seen = new Set<string>();
+  let room = MAX_SCHEMAS_BYTES;
+  let withoutSchema = 0;
+  for (const tool of listed) {
+    const name = isObject(tool) ? tool["name"] : undefined;
+    if (!isObject(tool) || typeof name !== "string" || name === "") {
+      left.push({ why: "it has no name" });
+      continue;
+    }
+    if (Array.from(name).length > MAX_NAME || !holds(name)) {
+      left.push({
+        name,
+        why: `its name is no \`id\` of a capability: ${String(MAX_NAME)} characters at most, of text a record holds`,
+      });
+      continue;
+    }
+    if (seen.has(name)) {
+      left.push({ name, why: "another tool has its name" });
+      continue;
+    }
+    if (capabilities.length >= MAX_CAPABILITIES) {
+      left.push({ name, why: `a profile has ${String(MAX_CAPABILITIES)} capabilities at most` });
+      continue;
+    }
+    seen.add(name);
+    // Layer 0, 2.1: the description, or the tool's title, or else its name.
+    const annotations = isObject(tool["annotations"]) ? tool["annotations"] : {};
+    const summary =
+      words(tool["description"]) ?? words(tool["title"]) ?? words(annotations["title"]) ?? name;
+    const schema = tool["inputSchema"];
+    let ext: ToolCapability["ext"];
+    if (isObject(schema)) {
+      const carried = carriedJson(schema);
+      const size = sizeOf(carried);
+      if (size <= MAX_SCHEMA_BYTES && size <= room) {
+        room -= size;
+        ext = { [MCP_NAMESPACE]: { inputSchema: carried } };
+      }
+    }
+    if (ext === undefined) withoutSchema += 1;
+    capabilities.push({
+      id: name,
+      summary: textOf(summary, MAX_SUMMARY),
+      inputs: ["application/json"],
+      outputs: ["application/json"],
+      ...(ext === undefined ? {} : { ext }),
+    });
+  }
+  return { capabilities, withoutSchema, left };
+}

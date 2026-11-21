@@ -113,9 +113,9 @@ export async function withBridged<T>(
       const genesis = mind.resolved.log.entries[0].event;
       let attestation = system.attestation;
       if (attestation === undefined) {
-        const { feed } = await gateway.mind.lookup.feed(gateway.mind.address).catch(() => ({
-          feed: { entries: [] as { id: string; entry: { object: string } }[] },
-        }));
+        // The feed says whether an earlier run attested the mind. If it cannot be read, nothing
+        // is signed on a guess: the next run asks again.
+        const { feed } = await gateway.mind.lookup.feed(gateway.mind.address);
         const attested = feed.entries.find(({ entry }) => entry.object === contentId(genesis));
         const entry = attested?.id ?? contentId(await gateway.mind.publishRecord(genesis));
         attestation = formatRecordRef(gateway.mind.address, entry);

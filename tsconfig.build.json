@@ -53,6 +53,9 @@
       "path": "packages/bridge-a2a/tsconfig.build.json"
     },
     {
+      "path": "packages/bridge-mcp/tsconfig.build.json"
+    },
+    {
       "path": "packages/did-resolver/tsconfig.build.json"
     }
   ]

@@ -264,6 +264,34 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
 
+  packages/bridge-mcp:
+    dependencies:
+      '@modelcontextprotocol/client':
+        specifier: 2.4.0
+        version: 2.4.0
+      '@oip/client':
+        specifier: workspace:*
+        version: link:../client
+      '@oip/core':
+        specifier: workspace:*
+        version: link:../core
+      '@oip/keystore':
+        specifier: workspace:*
+        version: link:../keystore
+      '@oip/local':
+        specifier: workspace:*
+        version: link:../local
+    devDependencies:
+      '@modelcontextprotocol/server':
+        specifier: 2.4.0
+        version: 2.4.0
+      '@oip/cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@oip/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+
   packages/cli:
     dependencies:
       '@oip/client':

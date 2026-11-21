@@ -1,0 +1,62 @@
+{
+  "name": "@oip/bridge-mcp",
+  "version": "0.0.0",
+  "description": "A gateway that makes MCP servers participants of the Open Intelligence Protocol: each server a mind, each tool a capability.",
+  "license": "Apache-2.0",
+  "author": "Ekram Alam",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wonderben-code/open-intelligence-protocol.git",
+    "directory": "packages/bridge-mcp"
+  },
+  "homepage": "https://github.com/wonderben-code/open-intelligence-protocol/tree/main/packages/bridge-mcp#readme",
+  "bugs": "https://github.com/wonderben-code/open-intelligence-protocol/issues",
+  "keywords": [
+    "oip",
+    "open-intelligence-protocol",
+    "mcp",
+    "model-context-protocol",
+    "gateway",
+    "bridge"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "@oip/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=24.15"
+  },
+  "scripts": {
+    "api": "api-extractor run --local",
+    "api:check": "api-extractor run"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "@oip/client": "workspace:*",
+    "@oip/core": "workspace:*",
+    "@oip/keystore": "workspace:*",
+    "@oip/local": "workspace:*"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
+    "@oip/cli": "workspace:*",
+    "@oip/testkit": "workspace:*"
+  },
+  "bin": {
+    "oip-bridge-mcp": "./dist/bin.js"
+  }
+}

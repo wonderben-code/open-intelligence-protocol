@@ -37,7 +37,7 @@ export function report(recordIsWellFormed: (record: unknown) => boolean): string
 This is [`examples/run-vectors.ts`](examples/run-vectors.ts); a test runs it and checks that this page shows it unchanged. Given a function that accepts everything, it reports the 17 malformed records it should have rejected:
 
 ```
-my implementation: 23 passed, 17 failed, 333 pending
+my implementation: 23 passed, 17 failed, 338 pending
 FAIL negative packet-short-nonce: must be rejected. A packet nonce has 8 to 64 characters.
 FAIL negative delegation-to-self: must be rejected. A delegation's delegate must differ from its author.
 FAIL negative policy-nested-nine-deep: must be rejected. A statement of a policy is at depth 0, and no statement is deeper than 8 (Layer 1, 11.3). Here a comparison stands under nine negations.

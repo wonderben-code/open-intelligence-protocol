@@ -68,7 +68,7 @@ describe.skipIf(CHROMIUM === undefined)("the Explorer in a browser", () => {
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("request", (request) => asked.push(new URL(request.url()).origin));
     // The site's own files, and the three services, each reached where the network says it is.
-    await serveTo(page, files, { ...LOCAL, routes: network.routes });
+    await serveTo(page.context(), files, { ...LOCAL, routes: network.routes });
   });
   afterAll(async () => {
     await browser.close();
@@ -114,7 +114,11 @@ describe.skipIf(CHROMIUM === undefined)("the Explorer in a browser", () => {
     expect(await page.locator("ul.minds > li").textContent()).toContain("Lexis translation agent");
     await page.getByLabel("Only minds that can do what these tags say (optional)").fill("lang:xx");
     await page.getByRole("button", { name: "List the minds the indexers know" }).click();
-    await page.getByText("The indexers list no such mind.").waitFor();
+    await page.getByText("The indexers that answered list no such mind.").waitFor();
+    // Who was asked is said, with what each answered.
+    expect(await page.textContent("section[aria-labelledby=browse-title]")).toContain(
+      `${LOCAL.indexer}: answered, with 0 results`,
+    );
     await page.getByLabel("Only minds that can do what these tags say (optional)").fill("");
     await page.getByRole("button", { name: "List the minds the indexers know" }).click();
     await amina.waitFor();

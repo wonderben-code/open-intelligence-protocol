@@ -6,4 +6,5 @@
 
 import { main } from "./main.ts";
 
-process.exitCode = await main(process.argv.slice(2), process);
+// The program ends itself on a signal, once what it started is stopped and removed.
+process.exit(await main(process.argv.slice(2), process));

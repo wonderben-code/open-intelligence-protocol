@@ -13,14 +13,16 @@
  * `fetch`, with the page's own policy applied, are caught on their way out
  * of the browser, and are carried to where the network says its services
  * are. The site itself is served to the page in the same way, built as it
- * is shipped. Nothing else is carried anywhere.
+ * is shipped. Nothing else is carried anywhere, and nothing is fetched for
+ * the page from anywhere else: a service that answers with a redirect has
+ * its redirect handed to the page, which follows none.
  */
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { type NetworkFile, routed } from "@oip/local";
-import type { Page } from "playwright-core";
+import type { BrowserContext } from "playwright-core";
 import { build } from "vite";
 
 /** Where the page believes the Explorer is. */
@@ -32,7 +34,12 @@ const TYPES: Readonly<Record<string, string>> = {
   html: "text/html; charset=utf-8",
   js: "text/javascript; charset=utf-8",
   css: "text/css; charset=utf-8",
+  map: "application/json",
+  json: "application/json",
+  svg: "image/svg+xml",
 };
+/** What a file of no type the site is known to have is served as: nothing a browser runs or shows. */
+const NO_TYPE = "application/octet-stream";
 
 /**
  * Builds the site as it is shipped, and writes nothing.
@@ -58,36 +65,52 @@ export async function buildSite(): Promise<Map<string, string>> {
 }
 
 /**
- * Serves the site to a page, and carries the page's requests for the
- * network's three services to where they are.
+ * Serves the site to the pages of a browser's context, and carries their
+ * requests for the network's three services to where they are.
+ *
+ * Every page of the context is served: a tab its reader opens from a link
+ * is the Explorer too.
  *
  * @param network - What the network says of itself: its origins, and the
  *   port of this machine behind each.
+ * @param send - What makes a request once it is routed. Default: `fetch`.
  */
 export async function serveTo(
-  page: Page,
+  context: BrowserContext,
   files: ReadonlyMap<string, string>,
   network: NetworkFile,
+  send: (request: Request) => Promise<Response> = (request) => fetch(request),
 ): Promise<void> {
-  await page.route(`${SITE}/**`, (route) => {
+  await context.route(`${SITE}/**`, (route) => {
     const { pathname } = new URL(route.request().url());
-    const body = files.get(pathname === "/" ? "/index.html" : pathname);
+    const name = pathname === "/" ? "/index.html" : pathname;
+    const body = files.get(name);
     if (body === undefined) return route.fulfill({ status: 404, body: "no such file" });
-    const type = TYPES[pathname.split(".").at(-1) ?? ""] ?? TYPES["html"] ?? "";
+    const type = TYPES[name.split(".").at(-1) ?? ""] ?? NO_TYPE;
     return route.fulfill({ status: 200, contentType: type, body });
   });
-  const carry = routed(network.routes, (request) => fetch(request));
+  const carry = routed(network.routes, send);
   for (const origin of [network.resolver, network.host, network.indexer]) {
-    await page.route(`${origin}/**`, async (route) => {
+    await context.route(`${origin}/**`, async (route) => {
       const request = route.request();
       const body = request.postDataBuffer();
-      const answer = await carry(
-        new Request(request.url(), {
-          method: request.method(),
-          headers: request.headers(),
-          ...(body === null ? {} : { body: new Uint8Array(body) }),
-        }),
-      );
+      let answer: Response;
+      try {
+        answer = await carry(
+          new Request(request.url(), {
+            method: request.method(),
+            headers: request.headers(),
+            // Wherever a service points, nothing is fetched there for the page.
+            redirect: "manual",
+            ...(body === null ? {} : { body: new Uint8Array(body) }),
+          }),
+        );
+      } catch {
+        // Nothing listens where the network said its service is: the page is told what a
+        // browser tells it of any service that is down.
+        await route.abort("connectionrefused");
+        return;
+      }
       await route.fulfill({
         status: answer.status,
         headers: Object.fromEntries(answer.headers),

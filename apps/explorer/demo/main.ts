@@ -10,7 +10,9 @@
  * minds, their profiles, and the records of a deal. With `--network`, it is
  * one that runs already, as `oip demo` runs one, shown as it stands.
  *
- * The program ends when the window is closed.
+ * The program ends when the window is closed, or when it is interrupted.
+ * Either way it stops the network it started, and removes that network's
+ * directory with the keys in it.
  */
 
 import { join } from "node:path";
@@ -33,20 +35,32 @@ const HELP = [
   "",
   "The browser is Google Chrome, as it is installed. To use another Chromium,",
   "set OIP_CHROMIUM to its path, or to `installed` for the one Playwright installed.",
+  "If no browser opens, OIP_EXPLORER_WHY=1 shows what the browser said of it.",
+  "",
+  "It ends with 0 after a visit, 1 if no browser could be opened, 2 for arguments it",
+  "does not take or a network that is not there, 3 if the network could not be used,",
+  "and 130 when it is interrupted.",
   "",
 ].join("\n");
+
+/** The signals that end a program a person runs in a terminal. */
+const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 /** What the program has of the process it runs in: `process` is one. */
 export interface Host {
   readonly stdout: { write(text: string): unknown };
   readonly stderr: { write(text: string): unknown };
   readonly env: Readonly<Record<string, string | undefined>>;
+  /** Called once when the process is sent a signal. A host that has none is never interrupted. */
+  once?(signal: (typeof SIGNALS)[number], listener: () => void): unknown;
 }
 
 /** What a test replaces. */
 export interface Edges {
   /** Opens the browser. Default: a Chromium with a window. */
   readonly launch?: () => Promise<Browser>;
+  /** Builds the site. Default: as it is shipped. */
+  readonly build?: () => Promise<Map<string, string>>;
   /**
    * What is done with the page once the Explorer is open in it. The program
    * ends when this does. Default: wait until the window is closed.
@@ -54,15 +68,22 @@ export interface Edges {
   readonly visit?: (page: Page) => Promise<void>;
 }
 
-/** A Chromium with a window: the one the environment names, or else the Chrome that is installed. */
+/**
+ * A Chromium with a window: the one the environment names, or else the Chrome that is installed.
+ *
+ * The browser is not left to end the process on a signal: the program ends
+ * the visit itself, so that what it started is stopped and removed.
+ */
 function withWindow(env: Host["env"]): Promise<Browser> {
   const named = env["OIP_CHROMIUM"];
-  if (named === undefined) return chromium.launch({ headless: false, channel: "chrome" });
-  return chromium.launch({
-    headless: false,
-    ...(named === "installed" ? {} : { executablePath: named }),
-  });
+  const ours = { headless: false, handleSIGINT: false, handleSIGTERM: false, handleSIGHUP: false };
+  if (named === undefined) return chromium.launch({ ...ours, channel: "chrome" });
+  return chromium.launch({ ...ours, ...(named === "installed" ? {} : { executablePath: named }) });
 }
+
+/** The first line of what something said when it failed. */
+const firstLine = (error: unknown): string =>
+  (error instanceof Error ? error.message : String(error)).split("\n")[0] ?? "";
 
 /** Until the window is closed, by its reader or with the browser. */
 function untilClosed(page: Page): Promise<void> {
@@ -81,7 +102,8 @@ function untilClosed(page: Page): Promise<void> {
  *
  * @param argv - Its arguments, without the program's own name.
  * @returns What it exits with: 0 after a visit, 1 if no browser could be
- *   opened, 2 for arguments it does not take or a network that is not there.
+ *   opened, 2 for arguments it does not take or a network that is not there,
+ *   3 if the network could not be used, 130 if it was interrupted.
  */
 export async function main(
   argv: readonly string[],
@@ -113,30 +135,51 @@ export async function main(
     return 2;
   }
 
+  // A signal ends the visit, and the program then ends as after any visit: nothing is left behind.
+  const interrupted = new Promise<"interrupted">((resolve) => {
+    for (const signal of SIGNALS) {
+      host.once?.(signal, () => {
+        resolve("interrupted");
+      });
+    }
+  });
   const cast: string[] = [];
   try {
-    if (directory === undefined) {
-      host.stdout.write(
-        "Starting a network on this machine, and playing the translation demo on it.\n",
-      );
-      stage = await Stage.open();
-      const told = await tell(stage, () => undefined);
-      for (const [name, address] of Object.entries(told.cast)) cast.push(`  ${name}: ${address}`);
-      cast.push(`  the collective: ${told.collective}`);
-      network = readNetwork(join(stage.root, "network"));
-    } else {
-      network = readNetwork(directory);
+    let files: Map<string, string>;
+    try {
+      if (directory === undefined) {
+        host.stdout.write(
+          "Starting a network on this machine, and playing the translation demo on it.\n",
+        );
+        stage = await Stage.open();
+        const told = await tell(stage, () => undefined);
+        for (const [name, address] of Object.entries(told.cast)) {
+          cast.push(`  ${name}: ${address}`);
+        }
+        cast.push(`  the collective: ${told.collective}`);
+        network = readNetwork(join(stage.root, "network"));
+      } else {
+        network = readNetwork(directory);
+      }
+      host.stdout.write("Building the Explorer.\n");
+      files = await (edges.build ?? buildSite)();
+    } catch (error) {
+      // One line, and no stack: what failed is the network or the build, and not the reader.
+      host.stderr.write(`explorer: the network could not be used: ${firstLine(error)}\n`);
+      return 3;
     }
-    host.stdout.write("Building the Explorer.\n");
-    const files = await buildSite();
 
     let browser: Browser;
     try {
       browser = await (edges.launch ?? (() => withWindow(host.env)))();
-    } catch {
-      // What a browser says of why it did not start is long, and names paths of this machine.
+    } catch (error) {
+      // What a browser says of why it did not start is long, and names paths of this machine:
+      // it is shown to whoever asks for it.
       host.stderr.write(
-        "explorer: no browser could be opened. Set OIP_CHROMIUM to the path of a Chromium or a Chrome\n",
+        "explorer: no browser could be opened. Set OIP_CHROMIUM to the path of a Chromium or a Chrome" +
+          (host.env["OIP_EXPLORER_WHY"] === undefined
+            ? ", or OIP_EXPLORER_WHY=1 to see what the browser said\n"
+            : `\nexplorer: the browser said: ${firstLine(error)}\n`),
       );
       return 1;
     }
@@ -157,8 +200,8 @@ export async function main(
           JSON.stringify({ resolvers: [network.resolver], indexers: [network.indexer] }),
         ] as const,
       );
+      await serveTo(context, files, network);
       const page = await context.newPage();
-      await serveTo(page, files, network);
       await page.goto(`${SITE}/`);
       host.stdout.write(
         [
@@ -168,8 +211,11 @@ export async function main(
           "",
         ].join("\n"),
       );
-      await (edges.visit ?? untilClosed)(page);
-      return 0;
+      const ended = await Promise.race([
+        (edges.visit ?? untilClosed)(page).then(() => "visited" as const),
+        interrupted,
+      ]);
+      return ended === "interrupted" ? 130 : 0;
     } finally {
       await browser.close();
     }

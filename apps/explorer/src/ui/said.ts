@@ -18,9 +18,8 @@ export function failureOf(error: unknown): Failure {
     const clause = error.clause === undefined ? undefined : clauseOf(error.clause);
     return { message: error.detail, ...(clause === undefined ? {} : { clause }) };
   }
-  if (error instanceof TransportError) {
-    return { message: `${error.origin}: ${error.message}` };
-  }
+  // A failure of the transport names the service in its own message.
+  if (error instanceof TransportError) return { message: error.message };
   return {
     message: error instanceof Error ? error.message : "Something failed that gave no reason.",
   };

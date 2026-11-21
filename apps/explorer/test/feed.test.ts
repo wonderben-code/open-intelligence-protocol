@@ -7,6 +7,7 @@
  * the scenario of the papers played on them.
  */
 
+import { LOCAL } from "@oip/cli";
 import { Reader, systemClock } from "@oip/client";
 import { checkpointRoot } from "@oip/net";
 import { clause } from "@oip/testkit";
@@ -15,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { browse } from "../src/oip/browse.ts";
 import { readFeed } from "../src/oip/feed.ts";
+import { pageClient } from "./page-client.ts";
 
 let stage: Stage;
 let told: Told;
@@ -103,7 +105,8 @@ describe("a feed, as a page shows it", () => {
 
 describe("the minds an indexer lists", () => {
   it(`${clause("L1 18.2", "L1 18.3")} are those whose profiles it holds, each verified, with what the profile says`, async () => {
-    const listing = await browse(stage.stranger());
+    const page = pageClient(stage);
+    const listing = await browse(page.lookup, page.asked);
     const byName = new Map(listing.minds.map((mind) => [mind.name, mind]));
     expect([...byName.keys()].sort()).toStrictEqual(
       [
@@ -123,13 +126,60 @@ describe("the minds an indexer lists", () => {
       current: true,
     });
     expect(byName.get("Amina")).toMatchObject({ kind: "human", capabilities: [] });
+    // An indexer lists Offers and Intents too: the minds are those of its results that are profiles.
+    const [source] = listing.sources;
     expect(listing.sources).toHaveLength(1);
-    expect(listing.sources[0]?.failure).toBeUndefined();
+    expect(source?.indexer).toBe(LOCAL.indexer);
+    expect(source?.failure).toBeUndefined();
+    expect(source?.results).toBeGreaterThanOrEqual(listing.minds.length);
+    expect(listing).toMatchObject({ answered: true, unlisted: 0, notAsked: [] });
+    // Nobody was asked but the indexer and the resolver: every profile listed is the one the
+    // resolver serves with its mind's log.
+    expect(new Set(page.made)).toStrictEqual(new Set([LOCAL.indexer, LOCAL.resolver]));
   });
 
   it(`${clause("L1 18.2")} are narrowed by the tags a reader asks for`, async () => {
-    const translators = await browse(stage.stranger(), ["lang:sw", "domain:legal/commercial"]);
+    const page = pageClient(stage);
+    const translators = await browse(page.lookup, page.asked, [
+      "lang:sw",
+      "domain:legal/commercial",
+    ]);
     expect(translators.minds.map(({ name }) => name)).toStrictEqual(["Lexis translation agent"]);
-    expect((await browse(stage.stranger(), ["lang:fi"])).minds).toStrictEqual([]);
+    const none = await browse(page.lookup, page.asked, ["lang:fi"]);
+    // An indexer answered, and has none: which is another thing than no answer.
+    expect(none).toMatchObject({ minds: [], answered: true });
+  });
+
+  it("are none that the page can say of, where no indexer answered: which is not that there are none", async () => {
+    const page = pageClient(stage, {}, [LOCAL.indexer]);
+    const listing = await browse(page.lookup, page.asked);
+    expect(listing).toMatchObject({ minds: [], answered: false, unlisted: 0 });
+    expect(listing.sources).toStrictEqual([{ indexer: LOCAL.indexer, failure: "unreachable" }]);
+    // One of two that answers is an answer, and the page has what the other said.
+    const SECOND = "https://indexer-b.oip.localhost";
+    const two = pageClient(stage, { indexers: [SECOND, LOCAL.indexer] }, [SECOND]);
+    const partly = await browse(two.lookup, two.asked);
+    expect(partly.answered).toBe(true);
+    expect(partly.minds.length).toBeGreaterThan(0);
+    expect(partly.sources.map(({ indexer, failure }) => [indexer, failure])).toStrictEqual([
+      [SECOND, "unreachable"],
+      [LOCAL.indexer, undefined],
+    ]);
+  });
+
+  it(`${clause("L1 18.4")} are listed without asking any host the reader did not choose: a profile that could only be verified at its mind's home is not listed, and the page says whom it did not ask`, async () => {
+    // A mind that an indexer lists by a profile the resolver no longer serves with its log: it
+    // has changed its keys since, and has not said its profile again.
+    const moved = await stage.cast("moved", "agent", { name: "A mind that moved on" });
+    const [first = ""] = moved.mind.state.keys;
+    await moved.mind.addKey({ control: moved.lock, label: "second" });
+    await moved.mind.revokeKey(first, { control: moved.lock });
+    const page = pageClient(stage);
+    const listing = await browse(page.lookup, page.asked);
+    expect(new Set(page.made)).toStrictEqual(new Set([LOCAL.indexer, LOCAL.resolver]));
+    expect(listing.minds.map(({ address }) => address)).not.toContain(moved.mind.address);
+    expect(listing).toMatchObject({ answered: true, unlisted: 1, notAsked: [LOCAL.host] });
+    // The other minds are listed as before.
+    expect(listing.minds.map(({ name }) => name)).toContain("Amina");
   });
 });

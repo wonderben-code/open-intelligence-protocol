@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Lookup, Reader } from "@oip/client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import type { Asked, Reading } from "../oip/asked.ts";
 
 import { type FeedView, readFeed } from "../oip/feed.ts";
 import { shown, shownJson } from "../oip/text.ts";
@@ -25,27 +27,45 @@ const statusReason = (type: string): Reason | undefined =>
  * mind's homes, and asking them tells them that somebody looked.
  */
 export function Feed({
+  asked,
   lookup,
   reader,
   mind,
   homes,
 }: {
+  asked: Asked;
   lookup: Lookup;
   reader: Reader;
   mind: string;
   homes: readonly string[];
 }): React.JSX.Element {
   const [read, setRead] = useState<Read>({ state: "unread" });
+  const reading = useRef<Reading>(undefined);
+  useEffect(
+    () => () => {
+      // The reader has left the page: its homes are asked nothing more.
+      reading.current?.end();
+    },
+    [],
+  );
   const ask = (): void => {
+    if (read.state === "reading") return;
+    // The homes the page named above, and no others, for as long as the reading goes on.
+    const mine = asked.reading(homes);
+    reading.current = mine;
     setRead({ state: "reading" });
-    readFeed(lookup, reader, mind).then(
-      (view) => {
-        setRead({ state: "read", view });
-      },
-      (error: unknown) => {
-        setRead({ state: "failed", failure: failureOf(error) });
-      },
-    );
+    readFeed(lookup, reader, mind)
+      .then(
+        (view) => {
+          if (!mine.ended) setRead({ state: "read", view });
+        },
+        (error: unknown) => {
+          if (!mine.ended) setRead({ state: "failed", failure: failureOf(error) });
+        },
+      )
+      .finally(() => {
+        mine.end();
+      });
   };
   return (
     <section aria-labelledby="feed-title">

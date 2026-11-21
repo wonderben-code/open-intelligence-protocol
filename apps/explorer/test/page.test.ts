@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { shown, shownJson } from "../src/oip/text.ts";
+import { NO_NAME, shown, shownJson, shownName } from "../src/oip/text.ts";
 import { hashOf, routeOf } from "../src/route.ts";
 import {
   loadSettings,
@@ -147,6 +147,59 @@ describe("a stranger's words", () => {
     expect(shown(`a${ZERO_WIDTH}b\nc\td${LINE_SEPARATOR}e\u0000`)).toBe(
       "a\\u{200b}b\\u{a}c\\u{9}d\\u{2028}e\\u{0}",
     );
+  });
+
+  it("have nothing in them that is not seen: what a display leaves out, or has no shape for, is shown as its escape", () => {
+    // Each written by its number, so that this file holds none of them.
+    const unseen = [
+      0x034f, // a joiner of marks
+      0xfe0f, // a selector of a variation
+      0xe0100, // and one of the supplement
+      0xe000, // private use
+      0x3164, // a filler of Hangul
+      0x115f,
+      0x1160,
+      0xffa0,
+      0x2800, // the blank of the Braille patterns
+      0x00ad, // a soft hyphen
+      0xfeff,
+      0xe0041, // a tag
+      0x0085,
+      0x2029,
+    ];
+    for (const point of unseen) {
+      const escape = `\\u{${point.toString(16)}}`;
+      expect(shown(`a${String.fromCodePoint(point)}b`), escape).toBe(`a${escape}b`);
+    }
+    // A name made of nothing but such is seen as what it is made of.
+    expect(shownName(String.fromCodePoint(0x3164, 0x3164))).toBe("\\u{3164}\\u{3164}");
+  });
+
+  it("do not draw over the lines around them: marks piled on one letter are cut at four, and a mark with no letter is shown as its escape", () => {
+    const mark = String.fromCodePoint(0x0301);
+    // What a script puts on a letter stays: Vietnamese has two, and some have more.
+    const viet = `e${String.fromCodePoint(0x0302)}${mark}`;
+    expect(shown(viet)).toBe(viet);
+    expect(shown(`a${mark.repeat(4)}`)).toBe(`a${mark.repeat(4)}`);
+    expect(shown(`a${mark.repeat(6)}b`)).toBe(`a${mark.repeat(4)}\\u{301}\\u{301}b`);
+    expect(shown(`${mark}a`)).toBe("\\u{301}a");
+  });
+
+  it("name a mind, or say that a name has nothing to see", () => {
+    expect(shownName("Amina")).toBe("Amina");
+    expect(shownName(" Lexis Ltd ")).toBe(" Lexis Ltd ");
+    for (const blank of [
+      "",
+      " ",
+      "\t",
+      String.fromCodePoint(0x00a0).repeat(3),
+      String.fromCodePoint(0x3000),
+      `${String.fromCodePoint(0x2003)} ${String.fromCodePoint(0x202f)}`,
+    ]) {
+      // A tab is a control, and is seen as its escape. The rest is space, and no name.
+      expect(shownName(blank), JSON.stringify(blank)).toBe(blank === "\t" ? "\\u{9}" : NO_NAME);
+    }
+    expect(NO_NAME).toBe("(no name)");
   });
 
   it("are shown within a record as JSON of many lines, with the same characters as escapes", () => {

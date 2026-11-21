@@ -13,6 +13,7 @@
 import { Lookup, Reader, systemClock } from "@oip/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { Asked } from "./oip/asked.ts";
 import { hashOf, type Route, routeOf } from "./route.ts";
 import { loadSettings, saveSettings, type Settings } from "./settings.ts";
 import { Home } from "./ui/Home.tsx";
@@ -48,11 +49,17 @@ export function App(): React.JSX.Element {
 
   // One client and one reader for the services chosen. The reader remembers the records it
   // was shown, so that a Commitment read on one mind's page is judged with a Receipt read on
-  // another's.
+  // another's. Every request of the client passes through `asked`, which lets through those
+  // to the services chosen, and to a mind's homes while its reader has its feed read.
   const network = useMemo(() => {
     if (settings.resolvers.length === 0) return undefined;
-    const lookup = new Lookup({ resolvers: settings.resolvers, indexers: settings.indexers });
-    return { lookup, reader: new Reader({ lookup, clock: systemClock }) };
+    const asked = new Asked([...settings.resolvers, ...settings.indexers]);
+    const lookup = new Lookup({
+      resolvers: settings.resolvers,
+      indexers: settings.indexers,
+      fetch: asked.fetch,
+    });
+    return { asked, lookup, reader: new Reader({ lookup, clock: systemClock }) };
   }, [settings]);
 
   return (
@@ -64,7 +71,7 @@ export function App(): React.JSX.Element {
         </nav>
       </header>
       <main ref={main}>
-        {route.page === "home" && <Home lookup={network?.lookup} settings={settings} />}
+        {route.page === "home" && <Home network={network} settings={settings} />}
         {route.page === "settings" && (
           <SettingsPage
             settings={settings}
@@ -86,6 +93,7 @@ export function App(): React.JSX.Element {
           ) : (
             <MindPage
               key={route.address}
+              asked={network.asked}
               lookup={network.lookup}
               reader={network.reader}
               address={route.address}

@@ -4,6 +4,7 @@
 import type { Lookup, Reader } from "@oip/client";
 import { useEffect, useState } from "react";
 
+import type { Asked } from "../oip/asked.ts";
 import { type MindView, mindView } from "../oip/mind.ts";
 import { shown, shownJson } from "../oip/text.ts";
 import { WHY } from "../oip/why.ts";
@@ -18,10 +19,12 @@ type Found =
 
 /** A mind: everything a resolution found, with why each thing is shown as it is. */
 export function MindPage({
+  asked,
   lookup,
   reader,
   address,
 }: {
+  asked: Asked;
   lookup: Lookup;
   reader: Reader;
   address: string;
@@ -54,7 +57,7 @@ export function MindPage({
         {found.state === "asking" && <p>Asking the resolvers, and verifying what they serve.</p>}
         {found.state === "failed" && (
           <div className="failed">
-            <p>This mind could not be shown: {found.failure.message}</p>
+            <p>This mind could not be shown: {shown(found.failure.message)}</p>
             {found.failure.clause !== undefined && (
               <p>
                 The rule is{" "}
@@ -73,7 +76,13 @@ export function MindPage({
           <Log view={found.view} />
           <Keys view={found.view} />
           <Said view={found.view} />
-          <Feed lookup={lookup} reader={reader} mind={address} homes={found.view.homes} />
+          <Feed
+            asked={asked}
+            lookup={lookup}
+            reader={reader}
+            mind={address}
+            homes={found.view.homes}
+          />
           <Sources view={found.view} />
         </>
       )}

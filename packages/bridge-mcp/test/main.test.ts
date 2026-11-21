@@ -7,14 +7,26 @@
  * function.
  */
 
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 
 import { keepRecords } from "@oip/local";
 import { clause } from "@oip/testkit";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { type Host, main, POLICY_FILE, type Serving, VERSION } from "../src/index.ts";
+import {
+  ALLOW_VARIABLE,
+  HOLD_FILE,
+  type Host,
+  main,
+  mindsFetch,
+  POLICY_FILE,
+  type Serving,
+  VERSION,
+} from "../src/index.ts";
+import { machineOf } from "../src/main.ts";
 import { Place, Tools } from "./harness.ts";
 
 const URL_OF = "https://tools.lexis.example/mcp";
@@ -90,7 +102,9 @@ describe("oip-bridge-mcp", () => {
       [["bridge"], "bridge takes one URL"],
       [["bridge", URL_OF, "https://other.example/mcp"], "bridge takes one URL"],
       [["bridge", "--stdio", "files"], "bridge --stdio takes a command after `--`"],
-      [["bridge", "http://tools.example/mcp"], "is not reached over HTTPS"],
+      [["bridge", "http://tools.example/mcp"], "is reached over HTTPS"],
+      [["bridge", "https://tools.example/mcp?key=sk-1234567890"], "carries no query"],
+      [["bridge", URL_OF, "--name", ""], "a name is text"],
       [["bridge", "--stdio", "Has Spaces", "--", "a-server"], "is named in lower-case letters"],
       [["serve", "--every", "0"], "--every is a whole number from 1 to 3600"],
       [["serve", "--every", "soon"], "--every is a whole number from 1 to 3600"],
@@ -280,5 +294,111 @@ describe("oip-bridge-mcp", () => {
     expect(count(/(\d+) Receipts? signed/u)).toBe(0);
     expect(host.err).toContain("policy.json is not JSON a record may be in");
     writeFileSync(join(directory, POLICY_FILE), JSON.stringify({ allow: {} }));
+  });
+
+  it("serves from a directory one process at a time: a second is refused, and told why", async () => {
+    const gateway = join(place.root, "gateway");
+    const file = join(gateway, HOLD_FILE);
+    const serve = (host: ReturnType<typeof process>): Promise<number | Serving> =>
+      main(["--dir", gateway, "serve", "--every", "1"], host, {
+        connect: tools.connect,
+        machine: place.machine(),
+      });
+    const first = process();
+    const serving = (await serve(first)) as Serving;
+    try {
+      expect(existsSync(file)).toBe(true);
+      const second = process();
+      expect(await serve(second)).toBe(2);
+      expect(second.out).toBe("");
+      expect(second.err).toMatch(
+        /^oip-bridge-mcp: another process serves from this gateway's directory, in .*\. One at a time: stop it first\./u,
+      );
+      // The commands that end are no part of it: a server is listed while the gateway serves.
+      expect((await run("servers")).code).toBe(0);
+    } finally {
+      first.signal("SIGTERM");
+      await serving.ended;
+    }
+    // It let go of the directory: the next may serve from it.
+    expect(existsSync(file)).toBe(false);
+    const next = process();
+    const again = (await serve(next)) as Serving;
+    next.signal("SIGINT");
+    await again.ended;
+  });
+
+  it("ends where another process has taken its directory over", async () => {
+    const gateway = join(place.root, "gateway");
+    const file = join(gateway, HOLD_FILE);
+    const host = process();
+    const serving = (await main(["--dir", gateway, "serve", "--every", "1"], host, {
+      connect: tools.connect,
+      machine: place.machine(),
+    })) as Serving;
+    // Another process took this one for ended, and serves in its place.
+    writeFileSync(file, "1 another process\n");
+    await serving.ended;
+    expect(host.err).toContain(
+      "oip-bridge-mcp: another process has taken over this gateway's directory. This one ends\n",
+    );
+    // What is the other's is left to it.
+    expect(readFileSync(file, "utf8")).toBe("1 another process\n");
+    rmSync(file);
+  }, 30_000);
+});
+
+describe("what the program asks of the network by itself", () => {
+  it("asks for its minds under the guard: nothing on this machine or the network behind it, but what a route carried", async () => {
+    const { fetch: asks } = machineOf({ env: {} });
+    const refusal = async (url: string, method = "POST"): Promise<unknown> => {
+      try {
+        await asks?.(new Request(url, { method }));
+      } catch (error) {
+        return (error as { reason?: unknown }).reason;
+      }
+      return "asked";
+    };
+    // Where a requester's own record says it is reached, or the feed of a delegation's author
+    // is served: a gateway runs beside the servers it bridges, and a stranger chose these.
+    expect(await refusal("https://10.1.2.3:8443/internal/admin/inbox")).toBe("address");
+    expect(await refusal("https://192.168.0.7/metadata/inbox")).toBe("address");
+    expect(await refusal("https://127.0.0.1:8443/inbox")).toBe("address");
+    expect(await refusal("https://[::1]/feed", "GET")).toBe("address");
+    expect(await refusal("https://169.254.169.254/latest/meta-data", "GET")).toBe("address");
+    // A network of this machine, by a route the operator set: a port of this machine, over plain HTTP.
+    const local = createServer((_, response) => {
+      response.writeHead(200).end("routed");
+    });
+    await new Promise<void>((resolve) => local.listen(0, "127.0.0.1", resolve));
+    try {
+      const { port } = local.address() as AddressInfo;
+      const answer = await asks?.(new Request(`http://127.0.0.1:${String(port)}/oip/v1/x`));
+      expect(await answer?.text()).toBe("routed");
+    } finally {
+      await new Promise((resolve) => local.close(resolve));
+    }
+  });
+
+  it("allows what its operator allows beside the public addresses, and takes no list that is none", async () => {
+    const allowed = mindsFetch({ [ALLOW_VARIABLE]: " 10.0.0.0/8 , 192.168.0.0/16," });
+    // The range is allowed: what stops the request now is that nothing answers there.
+    const reason = await allowed(
+      new Request("https://10.1.2.3:8443/inbox", { signal: AbortSignal.timeout(200) }),
+    ).then(
+      () => "asked",
+      (error: unknown) => (error as { reason?: unknown }).reason,
+    );
+    expect(reason).not.toBe("address");
+    expect(() => mindsFetch({ [ALLOW_VARIABLE]: "the office" })).toThrow(
+      "OIP_BRIDGE_FETCH_ALLOW is a list of address ranges with commas between, as 10.0.0.0/8,fd00::/8",
+    );
+    const host = { ...process(), env: { [ALLOW_VARIABLE]: "10/8/8" } };
+    const written: string[] = [];
+    host.stderr = { write: (text: string) => written.push(text) };
+    expect(await main(["servers"], host)).toBe(2);
+    expect(written.join("")).toBe(
+      "oip-bridge-mcp: OIP_BRIDGE_FETCH_ALLOW is a list of address ranges with commas between, as 10.0.0.0/8,fd00::/8\n",
+    );
   });
 });

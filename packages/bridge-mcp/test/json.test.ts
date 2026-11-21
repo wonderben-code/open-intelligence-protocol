@@ -6,6 +6,7 @@ import { clause } from "@oip/testkit";
 import { describe, expect, it } from "vitest";
 
 import { carriedJson, digestOf, holds, jsonText, readJsonText } from "../src/index.ts";
+import { sizeOf, Unsayable } from "../src/json.ts";
 
 /** Characters written so that this file holds none of them. */
 const NONCHARACTER = String.fromCodePoint(0xfffe);
@@ -27,7 +28,10 @@ describe("JSON as MCP has it, in a record", () => {
       required: ["text"],
     };
     expect(holds(schema)).toBe(true);
-    expect(carriedJson(schema)).toBe(schema);
+    // What is carried is what the parser for records read of the value's text: the value as it
+    // will be signed, and not the object that was handed in.
+    expect(carriedJson(schema)).toStrictEqual(schema);
+    expect(carriedJson(schema)).not.toBe(schema);
     for (const value of [
       null,
       true,
@@ -94,6 +98,35 @@ describe("JSON as MCP has it, in a record", () => {
   });
 });
 
+describe("a value with a number that is not finite", () => {
+  it(`${clause("L0 2.1")} is not carried at all: JSON would write it as \`null\`, which is not what was given`, () => {
+    // `1e999` on a wire is read as an infinity by the program that reads it.
+    const read: unknown = JSON.parse('{"balance":1e999,"more":[1,{"low":-1e999}]}');
+    for (const value of [
+      Number.POSITIVE_INFINITY,
+      Number.NaN,
+      { a: [Number.NEGATIVE_INFINITY] },
+      read,
+    ]) {
+      expect(() => carriedJson(value)).toThrow(Unsayable);
+    }
+    // What is no JSON at all has no text to carry.
+    expect(() => carriedJson(undefined)).toThrow(Unsayable);
+    expect(() => carriedJson(() => 1)).toThrow(Unsayable);
+    // A finite number that no record has is carried, as text.
+    expect(carriedJson(1e300)).toBe("1e+300");
+  });
+});
+
+describe("the size of a body in the record that carries it", () => {
+  it(`${clause("core 1.6")} is of its canonical form, where a text is a JSON string`, () => {
+    expect(sizeOf({ b: 1, a: [true, null] })).toBe('{"a":[true,null],"b":1}'.length);
+    // Each quotation mark and each backslash of a text is two bytes in the record.
+    expect(sizeOf('{"a":"b"}')).toBe('"{\\"a\\":\\"b\\"}"'.length);
+    expect(sizeOf("é")).toBe(4);
+  });
+});
+
 describe("JSON text that a requester wrote", () => {
   it("is read as JSON is, fractions and all", () => {
     expect(
@@ -115,6 +148,29 @@ describe("JSON text that a requester wrote", () => {
     expect(readJsonText(JSON.stringify(`\\"${"{".repeat(100)}`))).toBeDefined();
     // A text that is all open brackets ends nowhere, and is not parsed.
     expect(readJsonText("[".repeat(100_000))).toBeUndefined();
+  });
+
+  it(`${clause("core 1.1")} is not read where an object names a member twice: two readers would read two calls`, () => {
+    expect(readJsonText('{"tool":"harmless","tool":"send_money","arguments":{}}')).toBeUndefined();
+    // However the name is written: an escape spells the same name.
+    expect(readJsonText('{"tool":"a","to\\u006fl":"b"}')).toBeUndefined();
+    expect(readJsonText('{"a":{"b":1,"c":[{"d":1,"d":2}]}}')).toBeUndefined();
+    expect(readJsonText('{"":1,"":2}')).toBeUndefined();
+    // One name in two objects is two names, and a value that reads like a name is a value.
+    expect(readJsonText('{"a":{"a":1},"b":{"a":"a"},"c":["a","a"],"d":"a"}')).toStrictEqual({
+      value: { a: { a: 1 }, b: { a: "a" }, c: ["a", "a"], d: "a" },
+    });
+    expect(readJsonText('[{"a":1},{"a":2}]')).toStrictEqual({ value: [{ a: 1 }, { a: 2 }] });
+    expect(readJsonText('{"a":"x,\\"a\\":1","b":{}, "c":[] ,"e":1}')).toBeDefined();
+    // `__proto__` is a name like another.
+    expect(readJsonText('{"__proto__":1,"__proto__":2}')).toBeUndefined();
+    expect(readJsonText('{"__proto__":{"tool":"x"}}')).toBeDefined();
+  });
+
+  it("is not read where it holds a number JSON has and a program has not", () => {
+    expect(readJsonText('{"tool":"pay","arguments":{"amount":1e999}}')).toBeUndefined();
+    expect(readJsonText("-1e999")).toBeUndefined();
+    expect(readJsonText("1e308")).toStrictEqual({ value: 1e308 });
   });
 });
 

@@ -49,7 +49,8 @@
     "@oip/client": "workspace:*",
     "@oip/core": "workspace:*",
     "@oip/keystore": "workspace:*",
-    "@oip/local": "workspace:*"
+    "@oip/local": "workspace:*",
+    "@oip/server": "workspace:*"
   },
   "devDependencies": {
     "@modelcontextprotocol/server": "2.4.0",

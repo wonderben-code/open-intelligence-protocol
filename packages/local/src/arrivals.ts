@@ -66,6 +66,15 @@ export class Arrivals {
     return waiting;
   }
 
+  /**
+   * Whether a packet is written down as waiting, whether or not `waiting`
+   * could read it just now. What a program keeps about a packet that
+   * waits is not to be thrown away because a file could not be read once.
+   */
+  has(id: string): boolean {
+    return this.#pending.has(id);
+  }
+
   /** Is done with a packet: it waits no more. */
   done(id: string): void {
     this.#pending.delete(id);

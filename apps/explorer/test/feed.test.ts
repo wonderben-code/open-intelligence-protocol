@@ -12,6 +12,7 @@ import { clause } from "@oip/testkit";
 import { Stage, tell, type Told } from "@oip/translation-demo";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { browse } from "../src/oip/browse.ts";
 import { readFeed } from "../src/oip/feed.ts";
 
 let stage: Stage;
@@ -75,5 +76,38 @@ describe("a feed, as a page shows it", () => {
       told.cast["lexis-ltd"] ?? "",
     );
     expect(view.entries).toStrictEqual([]);
+  });
+});
+
+describe("the minds an indexer lists", () => {
+  it(`${clause("L1 18.2", "L1 18.3")} are those whose profiles it holds, each verified, with what the profile says`, async () => {
+    const listing = await browse(stage.stranger());
+    const byName = new Map(listing.minds.map((mind) => [mind.name, mind]));
+    expect([...byName.keys()].sort()).toStrictEqual(
+      [
+        "A research agent",
+        "Amina",
+        "Amina's assistant",
+        "Lexis Ltd",
+        "Lexis translation agent",
+      ].sort(),
+    );
+    expect(byName.get("Lexis translation agent")).toStrictEqual({
+      address: told.cast["lexis-agent"],
+      name: "Lexis translation agent",
+      kind: "agent",
+      summary: "Legal translation between Swahili and English, for Lexis Ltd.",
+      capabilities: ["translate-legal-sw-en"],
+      current: true,
+    });
+    expect(byName.get("Amina")).toMatchObject({ kind: "human", capabilities: [] });
+    expect(listing.sources).toHaveLength(1);
+    expect(listing.sources[0]?.failure).toBeUndefined();
+  });
+
+  it(`${clause("L1 18.2")} are narrowed by the tags a reader asks for`, async () => {
+    const translators = await browse(stage.stranger(), ["lang:sw", "domain:legal/commercial"]);
+    expect(translators.minds.map(({ name }) => name)).toStrictEqual(["Lexis translation agent"]);
+    expect((await browse(stage.stranger(), ["lang:fi"])).minds).toStrictEqual([]);
   });
 });

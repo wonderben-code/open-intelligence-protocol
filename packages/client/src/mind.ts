@@ -1222,6 +1222,62 @@ export class Mind {
   }
 
   /**
+   * The mind a packet was sent for (Layer 1, 11.2): the one it names in
+   * `provenance.onBehalfOf`, if its sender's proof carries a chain of
+   * delegations from that mind that covers `/oip/send`, as this mind judges
+   * it now, by the records it holds.
+   *
+   * `receive` says the same of each packet as it arrives. A program that
+   * acts on a packet later asks again when it acts: a delegation may have
+   * been revoked since (`holdRevocations`).
+   *
+   * @returns The mind, or `undefined` if the packet names none, names one in
+   *   words only, or names one whose delegation does not hold.
+   */
+  sentFor(packet: unknown): Promise<string | undefined> {
+    return this.#dealings.sentFor(packet);
+  }
+
+  /**
+   * Reads what the authors of the delegations a record rests on have
+   * revoked, and holds it (Layer 1, 11.5). An author publishes its
+   * Revocations in its feed, and a verifier checks that feed "when the
+   * value at stake warrants it": a program that is about to act for a
+   * delegate calls this first, and asks `countsFor` or `sentFor` after.
+   *
+   * The delegations are those the record's proofs carry or name in
+   * `authority`. The feed of each of their authors is read, and every
+   * `Revocation` it lists that this mind does not hold yet is fetched and
+   * held. A mind with no home has no feed.
+   *
+   * @returns How many Revocations were newly held.
+   * @throws What `Lookup.feed` and `Lookup.record` throw, where a feed or
+   *   a record it lists cannot be had: nothing was shown either way.
+   */
+  holdRevocations(record: unknown): Promise<number> {
+    return this.#dealings.holdRevocations(record);
+  }
+
+  /**
+   * Whether the delegations a record's proofs rest on stand now: none has
+   * expired, and none is revoked by a `Revocation` this mind holds that
+   * counts for its author.
+   *
+   * `countsFor` and `sentFor` judge a proof as of when it was made, by the
+   * evidence of time (core 9): a record that was signed before a
+   * revocation was first seen counts still, and that is right for what a
+   * record binds its principal to. Whether to act for a delegate is
+   * another question, and is asked of now: a program that is about to do
+   * something for whoever a packet was sent for calls `holdRevocations`,
+   * and then this.
+   *
+   * @returns `false` too where a proof names a delegation this mind does not hold.
+   */
+  delegationsStand(record: unknown): Promise<boolean> {
+    return this.#dealings.delegationsStand(record);
+  }
+
+  /**
    * The status of an Intent, an Offer, a Commitment or a charter (Layer 2,
    * Section 8), from the records the mind holds and the present time.
    * Another verifier, holding other records, may compute another.

@@ -526,6 +526,42 @@ describe(`${clause("L1 11.2")} a packet sent for another mind`, () => {
     }
   });
 
+  it.each([
+    ["the delegation first", true],
+    ["the record first", false],
+  ])(
+    `${clause("L1 11.4", "L1 11.6")} a record whose proof names its delegation counts by a delegation the same packet carries, on a clock that moves: %s`,
+    async (_, delegationFirst) => {
+      const { amina, lexis, agent } = await cast();
+      const mandate = await mandateOf(lexis, agent);
+      // The proof names the delegation by its reference, and does not carry it.
+      const proposed = await agent.commitment(deal(lexis, amina, "120"), {
+        chain: [mandate],
+        as: "references",
+      });
+      const records = delegationFirst ? [mandate, proposed] : [proposed, mandate];
+      const sent = await agent.send({
+        to: [amina.address],
+        verb: "inform",
+        content: { parts: records.map((record) => carried(record)) },
+      });
+      expect(sent.deliveries.map((delivery) => delivery.stored)).toStrictEqual([true]);
+      // A real clock: every reading is later than the one before. What one packet carries
+      // came together, and is first seen together.
+      const { clock } = world;
+      clock.now = () => {
+        clock.at += 1_000_000n;
+        return clock.at;
+      };
+      try {
+        expect((await amina.receive()).received).toHaveLength(1);
+        expect(await amina.countsFor(proposed, lexis.address)).toBe(true);
+      } finally {
+        clock.now = () => clock.at;
+      }
+    },
+  );
+
   it(`${clause("L1 11.4")} is taken as sent for it on a clock that moves: the delegation it carries is first seen when the packet is`, async () => {
     const { amina, assistant, agent } = await cast();
     const sending = await amina.delegate({
@@ -556,6 +592,79 @@ describe(`${clause("L1 11.2")} a packet sent for another mind`, () => {
       // As the world made it: a clock that stands where a test puts it.
       clock.now = () => clock.at;
     }
+  });
+});
+
+describe(`${clause("L1 11.5")} a verifier that looks before it acts`, () => {
+  it("finds on its author's feed that a delegation was taken back, and acts for the delegate no more", async () => {
+    const { amina, assistant, agent } = await cast();
+    const sending = await amina.delegate({
+      delegate: assistant.address,
+      command: "/oip/send",
+      expires: FAR,
+    });
+    const ask = (words: string) =>
+      assistant.send({
+        to: [agent.address],
+        verb: "request",
+        content: { mediaType: "text/plain", body: words },
+        onBehalfOf: { mind: amina.address, chain: [sending] },
+      });
+    await ask("Could it be twelve hours sooner?");
+    const [early] = (await agent.receive()).received;
+    expect(early?.sentFor).toBe(amina.address);
+    expect(await agent.delegationsStand(early?.packet)).toBe(true);
+    // Amina takes the delegation back, and publishes that: which is all 11.5 asks of her.
+    world.clock.at = at(2000);
+    await amina.revoke(sending);
+    world.clock.at = at(2100);
+    await ask("And cheaper?");
+    const [late] = (await agent.receive()).received;
+    // Nobody sent the agent the Revocation. By what it holds, the packet is sent for Amina.
+    expect(late?.sentFor).toBe(amina.address);
+    expect(await agent.delegationsStand(late?.packet)).toBe(true);
+    // It looks at the feed of the delegation's author before it acts.
+    world.clock.at = at(2200);
+    expect(await agent.holdRevocations(late?.packet)).toBe(1);
+    expect(await agent.delegationsStand(late?.packet)).toBe(false);
+    expect(await agent.delegationsStand(early?.packet)).toBe(false);
+    // A proof is judged as of when it was made, by the evidence of time (core 9): both packets
+    // were seen before the Revocation was, and both were sent for her. What to do for them now
+    // is the other question.
+    expect(await agent.sentFor(late?.packet)).toBe(amina.address);
+    // Looked at again, the feed has nothing new.
+    expect(await agent.holdRevocations(late?.packet)).toBe(0);
+    // A packet that comes once the Revocation is held was sent for nobody.
+    await ask("Tomorrow, then?");
+    const [after] = (await agent.receive()).received;
+    expect(after?.sentFor).toBeUndefined();
+    expect(await agent.sentFor(after?.packet)).toBeUndefined();
+  });
+
+  it("has nothing to look for where a record rests on no delegation, and acts for no delegation that has run out", async () => {
+    const { amina, assistant, agent } = await cast();
+    const own = await amina.intent({ want: "A translation." });
+    expect(await agent.holdRevocations(own)).toBe(0);
+    expect(await agent.delegationsStand(own)).toBe(true);
+    expect(await agent.holdRevocations({ no: "record" })).toBe(0);
+    // A delegation that has expired stands no more, though what was signed under it counts.
+    const brief = await amina.delegate({
+      delegate: assistant.address,
+      command: "/oip/send",
+      expires: T(1500),
+    });
+    const sent = await assistant.send({
+      to: [agent.address],
+      verb: "request",
+      content: { mediaType: "text/plain", body: "Quickly." },
+      onBehalfOf: { mind: amina.address, chain: [brief] },
+    });
+    const [arrived] = (await agent.receive()).received;
+    expect([arrived?.id, arrived?.sentFor]).toStrictEqual([sent.id, amina.address]);
+    expect(await agent.delegationsStand(arrived?.packet)).toBe(true);
+    world.clock.at = at(1501);
+    expect(await agent.delegationsStand(arrived?.packet)).toBe(false);
+    expect(await agent.sentFor(arrived?.packet)).toBe(amina.address);
   });
 });
 

@@ -91,6 +91,29 @@ export async function example(
   const kept = { record: offer, seen: amina.sightings(amina.hold(offer)) };
   amina.hold(kept.record, kept.seen);
   output.push(`kept with the offer: when ${String(Object.keys(kept.seen).length)} proofs came`);
+
+  // The agent lets the junior send packets for it. A packet says whom it is sent for, and
+  // its receiver asks whether that is so: a chain that covers `/oip/send` says.
+  const errand = await agent.delegate({
+    delegate: junior.address,
+    command: "/oip/send",
+    expires: month,
+  });
+  await junior.send({
+    to: [amina.address],
+    verb: "inform",
+    content: { mediaType: "text/plain", body: "The agent asks whether Friday suits." },
+    onBehalfOf: { mind: agent.address, chain: [errand] },
+  });
+  const packet = (await amina.receive()).received[0]?.packet;
+  output.push(`sent for the agent: ${String((await amina.sentFor(packet)) === agent.address)}`);
+  // The agent takes that back, and Amina is not told. Whether a packet of last week was sent
+  // for the agent is one question, and whether to act for the junior now is another. A
+  // program that is about to act reads what the authors of the delegations have published,
+  // and asks whether the delegations stand now.
+  await agent.revoke(errand);
+  output.push(`revocations found: ${String(await amina.holdRevocations(packet))}`);
+  output.push(`the delegation stands: ${String(await amina.delegationsStand(packet))}`);
   for (const mind of [firm, agent, junior, amina]) mind.close();
   return output;
 }
